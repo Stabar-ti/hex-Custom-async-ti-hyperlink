@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hex Hyperlane Editor</title>
+  <style>
+    body {
+      font-family: sans-serif;
+    }
+
+    svg {
+      border: 1px solid #ccc;
+    }
+
+    .hex {
+      stroke: #000;
+      stroke-width: 1;
+      cursor: pointer;
+    }
+
+    .selected {
+      fill: #ff0;
+    }
+
+    .link-line {
+      stroke: blue;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    #exportModal {
+      display: none;
+      position: fixed;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      padding: 1em;
+      border: 1px solid black;
+      z-index: 10;
+      max-width: 80%;
+    }
+
+    #exportText {
+      width: 100%;
+      height: 200px;
+    }
+
+    text {
+      pointer-events: none;
+      font-size: 12px;
+      fill: #000;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Hex Hyperlane Editor</h2>
+  <p id="controls" style="font-size: 0.9em; margin-top: -0.5em; color: #555;">
+    <strong>Controls:</strong>
+    Left-click to select. ALT+click to unlink. SHIFT+click to remove all links. Right-click to clear selection.
+  </p>.
+
+    <p id="Info" style="font-size: 0.9em; margin-top: -0.5em; color: #555;">
+    <strong>Info:</strong>
+    Export hyperlane copy into: /map custom_hyperlanes --- Export Sector Types: /map add_tile_list
+  </p>
+    
+  <p id="Info2" style="font-size: 0.9em; margin-top: -0.5em; color: #555;">
+    <strong>To Do:</strong>
+    Currently there is no import functionality
+  </p>
+
+  <button onclick="exportData()">Export Hyperlane Data</button>
+  <button onclick="exportSectorTypes()">Export Sector Types</button>
+
+
+
+  <div id="exportModal">
+    <h3>Hyperlane Data</h3>
+    <textarea id="exportText"></textarea>
+    <br />
+    <button onclick="navigator.clipboard.writeText(document.getElementById('exportText').value)">Copy</button>
+    <button onclick="document.getElementById('exportModal').style.display='none'">Close</button>
+  </div>
+  <div id="exportTypesModal"
+    style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:white; padding:1em; border:1px solid black; z-index:10; max-width:80%;">
+    <h3>Sector Type Export</h3>
+    <textarea id="exportTypesText" style="width:100%; height:200px;"></textarea><br>
+    <button onclick="navigator.clipboard.writeText(document.getElementById('exportTypesText').value)">Copy</button>
+    <button onclick="document.getElementById('exportTypesModal').style.display='none'">Close</button>
+  </div>
+  <div>
+    <button onclick="setMode('hyperlane')">Hyperlane Drawing</button>
+
+    <button onclick="setMode('planet')" style="background:#cce5ff;">Planet</button>
+    <button onclick="setMode('empty')" style="background:#f8f8f8;">Empty</button>
+    <button onclick="setMode('solar')" style="background:#ffe5b4;">Supernova</button>
+    <button onclick="setMode('nebula')" style="background:#e6ccff;">Nebula</button>
+    <button onclick="setMode('asteroid')" style="background:#d9d9d9;">Asteroid Field</button>
+    <button onclick="setMode('special')" style="background:#ffd1dc;">Special</button>
+    <button onclick="setMode('homesystem')" style="background:#add8e6;">Homesystem</button>
+    <button onclick="setMode('void')" style="background:#2b2b2b; color:#fff;">Void</button>
+
+  </div>
+
+  <div style="margin: 0.5em 0;">
+    Rings: <input id="ringCount" type="number" min="1" max="15" value="5" />
+    <label>
+      <input type="checkbox" id="cornerToggle" onchange="toggleCorners()"> Max size map
+    </label>
+    <button onclick="generateMap()">Generate Map</button>
+  </div>
+
+  <svg id="hexMap" width="1400" height="1000"></svg>
+  <br />
+
+
+
+  <script>
+    const svg = document.getElementById('hexMap');
+    const hexRadius = 40;
+    const sqrt3 = Math.sqrt(3);
+    const hexes = {};
+    const drawnSegments = [];
+    let selectedPath = [];
+    let linking = true;
+    let unlinking = false;
+    let mode = 'hyperlane'; // 'hyperlane', 'industry', 'military', etc.
+    let fillCorners = false;
+    const sectorColors = {
+      '': '#eee',
+      'planet': '#cce5ff',
+      'empty': '#f8f8f8',
+      'solar': '#ffe5b4',
+      'nebula': '#e6ccff',
+      'asteroid': '#d9d9d9',
+      'special': '#ffd1dc',
+      'homesystem': '#add8e6',
+      'void': '#2b2b2b'
+    };
+
+
+    // Directions for hyperlane edges (rotated 2 steps CCW)
+    const edgeDirections = [
+      { q: 0, r: -1 },
+      { q: 1, r: -1 },
+      { q: 1, r: 0 },
+      { q: 0, r: 1 },
+      { q: -1, r: 1 },
+      { q: -1, r: 0 }
+    ];
+    // Directions for ring generation (flat-top hex)
+    const ringDirections = [
+      { q: 1, r: 0 },
+      { q: 0, r: 1 },
+      { q: -1, r: 1 },
+      { q: -1, r: 0 },
+      { q: 0, r: -1 },
+      { q: 1, r: -1 }
+    ];
+
+    function hexToPixel(q, r) {
+      return {
+        x: hexRadius * 1.5 * q + 500,
+        y: hexRadius * sqrt3 * (r + q / 2) + 500
+      };
+    }
+
+
+    function drawHex(q, r, label) {
+      const center = hexToPixel(q, r);
+      const pts = [];
+      for (let i = 0; i < 6; i++) {
+        const ang = Math.PI / 180 * (60 * i);
+        pts.push(
+          `${center.x + hexRadius * Math.cos(ang)},${center.y + hexRadius * Math.sin(ang)}`
+        );
+      }
+      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      poly.setAttribute('points', pts.join(' '));
+      poly.setAttribute('fill', sectorColors['']); // ✅ Add this line
+      poly.classList.add('hex');
+      poly.addEventListener('click', e => {
+        if (mode === 'hyperlane') {
+          if (e.shiftKey) {
+            deleteAllSegments(label);
+          } else if (e.altKey) {
+            unlinking = true;
+            selectHex(label);
+          } else {
+            selectHex(label);
+          }
+        } else {
+          setSectorType(label, mode);
+        }
+      });
+
+      svg.appendChild(poly);
+      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      txt.setAttribute('x', center.x);
+      txt.setAttribute('y', center.y + 5);
+      txt.setAttribute('text-anchor', 'middle');
+      txt.textContent = label;
+      svg.appendChild(txt);
+      hexes[label] = {
+        q,
+        r,
+        center,
+        polygon: poly,
+        matrix: Array.from({ length: 6 }, () => Array(6).fill(0)),
+        type: '' // default sector type
+      };
+
+    }
+
+    function setSectorType(label, type) {
+      const hex = hexes[label];
+      hex.type = type;
+      hex.polygon.setAttribute('fill', sectorColors[type] || '#eee');
+    }
+
+    function generateRings(n) {
+      const layout = [];
+      layout.push({ q: 0, r: 0, label: '000' }); // center
+
+      for (let ring = 1; ring <= n; ring++) {
+        let q = 0, r = -ring;
+        let counter = 1; // Reset for each ring
+
+        for (let side = 0; side < 6; side++) {
+          for (let step = 0; step < ring; step++) {
+            const label = `${ring}${counter.toString().padStart(2, '0')}`;
+
+            // ✅ Filter out hexes outside 19x19 rectangle if fillCorners is on
+            if (fillCorners) {
+              const { col, row } = axialToOffset(q, r);
+              if (col < -9 || col > 9 || row < -9 || row > 9) {
+                q += ringDirections[side].q;
+                r += ringDirections[side].r;
+                counter++;
+                continue;
+              }
+            }
+
+            layout.push({ q, r, label });
+
+            counter++;
+            q += ringDirections[side].q;
+            r += ringDirections[side].r;
+          }
+        }
+      }
+
+      return layout;
+    }
+
+
+    function axialToOffset(q, r) {
+      const col = q;
+      const row = r + Math.floor(q / 2); // flat-top offset
+      return { col, row };
+    }
+
+    // draw map
+    //generateRings(3).forEach(h => drawHex(h.q, h.r, h.label));
+
+    function generateMap() {
+
+      if (!confirm("Generating a new map will clear all data. Proceed?")) {
+        return;
+      }
+      const inputRings = parseInt(document.getElementById('ringCount').value, 10);
+      if (isNaN(inputRings) || inputRings < 1 || inputRings > 15) {
+        alert("Please enter a ring count between 1 and 15.");
+        return;
+      }
+
+      const ringsToDraw = fillCorners ? 14 : inputRings;
+
+      // Clear existing SVG content
+      while (svg.firstChild) {
+        svg.removeChild(svg.firstChild);
+      }
+
+      // Reset state
+      Object.keys(hexes).forEach(key => delete hexes[key]);
+      drawnSegments.length = 0;
+      selectedPath.length = 0;
+
+      // Draw map based on final ring count
+      generateRings(ringsToDraw).forEach(h => drawHex(h.q, h.r, h.label));
+
+      drawSpecialHexes(); // Optional corner labels like TL/TR/BL/BR
+
+      autoscaleView();
+    }
+
+
+
+
+    function selectHex(label) {
+      if (!linking) return;
+
+      if (!selectedPath.includes(label)) {
+        selectedPath.push(label);
+        hexes[label].polygon.classList.add('selected');
+      }
+
+      if (selectedPath.length >= 3) {
+        const len = selectedPath.length;
+        const from = hexes[selectedPath[len - 3]];
+        const via = hexes[selectedPath[len - 2]];
+        const to = hexes[selectedPath[len - 1]];
+        const entry = getDirIndex(via, from);
+        const exit = getDirIndex(via, to);
+
+        if (unlinking) {
+          if (via.matrix[entry][exit] === 1) {
+            via.matrix[entry][exit] = 0;
+            const toRemove = drawnSegments.findIndex(seg =>
+              seg.dataset.via === selectedPath[len - 2] &&
+              +seg.dataset.entry === entry &&
+              +seg.dataset.exit === exit
+            );
+            if (toRemove >= 0) {
+              svg.removeChild(drawnSegments[toRemove]);
+              drawnSegments.splice(toRemove, 1);
+            }
+          }
+          selectedPath = [];
+          Object.values(hexes).forEach(h => h.polygon.classList.remove('selected'));
+          unlinking = false;
+          return;
+        }
+
+        // Normal link drawing
+        const start = edgeMid(via.center, entry);
+        const end = edgeMid(via.center, exit);
+        const mx = (start.x + end.x) / 2;
+        const my = (start.y + end.y) / 2;
+        const cx = via.center.x + (mx - via.center.x) * 0.6;
+        const cy = via.center.y + (my - via.center.y) * 0.6;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M${start.x},${start.y} Q${cx},${cy} ${end.x},${end.y}`);
+        path.classList.add('link-line');
+        path.dataset.via = selectedPath[len - 2];
+        path.dataset.entry = entry;
+        path.dataset.exit = exit;
+        svg.appendChild(path);
+        drawnSegments.push(path);
+        if (entry >= 0 && exit >= 0) via.matrix[entry][exit] = 1;
+      }
+    }
+
+
+    function edgeMid(center, side) {
+      const a1 = Math.PI / 180 * (60 * side - 120);
+      const a2 = Math.PI / 180 * (60 * (side + 1) - 120);
+      const x1 = center.x + hexRadius * Math.cos(a1);
+      const y1 = center.y + hexRadius * Math.sin(a1);
+      const x2 = center.x + hexRadius * Math.cos(a2);
+      const y2 = center.y + hexRadius * Math.sin(a2);
+      return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+    }
+
+    function getDirIndex(via, other) {
+      const dq = other.q - via.q;
+      const dr = other.r - via.r;
+      return edgeDirections.findIndex(d => d.q === dq && d.r === dr);
+    }
+
+    function deleteAllSegments(label) {
+      const hex = hexes[label];
+      const toRemove = [];
+      drawnSegments.forEach((seg, i) => {
+        if (seg.dataset.via == label) {
+          const e = +seg.dataset.entry;
+          const x = +seg.dataset.exit;
+          if (hex.matrix[e][x] === 1) {
+            hex.matrix[e][x] = 0;
+            svg.removeChild(seg);
+            toRemove.push(i);
+          }
+        }
+      });
+      toRemove.reverse().forEach(i => drawnSegments.splice(i, 1));
+    }
+
+    function toggleCorners() {
+      fillCorners = document.getElementById('cornerToggle').checked;
+      generateMap(); // regenerate map with or without corners
+    }
+
+    function drawCornerHex(x, y, label) {
+      const pts = [];
+      for (let i = 0; i < 6; i++) {
+        const ang = Math.PI / 180 * (60 * i);
+        pts.push(
+          `${x + hexRadius * Math.cos(ang)},${y + hexRadius * Math.sin(ang)}`
+        );
+      }
+
+
+      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      poly.setAttribute('points', pts.join(' '));
+      poly.setAttribute('fill', '#ddd');
+      poly.classList.add('hex');
+      svg.appendChild(poly);
+
+      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      txt.setAttribute('x', x);
+      txt.setAttribute('y', y + 5);
+      txt.setAttribute('text-anchor', 'middle');
+      txt.textContent = label;
+      svg.appendChild(txt);
+    }
+
+    function autoscaleView() {
+      const allPoints = Object.values(hexes).map(h => h.center);
+      if (allPoints.length === 0) return;
+
+      const xs = allPoints.map(p => p.x);
+      const ys = allPoints.map(p => p.y);
+      const minX = Math.min(...xs) - hexRadius * 2;
+      const maxX = Math.max(...xs) + hexRadius * 2;
+      const minY = Math.min(...ys) - hexRadius * 2;
+      const maxY = Math.max(...ys) + hexRadius * 2;
+
+      const width = maxX - minX;
+      const height = maxY - minY;
+
+      svg.setAttribute('viewBox', `${minX} ${minY} ${width} ${height}`);
+    }
+
+    svg.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      selectedPath.forEach(id => hexes[id].polygon.classList.remove('selected'));
+      selectedPath = [];
+      linking = true;
+    });
+
+    function exportData() {
+      const out = [];
+
+      for (const id in hexes) {
+        const hex = hexes[id];
+        if (!hex.matrix) continue;
+
+        // Clone the matrix for local mutation (to avoid touching UI state)
+        const matrix = hex.matrix.map(row => [...row]);
+
+        // Mirror all existing connections to ensure symmetry
+        for (let entry = 0; entry < 6; entry++) {
+          for (let exit = 0; exit < 6; exit++) {
+            if (matrix[entry][exit] === 1) {
+              const dir = edgeDirections[exit];
+              const neighborQ = hex.q + dir.q;
+              const neighborR = hex.r + dir.r;
+
+              const neighbor = Object.values(hexes).find(
+                h => h.q === neighborQ && h.r === neighborR && h.matrix
+              );
+
+              if (neighbor) {
+                const reverseEntry = edgeDirections.findIndex(d => d.q === -dir.q && d.r === -dir.r);
+                if (reverseEntry !== -1) {
+                  matrix[exit][entry] = 1;
+                }
+              }
+            }
+          }
+        }
+
+        // Flatten and export only if any 1s exist
+        const flat = matrix.flat().join('');
+        if (flat.includes('1')) {
+          out.push(`${id},${flat}`);
+        }
+      }
+
+      document.getElementById('exportText').value = out.join("\n");
+      document.getElementById('exportModal').style.display = 'block';
+    }
+
+
+    function exportSectorTypes() {
+      const typeMap = {
+        'planet': '0b',
+        'solar': '80',
+        'empty': '46',
+        'nebula': '42',
+        'asteroid': '44',
+        'special': '0r',
+        'homesystem': '0g',
+        'void': '-1',
+        'hyperlane': 'hl'
+      };
+
+      const sorted = Object.keys(hexes)
+        .filter(id => /^\d{3}$/.test(id))
+        .sort((a, b) => {
+          const [ra, ia] = [parseInt(a[0]), parseInt(a.slice(1))];
+          const [rb, ib] = [parseInt(b[0]), parseInt(b.slice(1))];
+          return ra === rb ? ia - ib : ra - rb;
+        });
+
+      const out = sorted.map((id, idx) => {
+        const hex = hexes[id];
+        if (!hex) return idx === 0 ? '{-1}' : '-1';
+
+        const isHyperlane = hex.matrix?.flat().some(x => x === 1);
+        let type = hex.type || '';
+        let code = isHyperlane ? 'hl' : (typeMap[type] ?? '-1');
+
+        return idx === 0 ? `{${code}}` : code;
+      });
+
+      document.getElementById('exportTypesText').value = out.join(" ");
+      document.getElementById('exportTypesModal').style.display = 'block';
+    }
+
+
+
+
+
+    function setMode(m) {
+      mode = m;
+      selectedPath = [];
+      Object.values(hexes).forEach(h => h.polygon.classList.remove('selected'));
+    }
+
+    function drawSpecialHexes() {
+      const allPoints = Object.values(hexes).map(h => h.center);
+      if (allPoints.length === 0) return;
+
+      const xs = allPoints.map(p => p.x);
+      const ys = allPoints.map(p => p.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+
+      const offset = hexRadius * 2;
+
+      const corners = [
+        { label: 'TL', x: minX - offset, y: minY - offset },
+        { label: 'TR', x: maxX + offset, y: minY - offset },
+        { label: 'BL', x: minX - offset, y: maxY + offset },
+        { label: 'BR', x: maxX + offset, y: maxY + offset }
+      ];
+
+      for (const { label, x, y } of corners) {
+        drawCornerHex(x, y, label);
+        hexes[label] = {
+          q: null,
+          r: null,
+          center: { x, y },
+          polygon: null,
+          matrix: null,
+          type: 'corner'
+        };
+      }
+    }
+
+
+
+    let currentViewBox = [0, 0, 1000, 1000];
+    let isPanning = false;
+    let panStart = { x: 0, y: 0 };
+
+    svg.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const scaleFactor = 1.1;
+      const [x, y, w, h] = currentViewBox;
+      const mx = e.offsetX / svg.clientWidth;
+      const my = e.offsetY / svg.clientHeight;
+      const zoomIn = e.deltaY < 0;
+
+      const dw = zoomIn ? w / scaleFactor : w * scaleFactor;
+      const dh = zoomIn ? h / scaleFactor : h * scaleFactor;
+
+      const newX = x + (w - dw) * mx;
+      const newY = y + (h - dh) * my;
+
+      currentViewBox = [newX, newY, dw, dh];
+      svg.setAttribute('viewBox', currentViewBox.join(' '));
+    });
+
+    svg.addEventListener('mousedown', (e) => {
+      isPanning = true;
+      panStart = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isPanning) return;
+      const dx = (e.clientX - panStart.x) * currentViewBox[2] / svg.clientWidth;
+      const dy = (e.clientY - panStart.y) * currentViewBox[3] / svg.clientHeight;
+
+      currentViewBox[0] -= dx;
+      currentViewBox[1] -= dy;
+      panStart = { x: e.clientX, y: e.clientY };
+      svg.setAttribute('viewBox', currentViewBox.join(' '));
+    });
+
+    window.addEventListener('mouseup', () => {
+      isPanning = false;
+    });
+
+    generateMap();
+
+  </script>
+
+</body>
+
+</html>
