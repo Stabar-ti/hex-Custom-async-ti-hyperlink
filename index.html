@@ -3,616 +3,1333 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hex Hyperlane Editor</title>
-  <style>
-    body {
-      font-family: sans-serif;
-    }
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hex Hyperlane Editor</title>
+    <style>
+        body {
+            font-family: sans-serif;
+        }
 
-    svg {
-      border: 1px solid #ccc;
-    }
+        svg {
+            border: 1px solid #909090;
+        }
 
-    .hex {
-      stroke: #000;
-      stroke-width: 1;
-      cursor: pointer;
-    }
+        .hex {
+            stroke: #000;
+            stroke-width: 1;
+            cursor: pointer;
+        }
 
-    .selected {
-      fill: #ff0;
-    }
+        .hex-overlay {
+            pointer-events: none;
+            user-select: none;
+            font-family: "Segoe UI Symbol", "Noto Emoji", sans-serif;
+            font-size: 16px;
+            /* Change this value */
+        }
 
-    .link-line {
-      stroke: blue;
-      stroke-width: 2;
-      fill: none;
-    }
+        .selected {
+            fill: #ff0;
+            stroke-width: 4;
+        }
 
-    #exportModal {
-      display: none;
-      position: fixed;
-      top: 10%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: white;
-      padding: 1em;
-      border: 1px solid black;
-      z-index: 10;
-      max-width: 80%;
-    }
+        .link-line {
+            stroke: blue;
+            stroke-width: 2;
+            fill: none;
+        }
 
-    #exportText {
-      width: 100%;
-      height: 200px;
-    }
+        #exportModal {
+            display: none;
+            position: fixed;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 1em;
+            border: 1px solid black;
+            z-index: 10;
+            max-width: 80%;
+        }
 
-    text {
-      pointer-events: none;
-      font-size: 12px;
-      fill: #000;
-    }
-  </style>
+        #versionTag {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: #444;
+            color: white;
+            font-size: 0.85em;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            z-index: 20;
+        }
+
+        #exportText {
+            width: 100%;
+            height: 200px;
+        }
+
+        text {
+            pointer-events: none;
+            user-select: none;
+            font-size: 12px;
+            fill: #000;
+        }
+
+        .mode-button.active {
+            outline: 3px solid #333;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            font-weight: bold;
+        }
+    </style>
 </head>
 
 <body>
-  <h2>Hex Hyperlane Editor</h2>
-  <p id="controls" style="font-size: 0.9em; margin-top: -0.5em; color: #555;">
-    <strong>Controls:</strong>
-    Left-click to select. ALT+click to unlink. SHIFT+click to remove all links. Right-click to clear selection.
-  </p>.
+    <h2>Hex Hyperlane Editor</h2>
 
-    <p id="Info" style="font-size: 0.9em; margin-top: -0.5em; color: #555;">
-    <strong>Info:</strong>
-    Export hyperlane copy into: /map custom_hyperlanes --- Export Sector Types: /map add_tile_list
-  </p>
-    
-  <p id="Info2" style="font-size: 0.9em; margin-top: -0.5em; color: #555;">
-    <strong>To Do:</strong>
-    Currently there is no import functionality
-  </p>
+    <div style="margin: 0.5em 0;">
+        Rings: <input id="ringCount" type="number" min="1" max="15" value="6" />
+        <label>
+            <input type="checkbox" id="cornerToggle" onchange="toggleCorners()"> Max size map
+        </label>
+        <button onclick="generateMap()">Generate Map</button>
+    </div>
 
-  <button onclick="exportData()">Export Hyperlane Data</button>
-  <button onclick="exportSectorTypes()">Export Sector Types</button>
+    <p id="controls" style="font-size: 0.9em; color: #555;">
+        <strong>Controls:</strong>
+        Left-click to select. ALT+click to unlink. SHIFT+click to remove all links. Right-click to clear selection.
+        Hoover + Shift + R to clear all
+    </p>.
+
+    <p id="Info" style="font-size: 0.9em; color: #555;">
+        <strong>Info:</strong>
+        Export hyperlane copy into: /map custom_hyperlanes --- Export Sector Types: /map add_tile_list
+        Export Hyperlane locations (just add map positions)
+        Import custom hyperlane information: from /map custom_hyperlanes
+    </p>
+
+    <p id="Info2" style="font-size: 0.9em; margin-top: -0.0em; color: #555;">
+        <strong>To Do:</strong>
+        Wormholes, export full string, find tiles
+    </p>
+
+    <div style="margin-bottom: 0.5em;">
+    <button onclick="exportData()">Export Hyperlane Data</button>
+    <button onclick="exportSectorTypes()">Export Sector Types</button>
+    <button onclick="exportHyperlaneTilePositions()">Export Hyperlane Tile Positions</button>
+    <button onclick="showImportModal()">Import Hyperlane Data</button>
+    <button onclick="document.getElementById('importTypesModal').style.display='block'">Import Sector Types</button>
+</div>
 
 
 
-  <div id="exportModal">
-    <h3>Hyperlane Data</h3>
-    <textarea id="exportText"></textarea>
+    <div id="exportHyperlanePositionsModal"
+        style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:white; padding:1em; border:1px solid black; z-index:10; max-width:80%;">
+        <h3>Hyperlane Tile Positions</h3>
+        <textarea id="exportHyperlanePositionsText" style="width:100%; height:100px;"></textarea><br>
+        <button
+            onclick="navigator.clipboard.writeText(document.getElementById('exportHyperlanePositionsText').value)">Copy</button>
+        <button onclick="document.getElementById('exportHyperlanePositionsModal').style.display='none'">Close</button>
+    </div>
+
+    <div id="importModal"
+        style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:white; padding:1em; border:1px solid black; z-index:10; max-width:80%;">
+        <h3>Import Hyperlane Data</h3>
+        <textarea id="importText" style="width:100%; height:200px;"></textarea><br>
+        <button onclick="importData()">Import</button>
+        <button onclick="document.getElementById('importModal').style.display='none'">Close</button>
+    </div>
+
+    <div id="importTypesModal"
+        style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:white; padding:1em; border:1px solid black; z-index:10; max-width:80%;">
+        <h3>Import Sector Types</h3>
+        <textarea id="importTypesText" style="width:100%; height:100px;"></textarea><br>
+        <button onclick="importSectorTypes()">Import</button>
+        <button onclick="document.getElementById('importTypesModal').style.display='none'">Close</button>
+    </div>
+
+    <div id="exportModal">
+        <h3>Hyperlane Data</h3>
+        <textarea id="exportText"></textarea>
+        <br />
+        <button onclick="navigator.clipboard.writeText(document.getElementById('exportText').value)">Copy</button>
+        <button onclick="document.getElementById('exportModal').style.display='none'">Close</button>
+    </div>
+    <div id="versionTag">v0.8.5</div>
+    <div id="exportTypesModal"
+        style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:white; padding:1em; border:1px solid black; z-index:10; max-width:80%;">
+        <h3>Sector Type Export</h3>
+        <textarea id="exportTypesText" style="width:100%; height:200px;"></textarea><br>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('exportTypesText').value)">Copy</button>
+        <button onclick="document.getElementById('exportTypesModal').style.display='none'">Close</button>
+    </div>
+<div style="margin-bottom: 0.5em;">
+    <button onclick="setMode('hyperlane')" class="mode-button" style="font-size: 1.1em; padding: 0.6em 1.2em;">
+        Hyperlane Drawing
+    </button>
+</div>
+    <div style="margin-bottom: 0.5em;">
+        <button onclick="setMode('1 planet')" class="mode-button" style="background:#cce5ff;">1 Planet</button>
+        <button onclick="setMode('2 planet')" class="mode-button" style="background:#49a1ff;">2 Planet</button>
+        <button onclick="setMode('3 planet')" class="mode-button" style="background:#005cbf;">3 Planet</button>
+        <button onclick="setMode('legendary planet')" class="mode-button" style="background:#b300ff;">Legendary
+            Planet</button>
+        <button onclick="setMode('empty')" class="mode-button" style="background:#ffffff;">Empty</button>
+        <button onclick="setMode('special')" class="mode-button" style="background:#ff83a0;">Special</button>
+
+        <button onclick="setMode('void')" class="mode-button" style="background:#2b2b2b; color:#fff;">Void</button>
+
+    </div>
+    <div>
+        <button onclick="setMode('supernova')" class="mode-button" style="background:#ffe5b4;">Supernova</button>
+        <button onclick="setMode('nebula')" class="mode-button" style="background:#e6ccff;">Nebula</button>
+        <button onclick="setMode('asteroid')" class="mode-button" style="background:#d9d9d9;">Asteroid Field</button>
+        <button onclick="setMode('rift')" class="mode-button" style="background:#d9d9d9;">Rift</button>
+        <button onclick="setMode('homesystem')" class="mode-button" style="background:#059f00;">Homesystem</button>
+
+    </div>
+
+    <svg id="hexMap" width="1400" height="1000"></svg>
+
+    <input type="file" id="idImportCSV" accept=".csv" style="display: none" />
+    <button onclick="document.getElementById('idImportCSV').click()">Load ID Reference CSV</button>
     <br />
-    <button onclick="navigator.clipboard.writeText(document.getElementById('exportText').value)">Copy</button>
-    <button onclick="document.getElementById('exportModal').style.display='none'">Close</button>
-  </div>
-  <div id="exportTypesModal"
-    style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:white; padding:1em; border:1px solid black; z-index:10; max-width:80%;">
-    <h3>Sector Type Export</h3>
-    <textarea id="exportTypesText" style="width:100%; height:200px;"></textarea><br>
-    <button onclick="navigator.clipboard.writeText(document.getElementById('exportTypesText').value)">Copy</button>
-    <button onclick="document.getElementById('exportTypesModal').style.display='none'">Close</button>
-  </div>
-  <div>
-    <button onclick="setMode('hyperlane')">Hyperlane Drawing</button>
-
-    <button onclick="setMode('planet')" style="background:#cce5ff;">Planet</button>
-    <button onclick="setMode('empty')" style="background:#f8f8f8;">Empty</button>
-    <button onclick="setMode('solar')" style="background:#ffe5b4;">Supernova</button>
-    <button onclick="setMode('nebula')" style="background:#e6ccff;">Nebula</button>
-    <button onclick="setMode('asteroid')" style="background:#d9d9d9;">Asteroid Field</button>
-    <button onclick="setMode('special')" style="background:#ffd1dc;">Special</button>
-    <button onclick="setMode('homesystem')" style="background:#add8e6;">Homesystem</button>
-    <button onclick="setMode('void')" style="background:#2b2b2b; color:#fff;">Void</button>
-
-  </div>
-
-  <div style="margin: 0.5em 0;">
-    Rings: <input id="ringCount" type="number" min="1" max="15" value="5" />
-    <label>
-      <input type="checkbox" id="cornerToggle" onchange="toggleCorners()"> Max size map
-    </label>
-    <button onclick="generateMap()">Generate Map</button>
-  </div>
-
-  <svg id="hexMap" width="1400" height="1000"></svg>
-  <br />
 
 
 
-  <script>
-    const svg = document.getElementById('hexMap');
-    const hexRadius = 40;
-    const sqrt3 = Math.sqrt(3);
-    const hexes = {};
-    const drawnSegments = [];
-    let selectedPath = [];
-    let linking = true;
-    let unlinking = false;
-    let mode = 'hyperlane'; // 'hyperlane', 'industry', 'military', etc.
-    let fillCorners = false;
-    const sectorColors = {
-      '': '#eee',
-      'planet': '#cce5ff',
-      'empty': '#f8f8f8',
-      'solar': '#ffe5b4',
-      'nebula': '#e6ccff',
-      'asteroid': '#d9d9d9',
-      'special': '#ffd1dc',
-      'homesystem': '#add8e6',
-      'void': '#2b2b2b'
-    };
-
-
-    // Directions for hyperlane edges (rotated 2 steps CCW)
-    const edgeDirections = [
-      { q: 0, r: -1 },
-      { q: 1, r: -1 },
-      { q: 1, r: 0 },
-      { q: 0, r: 1 },
-      { q: -1, r: 1 },
-      { q: -1, r: 0 }
-    ];
-    // Directions for ring generation (flat-top hex)
-    const ringDirections = [
-      { q: 1, r: 0 },
-      { q: 0, r: 1 },
-      { q: -1, r: 1 },
-      { q: -1, r: 0 },
-      { q: 0, r: -1 },
-      { q: 1, r: -1 }
-    ];
-
-    function hexToPixel(q, r) {
-      return {
-        x: hexRadius * 1.5 * q + 500,
-        y: hexRadius * sqrt3 * (r + q / 2) + 500
-      };
-    }
-
-
-    function drawHex(q, r, label) {
-      const center = hexToPixel(q, r);
-      const pts = [];
-      for (let i = 0; i < 6; i++) {
-        const ang = Math.PI / 180 * (60 * i);
-        pts.push(
-          `${center.x + hexRadius * Math.cos(ang)},${center.y + hexRadius * Math.sin(ang)}`
-        );
-      }
-      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      poly.setAttribute('points', pts.join(' '));
-      poly.setAttribute('fill', sectorColors['']); // ✅ Add this line
-      poly.classList.add('hex');
-      poly.addEventListener('click', e => {
-        if (mode === 'hyperlane') {
-          if (e.shiftKey) {
-            deleteAllSegments(label);
-          } else if (e.altKey) {
-            unlinking = true;
-            selectHex(label);
-          } else {
-            selectHex(label);
-          }
-        } else {
-          setSectorType(label, mode);
+    <script>
+        const svg = document.getElementById('hexMap');
+        function showImportModal() {
+            document.getElementById('importModal').style.display = 'block';
         }
-      });
+        const hexRadius = 40;
+        const sqrt3 = Math.sqrt(3);
+        const hexes = {};
+        let drawnSegments = [];
+        let selectedPath = [];
+        let linking = true;
+        let unlinking = false;
+        let mode = 'hyperlane';
+        let fillCorners = false;
+        let hoveredHexLabel = null; // Global variable (add this near top of script)
+        let sectorIDLookup = {};         // Maps code → data row
+        let originalHexIDs = {};         // Maps hex label → code used during import
+        const sectorColors = {
+            '': '#eee',
+            '1 planet': '#cce5ff',
+            '2 planet': '#49a1ff',
+            '3 planet': '#005cbf',
+            'legendary planet': '#b300ff',
+            'empty': '#ffffff',
+            'supernova': '#ffe5b4',
+            'rift': '#7b7b7b',
+            'nebula': '#e6ccff',
+            'asteroid': '#d9d9d9',
+            'special': '#ff83a0',
+            'homesystem': '#059f00',
+            'void': '#2b2b2b'
+        };
 
-      svg.appendChild(poly);
-      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      txt.setAttribute('x', center.x);
-      txt.setAttribute('y', center.y + 5);
-      txt.setAttribute('text-anchor', 'middle');
-      txt.textContent = label;
-      svg.appendChild(txt);
-      hexes[label] = {
-        q,
-        r,
-        center,
-        polygon: poly,
-        matrix: Array.from({ length: 6 }, () => Array(6).fill(0)),
-        type: '' // default sector type
-      };
 
-    }
+        // Directions for hyperlane edges (rotated 2 steps CCW)
+        const edgeDirections = [
+            { q: 0, r: -1 },
+            { q: 1, r: -1 },
+            { q: 1, r: 0 },
+            { q: 0, r: 1 },
+            { q: -1, r: 1 },
+            { q: -1, r: 0 }
+        ];
+        // Directions for ring generation (flat-top hex)
+        const ringDirections = [
+            { q: 1, r: 0 },
+            { q: 0, r: 1 },
+            { q: -1, r: 1 },
+            { q: -1, r: 0 },
+            { q: 0, r: -1 },
+            { q: 1, r: -1 }
+        ];
 
-    function setSectorType(label, type) {
-      const hex = hexes[label];
-      hex.type = type;
-      hex.polygon.setAttribute('fill', sectorColors[type] || '#eee');
-    }
+        const effectIconPositions = [
+            { dx: -15, dy: -15 },
+            { dx: 15, dy: -15 },
+            { dx: -15, dy: 15 },
+            { dx: 15, dy: 15 },
+            { dx: -25, dy: 25 }
+        ];
 
-    function generateRings(n) {
-      const layout = [];
-      layout.push({ q: 0, r: 0, label: '000' }); // center
+        function hexToPixel(q, r) {
+            return {
+                x: hexRadius * 1.5 * q + 500,
+                y: hexRadius * sqrt3 * (r + q / 2) + 500
+            };
+        }
 
-      for (let ring = 1; ring <= n; ring++) {
-        let q = 0, r = -ring;
-        let counter = 1; // Reset for each ring
 
-        for (let side = 0; side < 6; side++) {
-          for (let step = 0; step < ring; step++) {
-            const label = `${ring}${counter.toString().padStart(2, '0')}`;
-
-            // ✅ Filter out hexes outside 19x19 rectangle if fillCorners is on
-            if (fillCorners) {
-              const { col, row } = axialToOffset(q, r);
-              if (col < -9 || col > 9 || row < -9 || row > 9) {
-                q += ringDirections[side].q;
-                r += ringDirections[side].r;
-                counter++;
-                continue;
-              }
+        function drawHex(q, r, label) {
+            const center = hexToPixel(q, r);
+            const pts = [];
+            for (let i = 0; i < 6; i++) {
+                const ang = Math.PI / 180 * (60 * i);
+                pts.push(`${center.x + hexRadius * Math.cos(ang)},${center.y + hexRadius * Math.sin(ang)}`);
             }
 
-            layout.push({ q, r, label });
-
-            counter++;
-            q += ringDirections[side].q;
-            r += ringDirections[side].r;
-          }
-        }
-      }
-
-      return layout;
-    }
-
-
-    function axialToOffset(q, r) {
-      const col = q;
-      const row = r + Math.floor(q / 2); // flat-top offset
-      return { col, row };
-    }
-
-    // draw map
-    //generateRings(3).forEach(h => drawHex(h.q, h.r, h.label));
-
-    function generateMap() {
-
-      if (!confirm("Generating a new map will clear all data. Proceed?")) {
-        return;
-      }
-      const inputRings = parseInt(document.getElementById('ringCount').value, 10);
-      if (isNaN(inputRings) || inputRings < 1 || inputRings > 15) {
-        alert("Please enter a ring count between 1 and 15.");
-        return;
-      }
-
-      const ringsToDraw = fillCorners ? 14 : inputRings;
-
-      // Clear existing SVG content
-      while (svg.firstChild) {
-        svg.removeChild(svg.firstChild);
-      }
-
-      // Reset state
-      Object.keys(hexes).forEach(key => delete hexes[key]);
-      drawnSegments.length = 0;
-      selectedPath.length = 0;
-
-      // Draw map based on final ring count
-      generateRings(ringsToDraw).forEach(h => drawHex(h.q, h.r, h.label));
-
-      drawSpecialHexes(); // Optional corner labels like TL/TR/BL/BR
-
-      autoscaleView();
-    }
-
-
-
-
-    function selectHex(label) {
-      if (!linking) return;
-
-      if (!selectedPath.includes(label)) {
-        selectedPath.push(label);
-        hexes[label].polygon.classList.add('selected');
-      }
-
-      if (selectedPath.length >= 3) {
-        const len = selectedPath.length;
-        const from = hexes[selectedPath[len - 3]];
-        const via = hexes[selectedPath[len - 2]];
-        const to = hexes[selectedPath[len - 1]];
-        const entry = getDirIndex(via, from);
-        const exit = getDirIndex(via, to);
-
-        if (unlinking) {
-          if (via.matrix[entry][exit] === 1) {
-            via.matrix[entry][exit] = 0;
-            const toRemove = drawnSegments.findIndex(seg =>
-              seg.dataset.via === selectedPath[len - 2] &&
-              +seg.dataset.entry === entry &&
-              +seg.dataset.exit === exit
-            );
-            if (toRemove >= 0) {
-              svg.removeChild(drawnSegments[toRemove]);
-              drawnSegments.splice(toRemove, 1);
-            }
-          }
-          selectedPath = [];
-          Object.values(hexes).forEach(h => h.polygon.classList.remove('selected'));
-          unlinking = false;
-          return;
-        }
-
-        // Normal link drawing
-        const start = edgeMid(via.center, entry);
-        const end = edgeMid(via.center, exit);
-        const mx = (start.x + end.x) / 2;
-        const my = (start.y + end.y) / 2;
-        const cx = via.center.x + (mx - via.center.x) * 0.6;
-        const cy = via.center.y + (my - via.center.y) * 0.6;
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', `M${start.x},${start.y} Q${cx},${cy} ${end.x},${end.y}`);
-        path.classList.add('link-line');
-        path.dataset.via = selectedPath[len - 2];
-        path.dataset.entry = entry;
-        path.dataset.exit = exit;
-        svg.appendChild(path);
-        drawnSegments.push(path);
-        if (entry >= 0 && exit >= 0) via.matrix[entry][exit] = 1;
-      }
-    }
-
-
-    function edgeMid(center, side) {
-      const a1 = Math.PI / 180 * (60 * side - 120);
-      const a2 = Math.PI / 180 * (60 * (side + 1) - 120);
-      const x1 = center.x + hexRadius * Math.cos(a1);
-      const y1 = center.y + hexRadius * Math.sin(a1);
-      const x2 = center.x + hexRadius * Math.cos(a2);
-      const y2 = center.y + hexRadius * Math.sin(a2);
-      return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
-    }
-
-    function getDirIndex(via, other) {
-      const dq = other.q - via.q;
-      const dr = other.r - via.r;
-      return edgeDirections.findIndex(d => d.q === dq && d.r === dr);
-    }
-
-    function deleteAllSegments(label) {
-      const hex = hexes[label];
-      const toRemove = [];
-      drawnSegments.forEach((seg, i) => {
-        if (seg.dataset.via == label) {
-          const e = +seg.dataset.entry;
-          const x = +seg.dataset.exit;
-          if (hex.matrix[e][x] === 1) {
-            hex.matrix[e][x] = 0;
-            svg.removeChild(seg);
-            toRemove.push(i);
-          }
-        }
-      });
-      toRemove.reverse().forEach(i => drawnSegments.splice(i, 1));
-    }
-
-    function toggleCorners() {
-      fillCorners = document.getElementById('cornerToggle').checked;
-      generateMap(); // regenerate map with or without corners
-    }
-
-    function drawCornerHex(x, y, label) {
-      const pts = [];
-      for (let i = 0; i < 6; i++) {
-        const ang = Math.PI / 180 * (60 * i);
-        pts.push(
-          `${x + hexRadius * Math.cos(ang)},${y + hexRadius * Math.sin(ang)}`
-        );
-      }
-
-
-      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      poly.setAttribute('points', pts.join(' '));
-      poly.setAttribute('fill', '#ddd');
-      poly.classList.add('hex');
-      svg.appendChild(poly);
-
-      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      txt.setAttribute('x', x);
-      txt.setAttribute('y', y + 5);
-      txt.setAttribute('text-anchor', 'middle');
-      txt.textContent = label;
-      svg.appendChild(txt);
-    }
-
-    function autoscaleView() {
-      const allPoints = Object.values(hexes).map(h => h.center);
-      if (allPoints.length === 0) return;
-
-      const xs = allPoints.map(p => p.x);
-      const ys = allPoints.map(p => p.y);
-      const minX = Math.min(...xs) - hexRadius * 2;
-      const maxX = Math.max(...xs) + hexRadius * 2;
-      const minY = Math.min(...ys) - hexRadius * 2;
-      const maxY = Math.max(...ys) + hexRadius * 2;
-
-      const width = maxX - minX;
-      const height = maxY - minY;
-
-      svg.setAttribute('viewBox', `${minX} ${minY} ${width} ${height}`);
-    }
-
-    svg.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      selectedPath.forEach(id => hexes[id].polygon.classList.remove('selected'));
-      selectedPath = [];
-      linking = true;
-    });
-
-    function exportData() {
-      const out = [];
-
-      for (const id in hexes) {
-        const hex = hexes[id];
-        if (!hex.matrix) continue;
-
-        // Clone the matrix for local mutation (to avoid touching UI state)
-        const matrix = hex.matrix.map(row => [...row]);
-
-        // Mirror all existing connections to ensure symmetry
-        for (let entry = 0; entry < 6; entry++) {
-          for (let exit = 0; exit < 6; exit++) {
-            if (matrix[entry][exit] === 1) {
-              const dir = edgeDirections[exit];
-              const neighborQ = hex.q + dir.q;
-              const neighborR = hex.r + dir.r;
-
-              const neighbor = Object.values(hexes).find(
-                h => h.q === neighborQ && h.r === neighborR && h.matrix
-              );
-
-              if (neighbor) {
-                const reverseEntry = edgeDirections.findIndex(d => d.q === -dir.q && d.r === -dir.r);
-                if (reverseEntry !== -1) {
-                  matrix[exit][entry] = 1;
+            const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            poly.setAttribute('points', pts.join(' '));
+            poly.setAttribute('fill', sectorColors['']);
+            poly.classList.add('hex');
+            poly.addEventListener('click', e => {
+                if (mode === 'hyperlane') {
+                    if (e.shiftKey) {
+                        deleteAllSegments(label);
+                    } else if (e.altKey) {
+                        unlinking = true;
+                        selectHex(label);
+                    } else {
+                        selectHex(label);
+                    }
+                } else {
+                    setSectorType(label, mode);
                 }
-              }
+            });
+            poly.addEventListener('mouseenter', () => hoveredHexLabel = label);
+            poly.addEventListener('mouseleave', () => hoveredHexLabel = null);
+            svg.appendChild(poly);
+
+            const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            txt.setAttribute('x', center.x);
+            txt.setAttribute('y', center.y + 5);
+            txt.setAttribute('text-anchor', 'middle');
+            txt.textContent = label;
+            svg.appendChild(txt);
+
+            hexes[label] = {
+                q, r, center,
+                polygon: poly,
+                type: '',
+                overlays: [],
+                baseType: '',
+                effects: new Set(),
+                matrix: Array.from({ length: 6 }, () => Array(6).fill(0))
+            };
+
+        }
+
+        function setSectorType(label, selected) {
+            const hex = hexes[label];
+            if (!hex) return;
+
+            const baseTypes = ['1 planet', '2 planet', '3 planet', 'legendary planet', 'empty', 'void', 'special', 'homesystem'];
+            const effectTypes = ['nebula', 'supernova', 'rift', 'asteroid', 'homesystem']; // HS can be effect too
+
+            // Remove previous overlays
+            hex.overlays.forEach(el => svg.removeChild(el));
+            hex.overlays = [];
+
+            // Set base type or toggle effect
+            if (baseTypes.includes(selected)) {
+                hex.baseType = selected;
+
+                // Reset effects if changing base (only if it's a base type change)
+                hex.effects = new Set();
+            } else if (effectTypes.includes(selected)) {
+                if (!hex.effects) hex.effects = new Set();
+                hex.effects.add(selected); // Add effect
             }
-          }
+
+            // Apply base color
+            const baseColor = sectorColors[hex.baseType] || '#eee';
+            hex.polygon.setAttribute('fill', baseColor);
+
+            // Re-add overlays for all effects
+            if (hex.effects) {
+                Array.from(hex.effects).forEach((effect, i) => {
+                    const overlay = createOverlay(effect, hex.center, i);
+                    if (overlay) {
+                        svg.appendChild(overlay);
+                        hex.overlays.push(overlay);
+                    }
+                });
+            }
         }
 
-        // Flatten and export only if any 1s exist
-        const flat = matrix.flat().join('');
-        if (flat.includes('1')) {
-          out.push(`${id},${flat}`);
+
+        function createOverlay(type, center, index = 0) {
+            const iconMap = {
+                'nebula': '☁️',
+                'supernova': '☀️',
+                'asteroid': '🪨',
+                'rift': '🕳️',
+                'homesystem': '★'
+            };
+
+            const symbol = iconMap[type] || '?';
+            const offset = effectIconPositions[index % effectIconPositions.length];
+            const x = center.x + offset.dx;
+            const y = center.y + offset.dy + 5; // slight vertical center adjustment
+
+            const icon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            icon.setAttribute('x', x);
+            icon.setAttribute('y', y);
+            icon.setAttribute('text-anchor', 'middle');
+            icon.setAttribute('class', 'hex-overlay');
+            icon.textContent = symbol;
+            icon.classList.add('hex-overlay');
+
+            return icon;
         }
-      }
-
-      document.getElementById('exportText').value = out.join("\n");
-      document.getElementById('exportModal').style.display = 'block';
-    }
 
 
-    function exportSectorTypes() {
-      const typeMap = {
-        'planet': '0b',
-        'solar': '80',
-        'empty': '46',
-        'nebula': '42',
-        'asteroid': '44',
-        'special': '0r',
-        'homesystem': '0g',
-        'void': '-1',
-        'hyperlane': 'hl'
-      };
 
-      const sorted = Object.keys(hexes)
-        .filter(id => /^\d{3}$/.test(id))
-        .sort((a, b) => {
-          const [ra, ia] = [parseInt(a[0]), parseInt(a.slice(1))];
-          const [rb, ib] = [parseInt(b[0]), parseInt(b.slice(1))];
-          return ra === rb ? ia - ib : ra - rb;
+        function generateRings(n) {
+            const layout = [];
+            layout.push({ q: 0, r: 0, label: '000' }); // center
+
+            for (let ring = 1; ring <= n; ring++) {
+                let q = 0, r = -ring;
+                let counter = 1; // Reset for each ring
+
+                for (let side = 0; side < 6; side++) {
+                    for (let step = 0; step < ring; step++) {
+                        const label = `${ring}${counter.toString().padStart(2, '0')}`;
+
+
+                        if (fillCorners) {
+                            const { col, row } = axialToOffset(q, r);
+                            if (col < -9 || col > 9 || row < -9 || row > 9) {
+                                q += ringDirections[side].q;
+                                r += ringDirections[side].r;
+                                counter++;
+                                continue;
+                            }
+                        }
+
+                        layout.push({ q, r, label });
+
+                        counter++;
+                        q += ringDirections[side].q;
+                        r += ringDirections[side].r;
+                    }
+                }
+            }
+
+            return layout;
+        }
+
+
+        function axialToOffset(q, r) {
+            const col = q;
+            const row = r + Math.floor(q / 2); // flat-top offset
+            return { col, row };
+        }
+
+        // draw map
+        //generateRings(3).forEach(h => drawHex(h.q, h.r, h.label));
+
+        function generateMap() {
+            console.log("Console is working!");
+            if (!confirm("Generating a new map will clear all data. Proceed?")) return;
+
+            const inputRings = parseInt(document.getElementById('ringCount').value, 10);
+            if (isNaN(inputRings) || inputRings < 1 || inputRings > 15) {
+                alert("Please enter a ring count between 1 and 15.");
+                return;
+            }
+
+            const ringsToDraw = fillCorners ? 14 : inputRings;
+
+            while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+            Object.keys(hexes).forEach(key => delete hexes[key]);
+            drawnSegments.length = 0;
+            selectedPath.length = 0;
+
+            generateRings(ringsToDraw).forEach(h => drawHex(h.q, h.r, h.label));
+            drawSpecialHexes();
+
+            console.log('Checking matrix for loop circles after deletion...');
+
+            // Clear all lingering loopback circles first (safety net)
+            svg.querySelectorAll('circle.link-line').forEach(c => svg.removeChild(c));
+            autoscaleView();
+        }
+
+        function clearAllEffects(label) {
+            const hex = hexes[label];
+            if (!hex) return;
+
+            // Remove overlay icons
+            hex.overlays.forEach(el => svg.removeChild(el));
+            hex.overlays = [];
+
+            // Clear effects
+            if (hex.effects) {
+                hex.effects.clear();
+            }
+
+            // Clear baseType and reset color
+            hex.baseType = '';
+            hex.polygon.setAttribute('fill', sectorColors['']);
+
+            resetHex(hoveredHexLabel);
+        }
+
+
+
+
+        function resetHex(label) {
+            const hex = hexes[label];
+            if (!hex) return;
+
+            // Remove all segments from drawnSegments and SVG
+            for (let i = drawnSegments.length - 1; i >= 0; i--) {
+                const seg = drawnSegments[i];
+                if (seg.dataset?.via === label) {
+                    if (svg.contains(seg)) svg.removeChild(seg);
+                    drawnSegments.splice(i, 1);
+                }
+            }
+
+            //  Fallback: directly remove any stray SVG elements not in drawnSegments
+            svg.querySelectorAll(`.link-line[data-via="${label}"]`).forEach(el => {
+                if (svg.contains(el)) svg.removeChild(el);
+            });
+            //  Also remove all plain <circle> tags not picked up by dataset
+            svg.querySelectorAll('circle.link-line').forEach(circle => {
+                if (circle.dataset.via === label && svg.contains(circle)) {
+                    svg.removeChild(circle);
+                }
+            });
+
+            // Reset matrix
+            if (hex.matrix) {
+                for (let i = 0; i < 6; i++) {
+                    for (let j = 0; j < 6; j++) {
+                        hex.matrix[i][j] = 0;
+                    }
+                }
+            }
+
+            // Reset sector type and polygon fill
+            hex.type = '';
+            if (hex.polygon) {
+                hex.polygon.setAttribute('fill', sectorColors['']);
+                hex.polygon.classList.remove('selected');
+            }
+
+            console.log(` Hex ${label} fully reset.`);
+        }
+
+
+
+        function selectHex(label) {
+            if (!linking) return;
+
+            const hex = hexes[label];
+
+            // Avoid duplicate selection
+            const last = selectedPath[selectedPath.length - 1];
+
+            if (!last || areNeighbors(last, label)) {
+                selectedPath.push(label);
+                hex.polygon.classList.add('selected');
+            } else {
+                console.warn(`Hex ${label} is not adjacent to ${last}.`);
+            }
+
+
+            //  LOOPBACK: A → B → A (draw loop in B)
+            if (
+                selectedPath.length === 3 &&
+                selectedPath[0] === selectedPath[2] && // A → B → A
+                selectedPath[0] !== selectedPath[1]
+            ) {
+                const from = hexes[selectedPath[0]];
+                const via = hexes[selectedPath[1]];
+                const entry = getDirIndex(via, from);
+
+                if (entry >= 0 && via.matrix[entry][entry] === 0) {
+                    // Line from edge of 'via' into its center — but stop at the circle's edge
+                    const start = edgeMid(via.center, entry);
+                    const cx = via.center.x;
+                    const cy = via.center.y;
+                    const radius = 15;
+
+                    // Compute angle from start to center
+                    const angleToCenter = Math.atan2(cy - start.y, cx - start.x);
+
+                    // Stop the line at the edge of the circle
+                    const endX = cx - Math.cos(angleToCenter) * radius;
+                    const endY = cy - Math.sin(angleToCenter) * radius;
+
+                    // Use a control point halfway along the curve
+                    const mx = (start.x + endX) / 2;
+                    const my = (start.y + endY) / 2;
+                    const controlX = cx + (mx - cx) * 1;
+                    const controlY = cy + (my - cy) * 1;
+
+                    const loopPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    loopPath.setAttribute('d', `M${start.x},${start.y} Q${controlX},${controlY} ${endX},${endY}`);
+                    loopPath.classList.add('link-line');
+                    loopPath.dataset.via = selectedPath[1];
+                    loopPath.dataset.entry = entry;
+                    loopPath.dataset.exit = entry;
+                    svg.appendChild(loopPath);
+                    drawnSegments.push(loopPath);
+
+                    // Circle in center of 'via'
+                    const loopCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    loopCircle.setAttribute('cx', via.center.x);
+                    loopCircle.setAttribute('cy', via.center.y);
+                    loopCircle.setAttribute('r', 14);
+                    loopCircle.setAttribute('stroke', 'blue');
+                    loopCircle.setAttribute('stroke-width', 2);
+                    loopCircle.setAttribute('fill', 'none');
+                    loopCircle.classList.add('link-line');
+                    svg.appendChild(loopCircle);
+                    drawnSegments.push(loopCircle);
+
+                    // Save in matrix
+                    via.matrix[entry][entry] = 1;
+
+                    // Connect all loopbacks internally
+                    for (let i = 0; i < 6; i++) {
+                        if (i !== entry && via.matrix[i][i] === 1) {
+                            via.matrix[entry][i] = 1;
+                            via.matrix[i][entry] = 1;
+                        }
+                    }
+                }
+
+                selectedPath.forEach(id => hexes[id].polygon.classList.remove('selected'));
+                selectedPath = [];
+                return;
+            }
+
+            // NORMAL LINK DRAWING (after 3 clicks)
+            if (selectedPath.length >= 3) {
+                const len = selectedPath.length;
+                const from = hexes[selectedPath[len - 3]];
+                const via = hexes[selectedPath[len - 2]];
+                const to = hexes[selectedPath[len - 1]];
+                const entry = getDirIndex(via, from);
+                const exit = getDirIndex(via, to);
+
+                if (unlinking) {
+                    if (via.matrix[entry][exit] === 1) {
+                        via.matrix[entry][exit] = 0;
+                        const toRemove = drawnSegments.findIndex(seg =>
+                            seg.dataset.via === selectedPath[len - 2] &&
+                            +seg.dataset.entry === entry &&
+                            +seg.dataset.exit === exit
+                        );
+                        if (toRemove >= 0) {
+                            svg.removeChild(drawnSegments[toRemove]);
+                            drawnSegments.splice(toRemove, 1);
+                        }
+                    }
+                    selectedPath.forEach(id => hexes[id].polygon.classList.remove('selected'));
+                    selectedPath = [];
+                    unlinking = false;
+                    return;
+                }
+
+                // Normal curve between entry and exit
+                drawCurveLink(via, entry, exit, selectedPath[len - 2]);
+                via.matrix[entry][exit] = 1;
+
+                selectedPath.slice(0, -2).forEach(id => hexes[id].polygon.classList.remove('selected'));
+                selectedPath = selectedPath.slice(-2);
+            }
+        }
+
+        function areNeighbors(a, b) {
+            const dq = hexes[b].q - hexes[a].q;
+            const dr = hexes[b].r - hexes[a].r;
+            return edgeDirections.some(d => d.q === dq && d.r === dr);
+        }
+
+        function drawLoopCircle(x, y, label) {
+            // Remove any stale circles from DOM before drawing
+            svg.querySelectorAll(`circle.link-line[data-via="${label}"]`).forEach(c => {
+                console.warn("Pre-clearing old loop circle:", c);
+                svg.removeChild(c);
+            });
+
+            // Also remove from drawnSegments
+            drawnSegments = drawnSegments.filter(
+                seg => !(seg.tagName === 'circle' && seg.dataset.via === label)
+            );
+
+            // Now draw fresh circle
+            const loopCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            loopCircle.setAttribute('cx', x);
+            loopCircle.setAttribute('cy', y);
+            loopCircle.setAttribute('r', 15);
+            loopCircle.setAttribute('stroke', 'blue');
+            loopCircle.setAttribute('stroke-width', 2);
+            loopCircle.setAttribute('fill', 'none');
+            loopCircle.classList.add('link-line');
+            loopCircle.dataset.via = label;
+
+            svg.appendChild(loopCircle);
+            drawnSegments.push(loopCircle);
+        }
+
+        function drawLoopArc(hex, entry, exit) {
+            const start = edgeMid(hex.center, entry);
+            const end = edgeMid(hex.center, exit);
+            const mx = (start.x + end.x) / 2;
+            const my = (start.y + end.y) / 2;
+            const cx = hex.center.x + (mx - hex.center.x) * 1.3;
+            const cy = hex.center.y + (my - hex.center.y) * 1.3;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', `M${start.x},${start.y} Q${cx},${cy} ${end.x},${end.y}`);
+            path.classList.add('link-line');
+            path.dataset.via = Object.keys(hexes).find(k => hexes[k] === hex);
+            path.dataset.entry = entry;
+            path.dataset.exit = exit;
+            svg.appendChild(path);
+            drawnSegments.push(path);
+        }
+
+
+
+
+
+        function edgeMid(center, side) {
+            const a1 = Math.PI / 180 * (60 * side - 120);
+            const a2 = Math.PI / 180 * (60 * (side + 1) - 120);
+            const x1 = center.x + hexRadius * Math.cos(a1);
+            const y1 = center.y + hexRadius * Math.sin(a1);
+            const x2 = center.x + hexRadius * Math.cos(a2);
+            const y2 = center.y + hexRadius * Math.sin(a2);
+            return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+        }
+
+        function getDirIndex(via, other) {
+            const dq = other.q - via.q;
+            const dr = other.r - via.r;
+            return edgeDirections.findIndex(d => d.q === dq && d.r === dr);
+        }
+
+        function deleteAllSegments(label) {
+            const hex = hexes[label];
+
+            // Remove all drawn segments related to this hex
+            for (let i = drawnSegments.length - 1; i >= 0; i--) {
+                const seg = drawnSegments[i];
+                if (seg.dataset?.via === label) {
+                    svg.removeChild(seg);
+                    drawnSegments.splice(i, 1);
+                }
+            }
+
+            // Force remove any circle elements in the DOM with matching data-via
+            const lingeringCircles = svg.querySelectorAll(`circle.link-line[data-via="${label}"]`);
+            lingeringCircles.forEach(circle => {
+                svg.removeChild(circle);
+            });
+
+            // Ensure drawnSegments no longer tracks those circles
+            drawnSegments = drawnSegments.filter(seg => {
+                return !(seg.tagName === 'circle' && seg.dataset?.via === label);
+            });
+
+            // Wipe matrix
+            if (hex.matrix) {
+                for (let i = 0; i < 6; i++) {
+                    for (let j = 0; j < 6; j++) {
+                        hex.matrix[i][j] = 0;
+                    }
+                }
+            }
+
+            // As last resort: remove orphaned circle with no data-via but at same coordinates
+            svg.querySelectorAll('circle.link-line').forEach(c => {
+                const cx = parseFloat(c.getAttribute('cx'));
+                const cy = parseFloat(c.getAttribute('cy'));
+                const hex = hexes[label];
+                if (!hex || !hex.center) return;
+
+                if (Math.abs(cx - hex.center.x) < 0.1 && Math.abs(cy - hex.center.y) < 0.1) {
+                    console.warn(`🧼 Force-removing stray circle at ${label}`);
+                    svg.removeChild(c);
+                }
+            });
+
+            console.log(` Deleted all segments and loopbacks for ${label}`);
+        }
+
+
+        function toggleCorners() {
+            fillCorners = document.getElementById('cornerToggle').checked;
+            generateMap(); // regenerate map with or without corners
+        }
+
+        function drawCornerHex(x, y, label) {
+            const pts = [];
+            for (let i = 0; i < 6; i++) {
+                const ang = Math.PI / 180 * (60 * i);
+                pts.push(
+                    `${x + hexRadius * Math.cos(ang)},${y + hexRadius * Math.sin(ang)}`
+                );
+            }
+
+
+            const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            poly.setAttribute('points', pts.join(' '));
+            poly.setAttribute('fill', '#ddd');
+            poly.classList.add('hex');
+            svg.appendChild(poly);
+
+            const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            txt.setAttribute('x', x);
+            txt.setAttribute('y', y + 5);
+            txt.setAttribute('text-anchor', 'middle');
+            txt.textContent = label;
+            svg.appendChild(txt);
+        }
+
+        function autoscaleView() {
+            const allPoints = Object.values(hexes).map(h => h.center);
+            if (allPoints.length === 0) return;
+
+            const xs = allPoints.map(p => p.x);
+            const ys = allPoints.map(p => p.y);
+            const minX = Math.min(...xs) - hexRadius * 2;
+            const maxX = Math.max(...xs) + hexRadius * 2;
+            const minY = Math.min(...ys) - hexRadius * 2;
+            const maxY = Math.max(...ys) + hexRadius * 2;
+
+            const width = maxX - minX;
+            const height = maxY - minY;
+
+            svg.setAttribute('viewBox', `${minX} ${minY} ${width} ${height}`);
+        }
+
+        svg.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            selectedPath.forEach(id => hexes[id].polygon.classList.remove('selected'));
+            selectedPath = [];
+            linking = true;
         });
 
-      const out = sorted.map((id, idx) => {
-        const hex = hexes[id];
-        if (!hex) return idx === 0 ? '{-1}' : '-1';
 
-        const isHyperlane = hex.matrix?.flat().some(x => x === 1);
-        let type = hex.type || '';
-        let code = isHyperlane ? 'hl' : (typeMap[type] ?? '-1');
+        function applySectorTypesFromString(typeString) {
+            const tokens = typeString.replace(/^\{|\}$/g, '').split(/\s+/).filter(Boolean);
+            const ids = Object.keys(hexes).filter(id => /^\d{3}$/.test(id)).sort((a, b) => {
+                const [ra, ia] = [parseInt(a[0]), parseInt(a.slice(1))];
+                const [rb, ib] = [parseInt(b[0]), parseInt(b.slice(1))];
+                return ra === rb ? ia - ib : ra - rb;
+            });
 
-        return idx === 0 ? `{${code}}` : code;
-      });
+            if (tokens.length !== ids.length) {
+                console.warn("Type string does not match number of hexes.");
+                return;
+            }
 
-      document.getElementById('exportTypesText').value = out.join(" ");
-      document.getElementById('exportTypesModal').style.display = 'block';
-    }
+            for (let i = 0; i < tokens.length; i++) {
+                const code = tokens[i];
+                const label = ids[i];
+                const hex = hexes[label];
+                if (!hex) continue;
+
+                // Only update if never imported or not manually changed
+                if (!originalHexIDs[label]) {
+                    originalHexIDs[label] = code;
+                } else if (originalHexIDs[label] !== code) {
+                    // Skip overwriting edited tiles
+                    continue;
+                }
+
+                const info = sectorIDLookup[code] || {};
+
+                // Reset
+                hex.baseType = "";
+                hex.effects = new Set();
+                hex.overlays?.forEach(el => svg.removeChild(el));
+                hex.overlays = [];
+
+                // Assign logic
+                if (code === "-1") {
+                    hex.baseType = "void";
+                } else if (code === "hl") {
+                    hex.baseType = "empty"; // placeholder for later
+                } else if (info.legend) {
+                    hex.baseType = "legendary planet";
+                } else if (info["# Planets"]) {
+                    const n = parseFloat(info["# Planets"]);
+                    hex.baseType = n >= 3 ? "3 planet" : n >= 2 ? "2 planet" : "1 planet";
+                } else if (info.special) {
+                    hex.baseType = "special";
+                    if (info.Nebula) hex.effects.add("nebula");
+                    if (info.Gravity) hex.effects.add("rift");
+                    if (info.Nova) hex.effects.add("supernova");
+                    if (info.Asteroid) hex.effects.add("asteroid");
+                } else {
+                    hex.baseType = "empty";
+                }
+
+                if (info.Faction) {
+                    hex.effects.add("homesystem");
+                }
+
+                setSectorType(label, hex.baseType);
+            }
+        }
+
+
+        function parseSectorCSV(csvText) {
+            const lines = csvText.trim().split(/\r?\n/);
+            const headers = lines[0].split(',').map(h => h.trim());
+            const data = {};
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                const row = {};
+                headers.forEach((key, idx) => {
+                    row[key] = values[idx] ?? '';
+                });
+
+                const id = row["ID"]?.trim().toUpperCase();
+                if (id) {
+                    data[id] = row;
+                }
+            }
+
+            return data;
+        }
+
+        document.getElementById("idImportCSV").addEventListener("change", function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const csv = event.target.result;
+                sectorIDLookup = parseSectorCSV(csv);
+                alert("Sector ID lookup table loaded.");
+            };
+            reader.readAsText(file);
+        });
+
+
+        function exportData() {
+            const out = [];
+
+            for (const id in hexes) {
+                const hex = hexes[id];
+                if (!hex.matrix) continue;
+
+                // Clone the matrix for local mutation (to avoid touching UI state)
+                const matrix = hex.matrix.map(row => [...row]);
+
+                // Mirror all existing connections to ensure symmetry
+                for (let entry = 0; entry < 6; entry++) {
+                    for (let exit = 0; exit < 6; exit++) {
+                        if (matrix[entry][exit] === 1) {
+                            const dir = edgeDirections[exit];
+                            const neighborQ = hex.q + dir.q;
+                            const neighborR = hex.r + dir.r;
+
+                            const neighbor = Object.values(hexes).find(
+                                h => h.q === neighborQ && h.r === neighborR && h.matrix
+                            );
+
+                            if (neighbor) {
+                                const reverseEntry = edgeDirections.findIndex(d => d.q === -dir.q && d.r === -dir.r);
+                                if (reverseEntry !== -1) {
+                                    matrix[exit][entry] = 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Flatten and export only if any 1s exist
+                const flat = matrix.flat().join('');
+                if (flat.includes('1')) {
+                    out.push(`${id},${flat}`);
+                }
+            }
+
+            document.getElementById('exportText').value = out.join("\n");
+            document.getElementById('exportModal').style.display = 'block';
+        }
+
+
+        function exportSectorTypes() {
+            const typeMap = {
+                '1 planet': '0b',
+                '2 planet': '0b',
+                '3 planet': '0b',
+                'legendary planet': '0b',
+                'solar': '80',
+                'empty': '46',
+                'nebula': '42',
+                'asteroid': '44',
+                'rift': '33',
+                'special': '0r',
+                'homesystem': '0g',
+                'void': '-1',
+                'hyperlane': 'hl'
+            };
+
+            const sorted = Object.keys(hexes)
+                .filter(id => /^\d{3}$/.test(id))
+                .sort((a, b) => {
+                    const [ra, ia] = [parseInt(a[0]), parseInt(a.slice(1))];
+                    const [rb, ib] = [parseInt(b[0]), parseInt(b.slice(1))];
+                    return ra === rb ? ia - ib : ra - rb;
+                });
+
+            const out = sorted.map((id, idx) => {
+                const hex = hexes[id];
+                if (!hex) return idx === 0 ? '{-1}' : '-1';
+
+                const isHyperlane = hex.matrix?.flat().some(x => x === 1);
+                let base = hex.baseType || '';
+                let code = isHyperlane ? 'hl' : (typeMap[base] ?? '-1');
+
+                return idx === 0 ? `{${code}}` : code;
+            });
+
+            document.getElementById('exportTypesText').value = out.join(" ");
+            document.getElementById('exportTypesModal').style.display = 'block';
+        }
+
+        function importData() {
+            const input = document.getElementById('importText').value.trim();
+            const lines = input.split('\n');
+
+            lines.forEach(line => {
+                const [label, flatMatrix] = line.split(',');
+                const hex = hexes[label];
+                if (!hex || flatMatrix.length !== 36) return;
+
+                const matrix = Array.from({ length: 6 }, () => Array(6).fill(0));
+
+                for (let i = 0; i < 6; i++) {
+                    for (let j = 0; j < 6; j++) {
+                        matrix[i][j] = parseInt(flatMatrix[i * 6 + j], 10);
+                    }
+                }
+
+                hex.matrix = matrix;
+
+                // Draw all links
+                for (let entry = 0; entry < 6; entry++) {
+                    for (let exit = 0; exit < 6; exit++) {
+                        if (matrix[entry][exit] === 1) {
+                            if (entry === exit) {
+                                drawLoopCircle(hex.center.x, hex.center.y, label);
+                                drawLoopbackCurve(hex, entry);
+                            } else {
+                                drawCurveLink(hex, entry, exit, label);
+                            }
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('importModal').style.display = 'none';
+        }
 
 
 
 
+        function drawLoopbackCurve(hex, entry) {
+            const start = edgeMid(hex.center, entry);
+            const cx = hex.center.x;
+            const cy = hex.center.y;
+            const radius = 14;
 
-    function setMode(m) {
-      mode = m;
-      selectedPath = [];
-      Object.values(hexes).forEach(h => h.polygon.classList.remove('selected'));
-    }
+            const angle = Math.atan2(cy - start.y, cx - start.x);
+            const endX = cx - Math.cos(angle) * radius;
+            const endY = cy - Math.sin(angle) * radius;
 
-    function drawSpecialHexes() {
-      const allPoints = Object.values(hexes).map(h => h.center);
-      if (allPoints.length === 0) return;
+            const mx = (start.x + endX) / 2;
+            const my = (start.y + endY) / 2;
+            const controlX = cx + (mx - cx);
+            const controlY = cy + (my - cy);
 
-      const xs = allPoints.map(p => p.x);
-      const ys = allPoints.map(p => p.y);
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const minY = Math.min(...ys);
-      const maxY = Math.max(...ys);
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', `M${start.x},${start.y} Q${controlX},${controlY} ${endX},${endY}`);
+            path.classList.add('link-line');
+            path.dataset.via = Object.keys(hexes).find(k => hexes[k] === hex);
+            path.dataset.entry = entry;
+            path.dataset.exit = entry;
 
-      const offset = hexRadius * 2;
+            svg.appendChild(path);
+            drawnSegments.push(path);
+        }
 
-      const corners = [
-        { label: 'TL', x: minX - offset, y: minY - offset },
-        { label: 'TR', x: maxX + offset, y: minY - offset },
-        { label: 'BL', x: minX - offset, y: maxY + offset },
-        { label: 'BR', x: maxX + offset, y: maxY + offset }
-      ];
+        function drawCurveLink(hex, entry, exit, label) {
+            const start = edgeMid(hex.center, entry);
+            const end = edgeMid(hex.center, exit);
+            const mx = (start.x + end.x) / 2;
+            const my = (start.y + end.y) / 2;
+            const cx = hex.center.x + (mx - hex.center.x) * 0.25;
+            const cy = hex.center.y + (my - hex.center.y) * 0.25;
 
-      for (const { label, x, y } of corners) {
-        drawCornerHex(x, y, label);
-        hexes[label] = {
-          q: null,
-          r: null,
-          center: { x, y },
-          polygon: null,
-          matrix: null,
-          type: 'corner'
-        };
-      }
-    }
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', `M${start.x},${start.y} Q${cx},${cy} ${end.x},${end.y}`);
+            path.classList.add('link-line');
+            path.dataset.via = label;
+            path.dataset.entry = entry;
+            path.dataset.exit = exit;
+            svg.appendChild(path);
+            drawnSegments.push(path);
+        }
+
+        function exportHyperlaneTilePositions() {
+            const idsWithHyperlanes = Object.entries(hexes)
+                .filter(([id, hex]) => hex.matrix?.flat().some(x => x === 1))
+                .map(([id]) => id)
+                .sort((a, b) => {
+                    const [ra, ia] = [parseInt(a[0]), parseInt(a.slice(1))];
+                    const [rb, ib] = [parseInt(b[0]), parseInt(b.slice(1))];
+                    return ra === rb ? ia - ib : ra - rb;
+                });
+
+            const output = `/map add_tile tile_name: hl position: ${idsWithHyperlanes.join(",")}`;
+
+            document.getElementById("exportHyperlanePositionsText").value = output;
+            document.getElementById("exportHyperlanePositionsModal").style.display = "block";
+        }
+
+
+        function setMode(m) {
+            mode = m;
+            selectedPath = [];
+            Object.values(hexes).forEach(h => h.polygon?.classList.remove('selected'));
+
+            // Update active button styles
+            document.querySelectorAll('.mode-button').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent.toLowerCase().includes(m)) {
+                    btn.classList.add('active');
+                }
+            });
+        }
+
+        function importSectorTypes() {
+            const input = document.getElementById('importTypesText').value.trim();
+            const tokens = input.replace(/[{}]/g, '').split(/\s+/);
+
+            const sortedIDs = Object.keys(hexes)
+                .filter(id => /^\d{3}$/.test(id))
+                .sort((a, b) => {
+                    const [ra, ia] = [parseInt(a[0]), parseInt(a.slice(1))];
+                    const [rb, ib] = [parseInt(b[0]), parseInt(b.slice(1))];
+                    return ra === rb ? ia - ib : ra - rb;
+                });
+
+            sortedIDs.forEach((hexID, index) => {
+                let code = tokens[index];
+                if (!code) return;
+
+                if (index === 0 && code.startsWith("{") && code.endsWith("}")) {
+                    code = code.slice(1, -1);
+                }
+
+                code = code.trim().replace(/['"]/g, '').toUpperCase();
+
+                const hex = hexes[hexID];
+                if (!hex) return;
+
+                hex.originalCode = code;
+
+                if (code === "-1") {
+                    setSectorType(hexID, 'void');
+                    return;
+                }
+
+                if (code === "HL") {
+                    return; // Hyperlane
+                }
+
+                const entry = sectorIDLookup?.[code];
+                if (!entry) {
+                    console.warn(`⚠ Unknown code "${code}" at hex ${hexID}`);
+                    return;
+                }
+
+                const isLegendary = entry["Legend"]?.trim();
+                const isHS = entry["Faction"]?.trim() === "1";
+                //  const isSpecial = entry["Special"]?.trim();
+                const isSpecial = !!entry["Special"]?.trim();
+                const planetCount = parseFloat(entry["# Planets"]) || 0;
+
+                // Base type logic
+                if (isLegendary) {
+                    setSectorType(hexID, "legendary planet");
+
+                } else if (isHS) {
+                    if (planetCount >= 3) setSectorType(hexID, "3 planet");
+                    else if (planetCount >= 2) setSectorType(hexID, "2 planet");
+                    else if (planetCount >= 1) setSectorType(hexID, "1 planet");
+                    else setSectorType(hexID, "empty");
+                    //  setSectorType(hexID, "homesystem");
+                    console.log(`Hex ${hexID} → code ${code} → # Planets:`, entry["# Planets"]);
+                } else if (planetCount == 3) {
+                    setSectorType(hexID, "3 planet");
+                    console.log(`Hex ${hexID} → code ${code} → # Planets3:`, entry["# Planets"]);
+                } else if (planetCount == 2) {
+                    setSectorType(hexID, "2 planet");
+                    console.log(`Hex ${hexID} → code ${code} → # Planets2:`, entry["# Planets"]);
+                } else if (planetCount == 1) {
+                    setSectorType(hexID, "1 planet");
+                    console.log(`Hex ${hexID} → code ${code} → # Planets1:`, entry["# Planets"]);
+                } else if (isSpecial) {
+                    setSectorType(hexID, "special");
+                } else {
+                    setSectorType(hexID, "empty");
+                }
+
+                // Effects
+                const effects = [];
+                if (entry["Nebula"]?.trim()) effects.push("nebula");
+                if (entry["Gravity"]?.trim()) effects.push("rift");
+                if (entry["Nova"]?.trim()) effects.push("supernova");
+                if (entry["Asteroid"]?.trim()) effects.push("asteroid");
+                if (entry["Faction"]?.trim()) effects.push("homesystem");
+                //   if (isHS) effects.push("homesystem");
+
+                effects.forEach(effect => setSectorType(hexID, effect));
+            });
+
+            document.getElementById('importTypesModal').style.display = 'none';
+        }
 
 
 
-    let currentViewBox = [0, 0, 1000, 1000];
-    let isPanning = false;
-    let panStart = { x: 0, y: 0 };
 
-    svg.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      const scaleFactor = 1.1;
-      const [x, y, w, h] = currentViewBox;
-      const mx = e.offsetX / svg.clientWidth;
-      const my = e.offsetY / svg.clientHeight;
-      const zoomIn = e.deltaY < 0;
+        function drawSpecialHexes() {
+            const allPoints = Object.values(hexes).map(h => h.center);
+            if (allPoints.length === 0) return;
 
-      const dw = zoomIn ? w / scaleFactor : w * scaleFactor;
-      const dh = zoomIn ? h / scaleFactor : h * scaleFactor;
+            const xs = allPoints.map(p => p.x);
+            const ys = allPoints.map(p => p.y);
+            const minX = Math.min(...xs);
+            const maxX = Math.max(...xs);
+            const minY = Math.min(...ys);
+            const maxY = Math.max(...ys);
 
-      const newX = x + (w - dw) * mx;
-      const newY = y + (h - dh) * my;
+            const offset = hexRadius * 2;
 
-      currentViewBox = [newX, newY, dw, dh];
-      svg.setAttribute('viewBox', currentViewBox.join(' '));
-    });
+            const corners = [
+                { label: 'TL', x: minX - offset, y: minY - offset },
+                { label: 'TR', x: maxX + offset, y: minY - offset },
+                { label: 'BL', x: minX - offset, y: maxY + offset },
+                { label: 'BR', x: maxX + offset, y: maxY + offset }
+            ];
 
-    svg.addEventListener('mousedown', (e) => {
-      isPanning = true;
-      panStart = { x: e.clientX, y: e.clientY };
-    });
+            for (const { label, x, y } of corners) {
+                drawCornerHex(x, y, label);
+                hexes[label] = {
+                    q: null,
+                    r: null,
+                    center: { x, y },
+                    polygon: null,
+                    matrix: null,
+                    type: 'corner'
+                };
+            }
+        }
 
-    window.addEventListener('mousemove', (e) => {
-      if (!isPanning) return;
-      const dx = (e.clientX - panStart.x) * currentViewBox[2] / svg.clientWidth;
-      const dy = (e.clientY - panStart.y) * currentViewBox[3] / svg.clientHeight;
 
-      currentViewBox[0] -= dx;
-      currentViewBox[1] -= dy;
-      panStart = { x: e.clientX, y: e.clientY };
-      svg.setAttribute('viewBox', currentViewBox.join(' '));
-    });
 
-    window.addEventListener('mouseup', () => {
-      isPanning = false;
-    });
+        let currentViewBox = [0, 0, 1000, 1000];
+        let isPanning = false;
+        let panStart = { x: 0, y: 0 };
 
-    generateMap();
+        svg.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const scaleFactor = 1.1;
+            const [x, y, w, h] = currentViewBox;
+            const mx = e.offsetX / svg.clientWidth;
+            const my = e.offsetY / svg.clientHeight;
+            const zoomIn = e.deltaY < 0;
 
-  </script>
+            const dw = zoomIn ? w / scaleFactor : w * scaleFactor;
+            const dh = zoomIn ? h / scaleFactor : h * scaleFactor;
+
+            const newX = x + (w - dw) * mx;
+            const newY = y + (h - dh) * my;
+
+            currentViewBox = [newX, newY, dw, dh];
+            svg.setAttribute('viewBox', currentViewBox.join(' '));
+        });
+
+        svg.addEventListener('mousedown', (e) => {
+            isPanning = true;
+            panStart = { x: e.clientX, y: e.clientY };
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isPanning) return;
+            const dx = (e.clientX - panStart.x) * currentViewBox[2] / svg.clientWidth;
+            const dy = (e.clientY - panStart.y) * currentViewBox[3] / svg.clientHeight;
+
+            currentViewBox[0] -= dx;
+            currentViewBox[1] -= dy;
+            panStart = { x: e.clientX, y: e.clientY };
+            svg.setAttribute('viewBox', currentViewBox.join(' '));
+        });
+
+        window.addEventListener('keydown', e => {
+            if (e.key.toLowerCase() === 'r' && e.shiftKey && hoveredHexLabel) {
+                console.log(`🧼 Full clear on ${hoveredHexLabel}`);
+                deleteAllSegments(hoveredHexLabel);
+                clearAllEffects(hoveredHexLabel);
+            }
+        });
+
+
+        window.addEventListener('mouseup', () => {
+            isPanning = false;
+        });
+
+        document.getElementById("idImportCSV").addEventListener("change", function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const csv = event.target.result;
+                sectorIDLookup = parseSectorCSV(csv);
+
+                // ✅ Debug log to verify the parsed structure
+                console.log("Parsed first row:", Object.values(sectorIDLookup)[0]);
+
+                alert("Sector ID lookup table loaded.");
+            };
+            reader.readAsText(file);
+        });
+
+        window.addEventListener("DOMContentLoaded", () => {
+            fetch("sector_data.csv")
+                .then(response => {
+                    if (!response.ok) throw new Error("CSV load failed");
+                    return response.text();
+                })
+                .then(csv => {
+                    sectorIDLookup = parseSectorCSV(csv);
+                    console.log("✅ Sector data loaded silently from CSV.");
+                })
+                .catch(err => {
+                    console.warn("⚠️ Could not preload sector_data.csv:", err);
+                });
+        });
+
+        generateMap();
+
+    </script>
 
 </body>
 
