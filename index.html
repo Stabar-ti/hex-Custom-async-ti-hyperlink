@@ -1313,7 +1313,7 @@
         });
 
         window.addEventListener("DOMContentLoaded", () => {
-            fetch("sector_data.csv")
+            fetch("TI4_list.csv")
                 .then(response => {
                     if (!response.ok) throw new Error("CSV load failed");
                     return response.text();
