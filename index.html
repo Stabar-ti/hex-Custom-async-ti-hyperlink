@@ -3,18 +3,66 @@
 <html lang="en">
 
 <head>
+
+
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hex Hyperlane Editor</title>
     <style>
+        /* Theme variables */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --modal-bg: #ffffff;
+            --modal-border: #000000;
+            --btn-text-color: #000;
+            --info-color: #555;
+            --button-bg: #f0f0f0;
+            /* light‐mode button background */
+        }
+
+        body.dark {
+            --bg-color: #121212;
+            --text-color: #eeeeee;
+            --modal-bg: #1e1e1e;
+            --modal-border: #555;
+            --btn-text-color: #fff;
+            --info-color: #eee;
+            --button-bg: #2a2a2a;
+            /* dark‐mode button background */
+        }
+
         body {
+            margin: 0;
+            padding-top: 60px;
             font-family: sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
         }
 
         svg {
-            border: 1px solid #909090;
+            background: var(--bg-color);
+            border: 1px solid #000;
+            /* always black */
         }
 
+        #hexMap {
+            width: 95%;
+            border: 1px solid #000;
+            height: calc(95vh - 60px);
+            /* subtract your top bar height */
+            max-width: 2000px;
+            margin: 10px auto;
+            display: block;
+            /* removes inline-block whitespace */
+        }
+
+        svg text {
+            pointer-events: none;
+            user-select: none;
+        }
+
+        /* Hex styling */
         .hex {
             stroke: #000;
             stroke-width: 1;
@@ -22,11 +70,9 @@
         }
 
         .hex-overlay {
-            pointer-events: none;
-            user-select: none;
-            font-family: "Segoe UI Symbol", "Noto Emoji", sans-serif;
+            font-family: "Segoe UI Symbol", "Noto Emoji";
             font-size: 16px;
-            /* Change this value */
+            fill: var(--text-color);
         }
 
         .selected {
@@ -40,17 +86,55 @@
             fill: none;
         }
 
-        #exportModal {
-            display: none;
+        /* Buttons */
+        .mode-button,
+        .primary-button {
+            color: #000;
+            /* always black text */
+        }
+
+        body:not(.dark) .mode-button,
+        body:not(.dark) .primary-button {
+            border: 1px solid #000;
+        }
+
+        .mode-button.active {
+            outline: 3px solid var(--text-color);
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            font-weight: bold;
+        }
+
+        .primary-button {
+            padding: 10px 16px;
+            font-size: 1.05em;
+            font-weight: bold;
+            background-color: #1fa3ff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        /* Top bar */
+        #topBar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             position: fixed;
-            top: 10%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 1em;
-            border: 1px solid black;
-            z-index: 10;
-            max-width: 80%;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 8px 16px;
+            background: var(--bg-color);
+            border-bottom: 1px solid var(--modal-border);
+            z-index: 100;
+            box-sizing: border-box;
+        }
+
+        #leftControls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         #versionTag {
@@ -63,135 +147,301 @@
             padding: 4px 10px;
             border-radius: 4px;
             font-family: monospace;
-            z-index: 20;
+            z-index: 200;
         }
 
-        #exportText {
+        #controlsPanel>div {
+            margin-bottom: 8px;
+        }
+
+        #controlsPanel button,
+        #controlsPanel input,
+        #controlsPanel label {
+            pointer-events: auto;
+        }
+
+        /* ————————————————————————————————————————————————————————————
+       1) Restore individual button color overrides
+       ———————————————————————————————————————————————————————————— */
+        .mode-button {
+            background-color: var(--button-bg);
+            /* keep existing rules */
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            color: #000;
+            /* black text always */
+        }
+
+        /* in dark mode make top‐bar buttons white */
+        body.dark #topBar .mode-button {
+            background-color: #ffffff;
+            /* keep their black text */
+            color: #000;
+            /* you can also force a border if you like */
+            border: 1px solid #000;
+        }
+
+
+        /* specific sector button colors */
+        .btn-1 {
+            background: #cce5ff;
+        }
+
+        .btn-2 {
+            background: #49a1ff;
+        }
+
+        .btn-3 {
+            background: #005cbf;
+            color: #fff;
+        }
+
+        .btn-legendary {
+            background: #b300ff;
+            color: #fff;
+        }
+
+        .btn-empty {
+            background: #fff;
+        }
+
+        .btn-special {
+            background: #ff83a0;
+        }
+
+        .btn-void {
+            background: #2b2b2b;
+            color: #fff;
+        }
+
+        .btn-supernova {
+            background: #ffe5b4;
+        }
+
+        .btn-nebula {
+            background: #e6ccff;
+        }
+
+        .btn-asteroid {
+            background: #d9d9d9;
+        }
+
+        .btn-rift {
+            background: #7b7b7b;
+            color: #fff;
+        }
+
+        .btn-homesystem {
+            background: #059f00;
+            color: #fff;
+        }
+
+        /* ————————————————————————————————————————————————————————————
+       2) Main controls panel (never moves)
+       ———————————————————————————————————————————————————————————— */
+        #controlsPanel {
+            position: fixed;
+            top: 60px;
+            left: 16px;
+            background: var(--bg-color);
+            padding: 8px;
+            border: 1px solid var(--modal-border);
+            z-index: 50;
+        }
+
+        /* ————————————————————————————————————————————————————————————
+       3) Sector buttons (cycles left / top / right)
+       ———————————————————————————————————————————————————————————— */
+        #sectorControlsContainer {
+            position: fixed;
+            z-index: 50;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        /* LEFT: vertical */
+        .pos-left {
+            top: 220px;
+            left: 16px;
+            flex-direction: column;
+            width: 160px;
+        }
+
+        /* TOP: two rows */
+        .pos-top {
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            flex-direction: row;
+            max-width: calc(160px * 4 + 4px);
+        }
+
+        /* RIGHT: vertical */
+        .pos-right {
+            top: 220px;
+            right: 16px;
+            left: auto;
+            flex-direction: column;
+            width: 160px;
+        }
+
+        /* Modals */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--modal-bg);
+            color: var(--text-color);
+            padding: 1em;
+            border: 1px solid var(--modal-border);
+            z-index: 200;
+            max-width: 80%;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        textarea,
+        #exportText,
+        #exportTypesText,
+        #importText,
+        #importTypesText,
+        #exportHyperlanePositionsText {
             width: 100%;
             height: 200px;
+            background: var(--modal-bg);
+            color: var(--text-color);
+            border: 1px solid var(--modal-border);
         }
 
-        text {
-            pointer-events: none;
-            user-select: none;
-            font-size: 12px;
-            fill: #000;
-        }
-
-        .mode-button.active {
-            outline: 3px solid #333;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-            font-weight: bold;
+        /* Info text */
+        #controls,
+        #Info,
+        #Info2 {
+            color: var(--info-color);
         }
     </style>
 </head>
 
 <body>
-    <h2>Hex Hyperlane Editor</h2>
-
-    <div style="margin: 0.5em 0;">
-        Rings: <input id="ringCount" type="number" min="1" max="15" value="6" />
-        <label>
-            <input type="checkbox" id="cornerToggle" onchange="toggleCorners()"> Max size map
-        </label>
-        <button onclick="generateMap()">Generate Map</button>
+    <!-- Top Bar -->
+    <div id="topBar">
+        <div id="leftControls">
+            <button onclick="toggleTheme()" class="mode-button">Toggle Dark Mode</button>
+            <button onclick="toggleHelp()" class="mode-button">Help</button>
+            <button onclick="toggleInfo()" class="mode-button">Import/Export How-To</button>
+            <button onclick="toggleFeatures()" class="mode-button">Features</button>
+            <button onclick="arrangeControls()" class="mode-button">Arrange Controls</button>
+        </div>
+        <div id="versionTag">v0.8.5</div>
     </div>
 
-    <p id="controls" style="font-size: 0.9em; color: #555;">
-        <strong>Controls:</strong>
-        Left-click to select. ALT+click to unlink. SHIFT+click to remove all links. Right-click to clear selection.
-        Hoover + Shift + R to clear all
-    </p>.
+    <!-- Controls Panel -->
+    <div id="controlsPanel">
+        <button onclick="exportData()">Export HL</button>
+        <button onclick="exportSectorTypes()">Export Types</button>
+        <button onclick="exportHyperlaneTilePositions()">Export Pos</button>
+        <button onclick="showImportModal()">Import HL</button>
+        <button onclick="document.getElementById('importTypesModal').style.display='block'">Import Types</button>
+        <br><br>
+        Rings: <input id="ringCount" type="number" min="1" max="15" value="6" />
+        <button onclick="generateMap()" class="primary-button">Generate Map</button>
+    </div>
 
-    <p id="Info" style="font-size: 0.9em; color: #555;">
-        <strong>Info:</strong>
-        Export hyperlane copy into: /map custom_hyperlanes --- Export Sector Types: /map add_tile_list
-        Export Hyperlane locations (just add map positions)
-        Import custom hyperlane information: from /map custom_hyperlanes
-    </p>
+    <div id="sectorControlsContainer" class="pos-left">
+        <button onclick="setMode('hyperlane')" class="mode-button btn-empty">Hyperlane</button>
+        <button onclick="setMode('1 planet')" class="mode-button btn-1">1 Planet</button>
+        <button onclick="setMode('2 planet')" class="mode-button btn-2">2 Planet</button>
+        <button onclick="setMode('3 planet')" class="mode-button btn-3">3 Planet</button>
+        <button onclick="setMode('legendary planet')" class="mode-button btn-legendary">Legendary Planet</button>
+        <button onclick="setMode('empty')" class="mode-button btn-empty">Empty</button>
+        <button onclick="setMode('special')" class="mode-button btn-special">Special</button>
+        <button onclick="setMode('void')" class="mode-button btn-void">Void</button>
+        <button onclick="setMode('supernova')" class="mode-button btn-supernova">Supernova</button>
+        <button onclick="setMode('nebula')" class="mode-button btn-nebula">Nebula</button>
+        <button onclick="setMode('asteroid')" class="mode-button btn-asteroid">Asteroid</button>
+        <button onclick="setMode('rift')" class="mode-button btn-rift">Rift</button>
+        <button onclick="setMode('homesystem')" class="mode-button btn-homesystem">Homesystem</button>
+    </div>
 
-    <p id="Info2" style="font-size: 0.9em; margin-top: -0.0em; color: #555;">
-        <strong>To Do:</strong>
-        Wormholes, export full string, find tiles
-    </p>
-
-    <div style="margin-bottom: 0.5em;">
-    <button onclick="exportData()">Export Hyperlane Data</button>
-    <button onclick="exportSectorTypes()">Export Sector Types</button>
-    <button onclick="exportHyperlaneTilePositions()">Export Hyperlane Tile Positions</button>
-    <button onclick="showImportModal()">Import Hyperlane Data</button>
-    <button onclick="document.getElementById('importTypesModal').style.display='block'">Import Sector Types</button>
-</div>
+    <!-- <svg id="hexMap" width="1400" height="1200"></svg> -->
+    <!-- remove fixed width/height -->
+    <svg id="hexMap" viewBox="0 0 1400 1000" preserveAspectRatio="xMidYMid meet"></svg>
 
 
-
-    <div id="exportHyperlanePositionsModal"
-        style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:white; padding:1em; border:1px solid black; z-index:10; max-width:80%;">
+    <div id="exportModal" class="modal">
+        <h3>Hyperlane Data</h3>
+        <textarea id="exportText"></textarea><br>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('exportText').value)">Copy</button>
+        <button onclick="closeModal('exportModal')">Close</button>
+    </div>
+    <div id="importModal" class="modal">
+        <h3>Import Hyperlane Data</h3>
+        <textarea id="importText"></textarea><br>
+        <button onclick="importData()">Import</button>
+        <button onclick="closeModal('importModal')">Close</button>
+    </div>
+    <div id="importTypesModal" class="modal">
+        <h3>Import Sector Types</h3>
+        <textarea id="importTypesText"></textarea><br>
+        <button onclick="importSectorTypes()">Import</button>
+        <button onclick="closeModal('importTypesModal')">Close</button>
+    </div>
+    <div id="exportTypesModal" class="modal">
+        <h3>Sector Type Export</h3>
+        <textarea id="exportTypesText"></textarea><br>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('exportTypesText').value)">Copy</button>
+        <button onclick="closeModal('exportTypesModal')">Close</button>
+    </div>
+    <div id="exportHyperlanePositionsModal" class="modal">
         <h3>Hyperlane Tile Positions</h3>
-        <textarea id="exportHyperlanePositionsText" style="width:100%; height:100px;"></textarea><br>
+        <textarea id="exportHyperlanePositionsText"></textarea><br>
         <button
             onclick="navigator.clipboard.writeText(document.getElementById('exportHyperlanePositionsText').value)">Copy</button>
-        <button onclick="document.getElementById('exportHyperlanePositionsModal').style.display='none'">Close</button>
+        <button onclick="closeModal('exportHyperlanePositionsModal')">Close</button>
     </div>
 
-    <div id="importModal"
-        style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:white; padding:1em; border:1px solid black; z-index:10; max-width:80%;">
-        <h3>Import Hyperlane Data</h3>
-        <textarea id="importText" style="width:100%; height:200px;"></textarea><br>
-        <button onclick="importData()">Import</button>
-        <button onclick="document.getElementById('importModal').style.display='none'">Close</button>
-    </div>
+    <div id="versionTag">v0.8.9</div>
 
-    <div id="importTypesModal"
-        style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:white; padding:1em; border:1px solid black; z-index:10; max-width:80%;">
-        <h3>Import Sector Types</h3>
-        <textarea id="importTypesText" style="width:100%; height:100px;"></textarea><br>
-        <button onclick="importSectorTypes()">Import</button>
-        <button onclick="document.getElementById('importTypesModal').style.display='none'">Close</button>
+    <div id="controlsModal" class="modal">
+        <h3>Controls</h3>
+        <ul style="font-size:0.9em; line-height:1.6;">
+            <li>🖱️ <strong>Left-click:</strong> Select hex</li>
+            <li>🖱️ <strong>ALT + Left-click:</strong> Remove one hyperlane</li>
+            <li>🖱️ <strong>SHIFT + Left-click:</strong> Remove all hyperlanes from hex</li>
+            <li>🖱️ <strong>Right-click:</strong> Cancel selection</li>
+            <li>🖱️ <strong>Middle-click + drag:</strong> Pan the map</li>
+            <li>🔍 <strong>Scroll wheel:</strong> Zoom in/out</li>
+            <li>⌨️ <strong>SHIFT + R while hovering:</strong> Clear hex (type + links)</li>
+            <li>🌙 <strong>Toggle Dark Mode:</strong> Top-left button</li>
+        </ul>
+        <button onclick="closeModal('controlsModal')">Close</button>
     </div>
-
-    <div id="exportModal">
-        <h3>Hyperlane Data</h3>
-        <textarea id="exportText"></textarea>
-        <br />
-        <button onclick="navigator.clipboard.writeText(document.getElementById('exportText').value)">Copy</button>
-        <button onclick="document.getElementById('exportModal').style.display='none'">Close</button>
+    <div id="infoModal" class="modal">
+        <h3>Import/Export How-To</h3>
+        <ul style="font-size:0.9em; line-height:1.6;">
+            <li><strong>Export Hyperlane:</strong> Copy output to <code>/map custom_hyperlanes</code></li>
+            <li><strong>Export Sector Types:</strong> Copy to <code>/map add_tile_list</code></li>
+            <li><strong>Export Hyperlane Positions:</strong> Outputs tile list for map position inclusion</li>
+            <li><strong>Import Hyperlanes:</strong> Paste from <code>/map custom_hyperlanes</code></li>
+            <li><strong>Import Sector Types:</strong> Based on code and tile ID CSV</li>
+            <li><strong>Load ID Reference CSV:</strong> Required for proper tile type mapping</li>
+        </ul>
+        <button onclick="closeModal('infoModal')">Close</button>
     </div>
-    <div id="versionTag">v0.8.5</div>
-    <div id="exportTypesModal"
-        style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:white; padding:1em; border:1px solid black; z-index:10; max-width:80%;">
-        <h3>Sector Type Export</h3>
-        <textarea id="exportTypesText" style="width:100%; height:200px;"></textarea><br>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('exportTypesText').value)">Copy</button>
-        <button onclick="document.getElementById('exportTypesModal').style.display='none'">Close</button>
+    <div id="featuresModal" class="modal">
+        <h3>Features and Contact</h3>
+        <ul style="font-size:0.9em; line-height:1.6;">
+            <li><strong>To Do:</strong> Wormholes, full export string, sector finding</li>
+            <li><strong>Planned:</strong> UI improvements, directional reach highlighting</li>
+            <li><strong>Feedback & Contact:</strong> GitHub Issues or email</li>
+        </ul>
+        <button onclick="closeModal('featuresModal')">Close</button>
     </div>
-<div style="margin-bottom: 0.5em;">
-    <button onclick="setMode('hyperlane')" class="mode-button" style="font-size: 1.1em; padding: 0.6em 1.2em;">
-        Hyperlane Drawing
-    </button>
-</div>
-    <div style="margin-bottom: 0.5em;">
-        <button onclick="setMode('1 planet')" class="mode-button" style="background:#cce5ff;">1 Planet</button>
-        <button onclick="setMode('2 planet')" class="mode-button" style="background:#49a1ff;">2 Planet</button>
-        <button onclick="setMode('3 planet')" class="mode-button" style="background:#005cbf;">3 Planet</button>
-        <button onclick="setMode('legendary planet')" class="mode-button" style="background:#b300ff;">Legendary
-            Planet</button>
-        <button onclick="setMode('empty')" class="mode-button" style="background:#ffffff;">Empty</button>
-        <button onclick="setMode('special')" class="mode-button" style="background:#ff83a0;">Special</button>
-
-        <button onclick="setMode('void')" class="mode-button" style="background:#2b2b2b; color:#fff;">Void</button>
-
-    </div>
-    <div>
-        <button onclick="setMode('supernova')" class="mode-button" style="background:#ffe5b4;">Supernova</button>
-        <button onclick="setMode('nebula')" class="mode-button" style="background:#e6ccff;">Nebula</button>
-        <button onclick="setMode('asteroid')" class="mode-button" style="background:#d9d9d9;">Asteroid Field</button>
-        <button onclick="setMode('rift')" class="mode-button" style="background:#d9d9d9;">Rift</button>
-        <button onclick="setMode('homesystem')" class="mode-button" style="background:#059f00;">Homesystem</button>
-
-    </div>
-
-    <svg id="hexMap" width="1400" height="1000"></svg>
 
     <input type="file" id="idImportCSV" accept=".csv" style="display: none" />
     <button onclick="document.getElementById('idImportCSV').click()">Load ID Reference CSV</button>
@@ -216,6 +466,11 @@
         let hoveredHexLabel = null; // Global variable (add this near top of script)
         let sectorIDLookup = {};         // Maps code → data row
         let originalHexIDs = {};         // Maps hex label → code used during import
+        //const positions = ['vertical-left','horizontal-top','vertical-right'];
+        //let posIndex = 0;
+        const _positions = ['pos-left', 'pos-top', 'pos-right'];
+        let _posIndex = 0;
+
         const sectorColors = {
             '': '#eee',
             '1 planet': '#cce5ff',
@@ -266,6 +521,83 @@
                 y: hexRadius * sqrt3 * (r + q / 2) + 500
             };
         }
+
+        /*
+                function arrangeControls() {
+                    const svgEl = document.getElementById('hexMap');
+                    const rect = svgEl.getBoundingClientRect();
+                    const container = document.getElementById('sectorControlsContainer');
+        
+                    // ensure we’re absolutely positioned
+                    container.style.position = 'absolute';
+                    container.style.flexDirection = positions[posIdx] === 'top'
+                        ? 'row'           // lay out horizontally when “top”
+                        : 'column';       // vertically when “left” or “right”
+        
+                    switch (positions[posIdx]) {
+                        case 'left':
+                            container.style.top = `${rect.top + window.scrollY + 160}px`;
+                            container.style.left = `${rect.left + window.scrollX - container.offsetWidth + 130}px`;
+                            break;
+                        case 'top':
+                            container.style.left = `${rect.left + window.scrollX + (rect.width - container.offsetWidth) / 2 + 75}px`;
+                            container.style.top = `${rect.top + window.scrollY - container.offsetHeight + 130}px`;
+                            break;
+                        case 'right':
+                            container.style.top = `${rect.top + window.scrollY + 160}px`;
+                            container.style.left = `${rect.right + window.scrollX - 160}px`;
+                            break;
+                    }
+        
+                    // advance to next for next click
+                    posIdx = (posIdx + 1) % positions.length;
+                }
+        */
+
+
+        function arrangeControls() {
+            const box = document.getElementById('sectorControlsContainer');
+            // remove all three old classes
+            _positions.forEach(c => box.classList.remove(c));
+            // add the next
+            box.classList.add(_positions[_posIndex]);
+            // bump index
+            _posIndex = (_posIndex + 1) % _positions.length;
+        }
+
+
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function toggleTheme() {
+            const current = document.body.classList.contains("dark") ? "dark" : "light";
+            const next = current === "dark" ? "light" : "dark";
+            document.body.classList.remove(current);
+            document.body.classList.add(next);
+            localStorage.setItem("theme", next);
+        }
+
+        function toggleHelp() {
+            document.getElementById('controlsModal').style.display = 'block';
+        }
+        function toggleInfo() {
+            document.getElementById('infoModal').style.display = 'block';
+        }
+        function toggleFeatures() {
+            document.getElementById('featuresModal').style.display = 'block';
+        }
+
+        // Auto-apply saved theme on load
+        (function applySavedTheme() {
+            const saved = localStorage.getItem("theme");
+            if (saved === "dark" || saved === "light") {
+                document.body.classList.add(saved);
+            } else {
+                // fallback to system preference
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.body.classList.add(prefersDark ? 'dark' : 'light');
+            }
+        })();
+
 
 
         function drawHex(q, r, label) {
@@ -877,8 +1209,16 @@
                 if (info.Faction) {
                     hex.effects.add("homesystem");
                 }
-
                 setSectorType(label, hex.baseType);
+                console.log("🏷️ baseType check for", label, "=>", hex.baseType);
+                if (['1 planet', '2 planet', '3 planet', 'legendary planet'].includes(hex.baseType)) {
+                    console.log("🏷️ baseType check for", label, "=>", hex.baseType);
+                    const res = parseInt(info["eff resource"]) || 0;
+                    const inf = parseInt(info["eff influence"]) || 0;
+                    hex.effResource = res;
+                    hex.effInfluence = inf;
+                    displayResourceInfluence(label);
+                }
             }
         }
 
@@ -1118,6 +1458,7 @@
         }
 
         function importSectorTypes() {
+            console.warn("Running importSectorTypes");
             const input = document.getElementById('importTypesText').value.trim();
             const tokens = input.replace(/[{}]/g, '').split(/\s+/);
 
@@ -1206,8 +1547,128 @@
             document.getElementById('importTypesModal').style.display = 'none';
         }
 
+        function displayResourceInfluence(label) {
+            const hex = hexes[label];
+            console.log(`Drawing values on ${label}: ${hex.effResource} / ${hex.effInfluence}`);
+            console.log(`🧩 Drawing for ${label}`, hex.effResource, hex.effInfluence, hex.baseType);
+            if (!hex) return;
+
+            console.log(`Drawing values on ${label}: ${hex.effResource} / ${hex.effInfluence}`);
+            console.log(`🧩 Drawing for ${label}`, hex.effResource, hex.effInfluence, hex.baseType);
+
+            // Remove old
+            if (hex.resourceText) svg.removeChild(hex.resourceText);
+            if (hex.influenceText) svg.removeChild(hex.influenceText);
+
+            const isPlanet = ['1 planet', '2 planet', '3 planet', 'legendary planet'].includes(hex.baseType);
+            if (!isPlanet) return;
+
+            const res = hex.effResource ?? 0;
+            const inf = hex.effInfluence ?? 0;
+
+            const resText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            resText.setAttribute('x', hex.center.x - 30);
+            resText.setAttribute('y', hex.center.y - 5);
+            resText.setAttribute('text-anchor', 'middle');
+            resText.setAttribute('class', 'hex-overlay');
+            resText.textContent = res;
+            svg.appendChild(resText);
+            hex.resourceText = resText;
+
+            const infText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            infText.setAttribute('x', hex.center.x + 30);
+            infText.setAttribute('y', hex.center.y - 5);
+            infText.setAttribute('text-anchor', 'middle');
+            infText.setAttribute('class', 'hex-overlay');
+            infText.textContent = inf;
+            svg.appendChild(infText);
+            hex.influenceText = infText;
+        }
 
 
+        /*
+        function highlightReachableDirectional(startLabel, maxDistance = 2) {
+            const visited = new Set();
+            const distanceMap = {};
+        
+            // Distance 0 is the sector itself
+            const queue = [{ label: startLabel, entry: null, distance: 0 }];
+        
+            // Clear any previous highlights
+            Object.values(hexes).forEach(h => h.polygon?.classList.remove('reach-1', 'reach-2'));
+        
+            while (queue.length > 0) {
+                const { label, entry, distance } = queue.shift();
+                const key = `${label}:${entry}`;
+        
+                if (visited.has(key) || distance > maxDistance) continue;
+                visited.add(key);
+        
+                if (!distanceMap[label] || distance < distanceMap[label]) {
+                    distanceMap[label] = distance;
+                }
+        
+                const hex = hexes[label];
+                if (!hex || !hex.matrix) continue;
+        
+                // If coming from outside (entry === null), explore all valid exits
+                if (entry === null) {
+                    for (let exit = 0; exit < 6; exit++) {
+                        for (let entryDir = 0; entryDir < 6; entryDir++) {
+                            if (hex.matrix[entryDir][exit] === 1) {
+                                const neighbor = findNeighborHex(hex, exit);
+                                if (!neighbor) continue;
+        
+                                const neighborLabel = getHexLabel(neighbor);
+                                const newEntry = (exit + 3) % 6;
+        
+                                queue.push({
+                                    label: neighborLabel,
+                                    entry: newEntry,
+                                    distance: distance + 1
+                                });
+                            }
+                        }
+                    }
+                }
+                // Otherwise: we're inside a hyperlane path
+                else {
+                    for (let exit = 0; exit < 6; exit++) {
+                        if (hex.matrix[entry][exit] === 1 || (hex.matrix[entry][entry] === 1 && entry !== exit && hex.matrix[entry][exit] === 1)) {
+                            const neighbor = findNeighborHex(hex, exit);
+                            if (!neighbor) continue;
+        
+                            const neighborLabel = getHexLabel(neighbor);
+                            const newEntry = (exit + 3) % 6;
+        
+                            queue.push({
+                                label: neighborLabel,
+                                entry: newEntry,
+                                distance: distance + 1
+                            });
+                        }
+                    }
+                }
+            }
+        
+            // Apply styling
+            for (const [label, dist] of Object.entries(distanceMap)) {
+                if (dist === 1) hexes[label].polygon.classList.add('reach-1');
+                if (dist === 2) hexes[label].polygon.classList.add('reach-2');
+            }
+        }
+        
+        function findNeighborHex(hex, side) {
+            const dir = edgeDirections[side];
+            const nq = hex.q + dir.q;
+            const nr = hex.r + dir.r;
+            return Object.values(hexes).find(h => h.q === nq && h.r === nr);
+        }
+        
+        function getHexLabel(hex) {
+            return Object.keys(hexes).find(k => hexes[k] === hex);
+        }
+        */
 
         function drawSpecialHexes() {
             const allPoints = Object.values(hexes).map(h => h.center);
@@ -1267,8 +1728,11 @@
         });
 
         svg.addEventListener('mousedown', (e) => {
-            isPanning = true;
-            panStart = { x: e.clientX, y: e.clientY };
+            if (e.button === 1) { // Middle mouse button
+                e.preventDefault(); // Prevent browser autoscroll
+                isPanning = true;
+                panStart = { x: e.clientX, y: e.clientY };
+            }
         });
 
         window.addEventListener('mousemove', (e) => {
@@ -1289,7 +1753,19 @@
                 clearAllEffects(hoveredHexLabel);
             }
         });
-
+        /*
+                window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'd' && e.shiftKey && hoveredHexLabel) {
+                highlightReachableDirectional(hoveredHexLabel, 3);
+            }
+        });
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'c' && e.shiftKey) {
+                Object.values(hexes).forEach(h => h.polygon?.classList.remove('reachable'));
+            }
+        });
+        */
 
         window.addEventListener('mouseup', () => {
             isPanning = false;
@@ -1330,6 +1806,8 @@
         generateMap();
 
     </script>
+
+
 
 </body>
 
