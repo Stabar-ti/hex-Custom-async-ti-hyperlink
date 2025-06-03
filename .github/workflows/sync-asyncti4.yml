@@ -1,0 +1,35 @@
+name: Sync AsyncTI4 data
+
+on:
+  schedule:
+    - cron: '0 */12 * * *'  # every 12 hours UTC
+  workflow_dispatch:       # allows manual trigger
+
+jobs:
+  sync-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v3
+
+      - name: Set up Git config
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Clone source repo
+        run: |
+          git clone --depth 1 https://github.com/AsyncTI4/TI4_map_generator_bot temp-bot-repo
+
+      - name: Copy systems and planets
+        run: |
+          mkdir -p public/data/systems
+          mkdir -p public/data/planets
+          cp -r temp-bot-repo/src/main/resources/systems/*.json public/data/systems/
+          cp -r temp-bot-repo/src/main/resources/planets/*.json public/data/planets/
+
+      - name: Commit & push changes
+        run: |
+          git add public/data/systems public/data/planets
+          git commit -m "🤖 Sync AsyncTI4 data" || echo "No changes to commit"
+          git push
