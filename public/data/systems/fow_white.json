@@ -1,0 +1,12 @@
+{
+    "id": "fow_white",
+    "name": null,
+    "aliases": null,
+    "imagePath": "FOW_fogofwar_white.png",
+    "shipPositionsType": null,
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [],
+    "source": "fow",
+    "tileBack": "black"
+}

@@ -1,0 +1,16 @@
+{
+    "id": "er15",
+    "name": "Iota Nebula",
+    "aliases": [
+        "iotanebula"
+    ],
+    "imagePath": "er_15_async.png",
+    "shipPositionsType": "TYPE08",
+    "wormholes": [
+        "IOTA"
+    ],
+    "planets": [],
+    "isNebula": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

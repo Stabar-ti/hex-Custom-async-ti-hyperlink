@@ -1,0 +1,15 @@
+{
+    "id": "er13",
+    "name": "Iota",
+    "aliases": [
+        "iota"
+    ],
+    "imagePath": "er_13_async.png",
+    "shipPositionsType": "TYPE08",
+    "wormholes": [
+        "IOTA"
+    ],
+    "planets": [],
+    "tileBack": "red",
+    "source": "eronous"
+}

@@ -1,0 +1,18 @@
+{
+    "id": "c07",
+    "name": "Desmond",
+    "aliases": [
+        "c07",
+        "desmond"
+    ],
+    "imagePath": "C07_Desmond.png",
+    "shipPositionsType": "TYPE04",
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [
+        "desmond"
+    ],
+    "isSupernova": true,
+    "source": "lost_star_charts_of_ixth",
+    "tileBack": "red"
+}

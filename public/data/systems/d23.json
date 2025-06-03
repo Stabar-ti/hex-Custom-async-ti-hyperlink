@@ -1,0 +1,22 @@
+{
+    "id": "d23",
+    "name": "Aldra/Beata - Mirveda",
+    "aliases": [
+        "d23",
+        "aldra",
+        "beata",
+        "mirveda",
+        "protectorate",
+        "DS_mirveda"
+    ],
+    "imagePath": "D23_Aldra.png",
+    "shipPositionsType": "TYPE02",
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [
+        "aldra",
+        "beata"
+    ],
+    "source": "ds",
+    "tileBack": "green"
+}

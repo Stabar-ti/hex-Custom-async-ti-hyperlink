@@ -1,0 +1,17 @@
+{
+    "id": "er16",
+    "name": "Supernova_1",
+    "aliases": [
+        "er_super",
+        "e1supper",
+        "er1nova",
+        "er1supernova_1"
+    ],
+    "imagePath": "er_16_async.png",
+    "shipPositionsType": "TYPE08",
+    "wormholes": [],
+    "planets": [],
+    "isSupernova": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

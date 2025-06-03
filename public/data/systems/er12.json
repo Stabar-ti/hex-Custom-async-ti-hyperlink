@@ -1,0 +1,16 @@
+{
+    "id": "er12",
+    "name": "Asteroid Iota",
+    "aliases": [
+        "asteroidiota"
+    ],
+    "imagePath": "er_12_async.png",
+    "shipPositionsType": "TYPE08",
+    "wormholes": [
+        "IOTA"
+    ],
+    "planets": [],
+    "isAsteroidField": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

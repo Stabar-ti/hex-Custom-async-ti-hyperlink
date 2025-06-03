@@ -1,0 +1,21 @@
+{
+    "id": "er03",
+    "name": "Hell's Maw",
+    "aliases": [
+        "hell",
+        "hellsmaw",
+        "deathsgate"
+    ],
+    "imagePath": "er_03_async.png",
+    "shipPositionsType": "TYPE05",
+    "wormholes": [
+        "EPSILON"
+    ],
+    "planets": [
+        "hellsmaw",
+        "deathsgate"
+    ],
+    "isGravityRift": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

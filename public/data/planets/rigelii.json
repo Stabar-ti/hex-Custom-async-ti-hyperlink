@@ -1,0 +1,23 @@
+{
+    "id": "rigelii",
+    "tileId": "76",
+    "name": "Rigel II",
+    "aliases": ["rigelii", "rigel2", "r2", "rigel ii", "76_2", "rii"],
+    "positionInTile": { "x": 214.0, "y": 89.0 },
+    "resources": 1,
+    "influence": 2,
+    "factionHomeworld": null,
+    "planetType": "INDUSTRIAL",
+    "cardImagePath": null,
+    "techSpecialties": null,
+    "legendaryAbilityName": null,
+    "legendaryAbilityText": null,
+    "planetLayout": {
+        "unitHolderName": "rigelii",
+        "resourcesLocation": "TopRight",
+        "centerPosition": { "x": 214, "y": 89 }
+    },
+    "contrastColor": "orange",
+    "flavourText": "*Temperate world with expansive oceans. Covered in estates and resorts for the system's elite, with extensive fisheries that feed much of the rest of the system.*",
+    "source": "pok"
+}

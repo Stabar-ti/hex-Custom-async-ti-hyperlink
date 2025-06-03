@@ -1,0 +1,16 @@
+{
+    "id": "er17",
+    "name": "Asteroid Rift",
+    "aliases": [
+        "rockyrift",
+        "ar",
+        "asteroidrift"
+    ],
+    "imagePath": "er_17_async.png",
+    "shipPositionsType": "TYPE08",
+    "planets": [],
+    "isAsteroidField": true,
+    "isGravityRift": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

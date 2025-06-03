@@ -1,0 +1,37 @@
+{
+    "id": "acheron",
+    "tileId": "54",
+    "name": "Acheron",
+    "aliases": [
+        "acheron",
+        "cabal",
+        "cabalhs",
+        "vuilrath",
+        "vuilrathhs",
+        "vuilrathcabal",
+        "dinos",
+        "vrc",
+        "vrc_hs",
+        "cabal_hc",
+        "vuilrath_hs",
+        "vulrath",
+        "vuilwrath",
+        "54_1"
+    ],
+    "positionInTile": { "x": 170.0, "y": 130.0 },
+    "resources": 4,
+    "influence": 0,
+    "factionHomeworld": "cabal",
+    "planetType": "FACTION",
+    "cardImagePath": null,
+    "techSpecialties": null,
+    "legendaryAbilityName": null,
+    "legendaryAbilityText": null,
+    "planetLayout": {
+        "unitHolderName": "acheron",
+        "resourcesLocation": "BottomLeft",
+        "centerPosition": { "x": 170, "y": 130 }
+    },
+    "flavourText": "*Once a dusty, dead world concealing a portal to Ixth. Now, a gravity rift has shattered the world, creating a labyrinth of strange energies and tumbling shards of rock.*",
+    "source": "pok"
+}

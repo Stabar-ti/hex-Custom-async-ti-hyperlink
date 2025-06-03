@@ -1,0 +1,17 @@
+{
+    "id": "er20",
+    "name": "Erodius",
+    "aliases": [
+        "erodius"
+    ],
+    "imagePath": "er_20_async.png",
+    "shipPositionsType": "TYPE05",
+    "wormholes": [
+        "EPSILON"
+    ],
+    "planets": [
+        "erodius"
+    ],
+    "tileBack": "blue",
+    "source": "eronous"
+}

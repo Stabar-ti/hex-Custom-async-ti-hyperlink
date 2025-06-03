@@ -1,0 +1,16 @@
+{
+    "id": "er14",
+    "name": "Iota Rift",
+    "aliases": [
+        "iotarift"
+    ],
+    "imagePath": "er_14_async.png",
+    "shipPositionsType": "TYPE08",
+    "wormholes": [
+        "IOTA"
+    ],
+    "planets": [],
+    "isGravityRift": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

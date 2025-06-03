@@ -1,0 +1,21 @@
+{
+    "id": "c10",
+    "name": "Kwon",
+    "aliases": [
+        "c10",
+        "kwon"
+    ],
+    "imagePath": "C10_Kwon.png",
+    "shipPositionsType": "TYPE15",
+    "spaceTokenLocations": [],
+    "wormholes": [
+        "BETA",
+        "ALPHA"
+    ],
+    "planets": [
+        "kwon"
+    ],
+    "isNebula": true,
+    "source": "lost_star_charts_of_ixth",
+    "tileBack": "red"
+}

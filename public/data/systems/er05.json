@@ -1,0 +1,18 @@
+{
+    "id": "er05",
+    "name": "Kkita Ul'in",
+    "aliases": [
+        "kkita",
+        "kkitaulin"
+    ],
+    "imagePath": "er_05_async.png",
+    "shipPositionsType": "TYPE04",
+    "wormholes": [
+        null
+    ],
+    "planets": [
+        "kkita"
+    ],
+    "tileBack": "blue",
+    "source": "eronous"
+}

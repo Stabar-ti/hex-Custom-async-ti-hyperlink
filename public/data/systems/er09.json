@@ -1,0 +1,23 @@
+{
+    "id": "er09",
+    "name": "Ulon",
+    "aliases": [
+        "ulon",
+        "ulongamma",
+        "ulonrho",
+        "urho"
+
+    ],
+    "imagePath": "er_09_async.png",
+    "shipPositionsType": "TYPE02",
+    "wormholes": [
+        null
+    ],
+    "planets": [
+        "ugamma",
+        "urho"
+    ],
+    "isAsteroidField": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

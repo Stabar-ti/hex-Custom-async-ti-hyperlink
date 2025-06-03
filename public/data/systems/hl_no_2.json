@@ -1,0 +1,28 @@
+{
+    "id": "hl_no_2",
+    "name": "Hyperlane",
+    "isHyperlane": true,
+    "aliases": [
+        "no_2"
+    ],
+    "imagePath": "hl_no_2.png",
+    "shipPositionsType": null,
+    "spaceTokenLocations": [
+        {
+            "x": 125.0,
+            "y": 102.0
+        },
+        {
+            "x": 165.0,
+            "y": 8.0
+        },
+        {
+            "x": 225.0,
+            "y": 102.0
+        }
+    ],
+    "wormholes": [],
+    "planets": [],
+    "source": "andcat",
+    "tileBack": "black"
+}

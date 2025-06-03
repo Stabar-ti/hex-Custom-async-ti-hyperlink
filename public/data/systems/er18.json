@@ -1,0 +1,16 @@
+{
+    "id": "er18",
+    "name": "Nebula Asteroid",
+    "aliases": [
+        "slowrock",
+        "na",
+        "nebulaasteroid"
+    ],
+    "imagePath": "er_18_async.png",
+    "shipPositionsType": "TYPE08",
+    "planets": [],
+    "isAsteroidField": true,
+    "isNebula": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

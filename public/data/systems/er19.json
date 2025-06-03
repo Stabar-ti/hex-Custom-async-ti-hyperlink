@@ -1,0 +1,17 @@
+{
+    "id": "er19",
+    "name": "Alpha Beta Rift",
+    "aliases": [
+        "abrift"
+    ],
+    "imagePath": "er_19_async.png",
+    "shipPositionsType": "TYPE08",
+    "wormholes": [
+        "ALPHA",
+        "BETA"
+    ],
+    "planets": [],
+    "isGravityRift": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

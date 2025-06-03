@@ -1,0 +1,22 @@
+{
+    "id": "ashtroth",
+    "tileId": "75",
+    "name": "Ashtroth",
+    "aliases": ["ashtroth", "ashtros", "ashtrot", "75_3"],
+    "resources": 2,
+    "influence": 0,
+    "factionHomeworld": null,
+    "planetType": "HAZARDOUS",
+    "cardImagePath": null,
+    "techSpecialties": null,
+    "legendaryAbilityName": null,
+    "legendaryAbilityText": null,
+    "planetLayout": {
+        "unitHolderName": "ashtroth",
+        "resourcesLocation": "TopLeft",
+        "centerPosition": { "x": 221, "y": 229 }
+    },
+    "contrastColor": "orange",
+    "flavourText": "*Covered in boggy landmasses and shallow seas. Algal blooms provide rich biomass for processed foods, but create smelly (and often toxic) offgassing.*",
+    "source": "pok"
+}

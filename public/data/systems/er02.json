@@ -1,0 +1,19 @@
+{
+    "id": "er02",
+    "name": "Eshonia",
+    "aliases": [
+        "eshonia",
+        "esh"
+    ],
+    "imagePath": "er_02_async.png",
+    "shipPositionsType": "TYPE10",
+    "wormholes": [
+        null
+    ],
+    "planets": [
+        "eshonia"
+    ],
+    "isNebula": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

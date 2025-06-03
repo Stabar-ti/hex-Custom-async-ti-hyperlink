@@ -1,0 +1,27 @@
+{
+    "id": "d13",
+    "name": "Kroll/Idyn/Cyrra - FreeSystems",
+    "aliases": [
+        "d13",
+        "idyn",
+        "kroll",
+        "krol",
+        "cyrra",
+        "cyra",
+        "compact",
+        "freesystems",
+        "freesystem",
+        "DS_freesystems"
+    ],
+    "imagePath": "D13_Kroll.png",
+    "shipPositionsType": "TYPE03",
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [
+        "kroll",
+        "idyn",
+        "cyrra"
+    ],
+    "source": "ds",
+    "tileBack": "green"
+}

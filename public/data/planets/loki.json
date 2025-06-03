@@ -1,0 +1,22 @@
+{
+    "id": "loki",
+    "tileId": "75",
+    "name": "Loki",
+    "aliases": ["loki", "lki", "75_1"],
+    "resources": 1,
+    "influence": 2,
+    "factionHomeworld": null,
+    "planetType": "CULTURAL",
+    "cardImagePath": null,
+    "techSpecialties": null,
+    "legendaryAbilityName": null,
+    "legendaryAbilityText": null,
+    "planetLayout": {
+        "unitHolderName": "loki",
+        "resourcesLocation": "BottomLeft",
+        "centerPosition": { "x": 83, "y": 139 }
+    },
+    "contrastColor": "orange",
+    "flavourText": "*Cold and wracked with violent storms, Loki still hosts several Yssaril and human colonies, some of which have engaged in escalating shadow-conflicts.*",
+    "source": "pok"
+}

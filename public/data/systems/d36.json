@@ -1,0 +1,15 @@
+{
+    "id": "d36",
+    "name": "Asteroids",
+    "aliases": [
+        "d36"
+    ],
+    "imagePath": "D36_Asteroids.png",
+    "shipPositionsType": "TYPE08",
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [],
+    "isAsteroidField": true,
+    "source": "ds",
+    "tileBack": "green"
+}

@@ -1,0 +1,23 @@
+{
+    "id": "d18",
+    "name": "Delmor/Kyd - Florzen",
+    "aliases": [
+        "d18",
+        "kyd",
+        "delmor",
+        "florzen",
+        "profiteers",
+        "profiteer",
+        "DS_florzen"
+    ],
+    "imagePath": "D18_Delmor.png",
+    "shipPositionsType": "TYPE02",
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [
+        "delmor",
+        "kyd"
+    ],
+    "source": "ds",
+    "tileBack": "green"
+}

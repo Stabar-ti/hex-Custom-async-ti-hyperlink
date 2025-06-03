@@ -1,0 +1,18 @@
+{
+    "id": "c04",
+    "name": "Lapidus",
+    "aliases": [
+        "c04",
+        "lapidus"
+    ],
+    "imagePath": "C04_Lapidus.png",
+    "shipPositionsType": "TYPE04",
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [
+        "lapidus"
+    ],
+    "isAsteroidField": true,
+    "source": "lost_star_charts_of_ixth",
+    "tileBack": "red"
+}

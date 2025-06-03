@@ -1,0 +1,22 @@
+{
+    "id": "d26",
+    "name": "Vadarian/Norvus - Vaden",
+    "aliases": [
+        "d26",
+        "vadarian",
+        "norvus",
+        "vaden",
+        "banking",
+        "DS_vaden"
+    ],
+    "imagePath": "D26_Vadarian.png",
+    "shipPositionsType": "TYPE02",
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [
+        "vadarian",
+        "norvus"
+    ],
+    "source": "ds",
+    "tileBack": "green"
+}

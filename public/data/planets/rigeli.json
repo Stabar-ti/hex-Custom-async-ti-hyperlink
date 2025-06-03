@@ -1,0 +1,23 @@
+{
+    "id": "rigeli",
+    "tileId": "76",
+    "name": "Rigel I",
+    "aliases": ["rigeli", "rigel1", "r1", "rigel i", "76_3", "ri"],
+    "positionInTile": { "x": 221.0, "y": 229.0 },
+    "resources": 0,
+    "influence": 1,
+    "factionHomeworld": null,
+    "planetType": "HAZARDOUS",
+    "cardImagePath": null,
+    "techSpecialties": null,
+    "legendaryAbilityName": null,
+    "legendaryAbilityText": null,
+    "planetLayout": {
+        "unitHolderName": "rigeli",
+        "resourcesLocation": "TopLeft",
+        "centerPosition": { "x": 221, "y": 229 }
+    },
+    "contrastColor": "orange",
+    "flavourText": "*Hot, innermost world of the Rigel system. Cities and native life cluster inland from the heavily alkaline oceans.*",
+    "source": "pok"
+}

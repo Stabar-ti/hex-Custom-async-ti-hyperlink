@@ -1,0 +1,17 @@
+{
+    "id": "er11",
+    "name": "Asteroid Beta",
+    "aliases": [
+        "asteroidbeta",
+        "asteroidbwh"
+    ],
+    "imagePath": "er_11_async.png",
+    "shipPositionsType": "TYPE08",
+    "wormholes": [
+        "BETA"
+    ],
+    "planets": [],
+    "isAsteroidField": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

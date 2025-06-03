@@ -1,0 +1,20 @@
+{
+    "id": "c05",
+    "name": "Horace",
+    "aliases": [
+        "c05",
+        "horace"
+    ],
+    "imagePath": "C05_Horace.png",
+    "shipPositionsType": "TYPE14",
+    "spaceTokenLocations": [],
+    "wormholes": [
+        "BETA"
+    ],
+    "planets": [
+        "horace"
+    ],
+    "isNebula": true,
+    "source": "lost_star_charts_of_ixth",
+    "tileBack": "red"
+}

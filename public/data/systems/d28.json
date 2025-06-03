@@ -1,0 +1,20 @@
+{
+    "id": "d28",
+    "name": "Vaylar - Vaylerian",
+    "aliases": [
+        "d28",
+        "vaylar",
+        "scourge",
+        "DS_vaylerian",
+        "vaylerian"
+    ],
+    "imagePath": "D28_Vaylar.png",
+    "shipPositionsType": "TYPE01",
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [
+        "vaylar"
+    ],
+    "source": "ds",
+    "tileBack": "green"
+}

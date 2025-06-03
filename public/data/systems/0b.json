@@ -1,0 +1,18 @@
+{
+    "id": "0b",
+    "name": null,
+    "aliases": [
+        "0b",
+        "blue",
+        "normal",
+        "b",
+        "0blue"
+    ],
+    "imagePath": "00_blue.png",
+    "shipPositionsType": null,
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [],
+    "source": "base",
+    "tileBack": "black"
+}

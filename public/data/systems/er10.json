@@ -1,0 +1,26 @@
+{
+    "id": "er10",
+    "name": "Elok",
+    "aliases": [
+        "elokphi",
+        "eloknu",
+        "phi",
+        "nu", 
+        "ephi",
+        "enu"
+    ],
+    "imagePath": "er_10_async.png",
+    "planets": [
+
+        "elokphi",
+        "eloknu"
+    ],
+    "shipPositionsType": "TYPE02",
+    "wormholes": [
+        null
+    ],
+    "isNebula": true,
+    "tileBack": "red",
+    "source": "eronous"
+}
+

@@ -1,0 +1,21 @@
+{
+    "id": "er06",
+    "name": "Selen Solin",
+    "aliases": [
+        "seso",
+        "selensolin",
+        "selen",
+        "solin"
+    ],
+    "imagePath": "er_06_async.png",
+    "shipPositionsType": "TYPE05",
+    "wormholes": [
+        null
+    ],
+    "planets": [
+        "selen",
+        "solin"
+    ],
+    "tileBack": "blue",
+    "source": "eronous"
+}

@@ -1,0 +1,22 @@
+{
+    "id": "d12",
+    "name": "Zelian/Gen - Zelian",
+    "aliases": [
+        "d12",
+        "gen",
+        "zelian",
+        "purifier",
+        "DS_zelian"
+    ],
+    "imagePath": "D12_Gen.png",
+    "shipPositionsType": "TYPE02",
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [
+        "gen",
+        "zelian"
+    ],
+    "isAsteroidField": true,
+    "source": "ds",
+    "tileBack": "green"
+}

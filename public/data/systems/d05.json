@@ -1,0 +1,24 @@
+{
+    "id": "d05",
+    "name": "AysisRest/Solitude - Lanefir",
+    "aliases": [
+        "d05",
+        "aysis",
+        "aysisrest",
+        "solitude",
+        "lanefir",
+        "remnants",
+        "remnant",
+        "DS_lanefir"
+    ],
+    "imagePath": "D05_AysisRest.png",
+    "shipPositionsType": "TYPE02",
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [
+        "aysisrest",
+        "solitude"
+    ],
+    "source": "ds",
+    "tileBack": "green"
+}

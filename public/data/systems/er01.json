@@ -1,0 +1,15 @@
+{
+    "id": "er01",
+    "name": "Rial Archon",
+    "aliases": [
+        "rialarchon",
+        "rial"
+    ],
+    "imagePath": "er01_rialarchon.png",
+    "shipPositionsType": "TYPE04",
+    "planets": [
+        "rialarchon"
+    ],
+    "tileBack": "blue",
+    "source": "eronous"
+}

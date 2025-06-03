@@ -1,0 +1,20 @@
+{
+    "id": "c06",
+    "name": "Eko",
+    "aliases": [
+        "c06",
+        "eko"
+    ],
+    "imagePath": "C06_Eko.png",
+    "shipPositionsType": "TYPE13",
+    "spaceTokenLocations": [],
+    "wormholes": [
+        "ALPHA"
+    ],
+    "planets": [
+        "eko"
+    ],
+    "isGravityRift": true,
+    "source": "lost_star_charts_of_ixth",
+    "tileBack": "red"
+}

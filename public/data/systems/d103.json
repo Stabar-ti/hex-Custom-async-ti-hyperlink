@@ -1,0 +1,36 @@
+{
+    "id": "d103",
+    "name": "Prism",
+    "aliases": [
+        "prism",
+        "prysm",
+        "pri",
+        "4256"
+    ],
+    "imagePath": "d103.png",
+    "shipPositionsType": "TYPE01",
+    "spaceTokenLocations": [
+        {
+            "x": 195.0,
+            "y": 10.0
+        },
+        {
+            "x": 225.0,
+            "y": 75.0
+        },
+        {
+            "x": 225.0,
+            "y": 155.0
+        },
+        {
+            "x": 145.0,
+            "y": 205.0
+        }
+    ],
+    "wormholes": null,
+    "planets": [
+        "prism"
+    ],
+    "source": "uncharted_space",
+    "tileBack": "blue"
+}

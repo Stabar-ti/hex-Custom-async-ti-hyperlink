@@ -1,0 +1,17 @@
+{
+    "id": "er22",
+    "name": "Il Voshu",
+    "aliases": [
+        "ilvoshu"
+    ],
+    "imagePath": "er_22_async.png",
+    "shipPositionsType": "TYPE04",
+    "wormholes": [
+        null
+    ],
+    "planets": [
+        "ilvoshu"
+    ],
+    "tileBack": "blue",
+    "source": "eronous"
+}

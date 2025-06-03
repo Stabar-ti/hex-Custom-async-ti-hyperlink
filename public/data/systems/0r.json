@@ -1,0 +1,18 @@
+{
+    "id": "0r",
+    "name": null,
+    "aliases": [
+        "0r",
+        "red",
+        "anomaly",
+        "r",
+        "0red"
+    ],
+    "imagePath": "00_red.png",
+    "shipPositionsType": null,
+    "spaceTokenLocations": [],
+    "wormholes": [],
+    "planets": [],
+    "source": "base",
+    "tileBack": "black"
+}

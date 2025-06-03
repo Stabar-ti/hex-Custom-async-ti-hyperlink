@@ -1,0 +1,20 @@
+{
+    "id": "er23",
+    "name": "Xyon",
+    "aliases": [
+        "xyon",
+        "xyo",
+        "xy"
+    ],
+    "imagePath": "er_23_async.png",
+    "shipPositionsType": "TYPE10",
+    "wormholes": [
+        null
+    ],
+    "planets": [
+        "xyon"
+    ],
+    "isGravityRift": true,
+    "tileBack": "red",
+    "source": "eronous"
+}

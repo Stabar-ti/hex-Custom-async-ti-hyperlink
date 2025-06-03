@@ -1,0 +1,19 @@
+{
+    "id": "er04",
+    "name": "Su'Prima",
+    "aliases": [
+        "su",
+        "suprima",
+        "prima"
+    ],
+    "imagePath": "er_04_async.png",
+    "shipPositionsType": "TYPE04",
+    "wormholes": [
+        null
+    ],
+    "planets": [
+        "suprima"
+    ],
+    "tileBack": "blue",
+    "source": "eronous"
+}

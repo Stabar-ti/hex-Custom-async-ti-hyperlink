@@ -1,0 +1,19 @@
+{
+    "id": "er21",
+    "name": "All in One",
+    "aliases": [
+        "allinone"
+    ],
+    "imagePath": "er_21_async.png",
+    "shipPositionsType": "TYPE08",
+    "wormholes": [
+        null
+    ],
+    "planets": [],
+    "isAsteroidField": true,
+    "isSupernova": true,
+    "isNebula": true,
+    "isGravityRift": true,
+    "tileBack": "red",
+    "source": "eronous"
+}
