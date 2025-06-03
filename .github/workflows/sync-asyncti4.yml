@@ -8,9 +8,12 @@ on:
 jobs:
   sync-data:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout this repo
         uses: actions/checkout@v3
+        with:
+          persist-credentials: false  # we'll use GITHUB_TOKEN manually below
 
       - name: Set up Git config
         run: |
@@ -32,4 +35,4 @@ jobs:
         run: |
           git add public/data/systems public/data/planets
           git commit -m "🤖 Sync AsyncTI4 data" || echo "No changes to commit"
-          git push
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
