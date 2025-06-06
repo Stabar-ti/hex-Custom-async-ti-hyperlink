@@ -2,8 +2,8 @@ name: Sync AsyncTI4 data
 
 on:
   schedule:
-    - cron: '0 */12 * * *'  # every 12 hours UTC
-  workflow_dispatch:       # allows manual trigger
+    - cron:   '0 */12 * * *'   # every 12h UTC
+  workflow_dispatch:
 
 jobs:
   sync-data:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout this repo
         uses: actions/checkout@v3
         with:
-          persist-credentials: false  # we'll use GITHUB_TOKEN manually below
+          persist-credentials: false
 
       - name: Set up Git config
         run: |
@@ -26,13 +26,48 @@ jobs:
 
       - name: Copy systems and planets
         run: |
-          mkdir -p public/data/systems
-          mkdir -p public/data/planets
+          mkdir -p public/data/systems public/data/planets
           cp -r temp-bot-repo/src/main/resources/systems/*.json public/data/systems/
           cp -r temp-bot-repo/src/main/resources/planets/*.json public/data/planets/
 
+      - name: Combine into a single bundle
+        run: |
+          python3 - << 'EOF'
+          import json, glob, os
+
+          # Load all planets into a dict by id
+          planets = {}
+          for path in sorted(glob.glob('public/data/planets/*.json')):
+            p = json.load(open(path))
+            planets[p['id']] = p
+
+          # For each system, load it and replace its 'planets' list of IDs
+          # with a list of full planet objects.
+          systems = []
+          for path in sorted(glob.glob('public/data/systems/*.json')):
+            sys = json.load(open(path))
+            # sys['planets'] is currently a list of planet IDs (or empty/null entries)
+            planet_objs = []
+            for pid in sys.get('planets', []):
+              if pid and pid in planets:
+                planet_objs.append(planets[pid])
+            sys['planets'] = planet_objs
+            systems.append(sys)
+
+          # Write the combined bundle
+          bundle = { 'systems': systems }
+          os.makedirs('public/data', exist_ok=True)
+          with open('public/data/SystemInfo.json', 'w') as out:
+            json.dump(bundle, out, separators=(',',':'))
+            
+          EOF
+
       - name: Commit & push changes
         run: |
-          git add public/data/systems public/data/planets
-          git commit -m "🤖 Sync AsyncTI4 data" || echo "No changes to commit"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
+          git add public/data/systems \
+                  public/data/planets \
+                  public/data/SystemInfo.json
+          git commit -m "🤖 Sync AsyncTI4 data + build SystemInfo.json" \
+                     || echo "No changes to commit"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git \
+                   HEAD:${{ github.ref_name }}
