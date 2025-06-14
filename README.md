@@ -1,87 +1,104 @@
-Hex Hyperlane Editor
-A web-based visual editor for building and customizing hex-based maps with hyperlane connections and sector types — ideal for games like Twilight Imperium 4 and custom mods.
+# TI4 Mapping Tool
 
-🧭 Features
-Click-based hex selection
+A web-based editor for **Twilight Imperium 4** maps, with full support for hyperlanes, sector types, wormholes, and async bot integration.  
+**No installation required — use in your browser or publish with GitHub Pages!**
 
-Draw and manage hyperlane connections
+---
 
-Assign sector types: 1/2/3 planet, legendary, empty, special, homesystem, void
+## 🚀 Features
 
-Overlay effects: Nebula, Supernova, Rift, Asteroid Fields
+- **Intuitive Hex Grid Editor** — Click, assign, and visualize sector types, planets, and effects
+- **Hyperlane Drawing** — Draw, delete, and loop curved hyperlane links with mouse gestures
+- **Wormhole Tools** — Toggle wormholes and visualize their links
+- **Full Export & Import** — Save and load your entire map, or export for async league tools and Discord bots
+- **Undo / Redo** — Never lose your work, even after big changes or imports
+- **Flexible Map Layouts** — Rectangular or round maps, up to 15 rings
+- **Keyboard Shortcuts** for  editing
+- **Responsive Dark/Light Modes**
+- **Open Source** — Fork, extend, or contribute on GitHub!
 
-Import/export data: Hyperlane structures and sector type strings
+---
 
-CSV-based lookup for accurate sector metadata
+## 🧭 Getting Started
 
-Keyboard support: Hover + Shift+R to reset a hex
+### Online
 
-Offline use: No server required — runs in browser
+Just open https://stabar-ti.github.io/hex-Custom-async-ti-hyperlink/ and start building maps!
 
-Undo support (per hex)
+### Local
 
-Autoscales and pans the map
+1. **Clone the repo:**
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
+    cd YOUR_REPO
+    ```
+2. **Open `index.html` in your browser**
 
-Setup
-You can open the hex-now2e.html file directly in your browser or deploy it via GitHub Pages.
+That’s it!  
+_No build or install steps needed for the main app._
 
-Alternatively, clone and possibly open:
+---
 
-bash
-Copy
-Edit
-git clone https://github.com/yourusername/hex-hyperlane-editor.git
-cd hex-hyperlane-editor
-open hex-now2e.html
-🗂 Sector Data Integration
-The editor uses a CSV file to identify sector tile information (faction, legendary, special, etc).
+## 🖱️ How to Use
 
-Format Example
-csv
-Copy
-Edit
-ID,Name,Planets,Faction,Legend,Special,Nebula,Asteroid,Nova,Gravity,# Planets
-S17,Belsung IX,[belsungix],,,1,,,,,1
-01,Jord,[jord],1,,,,,,4
-ID: Tile code
+- **Click** a hex to assign a sector type, wormhole, or effect
+- **Shift+Click** to remove all hyperlane links from a hex
+- **Ctrl/Cmd+Z** to undo, **Ctrl/Cmd+Shift+Z** to redo
+- **Middle mouse drag** to pan; **scroll wheel** to zoom
+- Use the top bar to switch between sector types, wormholes, and special effects
+- See **Help** in the app for full keyboard shortcuts and features
 
-# Planets: Used to determine 1/2/3 planet
+### Import/Export
 
-Faction: If set to 1, marks tile as a homesystem
+- **Export HL / Map String / Positions / Wormholes:**  
+  Use for Discord async leagues or as backups
+- **Save Map:**  
+  Full JSON backup (useful for sharing or restoring maps)
+- **Load Map:**  
+  Paste JSON or upload file to restore a saved map
+- See **Import/Export How-To** in-app for step-by-step examples
 
-Legend: If non-empty, marks as legendary
+---
 
-Special: Marks as special tile
+## 💡 For Async Discord Bot Users
 
-Loading the CSV
-Click "Load ID Reference CSV" and select your tile list. This will enable automatic recognition on import.
+- Export the **Map String** for async league map import
+- Export **Hyperlane Positions** and **Wormholes** for `/map` and `/add_token` Discord bot commands
 
-Hyperlane Drawing
-Click 3 connected tiles to define a path: A → B → C
+---
 
-Hold ALT+Click to remove a connection
+## 🛠️ Developer Info
 
-Hold SHIFT+Click to delete all connections from a hex
+- All source code is plain JS, no build tools required
+- Modular architecture:  
+  - `core/` — main logic and state
+  - `features/` — hyperlanes, wormholes, overlays, undo/redo, etc
+  - `ui/` — DOM and SVG bindings
+  - `data/` — import/export helpers
+  - `draw/` — rendering utilities
+  - `public/data/` — sample sector metadata
 
-Right-click to cancel selection
+### Contributing
 
-Sector Types Import
-Paste a tile-type string (from export) and click Import Sector Types.
+- Open issues or PRs on GitHub
+- Feedback and feature suggestions welcome!
+- For major contributions, please contact <strong>@Stabar</strong> on the Discord async server
 
-Only overwrites tiles not manually modified.
+---
 
-Reset / Clear
-Shift+R while hovering a tile will:
+## 📬 Feedback & Contact
 
-Remove all links
+- For bugs, requests, or questions:  
+  - Or reach out on the Discord async (ping <strong>@Stabar</strong>)
 
-Remove effects
+---
 
-Reset base type
+## License
 
- Deployment
-This app is fully static. You can deploy it on GitHub Pages or Netlify with no backend.
+[MIT](LICENSE)
 
-License
-MIT License. Free to use and adapt.
+---
+
+**Twilight Imperium™ and all related marks and logos are trademarks of Fantasy Flight Games. This is a personal project, and made it public on request and for community use, is unaffiliated.**
+
 
