@@ -1,0 +1,703 @@
+/*──────────────────────────────────────────────────────────────────────────────
+  Theme variables
+──────────────────────────────────────────────────────────────────────────────*/
+:root {
+  --bg-color: #ffffff;
+  --text-color: #000000;
+  --modal-bg: #ffffff;
+  --modal-border: #000000;
+  --btn-bg-light: #f0f0f0;
+  --btn-bg-dark: #2a2a2a;
+  --info-color: #555;
+}
+
+body.dark {
+  --bg-color: #121212;
+  --text-color: #eeeeee;
+  --modal-bg: #1e1e1e;
+  --modal-border: #555;
+  --info-color: #eee;
+}
+
+body {
+  margin: 0;
+  padding-top: 60px;
+  /* height of topBar */
+  font-family: sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  /* let modals escape */
+  overflow: auto;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Specific system ID
+──────────────────────────────────────────────────────────────────────────────*/
+
+.modal-input {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.system-list {
+  list-style: none;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 0;
+  margin: 0;
+}
+
+.system-list li {
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.system-list li:hover {
+  background: var(--btn-bg-light);
+}
+
+#systemList li.used {
+  color: red;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  SVG / hex map
+──────────────────────────────────────────────────────────────────────────────*/
+svg {
+  background: var(--bg-color);
+  border: 1px solid #000;
+  /* always black */
+}
+
+#hexMap {
+  width: 95%;
+  height: calc(95vh - 60px);
+  max-width: 2000px;
+  margin: 10px auto;
+  display: block;
+}
+
+svg text {
+  pointer-events: none;
+  user-select: none;
+}
+
+#hexMap:focus {
+  outline: none;
+  box-shadow: 0 0 6px rgba(0, 0, 255, 0.4);
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Hex styling
+──────────────────────────────────────────────────────────────────────────────*/
+.hex {
+  stroke: #000;
+  stroke-width: 1;
+  cursor: pointer;
+}
+
+.hex-overlay {
+  font-family: "Segoe UI Symbol", "Noto Emoji";
+  font-size: 16px;
+  fill: var(--text-color);
+  pointer-events: none;
+}
+
+.selected {
+  fill: #ff0 !important;
+  stroke-width: 4;
+}
+
+.link-line {
+  stroke: blue;
+  stroke-width: 2;
+  fill: none;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Buttons
+──────────────────────────────────────────────────────────────────────────────*/
+.mode-button,
+.primary-button {
+  color: #000;
+  /* always black text */
+  background-color: var(--btn-bg-light);
+  border: none;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin: 2px;
+  cursor: pointer;
+}
+
+body.dark .mode-button,
+body.dark .primary-button {
+  background-color: var(--btn-bg-dark);
+}
+
+.mode-button.active {
+  outline: 3px solid var(--text-color);
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+  font-weight: bold;
+}
+
+.primary-button {
+  font-size: 1.05em;
+  font-weight: bold;
+  background-color: #1fa3ff;
+  color: #fff;
+}
+
+/* make most top-bar buttons white in dark mode, except dropdown toggles */
+body.dark #topBar .mode-button:not(.dropdown-toggle) {
+  background-color: #ffffff;
+  border: 1px solid #000;
+}
+
+/* ensure dropdown-toggle buttons keep dark styling */
+.dropdown-toggle {
+  background-color: var(--btn-bg-dark);
+  color: var(--text-color);
+  border: none;
+}
+
+body.dark .dropdown-toggle:hover,
+body.dark .dropdown-toggle:focus {
+  background-color: var(--btn-bg-light);
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Top bar
+──────────────────────────────────────────────────────────────────────────────*/
+#topBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 16px;
+  background: var(--bg-color);
+  border-bottom: 1px solid var(--modal-border);
+  z-index: 100;
+  box-sizing: border-box;
+}
+
+#leftControls,
+#rightControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#rightControls {
+  position: absolute;
+  right: 100px;
+  /* avoid overlap with versionTag */
+  top: 8px;
+}
+
+#versionTag {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  background: #444;
+  color: #fff;
+  font-size: 0.85em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: monospace;
+  z-index: 200;
+}
+
+/* group styling for hidden rows */
+.sub-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sub-controls.hidden {
+  display: none;
+}
+
+#layoutControls,
+#overlayControls {
+  margin-top: 4px;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Main controls panel
+──────────────────────────────────────────────────────────────────────────────*/
+#controlsPanel {
+  position: fixed;
+  top: 60px;    /* same as before */
+  left: 16px;
+  background: var(--bg-color);
+  padding: 8px;
+  border: 1px solid var(--modal-border);
+  z-index: 50;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* slide it off to the left and fade out */
+#controlsPanel.collapsed {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Sector-buttons container
+──────────────────────────────────────────────────────────────────────────────*/
+#sectorControlsContainer {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pos-left {
+  top: 220px;
+  left: 16px;
+  flex-direction: column;
+  width: 160px;
+}
+
+.pos-top {
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: row;
+  max-width: calc(160px * 4 + 4px);
+}
+
+.pos-right {
+  top: 220px;
+  right: 16px;
+  left: auto;
+  flex-direction: column;
+  width: 160px;
+}
+
+#effectsToggleBtn,
+#wormholeToggleBtn {
+  display: block;
+  width: 160px;
+  padding: 6px 10px;
+  font-weight: bold;
+  text-align: center;
+  margin: 2px auto;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Color overrides for sector buttons
+──────────────────────────────────────────────────────────────────────────────*/
+.btn-1 {
+  background: #cce5ff;
+}
+
+.btn-2 {
+  background: #49a1ff;
+}
+
+.btn-3 {
+  background: #005cbf;
+  color: #fff;
+}
+
+.btn-legendary {
+  background: #b300ff;
+  color: #fff;
+}
+
+.btn-empty {
+  background: #fff;
+}
+
+.btn-special {
+  background: #ff83a0;
+}
+
+.btn-void {
+  background: #2b2b2b;
+  color: #fff;
+}
+
+.btn-supernova {
+  background: #ffe5b4;
+}
+
+.btn-nebula {
+  background: #e6ccff;
+}
+
+.btn-asteroid {
+  background: #d9d9d9;
+}
+
+.btn-rift {
+  background: #7b7b7b;
+  color: #fff;
+}
+
+.btn-homesystem {
+  background: #059f00;
+  color: #fff;
+}
+
+#effectsToggleBtn {
+  background-color: var(--btn-bg-light);
+  color: #000;
+  border: 1px solid var(--modal-border);
+}
+
+body.dark #effectsToggleBtn {
+  background-color: var(--btn-bg-dark);
+  color: #fff;
+  border: 1px solid var(--modal-border);
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Lookup-ID button
+──────────────────────────────────────────────────────────────────────────────*/
+.mode-button.btn-lookup-id {
+  background: #b8860b;
+  color: #222;
+  border: 2px solid #aa8800;
+  font-weight: 600;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.13);
+  padding: 0.5em 1.1em;
+  margin: 0.15em;
+  transition: background 0.15s, color 0.15s;
+}
+
+body.dark .mode-button.btn-lookup-id {
+  background: #e1b23e;
+  color: #221a00;
+  border-color: #af8900;
+}
+
+body.dark .mode-button.btn-lookup-id:hover,
+body.dark .mode-button.btn-lookup-id:focus {
+  background: #ffd700;
+  color: #111;
+  border-color: #e2b100;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Wormhole toggle
+──────────────────────────────────────────────────────────────────────────────*/
+.popup-group {
+  position: relative;
+}
+
+.popup-panel {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--btn-bg-dark);
+  border: 1px solid var(--modal-border);
+  padding: 5px;
+  z-index: 10;
+  resize: both;
+  overflow: auto;      /* required so content scrolls when you shrink it */
+  max-width: 90vw;     /* don’t let them drag you off-screen */
+  max-height: 90vh;
+}
+
+.popup-group.open .popup-panel {
+  display: block;
+}
+
+.wormhole-button.active {
+  outline: 3px solid var(--text-color);
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+  font-weight: bold;
+}
+
+#wormholeToggleBtn {
+  background-color: var(--btn-bg-light);
+  color: #000;
+  border: 1px solid var(--modal-border);
+}
+
+body.dark #wormholeToggleBtn {
+  background-color: var(--btn-bg-dark);
+  color: #fff;
+  border: 1px solid var(--modal-border);
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Search Filter
+──────────────────────────────────────────────────────────────────────────────*/
+details {
+  margin: 0.5em 0;
+}
+
+details[open] .filter-button {
+  display: inline-block;
+  margin: 0.25em;
+}
+
+.filter-button {
+  display: inline-block;
+  margin: 4px;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: var(--btn-bg-light);
+  cursor: pointer;
+}
+
+.filter-button.active {
+  background: #f5c000;
+  border-color: #b38f00;
+  color: #000;
+}
+
+body.dark .filter-button.active {
+  background: #b38f00;
+}
+
+#systemLookupModal ul.system-list li {
+  font-size: 0.9rem;
+  line-height: 2.0;
+  padding: 4px 8px;
+}
+
+#systemLookupModal {
+  width: 600px;
+  max-width: 90vw;
+}
+
+#systemLookupModal details#lookupFilters {
+  width: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#systemLookupModal #uiFiltersContainer {
+  max-height: 200px;
+  overflow-y: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Modals
+──────────────────────────────────────────────────────────────────────────────*/
+.modal {
+  display: none;
+  position: fixed;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--modal-bg);
+  color: var(--text-color);
+  padding: 1em;
+  border: 1px solid var(--modal-border);
+  z-index: 1000;
+  max-width: 80%;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  resize: both;
+  overflow: auto;      /* required so content scrolls when you shrink it */
+  max-width: 90vw;     /* don’t let them drag you off-screen */
+  max-height: 90vh;
+}
+
+.modal textarea {
+  width: 100%;
+  height: 100px;
+  background: var(--modal-bg);
+  color: var(--text-color);
+  border: 1px solid var(--modal-border);
+}
+
+.modal-header.draggable-handle {
+  cursor: move;
+  background: #222;
+  color: #fff;
+  padding: 0.1em;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-content {
+  box-sizing: border-box;
+  border-radius: 8px;
+  overflow: auto;
+  min-width: 340px;
+  min-height: 80px;
+}
+
+#controls,
+#Info,
+#Info2 {
+  color: var(--info-color);
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Wormhole overlays
+──────────────────────────────────────────────────────────────────────────────*/
+.hex-wormhole-circle {
+  stroke: white;
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.hex-wormhole-label {
+  fill: white;
+  font-size: 12px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.wormhole-button {
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin: 2px;
+  cursor: pointer;
+  font-weight: bold;
+  border: 1px solid #000;
+  color: #fff;
+}
+
+#wormholeLineLayer,
+#wormholeLineLayer line {
+  pointer-events: none;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  ControlsPanel buttons
+──────────────────────────────────────────────────────────────────────────────*/
+#controlsPanel button {
+  background-color: var(--btn-bg-light);
+  color: #000;
+  border: 1px solid var(--modal-border);
+}
+
+body.dark #controlsPanel button {
+  background-color: var(--btn-bg-dark);
+  color: #fff;
+  border: 1px solid var(--modal-border);
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Re-apply .btn-* colors in dark mode
+──────────────────────────────────────────────────────────────────────────────*/
+.mode-button.btn-1 {
+  background-color: #cce5ff !important;
+  border: 1px solid black;
+}
+
+.mode-button.btn-2 {
+  background-color: #49a1ff !important;
+  border: 1px solid black;
+}
+
+.mode-button.btn-3 {
+  background-color: #005cbf !important;
+  color: #fff !important;
+  border: 1px solid black;
+}
+
+.mode-button.btn-legendary {
+  background-color: #b300ff !important;
+  color: #fff !important;
+  border: 1px solid black;
+}
+
+.mode-button.btn-empty {
+  background-color: #fae7b5 !important;
+  border: 1px solid black;
+}
+
+.mode-button.btn-special {
+  background-color: #ff83a0 !important;
+  border: 1px solid black;
+}
+
+.mode-button.btn-void {
+  background-color: #2b2b2b !important;
+  color: #fff !important;
+  border: 1px solid black;
+}
+
+.mode-button.btn-supernova {
+  background-color: #ffe5b4 !important;
+  border: 1px solid black;
+}
+
+.mode-button.btn-nebula {
+  background-color: #e6ccff !important;
+  border: 1px solid black;
+}
+
+.mode-button.btn-asteroid {
+  background-color: #d9d9d9 !important;
+  border: 1px solid black;
+}
+
+.mode-button.btn-rift {
+  background-color: #7b7b7b !important;
+  color: #fff !important;
+  border: 1px solid black;
+}
+
+.mode-button.btn-homesystem {
+  background-color: #059f00 !important;
+  color: #fff !important;
+  border: 1px solid black;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Force Export/Import, Wormhole & Effects toggles to stay dark in dark mode
+──────────────────────────────────────────────────────────────────────────────*/
+body.dark #exportFullBtn,
+#importFullBtn,
+#exportHL,
+#importHLBtn,
+#toggleWormholes,
+#toggleEffects,
+#exportPos,
+#exportWormholePos,
+#exportTypes,
+#importTypesBtn,
+#optionsBtn,
+#helpToggle,
+#infoToggle,
+#featuresToggle,
+#linkWormholesBtn,
+#themeToggle,
+#arrangeBtn,
+#overlayControls,
+#togglePlanetTypes,
+#toggleResInf,
+#toggleIdealRI,
+#toggleRealID,
+#toggleControlsBtn,
+.mode-button.dropdown-toggle {
+  background-color: var(--btn-bg-dark) !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--modal-border) !important;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Ensure pointer-events for clickable elements
+──────────────────────────────────────────────────────────────────────────────*/
+#controlsPanel,
+#controlsPanel *,
+#sectorControlsContainer,
+#sectorControlsContainer *,
+.modal,
+.modal * {
+  pointer-events: auto;
+}
