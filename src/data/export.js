@@ -1,9 +1,28 @@
+// ───────────────────────────────────────────────────────────────
+// data/export.js
+//
+// This module provides all export utilities for the TI4 map editor.
+// It supports exporting map data in multiple formats:
+// - Adjacency strings for hyperlane links
+// - User-added wormhole positions (for scripting bots, etc)
+// - Hyperlane tile positions
+// - Full JSON state for saving/sharing maps
+// - Sector code (type) string for re-import or sharing
+// Each format is designed to support both advanced automation
+// and human sharing/copy-paste workflows.
+// ───────────────────────────────────────────────────────────────
 
-// ─────────────── data/export.js ───────────────
 import { matrixToHex, hasLinks } from '../utils/matrix.js';
-import { typeCodeMap } from '../constants/constants.js'; 
+import { typeCodeMap } from '../constants/constants.js';
 import { showModal } from '../ui/uiModals.js';
+import { generateRings } from '../draw/drawHexes.js';
+import { wormholeTypes } from '../constants/constants.js'; // Adjust import path if needed
 
+/**
+ * Exports all hyperlane (adjacency) data as a string, showing only hexes with links.
+ * Ensures that all links are symmetric/bidirectional in the matrix.
+ * Output is written to the export text area and shown in a modal.
+ */
 export function exportMap(editor) {
   const out = [];
 
@@ -11,9 +30,10 @@ export function exportMap(editor) {
     const hex = editor.hexes[id];
     if (!hex.matrix) continue;
 
-    // Mirror connections for symmetry
+    // Clone matrix for mutation
     const matrix = hex.matrix.map(r => [...r]);
 
+    // Mirror all links to make bidirectional (symmetric)
     editor.edgeDirections.forEach((dir, entry) => {
       matrix[entry].forEach((val, exit) => {
         if (val === 1) {
@@ -28,7 +48,7 @@ export function exportMap(editor) {
       });
     });
 
-    if (!hasLinks(matrix)) continue;
+    if (!hasLinks(matrix)) continue; // Only export hexes with links
 
     const hexStr = matrixToHex(matrix);
     out.push(`${id},${hexStr}`);
@@ -39,30 +59,51 @@ export function exportMap(editor) {
 }
 
 /**
- * Exports only user-added wormhole positions, omitting inherent/system ones.
- * Supports 3- and 4-digit tile IDs.
+ * Exports only user-added wormhole tokens/positions.
+ * Omits inherent/system wormholes (from tile data).
+ * Output is compatible with TTS/bot /add_token syntax.
  */
 export function exportWormholePositions(editor) {
+  // Build the wormhole token map
+  const whTokenMap = {};
+  Object.keys(wormholeTypes).forEach(
+    key => whTokenMap[key] = 'wh' + key
+  );
+  whTokenMap.iota = 'custom_eronous_whiota';
+  whTokenMap.theta = 'custom_eronous_whtheta';
+
   const groups = {};
+
   for (const [id, hex] of Object.entries(editor.hexes)) {
-  if (!/^\d{3,4}$/.test(id)) continue;
+    if (!/^\d{3,4}$/.test(id)) continue;
 
-  // Make both sets lowercase for comparison!
-  const inherent = new Set(Array.from(hex.inherentWormholes || []).map(w => w.toLowerCase()));
-  const userWormholes = Array.from(hex.wormholes || [])
-    .filter(w => !inherent.has(w.toLowerCase()));
+    // Find inherent/system wormholes (lowercase)
+    const inherent = new Set(
+      Array.from(hex.inherentWormholes || hex.systemWormholes || [])
+        .map(w => w.toLowerCase())
+    );
 
-  if (userWormholes.length === 0) continue;
-  for (const wh of userWormholes) {
-    if (!groups[wh]) groups[wh] = [];
-    groups[wh].push(id);
+    // User wormholes: in .wormholes but not inherent
+    const userWormholes = Array.from(hex.wormholes || []).filter(
+      w => !inherent.has(w.toLowerCase())
+    );
+
+    if (userWormholes.length === 0) continue;
+
+    for (const whRaw of userWormholes) {
+      // Normalize to base key, strip any wh prefix
+      const whKey = whRaw.toLowerCase().replace(/^wh/, '');
+      const whToken = whTokenMap[whKey] || ('wh' + whKey);
+
+      if (!groups[whToken]) groups[whToken] = [];
+      groups[whToken].push(id);
+    }
   }
-}
 
   const lines = Object.entries(groups)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([wh, ids]) =>
-      `/add_token token:${wh} tile_name:${ids.sort((a, b) => +a - +b).join(',')}`
+    .map(([whToken, ids]) =>
+      `/add_token token:${whToken} tile_name:${ids.sort((a, b) => +a - +b).join(',')}`
     );
 
   const output = lines.join('\n');
@@ -71,7 +112,10 @@ export function exportWormholePositions(editor) {
   showModal('exportWormholePositionsModal');
 }
 
-
+/**
+ * Exports IDs of all tiles with hyperlane links.
+ * Output is compatible with scripting (e.g. /map add_tile ...).
+ */
 export function exportHyperlaneTilePositions(editor) {
   const ids = Object.entries(editor.hexes)
     .filter(([_, h]) => h.matrix?.flat().some(x => x === 1))
@@ -88,25 +132,29 @@ export function exportHyperlaneTilePositions(editor) {
 }
 
 /**
- * Export the full editor state to JSON, including only user-added wormholes
+ * Exports the full editor state as a JSON object (for saving/loading).
+ * Includes only user-added wormholes (not inherent/system).
  */
 export function exportFullState(editor) {
   const hexes = Object.entries(editor.hexes).map(([label, hex]) => {
-    const inherent      = hex.inherentWormholes || new Set();
+    const inherent = hex.inherentWormholes || new Set();
     const userWormholes = Array.from(hex.wormholes || [])
       .filter(w => !inherent.has(w));
 
     return {
-      // use the map key as your hex id
-      id:       label,
-      realId:   hex.realId != null ? hex.realId.toString() : '',
-      q:        hex.q,
-      r:        hex.r,
-      planets:  Array.from(hex.planets || []),
+      id: label,
+      realId: hex.realId != null ? hex.realId.toString() : '',
+      q: hex.q,
+      r: hex.r,
+      planets: Array.from(hex.planets || []),
       baseType: hex.baseType || '',
-      effects:  Array.from(hex.effects || []),
-      links:    hex.matrix,
-      wormholes: userWormholes
+      effects: Array.from(hex.effects || []),
+      wormholes: userWormholes,
+      customAdjacents: hex.customAdjacents ? JSON.parse(JSON.stringify(hex.customAdjacents)) : undefined,
+      adjacencyOverrides: hex.adjacencyOverrides ? JSON.parse(JSON.stringify(hex.adjacencyOverrides)) : undefined,
+      borderAnomalies: hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
+      links: hex.matrix,
+
     };
   });
 
@@ -114,101 +162,185 @@ export function exportFullState(editor) {
 }
 
 /**
- * Builds the sector‐type string for export.
- * If hex.realId is defined, we use that ID directly.
+ * Builds the sector-type code string for export.
+ * Each hex's realId is exported if available, otherwise falls back to type codes.
+ * Only includes up to the last "significant" hex with a non-empty type or hyperlane.
  */
-
 function parseLabel(id) {
   if (id === '000') return [0, 0];
   const len = id.length;
   const ring = +id.slice(0, len - 2);
-  const idx  = +id.slice(len - 2);
+  const idx = +id.slice(len - 2);
   return [ring, idx];
 }
 
+
 export function exportSectorTypes(editor) {
   const getCode = (hex) => {
-    if (!hex || hex.baseType === 'void') return '-1';
+    if (!hex) return '-1';
+
+    // If void type, always -1
+    if (hex.baseType === 'void') return '-1';
+
+    // Hyperlane detection: nonzero matrix links
     if (hex.matrix) {
       const flat = hex.matrix.flat();
       const allZero = flat.every(v => v === 0);
-      if (
-        allZero &&
-        hex.realId == null &&
-        (!hex.baseType || hex.baseType === '')
-      ) {
-        return '-1';
+      if (!allZero && flat.includes(1)) {
+        return 'HL';
       }
-      if (flat.includes(1)) return 'HL';
     }
-    if (hex.realId != null) return hex.realId.toString();
-    if (hex.baseType) return typeCodeMap[hex.baseType] || 'HL';
+
+    // Use realId if present
+    if (hex.realId != null && hex.realId !== '') return hex.realId.toString();
+
+    // Try typeCodeMap
+    if (hex.baseType && typeCodeMap[hex.baseType]) return typeCodeMap[hex.baseType];
+
+    // Fallback for any baseType that hints at hyperlane
+    if (hex.baseType && hex.baseType.toLowerCase().includes('hyperlane')) return 'HL';
+
     return '-1';
   };
 
-  // Gather all labels except center, parse for sorting
-  const parsedLabels = Object.keys(editor.hexes)
-    .filter(id => /^\d{3,4}$/.test(id) && id !== '000')
-    .map(id => ({ id, ring: parseLabel(id)[0], idx: parseLabel(id)[1] }));
-
-  // Find the last significant hex (hyperlane, baseType, etc)
-  let lastSignificant = -1;
-  for (let i = 0; i < parsedLabels.length; i++) {
-    const { id } = parsedLabels[i];
-    const hex = editor.hexes[id];
-    if (!hex) continue;
-    const flat = hex.matrix?.flat?.() || [];
-    const hasHL = flat.includes(1);
-    const hasUseful = hasHL ||
-      (hex.baseType && hex.baseType !== 'empty' && hex.baseType !== 'void');
-    if (hasUseful) lastSignificant = i;
+  // --- Determine maximum ring (from actual map size, or user setting)
+  const hexLabels = Object.keys(editor.hexes).filter(l => /^\d{3,4}$/.test(l));
+  let maxRing = 0;
+  for (const l of hexLabels) {
+    if (l === '000') continue;
+    const ring = +l.slice(0, l.length - 2);
+    if (ring > maxRing) maxRing = ring;
   }
 
-  // Only keep up to lastSignificant
-  const sortedLabels = parsedLabels
-    .sort((a, b) => a.ring - b.ring || a.idx - b.idx)
-    .slice(0, lastSignificant + 1);
+  // Build label list: always include '000' and full rings
+  let labelList = ['000'];
+  for (let ring = 1; ring <= maxRing; ring++) {
+    const maxIdx = 6 * ring;
+    for (let idx = 1; idx <= maxIdx; idx++) {
+      const label = `${ring}${String(idx).padStart(2, '0')}`;
+      labelList.push(label);
+    }
+  }
 
-  const rest = sortedLabels.map(({ id }) => getCode(editor.hexes[id]));
+  // Map to sector codes
+  const codeList = labelList.map(label => getCode(editor.hexes[label]));
 
-  const center = getCode(editor.hexes['000']);
-  return `{${center}} ${rest.join(' ')}`;
+  return `{${codeList[0]}} ${codeList.slice(1).join(' ')}`;
 }
 
 
 
+export function exportAdjacencyOverrides(editor) {
+  // Map side index to text label
+  const dirMap = ['n', 'ne', 'se', 's', 'sw', 'nw'];
+  const seenPairs = new Set();
+  let overrides = [];
 
+  Object.entries(editor.hexes).forEach(([label, hex]) => {
+    if (!hex.adjacencyOverrides) return;
+    Object.entries(hex.adjacencyOverrides).forEach(([sideStr, neighborLabel]) => {
+      const side = parseInt(sideStr, 10);
+      if (!dirMap[side] || !neighborLabel) return;
+      // Build a normalized unique key for this connection
+      const [a, aSide, b] = [label, side, neighborLabel];
+      const [bSide] = [(side + 3) % 6];
+      // Sort labels to always use the lower label first for the key
+      const key = (a < b)
+        ? `${a}-${aSide}-${b}-${bSide}`
+        : `${b}-${bSide}-${a}-${aSide}`;
+      if (seenPairs.has(key)) return;
+      seenPairs.add(key);
 
-
-
-/*
-export function exportSectorTypes(editor) {
-  const getCode = (hex) => {
-    if (!hex) return 'HL';
-    // 1) If this hex was tied to a real SystemInfo.json entry, export that ID:
-    if (hex.realId != null) return hex.realId.toString();
-
-    // 2) Otherwise fall back to “legacy” type tokens:
-    const hasHL = hex.matrix?.flat().includes(1);
-    if (!hex.baseType)                    return hasHL ? 'HL'  : 'HL';
-    if (hex.baseType === 'empty')        return hasHL ? 'HL'  : typeCodeMap['empty'];
-    return typeCodeMap[hex.baseType] || 'HL';
-  };
-
-  // Sort your 000 center plus the rest in row‐major order
-  const entries = Object.entries(editor.hexes)
-    .sort(([a], [b]) => {
-      const rA = +a[0], iA = +a.slice(1);
-      const rB = +b[0], iB = +b.slice(1);
-      return rA !== rB ? rA - rB : iA - iB;
+      // Always export as a:side:b (original direction)
+      if (a < b) {
+        overrides.push(`${a}:${dirMap[aSide]}:${b}`);
+      } else {
+        overrides.push(`${b}:${dirMap[bSide]}:${a}`);
+      }
     });
+  });
 
-  // Center tile in braces, rest space‐separated
-  const center = getCode(editor.hexes['000']);
-  const rest   = entries
-    .filter(([id]) => id !== '000')
-    .map(([, hex]) => getCode(hex));
-
-  return `{${center}} ${rest.join(' ')}`;
+  if (!overrides.length) return 'No adjacency overrides set.';
+  return `/map add_adjacency_override_list adjacency_list: ${overrides.join(' ')}`;
 }
-*/
+
+
+/**
+ * Returns multiple lines like:
+ * /map add_custom_adjacent_tiles primary_tile: 317 adjacent_tiles: 529,209 two_way: false
+ * (2-way links are only listed for the lower tile number)
+ */
+export function exportCustomAdjacents(editor) {
+  const lines = [];
+  const handled = new Set();
+
+  Object.entries(editor.hexes).forEach(([label, hex]) => {
+    if (!hex.customAdjacents) return;
+    Object.entries(hex.customAdjacents).forEach(([target, info]) => {
+      // Only output if:
+      // - One-way (always output from "from" tile)
+      // - Two-way and label < target (to avoid double-listing)
+      const tileA = Number(label), tileB = Number(target);
+      const key = [Math.min(tileA, tileB), Math.max(tileA, tileB)].join('-');
+      if (info.twoWay) {
+        if (tileA > tileB || handled.has(key)) return; // Only emit from lower label
+        handled.add(key);
+      }
+      // Output this custom adjacency
+      lines.push(`/map add_custom_adjacent_tiles primary_tile: ${label} adjacent_tiles: ${target} two_way: ${info.twoWay}`);
+    });
+  });
+
+  return lines.join('\n');
+}
+
+export function exportBorderAnomaliesGrouped(editor) {
+  const dirMap = ['n', 'ne', 'se', 's', 'sw', 'nw'];
+  const groups = {};
+
+  Object.entries(editor.hexes).forEach(([label, hex]) => {
+    if (!hex.borderAnomalies) return;
+    Object.entries(hex.borderAnomalies).forEach(([sideStr, anomaly]) => {
+      const side = parseInt(sideStr, 10);
+      const dir = dirMap[side];
+      let type = (anomaly.type || '').replace(/\s+/g, '');
+      if (!dir || !type) return;
+
+      // Get neighbor LABEL for the direction
+      const neighborLabel = getNeighborHexLabel(editor.hexes, label, side);
+
+      // For SpatialTear, only export for the LOWER label
+      if (type === "SpatialTear" && neighborLabel && label > neighborLabel) return;
+
+      const key = `${dir}_${type}`;
+      if (!groups[key]) groups[key] = new Set();
+      groups[key].add(label);
+    });
+  });
+
+  const commands = [];
+  Object.entries(groups).forEach(([key, tiles]) => {
+    const [dir, type] = key.split('_');
+    commands.push(
+      `/map add_border_anomaly primary_tile: ${Array.from(tiles).join(',')} primary_tile_direction: ${dir} border_anomaly_type: ${type}`
+    );
+  });
+
+  return commands.length ? commands.join('\n') : "No border anomalies set.";
+}
+
+// The new helper:
+function getNeighborHexLabel(hexes, label, side) {
+  const dirs = [
+    { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 1, r: 0 },
+    { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }
+  ];
+  const hex = hexes[label];
+  if (!hex) return null;
+  const { q, r } = hex;
+  const nq = q + dirs[side].q, nr = r + dirs[side].r;
+  for (const [neighborLabel, neighborHex] of Object.entries(hexes)) {
+    if (neighborHex.q === nq && neighborHex.r === nr) return neighborLabel;
+  }
+  return null;
+}

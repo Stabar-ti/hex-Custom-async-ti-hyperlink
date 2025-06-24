@@ -9,6 +9,8 @@
   --btn-bg-light: #f0f0f0;
   --btn-bg-dark: #2a2a2a;
   --info-color: #555;
+  --topbar-btn-bg: #f0f0f0;
+  --topbar-btn-text: #000;
 }
 
 body.dark {
@@ -17,6 +19,8 @@ body.dark {
   --modal-bg: #1e1e1e;
   --modal-border: #555;
   --info-color: #eee;
+  --topbar-btn-bg: #272727;
+  --topbar-btn-text: #ffffff;
 }
 
 body {
@@ -121,21 +125,26 @@ svg text {
 ──────────────────────────────────────────────────────────────────────────────*/
 .mode-button,
 .primary-button {
-  color: #000;
-  /* always black text */
+  color: var(--text-color);   /* auto-switches dark/light */
   background-color: var(--btn-bg-light);
   border: none;
   border-radius: 4px;
   padding: 6px 10px;
   margin: 2px;
   cursor: pointer;
+  transition: background 0.18s, color 0.18s, font-weight 0.1s;
+
 }
 
 body.dark .mode-button,
 body.dark .primary-button {
   background-color: var(--btn-bg-dark);
+  color: var(--text-color);
+  border: #808080;
+  border-radius: 1px;
 }
 
+/* Active style remains */
 .mode-button.active {
   outline: 3px solid var(--text-color);
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
@@ -149,11 +158,28 @@ body.dark .primary-button {
   color: #fff;
 }
 
+.mode-button:hover, .primary-button:hover {
+  font-weight: bold;
+}
+.mode-button.active, .primary-button.active {
+  background: #ffe464;
+  color: #000;
+  outline: 3px solid #ffb800;
+  font-weight: bold;
+}
+body.dark .mode-button.active, body.dark .primary-button.active {
+  background: #cc8c00;
+  color: #fff;
+  outline: 3px solid #ffd47f;
+}
+
 /* make most top-bar buttons white in dark mode, except dropdown toggles */
 body.dark #topBar .mode-button:not(.dropdown-toggle) {
-  background-color: #ffffff;
+  background-color: var(--topbar-btn-bg);
+  color: var(--topbar-btn-text);
   border: 1px solid #000;
 }
+
 
 /* ensure dropdown-toggle buttons keep dark styling */
 .dropdown-toggle {
@@ -164,7 +190,10 @@ body.dark #topBar .mode-button:not(.dropdown-toggle) {
 
 body.dark .dropdown-toggle:hover,
 body.dark .dropdown-toggle:focus {
-  background-color: var(--btn-bg-light);
+  background-color: #828282;
+  font-weight: bold;
+  border: #430000;
+ /* background-color: var(--btn-bg-light); */
 }
 
 /*──────────────────────────────────────────────────────────────────────────────
@@ -261,7 +290,7 @@ body.dark .dropdown-toggle:focus {
 }
 
 .pos-left {
-  top: 220px;
+  top: 256px;
   left: 16px;
   flex-direction: column;
   width: 160px;
@@ -316,6 +345,7 @@ body.dark .dropdown-toggle:focus {
 
 .btn-empty {
   background: #fff;
+  color: #2e2e2e;
 }
 
 .btn-special {
@@ -351,14 +381,32 @@ body.dark .dropdown-toggle:focus {
 
 #effectsToggleBtn {
   background-color: var(--btn-bg-light);
-  color: #000;
+  color: var(--text-color);           /* Use theme text color */
   border: 1px solid var(--modal-border);
+  transition: background 0.18s, color 0.18s, font-weight 0.1s;
 }
 
 body.dark #effectsToggleBtn {
   background-color: var(--btn-bg-dark);
-  color: #fff;
+  color: var(--text-color);
   border: 1px solid var(--modal-border);
+}
+
+#effectsToggleBtn:hover {
+  font-weight: bold;
+}
+
+#effectsToggleBtn.active {
+  background-color: #ffe464;    /* Pick your toggled color */
+  color: #000;
+  border-color: #ffb800;
+  font-weight: bold;
+}
+
+body.dark #effectsToggleBtn.active {
+  background-color: #cc8c00;
+  color: #ffffff;
+  border-color: #ffd47f;
 }
 
 /*──────────────────────────────────────────────────────────────────────────────
@@ -388,6 +436,78 @@ body.dark .mode-button.btn-lookup-id:focus {
   color: #111;
   border-color: #e2b100;
 }
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Dropdowns / Popups (Modern dropdown style)
+──────────────────────────────────────────────────────────────────────────────*/
+.popup-group {
+  position: relative;
+}
+
+.popup-panel {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 180px;
+  background: var(--modal-bg);
+  border: 1px solid var(--modal-border);
+  box-shadow: 0 8px 18px #222a;
+  border-radius: 10px;
+  padding: 10px 0 10px 0;
+  z-index: 500;
+  animation: popupFadeIn 0.13s;
+}
+
+/* Show the panel when parent has .open */
+.popup-group.open .popup-panel {
+  display: block;
+}
+
+@keyframes popupFadeIn {
+  from { opacity: 0; transform: translateY(7px);}
+  to   { opacity: 1; transform: translateY(0);}
+}
+
+/* Dropdown buttons inside the panel */
+.popup-panel .mode-button,
+.popup-panel button {
+  display: block;
+  width: 100%;
+  background: none;
+  color: var(--text-color);
+  border: none;
+  text-align: left;
+  padding: 8px 18px;
+  font-size: 1em;
+  cursor: pointer;
+  border-radius: 0;
+  margin: 0;
+  transition: background 0.18s, color 0.18s;
+}
+
+.popup-panel .mode-button:hover,
+.popup-panel button:hover {
+  background: #ffe464;
+  color: #222;
+  font-weight: bold;
+}
+body.dark .popup-panel .mode-button:hover,
+body.dark .popup-panel button:hover {
+  background: #3e2c00;
+  color: #ffd47f;
+}
+
+/* Add divider support if you want */
+.popup-panel .divider {
+  height: 1px;
+  background: #ddd;
+  margin: 7px 0;
+}
+body.dark .popup-panel .divider {
+  background: #555;
+}
+
 
 /*──────────────────────────────────────────────────────────────────────────────
   Wormhole toggle
@@ -544,6 +664,13 @@ body.dark .filter-button.active {
   color: var(--info-color);
 }
 
+#calcSlicePopup.modal {
+  z-index: 9999;
+  position: fixed;
+  top: 60px; /* or as you like */
+  left: 20vw;
+}
+
 /*──────────────────────────────────────────────────────────────────────────────
   Wormhole overlays
 ──────────────────────────────────────────────────────────────────────────────*/
@@ -633,17 +760,20 @@ body.dark #controlsPanel button {
 
 .mode-button.btn-supernova {
   background-color: #ffe5b4 !important;
+  color: #000;
   border: 1px solid black;
 }
 
 .mode-button.btn-nebula {
   background-color: #e6ccff !important;
+  color: #000;
   border: 1px solid black;
 }
 
 .mode-button.btn-asteroid {
   background-color: #d9d9d9 !important;
   border: 1px solid black;
+  color: #000;
 }
 
 .mode-button.btn-rift {
@@ -658,10 +788,248 @@ body.dark #controlsPanel button {
   border: 1px solid black;
 }
 
+
+
+body.dark .mode-button.btn-asteroid,
+body.dark .mode-button.btn-nebula,
+body.dark .mode-button.btn-supernova,
+body.dark .mode-button.btn-1,
+body.dark .mode-button.btn-2,
+body.dark .mode-button.btn-empty,
+body.dark .mode-button.btn-special
+ {
+  color: #000 !important;
+
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Border Anomalies and other Popup & Buttons
+──────────────────────────────────────────────────────────────────────────────*/
+.border-anomalies-popup {
+  position: absolute;
+  background: var(--modal-bg);
+  border: 2px solid #e32b2b;
+  border-radius: 10px;
+  padding: 12px 14px 12px 10px;
+  z-index: 1000;
+  min-width: 180px;
+  color: var(--text-color);
+}
+
+body.dark .border-anomalies-popup {
+  background: var(--modal-bg);
+  border-color: #e32b2b;
+  color: var(--text-color);
+}
+
+body.light .border-anomalies-popup {
+  background: var(--modal-bg);
+  border-color: #c02b2b;
+  color: var(--text-color);
+}
+
+.popup-close-btn {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  font-size: 20px;
+  background: none;
+  color: inherit;
+  border: none;
+  cursor: pointer;
+}
+
+.popup-help-btn {
+  background: #32c24d;
+  color: #fff;
+  position: absolute;
+  right: 34px;
+  top: 6px;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* For all .mode-button in popup: */
+.border-anomalies-popup .mode-button {
+  margin: 2px 4px 2px 0;
+}
+
+.popup-tool-label {
+  margin: 22px 0 10px 2px;
+  font-weight: bold;
+}
+
+.border-anomalies-popup, .border-anomalies-popup, .popup-panel, .popup-panel * {
+  user-select: none;
+}
+
+
+
+/*──────────────────────────────────────────────────────────────────────────────
+Layout butoons and other Popup & Buttons
+──────────────────────────────────────────────────────────────────────────────*/
+
+.layout-options-popup {
+  position: absolute;
+  background: var(--modal-bg);
+  border: 2px solid #0097d6;
+  border-radius: 10px;
+  padding: 12px 14px 12px 10px;
+  z-index: 1000;
+  min-width: 220px;
+  color: var(--text-color);
+  box-shadow: 0 8px 22px #222a;
+}
+.layout-options-popup .popup-header {
+  cursor: move;
+  background: #1976d2;
+  color: #fff;
+  padding: 7px 16px;
+  font-weight: bold;
+  border-radius: 10px 10px 0 0;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.layout-options-popup .popup-close-btn {
+  background: none;
+  color: #fff;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  margin-left: 10px;
+}
+.layout-options-popup .popup-tool-label {
+  margin: 22px 0 10px 2px;
+  font-weight: bold;
+}
+.layout-options-popup .mode-button {
+  margin: 2px 4px 2px 0;
+  width: 95%;
+  display: block;
+  text-align: left;
+}
+
+.popup-panel.draggable {
+  cursor: default;
+  /* rest of your styling */
+}
+.draggable-handle {
+  cursor: move;
+  padding: 4px 8px;
+  font-weight: bold;
+  background: var(--btn-bg-dark);
+  color: var(--text-color);
+  border-bottom: 1px solid #555;
+  user-select: none;
+}
+
+.popup-section-label {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 12px 0 4px 2px;
+}
+
+.popup-btn-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+.popup-btn-grid .mode-button {
+  height: 38px;
+  flex: 2 2 50px; /* grows, minimum width */
+  min-width: 70px;
+}
+
+#layoutOptionsPopup {
+  left: 50%;
+  top: 16%;
+  transform: translate(0, 0);
+}
+
+/* Wormhole popup grid */
+.wormhole-btn-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 3fr);  /* 2 columns, adjust as needed */
+  gap: 10px 14px;
+  padding: 10px 4px;
+}
+
+.wormhole-btn-grid .mode-button {
+  min-width: 80px;
+  max-width: 150px;
+  height: 30px;
+  font-size: 1em;
+  justify-self: stretch;
+  text-align: center;
+}
+
+/* Effect popup grid */
+.effect-btn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 2fr);  /* 2 columns, adjust as needed */
+  gap: 10px 14px;
+  padding: 10px 4px;
+}
+
+.effect-btn-grid .mode-button {
+  min-width: 120px;
+  max-width: 150px;
+  height: 30px;
+  font-size: 1em;
+  justify-self: stretch;
+  text-align: center;
+}
+
+/* ---- TI4 Map Editor Hover Info Styles ---- */
+.hover-info {
+  display: none;
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  background: rgba(30, 30, 40, 0.98);
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px #222a;
+  padding: 12px 18px;
+  font-size: 15px;
+  max-width: 370px;
+  line-height: 1.4;
+  transition: opacity 0.13s;
+  opacity: 0.97;
+}
+
+.hover-info hr {
+  margin: 4px 0 7px 0;
+  border: 0;
+  border-top: 1px solid #345;
+}
+
+.hover-info ul {
+  margin: 0 0 4px 12px;
+  padding-left: 1em;
+}
+
+.hover-info pre {
+  font-size: 12px;
+  margin: 2px 0 0 0;
+  color: #fffc;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
 /*──────────────────────────────────────────────────────────────────────────────
   Force Export/Import, Wormhole & Effects toggles to stay dark in dark mode
 ──────────────────────────────────────────────────────────────────────────────*/
-body.dark #exportFullBtn,
+/*body.dark 
+#exportFullBtn,
 #importFullBtn,
 #exportHL,
 #importHLBtn,
@@ -689,7 +1057,7 @@ body.dark #exportFullBtn,
   color: var(--text-color) !important;
   border: 1px solid var(--modal-border) !important;
 }
-
+*/
 /*──────────────────────────────────────────────────────────────────────────────
   Ensure pointer-events for clickable elements
 ──────────────────────────────────────────────────────────────────────────────*/

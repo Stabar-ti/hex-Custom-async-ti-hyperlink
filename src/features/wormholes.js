@@ -1,39 +1,58 @@
+// ───────────────────────────────────────────────────────────────
 // features/wormholes.js
-import { wormholeTypes } from '../constants/constants.js';
+//
+// This module handles wormhole tokens for the map editor.
+// It provides functions to toggle wormholes on hexes, render
+// and update wormhole overlays, and ensure wormholes are visible
+// or hidden based on user toggles. All SVG overlays for wormholes
+// are managed here.
+// ───────────────────────────────────────────────────────────────
+
+
+import { createWormholeOverlay } from './baseOverlays.js';
 
 /**
- * Toggles a wormhole token on a given hex (user-added or inherent).
- * Flips its presence, saves state, and re-renders overlays in reverse icon order.
+ * Toggle a wormhole token on a specific hex tile.
+ * Adds or removes the wormhole, updates the hex state,
+ * saves history, and re-renders wormhole overlays (SVG)
+ * so they appear in reverse order for icon separation.
+ *
+ * @param {HexEditor} editor - The map editor instance.
+ * @param {string} hexId     - The hex's unique label/id.
+ * @param {string} type      - The wormhole type (e.g. 'alpha', 'beta').
+ * @returns {Array<SVGElement>} - The current wormhole overlay elements for this hex.
  */
 export function toggleWormhole(editor, hexId, type) {
   const hex = editor.hexes[hexId];
   if (!hex) return;
 
-  // Initialize sets
+  // Ensure wormholes and overlays exist
   if (!hex.wormholes) hex.wormholes = new Set();
   if (!hex.wormholeOverlays) hex.wormholeOverlays = [];
 
-  // Save history
+  // Save editor state for undo/redo/history
   editor.saveState(hexId);
 
-  // Toggle membership
+  // Add or remove wormhole type in set
   if (hex.wormholes.has(type)) {
     hex.wormholes.delete(type);
   } else {
     hex.wormholes.add(type);
   }
 
-  // Clear existing overlays
+  // Remove all existing wormhole overlay SVGs from map
   hex.wormholeOverlays.forEach(o => editor.svg.removeChild(o));
   hex.wormholeOverlays = [];
 
-  // Render all wormholes (in reverse order)
+  // Render each wormhole in reverse icon position order for better stacking
   Array.from(hex.wormholes).forEach((w, i) => {
     const positions = editor.effectIconPositions;
     const len = positions.length;
+    // Distribute overlays around hex in reverse order
     const reversedIndex = len - 1 - (i % len);
     const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
 
+    // Create overlay group (circle+label) for the wormhole
     const overlay = createWormholeOverlay(
       hex.center.x + pos.dx,
       hex.center.y + pos.dy,
@@ -48,11 +67,15 @@ export function toggleWormhole(editor, hexId, type) {
 }
 
 /**
- * Constructs an SVG group overlay for a single wormhole token.
- * @param {number} x - center x-coordinate
- * @param {number} y - center y-coordinate
- * @param {string} type - wormhole type key
+ * Creates a single SVG overlay for a wormhole token.
+ * Renders a colored circle with a text label (e.g. A, B, etc).
+ *
+ * @param {number} x    - X coordinate (center of hex + offset)
+ * @param {number} y    - Y coordinate (center of hex + offset)
+ * @param {string} type - Wormhole type key ('alpha', 'beta', ...)
+ * @returns {SVGGElement} - SVG group containing circle and label
  */
+/*
 export function createWormholeOverlay(x, y, type) {
   const props = wormholeTypes[type] || {};
   const color = props.color || 'black';
@@ -61,6 +84,7 @@ export function createWormholeOverlay(x, y, type) {
   const svgns = 'http://www.w3.org/2000/svg';
   const group = document.createElementNS(svgns, 'g');
 
+  // Draw the colored circle
   const circle = document.createElementNS(svgns, 'circle');
   circle.setAttribute('cx', x);
   circle.setAttribute('cy', y);
@@ -69,6 +93,7 @@ export function createWormholeOverlay(x, y, type) {
   circle.setAttribute('stroke', 'white');
   circle.setAttribute('stroke-width', 2);
 
+  // Draw the wormhole label (A, B, etc.)
   const text = document.createElementNS(svgns, 'text');
   text.setAttribute('x', x);
   text.setAttribute('y', y + 4);
@@ -85,8 +110,12 @@ export function createWormholeOverlay(x, y, type) {
 }
 
 /**
- * Shows or hides all wormhole overlays based on editor.showWormholes flag.
+ * Shows or hides all wormhole overlays depending on
+ * the value of editor.showWormholes.
+ *
+ * @param {HexEditor} editor - The map editor instance.
  */
+/*
 export function updateWormholeVisibility(editor) {
   const visible = editor.showWormholes;
   Object.values(editor.hexes).forEach(hex => {
@@ -95,3 +124,4 @@ export function updateWormholeVisibility(editor) {
     });
   });
 }
+*/

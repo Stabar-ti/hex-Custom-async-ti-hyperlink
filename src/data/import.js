@@ -1,13 +1,25 @@
+// ───────────────────────────────────────────────────────────────
 // data/import.js
+//
+// This module manages all "import" logic for the TI4 map editor.
+// It provides helpers to import map adjacency, sector types, and
+// the full saved state (including overlays, wormholes, links, effects).
+// Also loads system info (names, planet//s, IDs) for the sector lookup.
+// ───────────────────────────────────────────────────────────────
 
 import { hexToMatrix } from '../utils/matrix.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { toggleWormhole } from '../features/wormholes.js';
-import { updateEffectsVisibility } from '../features/effects.js';
-import { drawCurveLink, drawLoopCircle, drawLoopbackCurve } from '../draw/links.js';
-import { updateWormholeVisibility } from '../features/wormholes.js';
-import { markRealIDUsed, unmarkRealIDUsed, beginBatch, endBatch }      from '../ui/uiFilters.js';
+//import { updateEffectsVisibility } from '../features/effects.js';
+//import { drawCurveLink, drawLoopCircle, drawLoopbackCurve } from '../draw/links.js';
+import { markRealIDUsed, unmarkRealIDUsed, beginBatch, endBatch, clearRealIDUsage, } from '../ui/uiFilters.js';
 import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
+import { MAX_MAP_RINGS } from '../constants/constants.js';
+import { updateEffectsVisibility, updateWormholeVisibility } from '../features/baseOverlays.js'
+import { generateRings } from '../draw/drawHexes.js';
+import { isMatrixEmpty } from '../utils/matrix.js';
+import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
+import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 
 /**
  * Import map adjacency from a space-separated list of label,hexMatrix pairs.
@@ -15,7 +27,7 @@ import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 export function importMap(editor, dataText) {
   const entries = dataText.trim().split(/\s+/);
   entries.forEach(entry => {
-    const [label, hexStr] = entry.split(',', 2).map(s => s.trim()); 
+    const [label, hexStr] = entry.split(',', 2).map(s => s.trim());
     if (!label || !hexStr || !/^[0-9a-fA-F]{1,9}$/.test(hexStr)) return;
     const hex = editor.hexes[label];
     if (!hex || !hex.center) return;
@@ -26,11 +38,12 @@ export function importMap(editor, dataText) {
 }
 
 /**
- * Fetches SystemInfo.json and populates editor.sectorIDLookup.
+ * Loads SystemInfo.json (names, IDs, planet data, etc) and attaches to the editor.
+ * Populates .sectorIDLookup for fast lookups by ID or alias.
  */
 export async function loadSystemInfo(editor) {
   try {
-    const res = await fetch('public/data/SystemInfo.json');
+    const res = await fetch('../public/data/SystemInfo.json');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const { systems } = await res.json();
     editor.sectorIDLookup = systems.reduce((acc, sys) => {
@@ -42,197 +55,276 @@ export async function loadSystemInfo(editor) {
           acc[code] = sys;
         });
       }
-      editor.allSystems = systems;    // <-- new
+      editor.allSystems = systems;    // Expose for filtering
       return acc;
     }, {});
-    
-
     console.info(`Loaded ${Object.keys(editor.sectorIDLookup).length} systems.`);
   } catch (err) {
     console.error('Failed to load SystemInfo.json:', err);
     alert('Error loading system data.');
   }
 }
-/*
-/**
- * Imports sector codes (tokenString) to map tiles, applies types/effects.
- * Delegates wormhole rendering to toggleWormhole.
- */
-export function importSectorTypes(editor, tokenString) {
-  beginBatch();
-  try {
-  if (!editor.sectorIDLookup) {
-    alert('Load SystemInfo JSON first.');
-    return;
-  }
 
-  // Strip braces and split
+export function importSectorTypes(editor, tokenString) {
+  // Remove braces, split tokens by whitespace
   const tokens = tokenString.trim().replace(/[{}]/g, '').split(/\s+/);
 
-  // Sort hex IDs
-  const ids = Object.keys(editor.hexes)
-    .filter(id => /^\d{3}$/.test(id))
-    .sort((a, b) => {
-      const [ra, ia] = [+a[0], +a.slice(1)];
-      const [rb, ib] = [+b[0], +b.slice(1)];
-      return ra === rb ? ia - ib : ra - rb;
-    });
+  // Find the minimum n where exported label count fits
+  let n = 1;
+  while (true) {
+    let labelCount = 1; // '000'
+    for (let r = 1; r <= n; r++) labelCount += 6 * r;
+    if (labelCount >= tokens.length) break;
+    n++;
+    if (n > 30) throw new Error('Map too large to infer rings');
+  }
 
-  if (tokens.length !== ids.length) console.warn(`Expected ${ids.length} codes but got ${tokens.length}`);
+  // Build padded label list as in exportSectorTypes
+  let labelList = ['000'];
+  for (let ring = 1; ring <= n; ring++) {
+    for (let idx = 1; idx <= 6 * ring; idx++) {
+      const label = `${ring}${String(idx).padStart(2, '0')}`;
+      labelList.push(label);
+    }
+  }
 
-  ids.forEach((id, idx) => {
-    const code = tokens[idx]?.toUpperCase() || '';
-    const info = editor.sectorIDLookup[code] || {};
-    const hex = editor.hexes[id];
-    if (!hex) return;
+  // Pad or trim tokens as needed
+  if (tokens.length < labelList.length) {
+    while (tokens.length < labelList.length) tokens.push('-1');
+  } else if (tokens.length > labelList.length) {
+    tokens.length = labelList.length;
+  }
 
-    // Attach real ID
-    hex.realId = info.id ?? null;
-    if (hex.realId) markRealIDUsed(hex.realId);
-    hex.planets = info.planets || [];
-    //hex.wormholes = new Set(info.wormholes || []);
+  // Set the ring count and rectangular mode (even for n <= 9, this is fine)
+  const ringInput = document.getElementById('ringCount');
+  if (ringInput) ringInput.value = n;
+  editor.fillCorners = true;
+  const cornerToggle = document.getElementById('cornerToggle');
+  if (cornerToggle) cornerToggle.checked = true;
+  editor.generateMap();
 
-    // Clear existing wormholes
-    hex.wormholes = new Set();
-    hex.wormholeOverlays?.forEach(o => editor.svg.removeChild(o));
-    hex.wormholeOverlays = [];
+  // 6. Apply the types to each hex in order
+  beginBatch?.();
+  try {
+    for (let idx = 0; idx < labelList.length; idx++) {
+      const id = labelList[idx];
+      const code = tokens[idx]?.toUpperCase() || '';
+      const info = editor.sectorIDLookup?.[code] || {};
+      const hex = editor.hexes[id];
+      if (!hex) continue;
 
-    // Inherent wormholes
-    (info.wormholes || []).filter(Boolean).forEach(wh => {
-      toggleWormhole(editor, id, wh.toLowerCase());
-    });
+      // Attach realId and planets
+      hex.realId = info.id ?? null;
+      if (hex.realId) markRealIDUsed(hex.realId);
+      hex.planets = info.planets || [];
 
-    // DOM attribute
-    if (info.id != null) {
-      const el = document.getElementById(id);
-      if (el) el.dataset.realId = info.id.toString();
+      // Restore customAdjacents, adjacencyOverrides, borderAnomalies if present
+      //  if (h.customAdjacents !== undefined) hex.customAdjacents = JSON.parse(JSON.stringify(h.customAdjacents));
+      //  else delete hex.customAdjacents;
+      //  if (h.adjacencyOverrides !== undefined) hex.adjacencyOverrides = JSON.parse(JSON.stringify(h.adjacencyOverrides));
+      //  else delete hex.adjacencyOverrides;
+      //  if (h.borderAnomalies !== undefined) hex.borderAnomalies = JSON.parse(JSON.stringify(h.borderAnomalies));
+      //  else delete hex.borderAnomalies;
+
+      // Clear existing wormholes
+      hex.wormholes = new Set();
+      hex.wormholeOverlays?.forEach(o => editor.svg.removeChild(o));
+      hex.wormholeOverlays = [];
+
+      // Inherent wormholes
+      (info.wormholes || []).filter(Boolean).forEach(wh => {
+        toggleWormhole(editor, id, wh.toLowerCase());
+      });
+
+      // Sector classification
+      if (code === '-1') {
+        editor.setSectorType(id, 'void');
+        continue;
+      }
+      if (code === 'HL') continue;
+      if ((info.planets || []).some(p => p.planetType === 'FACTION')) {
+        editor.setSectorType(id, 'homesystem');
+        continue;
+      }
+      const noPlanets = !(info.planets || []).length;
+      const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift;
+      if (noPlanets && special) {
+        editor.setSectorType(id, 'special');
+      } else if ((info.planets || []).some(p => p.legendaryAbilityName?.trim())) {
+        editor.setSectorType(id, 'legendary planet');
+      } else {
+        const count = (info.planets || []).length;
+        if (count >= 3) editor.setSectorType(id, '3 planet');
+        else if (count >= 2) editor.setSectorType(id, '2 planet');
+        else if (count >= 1) editor.setSectorType(id, '1 planet');
+        else editor.setSectorType(id, 'empty');
+      }
+
+      // Effects
+      if (info.isNebula) editor.applyEffect(id, 'nebula');
+      if (info.isGravityRift) editor.applyEffect(id, 'rift');
+      if (info.isSupernova) editor.applyEffect(id, 'supernova');
+      if (info.isAsteroidField) editor.applyEffect(id, 'asteroid');
     }
 
-    // Classification
-    if (code === '-1') return editor.setSectorType(id, 'void');
-    if (code === 'HL') return;
-    if ((info.planets || []).some(p => p.planetType === 'FACTION'))
-      return editor.setSectorType(id, 'homesystem');
-    const noPlanets = !(info.planets || []).length;
-    const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift;
-    if (noPlanets && special) editor.setSectorType(id, 'special');
-    else if ((info.planets || []).some(p => p.legendaryAbilityName?.trim() && p.legendaryAbilityText?.trim()))
-      editor.setSectorType(id, 'legendary planet');
-    else {
-      const count = (info.planets || []).length;
-      if (count >= 3) editor.setSectorType(id, '3 planet');
-      else if (count >= 2) editor.setSectorType(id, '2 planet');
-      else if (count >= 1) editor.setSectorType(id, '1 planet');
-      else editor.setSectorType(id, 'empty');
-    }
-
-    // Effects
-    if (info.isNebula || info.nebula)       editor.applyEffect(id, 'nebula');
-    if (info.isGravityRift || info.gravity) editor.applyEffect(id, 'rift');
-    if (info.isSupernova || info.nova)      editor.applyEffect(id, 'supernova');
-    if (info.isAsteroidField || info.asteroid) editor.applyEffect(id, 'asteroid');
-
-  });
-  redrawAllRealIDOverlays(editor);
-  }finally {
-    // one single list‐refresh at the end
-    endBatch();
+    // Redraw overlays
+    redrawAllRealIDOverlays(editor);
+  } finally {
+    endBatch?.();
   }
 }
 
+/**
+ * Imports a full map state from a saved JSON export.
+ * Re-creates all hexes, overlays, links, types, effects, and overlays.
+ * Handles new grid/ring count, clears overlays, and redraws everything.
+ */
 export function importFullState(editor, jsonText) {
   beginBatch?.();
   try {
     const obj = JSON.parse(jsonText);
     if (!obj || !Array.isArray(obj.hexes)) throw new Error("Invalid data format");
 
-    // Set up rings and blank grid
-    const maxRing = obj.hexes.reduce((max, h) => {
-      const match = h.id?.match(/^(\d)/);
-      return match ? Math.max(max, parseInt(match[1], 10)) : max;
-    }, 1);
+    clearRealIDUsage();
 
+    // ---- 1. Compute max ring from all numeric hex IDs (skip TL/TR/BL/BR)
+    let maxRing = 1;
+    for (const h of obj.hexes) {
+      if (!/^\d{3,}$/.test(h.id)) continue;
+      const m = String(h.id).match(/^(\d+)\d{2}$/);
+      if (m) {
+        const ringNum = parseInt(m[1], 10);
+        if (ringNum > maxRing) maxRing = ringNum;
+      }
+    }
+
+    // ---- 2. Build the label list (matches exportSectorTypes logic)
+    let labelList = ['000'];
+    for (let ring = 1; ring <= maxRing; ring++) {
+      for (let idx = 1; idx <= 6 * ring; idx++) {
+        const label = `${ring}${String(idx).padStart(2, '0')}`;
+        labelList.push(label);
+      }
+    }
+
+    // ---- 3. Build a lookup for hexes by id, then create a consistent list
+    const hexMap = {};
+    obj.hexes.forEach(h => { hexMap[h.id] = h; });
+    const hexesOrdered = labelList.map(lab => hexMap[lab] || { id: lab });
+
+    // ---- 4. Generate the correct grid
     document.getElementById('ringCount').value = maxRing;
+    editor.fillCorners = true;
+    const cornerToggle = document.getElementById('cornerToggle');
+    if (cornerToggle) cornerToggle.checked = true;
     editor.generateMap();
     editor.drawnSegments = [];
 
-    obj.hexes.forEach(h => {
-      editor.ensureHex(h.id, h.q, h.r);
-      const hex = editor.hexes[h.id];
+    // ---- 5. Assign all hexes by label order (EXACT classification order)
+    hexesOrdered.forEach((h, i) => {
+      const id = labelList[i];
+      let hex = editor.hexes[id];
       if (!hex) return;
 
-      // Remove all overlays/effects/wormholes from prior state
+      // Skip if really empty/no content
+      const noContent =
+        (!h.realId && !h.realID) &&
+        (!h.baseType || h.baseType === '') &&
+        (!h.planets || h.planets.length === 0) &&
+        (!h.effects || h.effects.length === 0) &&
+        (!h.wormholes || h.wormholes.length === 0) &&
+        (!h.links || isMatrixEmpty(h.links)) &&
+        !h.customAdjacents && !h.adjacencyOverrides && !h.borderAnomalies;
+
+      if (noContent) return;
+
+      // Clean overlays/effects/wormholes
       hex.overlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
       hex.overlays = [];
       hex.wormholeOverlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
       hex.wormholeOverlays = [];
       hex.effects = new Set();
+
+      // ---- System lookup: Get system info for inherent wormholes, etc
+      let code = "-1";
+      let info = {};
+      let realId = h.realId ?? h.realID;
+      let realIdKey = realId ? realId.toString().toUpperCase() : null;
+      if (realIdKey && editor.sectorIDLookup && editor.sectorIDLookup[realIdKey]) {
+        code = realId.toString().toUpperCase();
+        info = editor.sectorIDLookup[code] || {};
+      } else if (h.baseType) {
+        code = h.baseType;
+        info = {};
+      }
+
+      // Attach realId and planets
+      hex.realId = info.id ?? (h.realId ?? null);
+      if (hex.realId) markRealIDUsed(hex.realId);
+      hex.planets = info.planets || h.planets || [];
+
+      // ---- Matrix/links
+      hex.matrix = h.links || Array.from({ length: 6 }, () => Array(6).fill(0));
+      drawMatrixLinks(editor, id, hex.matrix);
+
+      // ---- Adjacency/custom links/border anomalies
+      if (h.customAdjacents !== undefined) hex.customAdjacents = JSON.parse(JSON.stringify(h.customAdjacents));
+      else delete hex.customAdjacents;
+      if (h.adjacencyOverrides !== undefined) hex.adjacencyOverrides = JSON.parse(JSON.stringify(h.adjacencyOverrides));
+      else delete hex.adjacencyOverrides;
+      if (h.borderAnomalies !== undefined) hex.borderAnomalies = JSON.parse(JSON.stringify(h.borderAnomalies));
+      else delete hex.borderAnomalies;
+
+      // ---- WORMHOLES: robust restoration
+      // ---- WORMHOLES: restore overlays for ALL wormholes (system + user)
+      hex.wormholeOverlays = [];
       hex.wormholes = new Set();
 
-      // Restore matrix before drawing links
-      hex.matrix = h.links || Array.from({ length: 6 }, () => Array(6).fill(0));
-      drawMatrixLinks(editor, h.id, hex.matrix);
+      const inherentWormholes = (info.wormholes || []).filter(Boolean).map(w => w.toLowerCase());
+      const userWormholes = (h.wormholes || []).filter(Boolean).map(w => w.toLowerCase());
+      const allWormholes = new Set([...inherentWormholes, ...userWormholes]);
 
-      // Restore realId if present, otherwise null
-      hex.realId = (h.realId != null && h.realId !== '')
-        ? h.realId.toString()
-        : null;
-
-      // Lookup sector info if possible
-      let info = null;
-      if (hex.realId && editor.sectorIDLookup) {
-        info = editor.sectorIDLookup[hex.realId];
+      for (const w of allWormholes) {
+        toggleWormhole(editor, id, w);
       }
 
-      // --- Restore planets, classification, effects, wormholes, overlays ---
-      if (info) {
-        hex.planets = info.planets || [];
-        hex.realId = info.id ?? null;
-        if (hex.realId) markRealIDUsed?.(hex.realId);
+      // ---- Effects from JSON (always restore)
+      (h.effects || []).forEach(eff => eff && editor.applyEffect(id, eff));
 
-        // Set sector type (classification logic)
-        if ((info.planets || []).some(p => p.planetType === 'FACTION')) {
-          editor.setSectorType(h.id, 'homesystem');
-        } else if ((info.planets || []).some(
-            p => p.legendaryAbilityName?.trim() && p.legendaryAbilityText?.trim())
-        ) {
-          editor.setSectorType(h.id, 'legendary planet');
-        } else {
-          const count = (info.planets || []).length;
-          if (count >= 3) editor.setSectorType(h.id, '3 planet');
-          else if (count >= 2) editor.setSectorType(h.id, '2 planet');
-          else if (count >= 1) editor.setSectorType(h.id, '1 planet');
-          else editor.setSectorType(h.id, 'empty');
-        }
-
-        // Effects (use info fields)
-        if (info.isNebula || info.nebula)       editor.applyEffect(h.id, 'nebula');
-        if (info.isGravityRift || info.gravity) editor.applyEffect(h.id, 'rift');
-        if (info.isSupernova || info.nova)      editor.applyEffect(h.id, 'supernova');
-        if (info.isAsteroidField || info.asteroid) editor.applyEffect(h.id, 'asteroid');
+      // ---- USE THE SAME CLASSIFICATION LOGIC AS importSectorTypes ---
+      if ((code === '-1' || h.baseType === "void") && isMatrixEmpty(h.links)) {
+        editor.setSectorType(id, 'void');
+        return;
+      }
+      if (code === 'HL' || !isMatrixEmpty(h.links)) return;
+      if ((info.planets || []).some(p => p.planetType === 'FACTION') || h.baseType === "homesystem") {
+        editor.setSectorType(id, 'homesystem');
+        return;
+      }
+      const noPlanets = !(info.planets || []).length;
+      const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift;
+      if (noPlanets && special || h.baseType === "special") {
+        editor.setSectorType(id, 'special');
+      } else if ((info.planets || []).some(p => p.legendaryAbilityName?.trim()) || h.baseType === "legendary planet") {
+        editor.setSectorType(id, 'legendary planet');
       } else {
-        // fallback to what's in the saved JSON (if no lookup)
-        hex.planets = h.planets || [];
-        editor.setSectorType(h.id, h.baseType || '');
-        (h.effects || []).forEach(eff => eff && editor.applyEffect(h.id, eff));
+        const count = (info.planets || []).length;
+        if (count >= 3 || h.baseType === "3 planet") editor.setSectorType(id, '3 planet');
+        else if (count >= 2 || h.baseType === "2 planet") editor.setSectorType(id, '2 planet');
+        else if (count >= 1 || h.baseType === "1 planet") editor.setSectorType(id, '1 planet');
+        else editor.setSectorType(id, 'empty');
       }
 
-      // --- Always restore wormholes from JSON (overrides info) ---
-      (h.wormholes || []).filter(Boolean).forEach(wormhole =>
-        toggleWormhole(editor, h.id, wormhole.toLowerCase?.() || wormhole)
-      );
-
-      // Fallback: restore planets, realId if not present already
-      if (!hex.planets && h.planets) hex.planets = h.planets;
-      if (!hex.realId && h.realId) hex.realId = h.realId;
+      // Effects from SystemInfo
+      if (info.isNebula) editor.applyEffect(id, 'nebula');
+      if (info.isGravityRift) editor.applyEffect(id, 'rift');
+      if (info.isSupernova) editor.applyEffect(id, 'supernova');
+      if (info.isAsteroidField) editor.applyEffect(id, 'asteroid');
     });
 
-    // Redraw overlays for all hexes if needed
-    //if (typeof redrawAllRealIDOverlays === 'function') {
-      redrawAllRealIDOverlays(editor);
-    //}
-
-    // Update overlays visibility for toggles
+    redrawAllRealIDOverlays(editor);
+    drawCustomAdjacencyLayer(editor);
+    drawBorderAnomaliesLayer(editor);
     updateEffectsVisibility(editor);
     updateWormholeVisibility(editor);
 
@@ -243,84 +335,3 @@ export function importFullState(editor, jsonText) {
     endBatch?.();
   }
 }
-
-/*
-export function importFullState(editor, jsonText) {
-  beginBatch();
-  try {
-    const { hexes: arr } = JSON.parse(jsonText);
-    if (!Array.isArray(arr)) throw new Error('Invalid state');
-
-    // figure out ringCount & regenerate blank grid
-    const maxRing = arr.reduce((m, h) => {
-      const ring = parseInt(h.id[0], 10);
-      return isNaN(ring) ? m : Math.max(m, ring);
-    }, 1);
-    document.getElementById('ringCount').value = maxRing;
-    editor.generateMap();
-    editor.drawnSegments = [];
-
-
-    arr.forEach(h => {
-      
-      // make sure this hex exists
-      editor.ensureHex(h.id, h.q, h.r);
-      const hex = editor.hexes[h.id];
-      if (!hex) return;
-
-      // --- 1) record the realID on the hex object
-      hex.realId = (h.realId != null && h.realId !== '') 
-                  ? h.realId.toString() 
-                  : null;
-      // also mark it used in your lookup UI
-      if (hex.realId) {
-      markRealIDUsed(hex.realId);
-      hex.planets = info.planets || [];
-      }  
-      // --- 2) wipe out any old overlays/effects/wormholes
-      hex.overlays?.forEach(o => editor.svg.removeChild(o));
-      hex.overlays = [];
-      hex.wormholeOverlays?.forEach(o => editor.svg.removeChild(o));
-      hex.wormholeOverlays = [];
-
-      // --- 3) restore basic fields
-      hex.baseType   = h.baseType || '';
-      hex.effects    = new Set(h.effects || []);
-      hex.matrix     = h.links   || Array.from({ length: 6 }, () => Array(6).fill(0));
-      hex.wormholes  = new Set(h.wormholes || []);
-
-      // --- 4) redraw
-      editor.setSectorType(h.id, hex.baseType);
-      Array.from(hex.effects).forEach(e => editor.applyEffect(h.id, e));
-      Array.from(hex.wormholes).forEach(w => toggleWormhole(editor, h.id, w));
-
-      // --- 5) re‐draw hyperlane links from the matrix
-      for (let entry = 0; entry < 6; entry++) {
-        for (let exit = 0; exit < 6; exit++) {
-          if (!hex.matrix[entry][exit]) continue;
-          if (entry === exit) {
-            // loopback
-            const arc  = drawLoopbackCurve(editor.svg, hex, entry, h.id);
-            const circ = drawLoopCircle(editor.svg, hex.center.x, hex.center.y, h.id);
-            editor.drawnSegments.push(arc, circ);
-          } else {
-            // normal curve
-            const seg = drawCurveLink(editor.svg, hex, entry, exit, h.id, editor.hexRadius);
-            editor.drawnSegments.push(seg);
-          }
-        }
-      }
-    });
-
-  redrawAllRealIDOverlays(editor);  
-  } 
-  catch (err) {
-    console.error(err);
-    alert('Import failed: ' + err.message);
-  } finally {
-    // one single list‐refresh at the end
-    endBatch();
-  }
-}
-
-*/

@@ -12,338 +12,470 @@
 
   <!-- Top Bar -->
   <div id="topBar">
-    <!-- Top Bar -->
-    <div id="topBar">
-      <div id="leftControls">
-        <!-- Master toggles -->
+    <div id="leftControls">
+
+      <!-- Dropdown: Layout Options -->
+      <button id="layoutToggleBtn" class="mode-button dropdown-toggle">Layout Options ▾</button>
+
+      <!-- Dropdown: Toggle Overlays -->
+      <button id="overlayToggleBtn" class="mode-button dropdown-toggle">Toggle Overlays ▾</button>
 
 
-        <button id="layoutToggleBtn" class="mode-button dropdown-toggle">Layout Options ▾</button>
-        <button id="overlayToggleBtn" class="mode-button dropdown-toggle">Toggle Overlays ▾</button>
+      <!-- Always-visible button -->
+      <button id="calcSliceBtn" class="mode-button">Calculate Slice</button>
+    </div>
 
-        <!-- Layout Options sub-controls (hidden by default) -->
-        <div id="layoutControls" class="sub-controls hidden">
-          <button id="toggleControlsBtn" class="mode-button">Im/Export & map generation </button>
-          <button id="themeToggle" class="mode-button">Toggle Dark Mode</button>
-          <button id="arrangeBtn" class="mode-button">Arrange Controls</button>
-        </div>
+    <div id="rightControls">
+      <button id="optionsBtn" class="mode-button" onclick="showModal('optionsModal')">Distance Calculator
+        Options</button>
+      <button id="helpToggle" class="mode-button">Help</button>
+      <button id="infoToggle" class="mode-button">Import/Export How-To</button>
+      <button id="featuresToggle" class="mode-button">Features</button>
+    </div>
 
-        <!-- Overlay sub-controls (hidden by default) -->
-        <div id="overlayControls" class="sub-controls hidden">
-          <button id="toggleEffects" class="mode-button">Effects</button>
-          <button id="toggleWormholes" class="mode-button">Wormhole Visibility</button>
-          <button id="togglePlanetTypes" class="mode-button">Planet Types</button>
-          <button id="toggleResInf" class="mode-button">Resources/Influence</button>
-          <button id="toggleIdealRI" class="mode-button">Ideal R/I</button>
-          <button id="toggleRealID" class="mode-button">RealID Labels</button>
-        </div>
+    <div id="versionTag">v1.3.6a</div>
+  </div>
 
-        <!-- Always-visible buttons -->
+  <!-- The movable popup for GUI options, hidden by default -->
+  <div id="layoutOptionsPopup" class="modal"
+    style="display:none; position:absolute; left:200px; top:80px; min-width:240px; z-index:1200;">
+    <div class="modal-header draggable-handle">
+      <span>Layout Options</span>
+      <!-- ><button class="close-button popup-close-btn" title="Close" style="float:right;">✕</button>-->
+    </div>
+    <div class="modal-content">
+      <div class="popup-section-label">General</div>
+      <div class="popup-btn-grid">
+        <button id="toggleControlsBtn" class="mode-button">Im/Export & map generation</button>
+        <button id="arrangeBtn" class="mode-button">Arrange Controls</button>
+      </div>
+      <div class="popup-section-label">Theme</div>
+      <div class="popup-btn-grid">
+        <button id="themeToggle" class="mode-button">Toggle Dark Mode</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- The movable popup for overlays, hidden by default -->
+  <div id="overlayOptionsPopup" class="modal"
+    style="display:none; position:absolute; left:360px; top:86px; min-width:240px; z-index:1200;">
+    <div class="modal-header draggable-handle">
+      <span>Toggle Overlays</span>
+      <button class="close-button popup-close-btn" title="Close" style="float:right;">✕</button>
+    </div>
+    <div class="modal-content">
+      <li><strong>IMPORTANT </strong> In rare occasions the visual ques on the buttons get flipped </li>
+      <div class="popup-section-label">System Wide</div>
+      <div class="popup-btn-grid">
+        <button id="toggleHoverInfoBtn" class="mode-button">Tile Hover Info</button>
+        <button id="toggleEffects" class="mode-button">Effects</button>
+        <button id="toggleWormholes" class="mode-button">Wormhole Visibility</button>
+      </div>
+      <div class="popup-section-label">Tile Information</div>
+      <div class="popup-btn-grid">
+        <button id="togglePlanetTypes" class="mode-button">Planet Types</button>
+        <button id="toggleResInf" class="mode-button">Resources/ Influence</button>
+        <button id="toggleIdealRI" class="mode-button">Ideal R/I</button>
+        <button id="toggleRealID" class="mode-button">RealID Labels</button>
+      </div>
+      <div class="popup-section-label">Tile Information</div>
+      <div class="popup-btn-grid">
+        <button id="toggleBorderAnomalies" class="mode-button">Border Anomalies Overlay</button>
+        <button id="toggleCustomLinks" class="mode-button">Custom Links Overlay</button>
         <button id="linkWormholesBtn" class="mode-button">Link Wormholes</button>
       </div>
-
-      <div id="rightControls">
-        <button id="optionsBtn" class="mode-button" onclick="showModal('optionsModal')">Options</button>
-        <button id="helpToggle" class="mode-button">Help</button>
-        <button id="infoToggle" class="mode-button">Import/Export How-To</button>
-        <button id="featuresToggle" class="mode-button">Features</button>
-      </div>
-
-      <div id="versionTag">v1.3.1b</div>
     </div>
+  </div>
 
-    <!-- Main Controls Panel -->
-    <div id="controlsPanel">
-      <div id="exportBtns">
-        <button id="exportHL" class="mode-button">Export HL</button>
-        <button id="exportPos" class="mode-button">Export HL Pos</button>
-        <button id="exportWormholePos" class="mode-button">Export Wormholes</button>
-        <button id="exportTypes" class="mode-button">Export Map String</button>
-      </div>
+
+  <!-- Main Controls Panel -->
+  <div id="controlsPanel">
+    <div id="exportBtns">
+      <button id="exportTypes" class="mode-button">Export Map String</button>
+      <button id="exportHL" class="mode-button">Export HL</button>
+      <button id="exportWormholePos" class="mode-button">Export Wormholes</button>
+      <button id="exportPos" class="mode-button">Export HL Pos</button>
+    </div>
+    <div>
+      <button id="exportAdjOverridesBtn" class="mode-button">Export Adjacency Overrides</button>
+      <button id="exportCustomAdjBtn" class="mode-button">Export Custom Links</button>
+      <button id="exportBorderAnomaliesBtn" class="mode-button">Export Border Anomalies</button>
+    </div>
+    <div>
+      <button id="importHLBtn" class="mode-button">Import HL</button>
+      <button id="importTypesBtn" class="mode-button">Import Map String</button>
       <div>
-        <button id="importHLBtn" class="mode-button">Import HL</button>
-        <button id="importTypesBtn" class="mode-button">Import Map String</button>
-        <div>
-          <button id="exportFullBtn" class="mode-button dropdown-toggle">Save Map</button>
-          <button id="importFullBtn" class="mode-button dropdown-toggle">Load Map</button>
-        </div>
-      </div>
-      Rings: <input id="ringCount" type="number" min="1" max="15" value="6" />
-      <input type="checkbox" id="cornerToggle">
-      <label for="cornerToggle">Max size rectangular map</label>
-      <button id="genMapBtn" class="primary-button">Generate Map</button>
-    </div>
-
-    <div id="sectorControlsContainer" class="pos-left"></div>
-
-    <!-- The hex-grid SVG -->
-    <!---- <svg id="hexMap" viewBox="0 0 1400 1000" preserveAspectRatio="xMidYMid meet"></svg> -->
-
-    <svg id="hexMap" viewBox="0 0 1400 1000" preserveAspectRatio="xMidYMid meet">
-      <g id="wormholeLineLayer"></g>
-    </svg>
-
-
-    <!-- Export wormhole Modal -->
-    <div id="exportWormholePositionsModal" class="modal">
-      <textarea id="exportWormholePositionsText"></textarea>
-      <button id="copyExportWormholePos">Copy</button>
-      <button data-close="exportWormholePositionsModal">Close</button>
-    </div>
-
-
-    <!-- Export Hyperlane Modal -->
-    <div id="exportModal" class="modal">
-      <h3>Hyperlane Data</h3>
-      <textarea id="exportText"></textarea><br />
-      <button id="copyExportHL">Copy</button>
-      <button data-close="exportModal">Close</button>
-    </div>
-
-    <!-- Import Hyperlane Modal -->
-    <div id="importModal" class="modal">
-      <h3>Import Hyperlane Data</h3>
-      <textarea id="importText"></textarea><br />
-      <button id="doImportHL">Import</button>
-      <button data-close="importModal">Close</button>
-    </div>
-
-    <!-- Import Sector Types Modal -->
-    <div id="importTypesModal" class="modal">
-      <h3>Import Sector Types</h3>
-      <textarea id="importTypesText"></textarea><br />
-      <button id="doImportTypes">Import</button>
-      <button data-close="importTypesModal">Close</button>
-    </div>
-
-    <!-- Export Sector Types Modal -->
-    <div id="exportTypesModal" class="modal">
-      <h3>Sector Type Export</h3>
-      <textarea id="exportTypesText"></textarea><br />
-      <button id="copyExportTypes">Copy</button>
-      <button data-close="exportTypesModal">Close</button>
-    </div>
-
-    <!-- Export Hyperlane Positions Modal -->
-    <div id="exportHyperlanePositionsModal" class="modal">
-      <h3>Hyperlane Tile Positions</h3>
-      <textarea id="exportHyperlanePositionsText"></textarea><br />
-      <button id="copyExportPos">Copy</button>
-      <button data-close="exportHyperlanePositionsModal">Close</button>
-    </div>
-
-    <!-- Export Full State Modal -->
-    <div id="exportFullModal" class="modal">
-      <h3>Full Map Export</h3>
-      <textarea id="exportFullText"></textarea><br />
-      <button id="copyExportFull">Copy</button>
-      <button id="downloadExportFull">Download JSON</button>
-      <button data-close="exportFullModal">Close</button>
-    </div>
-
-    <!-- Import Full State Modal -->
-    <div id="importFullModal" class="modal">
-      <h3>Full Map Import</h3>
-      <input type="file" id="importFullFile" accept=".json"><br /><br />
-      <textarea id="importFullText"></textarea><br />
-      <button id="doImportFull">Import from Text or File</button>
-      <button data-close="importFullModal">Close</button>
-    </div>
-
-
-
-    <!-- Help Modal -->
-    <div id="controlsModal" class="modal">
-      <div class="modal-content">
-        <button data-close="controlsModal" class="close-button">✕</button>
-        <h3>🧭 TI4 Mapping Tool — Help</h3>
-
-        <p>
-          <strong>Welcome!</strong> This web tool lets you build, edit, and export custom
-          <em>Twilight Imperium 4</em> maps with all sector types, wormholes, hyperlanes, and tile effects.<br>
-          <em>No installation or account needed—just start creating!</em>
-        </p>
-        <hr>
-
-        <h4>🖱 Controls & Shortcuts</h4>
-        <ul>
-          <li><strong>Click</strong> a hex to assign the selected sector, wormhole, or effect.</li>
-          <li><strong>Shift+Click</strong> on a hex: remove all links from that hex (hyperlane cleanup).</li>
-          <li><strong>Alt+Click</strong> (in Hyperlane mode): remove a single link.</li>
-          <li><strong>Ctrl/Cmd + Z</strong> to undo, <strong>Ctrl/Cmd + Shift + Z</strong> to redo.</li>
-          <li><strong>Middle mouse (drag)</strong> to pan the map; <strong>mouse wheel</strong> to zoom.</li>
-        </ul>
-
-        <hr>
-
-        <h4>🌀 Hyperlane Editing</h4>
-        <ul>
-          <li>Switch to <strong>Hyperlane</strong> mode to draw links between hexes.</li>
-          <li>Click three connected tiles to draw a curved hyperlane on the middle tile.</li>
-          <li>Make loops by clicking a sequence like A → B → A.</li>
-        </ul>
-
-        <hr>
-
-        <h4>🌌 Sector Types & Effects</h4>
-        <ul>
-          <li>Async Tiles, allow you to directly search tiles available in async server to design your maps.</li>
-          <li>just numbers: base + pok, d*** Discordant stars, er*** Erronous tiles, etc.</li>
-          <li>Or pick a sector type (1/2/3 planet, empty, homesystem, etc) and click tiles to assign them.</li>
-          <li>Add effects (<em>rift, asteroid, nebula, supernova</em>) as emoji overlays on tiles.</li>
-        </ul>
-
-        <hr>
-
-        <h4>🕳 Wormholes</h4>
-        <ul>
-          <li>Pick a wormhole type, then click tiles to toggle wormholes on/off.</li>
-          <li>Click <strong>Link Wormholes</strong> to show dashed lines between all wormholes of the same type.</li>
-        </ul>
-
-        <hr>
-
-        <h4>🧠 Pro Tips</h4>
-        <ul>
-          <li>Use <strong>Generate Map</strong> to build or reset the grid. Use the “Max size” option for largest rectangular
-            maps.</li>
-          <li>Undo/redo should work for all changes, including imports.</li>
-          <li>Keyboard shortcuts help you edit much faster!</li>
-        </ul>
+        <button id="exportFullBtn" class="mode-button dropdown-toggle">Save Map</button>
+        <button id="importFullBtn" class="mode-button dropdown-toggle">Load Map</button>
       </div>
     </div>
+    Rings: <input id="ringCount" type="number" min="1" max="15" value="6" />
+    <button id="addRingBtn" class="primary-button" title=" + ">+</button>
+    <button id="removeRingBtn" class="primary-button" title=" - ">−</button>
+    <input id="cornerToggle" type="checkbox" checked>
+    <label for="cornerToggle">Limit to async map bounderies</label>
+    <button id="genMapBtn" class="primary-button">Generate Map</button>
+  </div>
 
-    <!-- Import/Export How-To Modal -->
-    <div id="infoModal" class="modal">
-      <h3>📁 Import & Export — How To</h3>
-      <p>
-        <strong>Quick Guide:</strong> Use the <b>Export</b> buttons to save your work, and <b>Import</b> buttons to
-        restore it.<br>
-        <em>For async leagues, Discord bots, or local backup—choose the right format for your needs!</em>
-      </p>
-      <ul>
-        <li>
-          <strong>Export HL (Hyperlanes)</strong> — Outputs a string encoding all hyperlane links. Copy this for Discord
-          bot imports or as a backup.
-        </li>
-        <li>
-          <strong>Export Map String (Sector Types)</strong> — Creates a compact string for async Discord games. Includes
-          only tile types and basic info.
-        </li>
-        <li>
-          <strong>Export HL Pos (Hyperlane Positions)</strong> — Outputs tile IDs with hyperlanes. Use with bot
-          commands, e.g.:
-          <br><code>/map add_tile tile_name:hl position:203,204,205</code>
-        </li>
-        <li>
-          <strong>Export Wormholes</strong> — Exports a scriptable command to add user-created wormholes in async tools
-          or bots.
-        </li>
-        <li>
-          <strong>Save Map</strong> — Exports a complete JSON file with every tile, link, effect, and planet. <b>Use for
-            full backups or sharing custom maps.</b>
-        </li>
-        <li>
-          <strong>Import HL / Map String / Wormholes</strong> — Paste exported text back to instantly apply that data to
-          your map.
-        </li>
-        <li>
-          <strong>Load Map</strong> — Restore a saved map by uploading a JSON file or pasting its text.
-        </li>
-        <li>
-          <strong>Tip:</strong> If you're unsure which format to use, <b>Save Map</b> is always a safe backup. For async
-          league or Discord bots, use the specific Export buttons as needed.
-        </li>
-      </ul>
-      <p>
-        <b>Need help?</b> See <b>Help</b> for basic editing, or <b>Features</b> for roadmap & feedback.
-      </p>
-      <button data-close="infoModal">Close</button>
+  <div id="sectorControlsContainer" class="pos-left"></div>
+
+  <!-- The hex-grid SVG -->
+  <!---- <svg id="hexMap" viewBox="0 0 1400 1000" preserveAspectRatio="xMidYMid meet"></svg> -->
+
+  <svg id="hexMap" viewBox="0 0 1400 1000" preserveAspectRatio="xMidYMid meet">
+    <g id="wormholeLineLayer"></g>
+  </svg>
+
+
+  <!-- Export wormhole Modal -->
+  <div id="exportWormholePositionsModal" class="modal">
+    <textarea id="exportWormholePositionsText"></textarea>
+    <button id="copyExportWormholePos">Copy</button>
+    <button data-close="exportWormholePositionsModal">Close</button>
+  </div>
+
+
+  <!-- Export Hyperlane Modal -->
+  <div id="exportModal" class="modal">
+    <h3>Hyperlane Data</h3>
+    <textarea id="exportText"></textarea><br />
+    <button id="copyExportHL">Copy</button>
+    <button data-close="exportModal">Close</button>
+  </div>
+
+  <!-- Import Hyperlane Modal -->
+  <div id="importModal" class="modal">
+    <h3>Import Hyperlane Data</h3>
+    <textarea id="importText"></textarea><br />
+    <button id="doImportHL">Import</button>
+    <button data-close="importModal">Close</button>
+  </div>
+
+  <!-- Import Sector Types Modal -->
+  <div id="importTypesModal" class="modal">
+    <h3>Import Sector Types</h3>
+    <textarea id="importTypesText"></textarea><br />
+    <button id="doImportTypes">Import</button>
+    <button data-close="importTypesModal">Close</button>
+  </div>
+
+  <!-- Export Sector Types Modal -->
+  <div id="exportTypesModal" class="modal">
+    <h3>Sector Type Export</h3>
+    <textarea id="exportTypesText"></textarea><br />
+    <button id="copyExportTypes">Copy</button>
+    <button data-close="exportTypesModal">Close</button>
+  </div>
+
+  <!-- Export Hyperlane Positions Modal -->
+  <div id="exportHyperlanePositionsModal" class="modal">
+    <h3>Hyperlane Tile Positions</h3>
+    <textarea id="exportHyperlanePositionsText"></textarea><br />
+    <button id="copyExportPos">Copy</button>
+    <button data-close="exportHyperlanePositionsModal">Close</button>
+  </div>
+
+  <!-- Export Full State Modal -->
+  <div id="exportFullModal" class="modal">
+    <h3>Full Map Export</h3>
+    <textarea id="exportFullText"></textarea><br />
+    <button id="copyExportFull">Copy</button>
+    <button id="downloadExportFull">Download JSON</button>
+    <button data-close="exportFullModal">Close</button>
+  </div>
+
+  <!-- Import Full State Modal -->
+  <div id="importFullModal" class="modal">
+    <h3>Full Map Import</h3>
+    <input type="file" id="importFullFile" accept=".json"><br /><br />
+    <textarea id="importFullText"></textarea><br />
+    <button id="doImportFull">Import from Text or File</button>
+    <button data-close="importFullModal">Close</button>
+  </div>
+
+  <!-- calculate slice -->
+
+  <div id="calcSlicePopup" class="modal" style="display:none;">
+    <div class="modal-content" style="min-width:400px;">
+      <div class="modal-header draggable-handle">
+        <h3>Slice Calculation</h3>
+        <button id="closeCalcSlice" class="close-button" title="Close">✕</button>
+      </div>
+      <div id="calcSliceResults" style="max-height:55vh; overflow:auto;"></div>
     </div>
+  </div>
 
-
-    <!-- Features & Contact Modal -->
-    <div id="featuresModal" class="modal">
-      <h3>✨ Features & Feedback</h3>
-      <ul>
-        <li><strong>Major Features:</strong> Sector assignment, hyperlane editor, wormhole links, effects, undo/redo,
-          async & bot export, map saving/loading.</li>
-        <li><strong>Upcoming:</strong> Map analysis, better async bot integration, real-time distance calculation,
-          improved search/filtering, more export/import helpers.</li>
-        <li>
-          <strong>Feedback / Bugs:</strong>
-          <br>Contact <b>@Stabar</b> on the Discord async server.
-          <br>We love suggestions and bug reports!
-        </li>
-      </ul>
-      <button data-close="featuresModal">Close</button>
+  <!-- Popup modal for showing export output -->
+  <div id="exportLinksModal" class="modal" style="display:none;">
+    <div class="modal-header draggable-handle">
+      <h3>Export Custom Links</h3>
+      <button id="closeExportLinksModal" class="popup-close-btn" title="Close">✕</button>
     </div>
+    <div class="modal-content">
+      <textarea id="exportLinksText" style="width:100%;height:120px;"></textarea><br>
+      <button id="copyExportLinks" class="mode-button">Copy</button>
+    </div>
+  </div>
+
+  <!-- The popup modal (insert near your other modals or just before </body>) -->
+  <div id="exportBorderAnomaliesModal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header draggable-handle">
+        <span>Export Border Anomalies (Discord Command)</span>
+        <button class="close-button popup-close-btn" title="Close" data-close="exportBorderAnomaliesModal">✕</button>
+      </div>
+      <textarea id="exportBorderAnomaliesText" style="width:100%;height:120px;"></textarea>
+      <button id="copyExportBorderAnomalies" class="mode-button">Copy</button>
+      <button data-close="exportBorderAnomaliesModal" class="mode-button">Close</button>
+    </div>
+  </div>
 
 
-    <!-- Hidden CSV loader 
+  <!-- Help Modal -->
+  <div id="controlsModal" class="modal">
+    <div class="modal-content">
+      <button data-close="controlsModal" class="close-button">✕</button>
+      <h3>🧭 TI4 Mapping Tool — Help</h3>
+
+      <p>
+        <strong>Welcome!</strong> This web tool lets you build, edit, and export custom
+        <em>Twilight Imperium 4</em> maps with all sector types, wormholes, hyperlanes, and tile effects.<br>
+        <em>No installation or account needed—just start creating!</em>
+      </p>
+      <hr>
+
+      <h3>🖱 Controls & Shortcuts</h3>
+      <ul>
+        <h4>🖱 Hyperlane controls</h4>
+        <li><strong>Left - Click</strong> start drawing hyperlane when selected.</li>
+        <li><strong>Right - Click</strong> Cancel drawing current hyperlane string </li>
+        <li><strong>Shift+Click</strong> on a hex: remove all links from that hex (hyperlane cleanup).</li>
+        <li><strong>Alt+Click</strong> (in Hyperlane mode): remove a single link.</li>
+        <h4>🖱 Base Controls</h4>
+        <li><strong>Left - Click</strong> a hex to assign the selected sector, wormhole, or effect.</li>
+        <li><strong>Ctrl/Cmd + Z</strong> to undo, <strong>Ctrl/Cmd + Shift + Z</strong> to redo.</li>
+        <li><strong>SHIFT-R (Hoover tile) </strong> to remove all tile info (RESET) </li>
+        <h4>🖱 Map Controls</h4>
+        <li><strong>Middle mouse (drag)</strong> to pan the map; <strong>mouse wheel</strong> to zoom.</li>
+        <h4>🖱 Utility Controls</h4>
+        <li><strong>SHIFT-D (click a non hyperlane tile) </strong> calculates distances from that tile; "Options" for
+          settings </li>
+      </ul>
+
+      <hr>
+
+      <h4>🌀 Hyperlane Editing</h4>
+      <ul>
+        <li>Switch to <strong>Hyperlane</strong> mode to draw links between hexes.</li>
+        <li>Click three connected tiles to draw a curved hyperlane on the middle tile.</li>
+        <li>Make loops by clicking a sequence like A → B → A.</li>
+      </ul>
+
+      <hr>
+
+      <h4>🌌 Sector Types & Effects</h4>
+      <ul>
+        <li>Async Tiles, allow you to directly search tiles available in async server to design your maps.</li>
+        <li>just numbers: base + pok, d*** Discordant stars, er*** Erronous tiles, etc.</li>
+        <li>Or pick a sector type (1/2/3 planet, empty, homesystem, etc) and click tiles to assign them.</li>
+        <li>Add effects (<em>rift, asteroid, nebula, supernova</em>) as emoji overlays on tiles.</li>
+      </ul>
+
+      <hr>
+
+      <h4>🕳 Wormholes</h4>
+      <ul>
+        <li>Pick a wormhole type, then click tiles to toggle wormholes on/off.</li>
+        <li>Click <strong>Link Wormholes</strong> to show dashed lines between all wormholes of the same type.</li>
+      </ul>
+
+      <hr>
+
+      <h4>🧠 Pro Tips</h4>
+      <ul>
+        <li>Use <strong>Generate Map</strong> to build or reset the grid. Use the “Max size” option for largest
+          rectangular
+          maps.</li>
+        <li>Undo/redo should work for all changes, including imports.</li>
+        <li>Keyboard shortcuts help you edit much faster!</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Import/Export How-To Modal -->
+  <div id="infoModal" class="modal">
+    <h3>📁 Import & Export — How To</h3>
+
+    <p>
+      <strong>Quick Guide:</strong> Use the <b>Export</b> buttons to save your work, and <b>Import</b> buttons to
+      restore it.<br>
+      <em>For async Discord bots, or local backup—choose the right format for your needs!</em>
+    </p>
+
+    <h4>📁 How to get your design into Async Discord Bots:</h4>
+    <ul>
+      <li>
+        <strong>1: Export Map String</strong> — Copy this to the Discord bot using <code>/map add_tile_list</code>
+      </li>
+      <li>
+        <strong>2: Export HL (Hyperlanes)</strong> — Copy this to the bot using <code>/map custom_hyperlanes</code>
+        (under MORE → Import)
+      </li>
+      <li>
+        <strong>3: Export Wormholes</strong> — Copy each line separately into the bot (no way to import all at once)
+      </li>
+      <li>
+        <strong>4: Export Custom Adjacency</strong> — Copy all <code>/map add_custom_adjacent_tiles</code> commands.
+        Each command can be pasted to the bot.
+      </li>
+      <li>
+        <strong>5: Export Adjacency Overrides</strong> — Use the <code>/map add_adjacency_override_list</code> output.
+        Paste the whole line in the bot.
+      </li>
+      <li>
+        <strong>6: Export Border Anomalies</strong> — Use the <code>/map add_border_anomaly</code> output. Copy and
+        paste each line (grouped by direction and anomaly type).
+      </li>
+    </ul>
+
+    <h4>📁 Base Export/Import Functions:</h4>
+    <ul>
+      <li>
+        <strong>Export HL (Hyperlanes)</strong> — Outputs a string encoding all hyperlane links. Use for Discord bot
+        imports or as a backup.
+      </li>
+      <li>
+        <strong>Export Map String (Sector Types)</strong> — Compact string for async Discord games. Includes only tile
+        types and basic info.
+      </li>
+      <li>
+        <strong>Export HL Pos (Hyperlane Positions)</strong> — Outputs tile IDs with hyperlanes. Use with bot commands,
+        e.g.:<br>
+        <code>/map add_tile tile_name:hl position:203,204,205</code>
+      </li>
+      <li>
+        <strong>Export Wormholes</strong> — Exports a scriptable command to add user-created wormholes in async tools or
+        bots.
+      </li>
+      <li>
+        <strong>Export Custom Adjacency</strong> — Outputs all custom adjacency relationships as
+        <code>/map add_custom_adjacent_tiles</code> commands. Each command can be pasted separately.
+      </li>
+      <li>
+        <strong>Export Adjacency Overrides</strong> — Outputs a single
+        <code>/map add_adjacency_override_list adjacency_list: ...</code> command for all overrides.
+      </li>
+      <li>
+        <strong>Export Border Anomalies</strong> — Outputs grouped <code>/map add_border_anomaly</code> commands, one
+        per anomaly type and direction (max 6 per anomaly).
+      </li>
+      <li>
+        <strong>Import HL / Map String</strong> — Paste exported async data text back to instantly apply that data to
+        your map.
+      </li>
+      <li>
+        <strong>Save Map</strong> — Exports a complete JSON file with every tile, link, effect, and planet. <b>Use for
+          full backups or sharing custom maps.</b>
+      </li>
+      <li>
+        <strong>Load Map</strong> — Restore a saved map by uploading a JSON file or pasting its text.
+      </li>
+      <li>
+        <strong>Tip:</strong> If you're unsure which format to use, <b>Save Map</b> is always a safe backup. For async
+        league or Discord bots, use the specific Export buttons as needed.
+      </li>
+    </ul>
+    <p>
+      <b>Need help?</b> See <b>Help</b> for basic editing, or <b>Features</b> for roadmap & feedback.
+    </p>
+    <button data-close="infoModal">Close</button>
+  </div>
+
+  <!-- Features & Contact Modal -->
+  <div id="featuresModal" class="modal">
+    <h3>✨ Features & Feedback</h3>
+    <ul>
+      <li><strong>Major Features:</strong> Sector assignment, integrated async tiles, hyperlane editor, wormhole links,
+        effects, undo/redo,
+        async & bot export, map saving/loading, distance and slice Calculations, border anomalies and custom link
+        sectors </li>
+      <li><strong>Upcoming:</strong> More uniform GUI </li>
+      <li>
+        <strong>Feedback / Bugs:</strong>
+        <br>Contact <b>@Stabar</b> on the Discord async server.
+        <br>We love suggestions and bug reports!
+      </li>
+    </ul>
+    <button data-close="featuresModal">Close</button>
+  </div>
+
+
+  <!-- Hidden CSV loader 
   <input type="file" id="idImportCSV" accept=".csv" style="display:none;" />
   <button id="loadCsvBtn" class="mode-button">Load ID Reference CSV</button> -->
 
-    <!-- Options Modal (inserted just before </body>) -->
-    <div class="modal" id="optionsModal">
-      <div class="modal-content">
-        <div class="modal-header draggable-handle">
-          <h3>Options</h3>
-        </div>
-        <div>
-          <h3>Turn off or on special tile effects</h3>
-          <label>
-            <input type="checkbox" id="toggleSupernova" checked>
-            Block Supernova
-          </label><br>
-          <label>
-            <input type="checkbox" id="toggleAsteroid">
-            Block Asteroid
-          </label><br>
-          <label>
-            <input type="checkbox" id="toggleNebula" checked>
-            Block Nebula
-          </label><br>
-          <label>
-            <input type="checkbox" id="toggleRift" checked>
-            Enable Rift chaining
-          </label><br><br>
-          <label>
-            Max Distance:
-            <input type="number" id="maxDistanceInput" value="3" min="1" max="10">
-          </label><br>
-        </div>
-        <button id="saveOptionsBtn">Save</button>
-        <button onclick="closeModal('optionsModal')">Close</button>
-      </div>
-    </div>
-
-    <!-- System Lookup Modal -->
-    <div id="systemLookupModal" class="modal">
-      <!-- draggable title bar -->
+  <!-- Options Modal (inserted just before </body>) -->
+  <div class="modal" id="optionsModal">
+    <div class="modal-content">
       <div class="modal-header draggable-handle">
-        <h3>🔍 Search system and add to map</h3>
-        <button data-close="systemLookupModal" class="close-button">✕</button>
+        <h3>Distance Calculator Options</h3>
       </div>
-
-      <!-- all the rest of your UI lives here -->
-      <div class="modal-content">
-        <!-- foldable filters panel -->
-        <details id="lookupFilters">
-          <summary>Filters</summary>
-          <div id="uiFiltersContainer"></div>
-        </details>
-
-        <!-- search input + results -->
-        <input type="text" id="systemSearch" placeholder="Type ID or name…" class="modal-input" />
-        <ul id="systemList" class="system-list"></ul>
+      <div>
+        <h3>Turn off or on special tile effects</h3>
+        <label>
+          <input type="checkbox" id="toggleSupernova" checked>
+          Block Supernova
+        </label><br>
+        <label>
+          <input type="checkbox" id="toggleAsteroid">
+          Block Asteroid
+        </label><br>
+        <label>
+          <input type="checkbox" id="toggleNebula" checked>
+          Block Nebula
+        </label><br>
+        <label>
+          <input type="checkbox" id="toggleRift" checked>
+          Enable Rift chaining
+        </label><br>
+        <label><input type="checkbox" id="toggleCustomLinks" checked> Use Custom Links</label><br>
+        <label><input type="checkbox" id="toggleBorderAnomalies" checked> Use Border Anomalies</label><br>
+        <br>
+        <label>
+          Max Distance:
+          <input type="number" id="maxDistanceInput" value="3" min="1" max="10">
+        </label><br>
       </div>
+      <button id="saveOptionsBtn">Save</button>
+      <button onclick="closeModal('optionsModal')">Close</button>
+    </div>
+  </div>
+
+  <!-- System Lookup Modal -->
+  <div id="systemLookupModal" class="modal">
+    <!-- draggable title bar -->
+    <div class="modal-header draggable-handle">
+      <h3>🔍 Search system and add to map</h3>
+      <button data-close="systemLookupModal" class="close-button">✕</button>
     </div>
 
+    <!-- all the rest of your UI lives here -->
+    <div class="modal-content">
+      <!-- foldable filters panel -->
+      <details id="lookupFilters">
+        <summary>Filters</summary>
+        <div id="uiFiltersContainer"></div>
+      </details>
 
+      <!-- search input + results -->
+      <input type="text" id="systemSearch" placeholder="Type ID or name…" class="modal-input" />
+      <ul id="systemList" class="system-list"></ul>
+    </div>
+  </div>
 
-    <!-- Application script -->
-    <script type="module" src="src/main.js"></script>
+  <div id="hexHoverInfo" class="hover-info"></div> <!-- Application script -->
+  <!--<script src="app.js" defer></script> -->
+  <script type="module" src="/src/main.js"></script>
 </body>
 
 </html>

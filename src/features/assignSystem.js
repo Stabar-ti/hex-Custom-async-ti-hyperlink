@@ -1,30 +1,32 @@
 // features/assignSystem.js
-
 import { toggleWormhole } from '../features/wormholes.js';
 
 /**
- * Assigns a system (from JSON) to a specific hex tile, reusing import-sector-type logic.
- * - Clears existing overlays/effects
- * - Applies base type, effects, and inherent wormholes
+ * Assigns a system object to a hex tile, updating all overlays, type, and state.
+ * Call this only ONCE per assignment, always after saveState and within an undo group.
  * @param {HexEditor} editor
- * @param {Object} sys  System object from sectorIDLookup
- * @param {string} hexID  Three-digit hex identifier (e.g. '065')
+ * @param {Object} sys    - The system data (from sectorIDLookup)
+ * @param {string} hexID  - The three-digit hex ID (e.g. '065')
  */
 export function assignSystem(editor, sys, hexID) {
   const hex = editor.hexes[hexID];
   if (!hex) return;
+  // console.log('assignSystem: called for', hexID, sys);
 
-  // 1) Clear existing visuals
+  // 1. Remove ALL old state/overlays before assignment.
   editor.clearAll(hexID);
+  // console.log('assignSystem: after clearAll', {...hex});
 
-  // 2) Attach realId and DOM attribute
+  // 2. Set new realID and planet data
   hex.realId = sys.id;
   hex.planets = sys.planets || [];
+  //   console.log('assignSystem: after assigning realId and planets', {...hex});
 
+  // 3. Update DOM for overlays if needed
   const el = document.getElementById(hexID);
   if (el) el.dataset.realId = sys.id.toString();
 
-  // 3) Determine and set baseType
+  // 4. Classify sector type for color and overlays
   let baseType;
   const planets = Array.isArray(sys.planets) ? sys.planets : [];
   if (planets.some(p => p.legendaryAbilityName && p.legendaryAbilityText)) {
@@ -42,18 +44,24 @@ export function assignSystem(editor, sys, hexID) {
   } else {
     baseType = 'empty';
   }
-  editor.setSectorType(hexID, baseType);
+  editor.setSectorType(hexID, baseType, { skipSave: true });
 
-  // 4) Apply effects from JSON flags
-  if (sys.isNebula)        editor.applyEffect(hexID, 'nebula');
-  if (sys.isGravityRift)   editor.applyEffect(hexID, 'rift');
-  if (sys.isSupernova)     editor.applyEffect(hexID, 'supernova');
+  // 5. Effects overlays
+  if (sys.isNebula) editor.applyEffect(hexID, 'nebula');
+  if (sys.isGravityRift) editor.applyEffect(hexID, 'rift');
+  if (sys.isSupernova) editor.applyEffect(hexID, 'supernova');
   if (sys.isAsteroidField) editor.applyEffect(hexID, 'asteroid');
 
-  hex.inherentWormholes = new Set(sys.wormholes || []); 
-
-  // 5) Add inherent wormholes
-  (sys.wormholes || []).forEach(wh => {
-    toggleWormhole(editor, hexID, wh.toLowerCase());
+  // 6. Inherent wormholes (always lowercase for key)
+  // Make sure sys.wormholes is always an array for the rest of the function
+  const wormholes = Array.isArray(sys.wormholes) ? sys.wormholes : [];
+  hex.inherentWormholes = new Set(
+    wormholes.filter(w => typeof w === "string").map(w => w.toLowerCase())
+  );
+  wormholes.forEach(wh => {
+    if (typeof wh === "string") {
+      toggleWormhole(editor, hexID, wh.toLowerCase());
+    }
   });
+
 }

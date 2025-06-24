@@ -1,8 +1,22 @@
+// ───────────────────────────────────────────────────────────────
 // features/realIDsOverlays.js
-// Draws four independent overlay layers: planet types, resource/influence, ideal R/I, and RealID labels
+//
+// This module manages four SVG overlay layers for each hex tile:
+//  1. Planet type icons (CULTURAL, INDUSTRIAL, etc. + tech specialties)
+//  2. Resource/Influence text (e.g. 2/1, 1/2, etc.)
+//  3. "Ideal R/I" (grouped resource/influence, e.g. 4/1+2)
+//  4. RealID label (the "true" system ID from base game)
+//
+// It provides functions to (re)draw each layer, update layer
+// visibility, and trigger full redraws when the map changes.
+// ───────────────────────────────────────────────────────────────
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+/**
+ * Draws planet type icons (CULTURAL/INDUSTRIAL/HAZARDOUS) and tech specialties (Y/G/R/B)
+ * as colored circles with a text label, one per planet, around the hex center.
+ */
 export function drawPlanetTypeLayer(editor) {
     let layer = editor.svg.querySelector('#planetTypeLayer');
     if (!layer) {
@@ -15,15 +29,18 @@ export function drawPlanetTypeLayer(editor) {
     const r = editor.hexRadius;
     for (const hex of Object.values(editor.hexes)) {
         if (!hex.planets) continue;
+        // console.log('Drawing overlays, planet data:', hex.label, JSON.stringify(hex.planets));
         const { x: cx, y: cy } = hex.center;
+        // Angles for planets (up, right, left)
         const angles = [-90, 0, 180];
 
         hex.planets.forEach((p, i) => {
+            // Calculate position for each planet icon
             const θ = angles[i % 3] * Math.PI / 180;
             const x = cx + (r - 17) * Math.cos(θ);
             const y = cy + (r - 17) * Math.sin(θ);
 
-            // Support both 'planetType' (string) and 'planetTypes' (array)
+            // Determine planet type (support both single and array)
             let type;
             if (typeof p.planetType === "string" && p.planetType) {
                 type = p.planetType;
@@ -33,17 +50,15 @@ export function drawPlanetTypeLayer(editor) {
                 type = undefined;
             }
 
-            // (Optional: debugging)
-            //console.log('Chosen type:', type);
-
+            // Color by type (CULTURAL=blue, HAZARDOUS=red, INDUSTRIAL=green, else gray)
             const fillMap = {
                 CULTURAL: 'blue',
                 HAZARDOUS: 'red',
                 INDUSTRIAL: 'green'
             };
-            // If your data might be lowercase:
             const fill = fillMap[type && type.toUpperCase()] || 'gray';
 
+            // Draw circle for the planet type
             const circ = document.createElementNS(SVG_NS, 'circle');
             circ.setAttribute('cx', x);
             circ.setAttribute('cy', y);
@@ -53,19 +68,17 @@ export function drawPlanetTypeLayer(editor) {
             circ.setAttribute('stroke-width', '1');
             layer.appendChild(circ);
 
-            // ... inside your hex.planets.forEach:
+            // Tech specialty mapping (Y/G/R/B for techs, S for any other string)
             const techMap = { CYBERNETIC: 'Y', BIOTIC: 'G', WARFARE: 'R', PROPULSION: 'B' };
-
-            // Support both 'techSpecialty' and 'techSpecialties'
             let specialty;
             if (typeof p.techSpecialty === "string" && p.techSpecialty) {
                 specialty = p.techSpecialty;
             } else if (Array.isArray(p.techSpecialties) && p.techSpecialties.length > 0) {
                 specialty = p.techSpecialties[0];
             }
-
             const letter = techMap[specialty] || (specialty ? 'S' : '');
 
+            // Draw tech specialty letter if any
             if (letter) {
                 const txt = document.createElementNS(SVG_NS, 'text');
                 txt.setAttribute('x', x);
@@ -82,6 +95,10 @@ export function drawPlanetTypeLayer(editor) {
     }
 }
 
+/**
+ * Draws a text overlay for each planet showing its resource/influence
+ * value (e.g., "2/1"), arranged around the hex center.
+ */
 export function drawResourceInfluenceLayer(editor) {
     let layer = editor.svg.querySelector('#resInfLayer');
     if (!layer) {
@@ -100,7 +117,7 @@ export function drawResourceInfluenceLayer(editor) {
         hex.planets.forEach((p, i) => {
             const θ = angles[i % 3] * Math.PI / 180;
             const x = cx + (r - 17) * Math.cos(θ);
-            const y = cy + (r - 17) * Math.sin(θ) + 2;
+            const y = cy + (r - 17) * Math.sin(θ) + 2; // Small Y offset for clarity
 
             const txt = document.createElementNS(SVG_NS, 'text');
             txt.setAttribute('x', x);
@@ -114,6 +131,10 @@ export function drawResourceInfluenceLayer(editor) {
     }
 }
 
+/**
+ * Draws the "ideal" Resource/Influence summary for each hex,
+ * grouping matching planets (R=I) and showing a format like "4/2+1".
+ */
 export function drawIdealRILayer(editor) {
     let layer = editor.svg.querySelector('#idealRILayer');
     if (!layer) {
@@ -127,25 +148,26 @@ export function drawIdealRILayer(editor) {
     for (const hex of Object.values(editor.hexes)) {
         if (!hex.planets || !hex.planets.length) continue;
         const { x: cx, y: cy } = hex.center;
+        // Draw "ideal" value up above the hex
         const θ6 = 90 * Math.PI / 180;
         const x6 = cx + (r - 8) * Math.cos(θ6);
         const y6 = cy + (r - 8) * Math.sin(θ6);
 
+        // Calculate ideal R/I groupings
         let a = 0, b = 0, c = 0;
         for (const p of hex.planets) {
             if (p.resources === p.influence) {
                 c += p.resources;
             } else if (p.resources > p.influence) {
                 a += p.resources;
-                // b += 0; // not needed, just for clarity
             } else if (p.influence > p.resources) {
                 b += p.influence;
-                // a += 0;
             }
         }
         let ideal = `${a}/${b}`;
         if (c > 0) ideal += `+${c}`;
 
+        // Draw text for the ideal R/I
         const txt = document.createElementNS(SVG_NS, 'text');
         txt.setAttribute('x', x6);
         txt.setAttribute('y', y6);
@@ -156,7 +178,10 @@ export function drawIdealRILayer(editor) {
     }
 }
 
-
+/**
+ * Draws the "real" ID label (the system's canonical tile ID)
+ * for each hex that has one, placing it above the hex.
+ */
 export function drawRealIDLabelLayer(editor) {
     let layer = editor.svg.querySelector('#realIDLabelLayer');
     if (!layer) {
@@ -170,6 +195,7 @@ export function drawRealIDLabelLayer(editor) {
     for (const hex of Object.values(editor.hexes)) {
         if (!hex.planets) continue;
         const { x: cx, y: cy } = hex.center;
+        // Place above hex, a bit higher than other overlays
         const θ6 = 90 * Math.PI / 180;
         const x6 = cx + (r - 26) * Math.cos(θ6);
         const y6 = cy + (r - 26) * Math.sin(θ6);
@@ -180,34 +206,49 @@ export function drawRealIDLabelLayer(editor) {
         txt.setAttribute('text-anchor', 'middle');
         txt.setAttribute('font-size', '10');
         if (hex.realId) txt.textContent = hex.realId;
-        else continue; // skip drawing if no realId
+        else continue; // Skip if no realId present
         layer.appendChild(txt);
     }
 }
 
+/**
+ * Shows or hides a given SVG overlay layer.
+ * @param {HexEditor} editor
+ * @param {string} layerId
+ * @param {boolean} visible
+ */
 export function updateLayerVisibility(editor, layerId, visible) {
-  //  console.log(`updateLayerVisibility(${layerId}, ${visible})`);
     const layer = editor.svg.querySelector(`#${layerId}`);
- //   console.log('  found layer?', layer);
     if (layer) layer.setAttribute('visibility', visible ? 'visible' : 'hidden');
 }
 
-// Convenience: initial draw of all four
+/**
+ * Convenience function: draws all four overlays and sets their default visibility.
+ */
 export function initRealIDFeatures(editor) {
     drawPlanetTypeLayer(editor);
     drawResourceInfluenceLayer(editor);
     drawIdealRILayer(editor);
     drawRealIDLabelLayer(editor);
-    // default visibility
+    // Set up initial visibility flags (customize as needed)
     editor.showPlanetTypes = true;
     editor.showResInf = false;
     editor.showIdealRI = true;
     editor.showRealID = true;
 }
 
-
+/**
+ * Triggers a redraw of all overlays, and updates layer visibility flags.
+ * Call this whenever systems are assigned or overlays need to be refreshed.
+ */
 export function redrawAllRealIDOverlays(editor) {
-    console.log('redrawing ALL Overlays')
+    // Always remove any existing layers first!
+    ["planetTypeLayer", "resInfLayer", "idealRILayer", "realIDLabelLayer"].forEach(id => {
+        const old = editor.svg.querySelector(`#${id}`);
+        if (old) old.remove();
+    });
+
+    console.log('redrawing ALL Overlays');
     drawPlanetTypeLayer(editor);
     drawResourceInfluenceLayer(editor);
     drawIdealRILayer(editor);

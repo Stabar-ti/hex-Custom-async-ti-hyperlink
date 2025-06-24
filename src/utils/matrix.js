@@ -24,3 +24,15 @@ export function hexToMatrix(hexStr) {
 export function hasLinks(matrix) {
   return matrix.flat().includes(1);
 }
+
+
+export function isMatrixEmpty(matrix) {
+  if (!Array.isArray(matrix)) return true;
+  return matrix.every(row => row.every(cell => cell === 0));
+}
+/*
+export function getOppositeSide(side) {
+    // 0-5 (hex sides): opposite is (side + 3) % 6
+    return (parseInt(side) + 3) % 6;
+}
+    */
