@@ -43,8 +43,11 @@ export function importMap(editor, dataText) {
  */
 export async function loadSystemInfo(editor) {
   try {
-    const res = await fetch('../public/data/SystemInfo.json');
+    let res = await fetch('../public/data/SystemInfo.json');
+    if (!res.ok) res = await fetch('../data/SystemInfo.json');
+    if (!res.ok) res = await fetch('/data/SystemInfo.json'); // Extra fallback for some hosts
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
     const { systems } = await res.json();
     editor.sectorIDLookup = systems.reduce((acc, sys) => {
       const id = sys.id?.toString().toUpperCase();
@@ -55,7 +58,7 @@ export async function loadSystemInfo(editor) {
           acc[code] = sys;
         });
       }
-      editor.allSystems = systems;    // Expose for filtering
+      editor.allSystems = systems;
       return acc;
     }, {});
     console.info(`Loaded ${Object.keys(editor.sectorIDLookup).length} systems.`);
