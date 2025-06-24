@@ -43,11 +43,12 @@ export function importMap(editor, dataText) {
  */
 export async function loadSystemInfo(editor) {
   try {
-    let res = await fetch('data/SystemInfo.json');
-    if (!res.ok) res = await fetch('public/data/SystemInfo.json');
-    if (!res.ok) res = await fetch('/data/SystemInfo.json');
-    if (!res.ok) res = await fetch('../public/data/SystemInfo.json')
-    if (!res.ok) res = await fetch('../data/SystemInfo.json')
+    const res = await fetch('public/data/SystemInfo.json');
+   // let res = await fetch('data/SystemInfo.json');
+   // if (!res.ok) res = await fetch('public/data/SystemInfo.json');
+   // if (!res.ok) res = await fetch('/data/SystemInfo.json');
+   // if (!res.ok) res = await fetch('../public/data/SystemInfo.json')
+   // if (!res.ok) res = await fetch('../data/SystemInfo.json')
     if (!res.ok) throw new Error(`HTTP ${res.status}`); s
 
     const { systems } = await res.json();
