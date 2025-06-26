@@ -38,6 +38,7 @@ export function endBatch(renderFn) {
 // ──────────────────────────────
 const FILTERS = [
   { key: 'hasWormhole', label: 'Has Wormhole', defaultOn: false, test(sys, a) { if (!a) return true; return Array.isArray(sys.wormholes) && sys.wormholes.length > 0; } },
+  { key: 'hasTech', label: 'Has Tech', defaultOn: false, test(sys, a) { if (!a) return true; return Array.isArray(sys.planets) && sys.planets.some(p => (Array.isArray(p.techSpecialties) && p.techSpecialties.length > 0) || (!!p.techSpecialty)); } },
   { key: 'hasRift', label: 'Has Rift', defaultOn: false, test(sys, a) { if (!a) return true; return sys.isGravityRift === true; } },
   { key: 'hasNebula', label: 'Has Nebula', defaultOn: false, test(sys, a) { if (!a) return true; return sys.isNebula === true; } },
   { key: 'hasAsteroids', label: 'Has Asteroids', defaultOn: false, test(sys, a) { if (!a) return true; return sys.isAsteroidField === true; } },
