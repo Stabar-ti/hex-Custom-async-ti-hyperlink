@@ -66,6 +66,52 @@ body {
   color: red;
 }
 
+.system-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.98em;
+  background: transparent;
+  margin-top: 4px;
+}
+
+.system-table th,
+.system-table td {
+  padding: 4px 7px;
+  border-bottom: 1px solid #3335;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.system-table th {
+  background: #232323;
+  color: #ffd700;
+  font-size: 1em;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+}
+
+.system-table tr.used {
+  background: #8884;
+  color: #bbb;
+  opacity: 0.65;
+}
+
+.system-table tr:hover {
+  background: #ffd70033;
+  cursor: pointer;
+}
+
+.system-table td b {
+  font-family: monospace;
+}
+
+.system-table td span {
+  display: inline-block;
+  min-width: 1.2em;
+  text-align: center;
+}
+
+
 /*──────────────────────────────────────────────────────────────────────────────
   SVG / hex map
 ──────────────────────────────────────────────────────────────────────────────*/
@@ -125,7 +171,8 @@ svg text {
 ──────────────────────────────────────────────────────────────────────────────*/
 .mode-button,
 .primary-button {
-  color: var(--text-color);   /* auto-switches dark/light */
+  color: var(--text-color);
+  /* auto-switches dark/light */
   background-color: var(--btn-bg-light);
   border: none;
   border-radius: 4px;
@@ -158,16 +205,21 @@ body.dark .primary-button {
   color: #fff;
 }
 
-.mode-button:hover, .primary-button:hover {
+.mode-button:hover,
+.primary-button:hover {
   font-weight: bold;
 }
-.mode-button.active, .primary-button.active {
+
+.mode-button.active,
+.primary-button.active {
   background: #ffe464;
   color: #000;
   outline: 3px solid #ffb800;
   font-weight: bold;
 }
-body.dark .mode-button.active, body.dark .primary-button.active {
+
+body.dark .mode-button.active,
+body.dark .primary-button.active {
   background: #cc8c00;
   color: #fff;
   outline: 3px solid #ffd47f;
@@ -193,7 +245,7 @@ body.dark .dropdown-toggle:focus {
   background-color: #828282;
   font-weight: bold;
   border: #430000;
- /* background-color: var(--btn-bg-light); */
+  /* background-color: var(--btn-bg-light); */
 }
 
 /*──────────────────────────────────────────────────────────────────────────────
@@ -262,7 +314,8 @@ body.dark .dropdown-toggle:focus {
 ──────────────────────────────────────────────────────────────────────────────*/
 #controlsPanel {
   position: fixed;
-  top: 60px;    /* same as before */
+  top: 60px;
+  /* same as before */
   left: 16px;
   background: var(--bg-color);
   padding: 8px;
@@ -381,7 +434,8 @@ body.dark .dropdown-toggle:focus {
 
 #effectsToggleBtn {
   background-color: var(--btn-bg-light);
-  color: var(--text-color);           /* Use theme text color */
+  color: var(--text-color);
+  /* Use theme text color */
   border: 1px solid var(--modal-border);
   transition: background 0.18s, color 0.18s, font-weight 0.1s;
 }
@@ -397,7 +451,8 @@ body.dark #effectsToggleBtn {
 }
 
 #effectsToggleBtn.active {
-  background-color: #ffe464;    /* Pick your toggled color */
+  background-color: #ffe464;
+  /* Pick your toggled color */
   color: #000;
   border-color: #ffb800;
   font-weight: bold;
@@ -465,8 +520,15 @@ body.dark .mode-button.btn-lookup-id:focus {
 }
 
 @keyframes popupFadeIn {
-  from { opacity: 0; transform: translateY(7px);}
-  to   { opacity: 1; transform: translateY(0);}
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Dropdown buttons inside the panel */
@@ -492,6 +554,7 @@ body.dark .mode-button.btn-lookup-id:focus {
   color: #222;
   font-weight: bold;
 }
+
 body.dark .popup-panel .mode-button:hover,
 body.dark .popup-panel button:hover {
   background: #3e2c00;
@@ -504,6 +567,7 @@ body.dark .popup-panel button:hover {
   background: #ddd;
   margin: 7px 0;
 }
+
 body.dark .popup-panel .divider {
   background: #555;
 }
@@ -526,8 +590,10 @@ body.dark .popup-panel .divider {
   padding: 5px;
   z-index: 10;
   resize: both;
-  overflow: auto;      /* required so content scrolls when you shrink it */
-  max-width: 90vw;     /* don’t let them drag you off-screen */
+  overflow: auto;
+  /* required so content scrolls when you shrink it */
+  max-width: 90vw;
+  /* don’t let them drag you off-screen */
   max-height: 90vh;
 }
 
@@ -626,8 +692,10 @@ body.dark .filter-button.active {
   max-width: 80%;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
   resize: both;
-  overflow: auto;      /* required so content scrolls when you shrink it */
-  max-width: 90vw;     /* don’t let them drag you off-screen */
+  overflow: auto;
+  /* required so content scrolls when you shrink it */
+  max-width: 90vw;
+  /* don’t let them drag you off-screen */
   max-height: 90vh;
 }
 
@@ -667,7 +735,8 @@ body.dark .filter-button.active {
 #calcSlicePopup.modal {
   z-index: 9999;
   position: fixed;
-  top: 60px; /* or as you like */
+  top: 60px;
+  /* or as you like */
   left: 20vw;
 }
 
@@ -796,8 +865,7 @@ body.dark .mode-button.btn-supernova,
 body.dark .mode-button.btn-1,
 body.dark .mode-button.btn-2,
 body.dark .mode-button.btn-empty,
-body.dark .mode-button.btn-special
- {
+body.dark .mode-button.btn-special {
   color: #000 !important;
 
 }
@@ -862,7 +930,10 @@ body.light .border-anomalies-popup {
   font-weight: bold;
 }
 
-.border-anomalies-popup, .border-anomalies-popup, .popup-panel, .popup-panel * {
+.border-anomalies-popup,
+.border-anomalies-popup,
+.popup-panel,
+.popup-panel * {
   user-select: none;
 }
 
@@ -883,6 +954,7 @@ Layout butoons and other Popup & Buttons
   color: var(--text-color);
   box-shadow: 0 8px 22px #222a;
 }
+
 .layout-options-popup .popup-header {
   cursor: move;
   background: #1976d2;
@@ -895,6 +967,7 @@ Layout butoons and other Popup & Buttons
   justify-content: space-between;
   align-items: center;
 }
+
 .layout-options-popup .popup-close-btn {
   background: none;
   color: #fff;
@@ -903,10 +976,12 @@ Layout butoons and other Popup & Buttons
   cursor: pointer;
   margin-left: 10px;
 }
+
 .layout-options-popup .popup-tool-label {
   margin: 22px 0 10px 2px;
   font-weight: bold;
 }
+
 .layout-options-popup .mode-button {
   margin: 2px 4px 2px 0;
   width: 95%;
@@ -918,6 +993,7 @@ Layout butoons and other Popup & Buttons
   cursor: default;
   /* rest of your styling */
 }
+
 .draggable-handle {
   cursor: move;
   padding: 4px 8px;
@@ -941,9 +1017,11 @@ Layout butoons and other Popup & Buttons
   justify-content: flex-start;
   margin-top: 8px;
 }
+
 .popup-btn-grid .mode-button {
   height: 38px;
-  flex: 2 2 50px; /* grows, minimum width */
+  flex: 2 2 50px;
+  /* grows, minimum width */
   min-width: 70px;
 }
 
@@ -956,7 +1034,8 @@ Layout butoons and other Popup & Buttons
 /* Wormhole popup grid */
 .wormhole-btn-grid {
   display: grid;
-  grid-template-columns: repeat(4, 3fr);  /* 2 columns, adjust as needed */
+  grid-template-columns: repeat(4, 3fr);
+  /* 2 columns, adjust as needed */
   gap: 10px 14px;
   padding: 10px 4px;
 }
@@ -973,7 +1052,8 @@ Layout butoons and other Popup & Buttons
 /* Effect popup grid */
 .effect-btn-grid {
   display: grid;
-  grid-template-columns: repeat(2, 2fr);  /* 2 columns, adjust as needed */
+  grid-template-columns: repeat(2, 2fr);
+  /* 2 columns, adjust as needed */
   gap: 10px 14px;
   padding: 10px 4px;
 }

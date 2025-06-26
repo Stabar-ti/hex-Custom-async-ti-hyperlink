@@ -287,9 +287,19 @@ export function bindUI(editor) {
   // Listener for the button
   document.getElementById('exportBorderAnomaliesBtn')?.addEventListener('click', () => {
     const textarea = document.getElementById('exportBorderAnomaliesText');
-    textarea.value = exportBorderAnomaliesGrouped(editor);
+    const doubleSided = !!document.getElementById('borderAnomalyDoubleSided')?.checked;
+    textarea.value = exportBorderAnomaliesGrouped(editor, doubleSided);
     document.getElementById('exportBorderAnomaliesModal').style.display = 'block';
   });
+
+  const anomalyDoubleSidedBox = document.getElementById('borderAnomalyDoubleSided');
+  if (anomalyDoubleSidedBox) {
+    anomalyDoubleSidedBox.addEventListener('change', () => {
+      const textarea = document.getElementById('exportBorderAnomaliesText');
+      const doubleSided = !!anomalyDoubleSidedBox.checked;
+      textarea.value = exportBorderAnomaliesGrouped(editor, doubleSided);
+    });
+  }
 
   // Copy logic
   document.getElementById('copyExportBorderAnomalies')?.addEventListener('click', () => {

@@ -33,7 +33,7 @@
       <button id="featuresToggle" class="mode-button">Features</button>
     </div>
 
-    <div id="versionTag">v1.3.6a</div>
+    <div id="versionTag">v1.5.2b</div>
   </div>
 
   <!-- The movable popup for GUI options, hidden by default -->
@@ -220,14 +220,22 @@
   <!-- The popup modal (insert near your other modals or just before </body>) -->
   <div id="exportBorderAnomaliesModal" class="modal" style="display:none;">
     <div class="modal-content">
+
       <div class="modal-header draggable-handle">
         <span>Export Border Anomalies (Discord Command)</span>
-        <button class="close-button popup-close-btn" title="Close" data-close="exportBorderAnomaliesModal">✕</button>
       </div>
-      <textarea id="exportBorderAnomaliesText" style="width:100%;height:120px;"></textarea>
-      <button id="copyExportBorderAnomalies" class="mode-button">Copy</button>
-      <button data-close="exportBorderAnomaliesModal" class="mode-button">Close</button>
+      <div style="margin-bottom:8px;">
+        <label>
+          <input type="checkbox" id="borderAnomalyDoubleSided" checked>
+          Duplicate border anomalies to both tiles
+        </label>
+      </div>
+      <button class="close-button popup-close-btn" title="Close" data-close="exportBorderAnomaliesModal">✕</button>
     </div>
+    <textarea id="exportBorderAnomaliesText" style="width:100%;height:120px;"></textarea>
+    <button id="copyExportBorderAnomalies" class="mode-button">Copy</button>
+    <button data-close="exportBorderAnomaliesModal" class="mode-button">Close</button>
+  </div>
   </div>
 
 
@@ -475,6 +483,7 @@
 
   <div id="hexHoverInfo" class="hover-info"></div> <!-- Application script -->
   <!--<script src="app.js" defer></script> -->
+  <!-- <script type="module" src="src/main.js"></script> -->
   <script type="module" src="src/main.js"></script>
 </body>
 

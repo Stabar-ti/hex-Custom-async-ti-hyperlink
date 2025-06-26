@@ -294,8 +294,9 @@ export function exportCustomAdjacents(editor) {
   return lines.join('\n');
 }
 
-export function exportBorderAnomaliesGrouped(editor) {
+export function exportBorderAnomaliesGrouped(editor, doubleSided = true) {
   const dirMap = ['n', 'ne', 'se', 's', 'sw', 'nw'];
+  const reverseDir = [3, 4, 5, 0, 1, 2];
   const groups = {};
 
   Object.entries(editor.hexes).forEach(([label, hex]) => {
@@ -306,15 +307,23 @@ export function exportBorderAnomaliesGrouped(editor) {
       let type = (anomaly.type || '').replace(/\s+/g, '');
       if (!dir || !type) return;
 
-      // Get neighbor LABEL for the direction
       const neighborLabel = getNeighborHexLabel(editor.hexes, label, side);
+      const neighborSide = reverseDir[side];
 
-      // For SpatialTear, only export for the LOWER label
       if (type === "SpatialTear" && neighborLabel && label > neighborLabel) return;
 
+      // Always add to primary tile
       const key = `${dir}_${type}`;
       if (!groups[key]) groups[key] = new Set();
       groups[key].add(label);
+
+      // Add to neighbor if doubleSided is true
+      if (doubleSided && neighborLabel) {
+        const neighborDir = dirMap[neighborSide];
+        const neighborKey = `${neighborDir}_${type}`;
+        if (!groups[neighborKey]) groups[neighborKey] = new Set();
+        groups[neighborKey].add(neighborLabel);
+      }
     });
   });
 
@@ -328,6 +337,7 @@ export function exportBorderAnomaliesGrouped(editor) {
 
   return commands.length ? commands.join('\n') : "No border anomalies set.";
 }
+
 
 // The new helper:
 function getNeighborHexLabel(hexes, label, side) {

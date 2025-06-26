@@ -18,6 +18,7 @@ import {
     unmarkRealIDUsed,
     usedRealIDs
 } from './uiFilters.js';
+import { wormholeTypes, techSpecialtyColors } from '../constants/constants.js';
 //import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 //import { assignSystem } from '../features/assignSystem.js';
 
@@ -39,54 +40,104 @@ export default async function initSystemLookup(editor) {
     const jumpBtn = document.getElementById('jumpToSystemBtn');
 
     // 3) Main list rendering function: show systems in the <ul>
+    function getTechLetterColor(tech) {
+        // Map tech specialty to {letter, color}
+        switch ((tech || '').toUpperCase()) {
+            case 'CYBERNETIC': return { l: 'Y', c: techSpecialtyColors.CYBERNETIC || '#FFD700' };
+            case 'BIOTIC': return { l: 'G', c: techSpecialtyColors.BIOTIC || 'green' };
+            case 'WARFARE': return { l: 'R', c: techSpecialtyColors.WARFARE || 'red' };
+            case 'PROPULSION': return { l: 'B', c: techSpecialtyColors.PROPULSION || '#00BFFF' };
+            default: return null;
+        }
+    }
+
+    function getWormholeCharColor(worm) {
+        // Map wormhole type to {char, color}
+        const w = (worm || '').toLowerCase();
+        const info = wormholeTypes[w];
+        if (!info) return null;
+        // Use first character of label as symbol
+        return { ch: info.label?.charAt(0) || '?', c: info.color || '#888' };
+    }
+
+    // New renderList function
     function renderList(items = systems) {
         list.innerHTML = '';
+
+        // Build table header
+        const table = document.createElement('table');
+        table.className = 'system-table';
+        table.innerHTML = `<thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Planets    </th>
+            <th>Techs</th>
+            <th>Worms</th>
+            <th>Eff</th>
+            <th>L</th>
+        </tr>
+    </thead>`;
+
+        const tbody = document.createElement('tbody');
+
         items.forEach(s => {
-            // Compose planet/resource summary, wormhole codes, tech specialties, effects, legendary
             const planetSummaries = (s.planets || [])
-                .map((p, i) => `p${i + 1} ${p.resources}/${p.influence}`)
-                .join(' ');
-            //   const rawW = s.wormholes || [];
-            const rawW = Array.isArray(s.wormholes) ? s.wormholes : [];
-            const wormSummary = rawW.filter(w => typeof w === "string" && w.length > 0).length
-                ? `w(${rawW.filter(w => typeof w === "string" && w.length > 0).map(w => w.toLowerCase()).join(',')})`
-                : '';
-            const techs = Array.from(new Set(
+                //  .map((p, i) => `p${i + 1} ${p.resources}/${p.influence}`).join(' ');
+                .map((p, i) => `${p.resources}/${p.influence}`).join(' ');
+
+            // Techs: unique, single letters, color-coded
+            const techsArr = Array.from(new Set(
                 (s.planets || []).flatMap(p => p.techSpecialties || [])
             ));
-            const techSummary = techs.join(', ');
+            const techHtml = techsArr.map(t => {
+                const tcc = getTechLetterColor(t);
+                return tcc
+                    ? `<span style="color:${tcc.c}; font-weight:bold;">${tcc.l}</span>`
+                    : '';
+            }).join(' ');
+
+            // Wormholes: color-coded, single letter
+            const wormArr = Array.isArray(s.wormholes) ? s.wormholes : [];
+            const wormHtml = wormArr.map(w => {
+                const whc = getWormholeCharColor(w);
+                return whc
+                    ? `<span style="color:${whc.c}; font-weight:bold;">${whc.ch}</span>`
+                    : '';
+            }).join(' ');
+
+            // Effects summary
             const effs = [];
-            if (s.isNebula) effs.push('Nebula');
-            if (s.isGravityRift) effs.push('Rift');
-            if (s.isSupernova) effs.push('Supernova');
-            if (s.isAsteroidField) effs.push('Asteroids');
-            const effectsSummary = effs.join(', ');
-            const legend = (s.planets || []).some(p => p.legendaryAbilityName)
-                ? 'Legendary' : '';
-            // Collect all non-empty summaries with a divider
-            const extras = [
-                planetSummaries,
-                wormSummary,
-                techSummary,
-                effectsSummary,
-                legend
-            ].filter(x => x).join(' | ');
+            if (s.isNebula) effs.push('☁️');
+            if (s.isGravityRift) effs.push('🕳️');
+            if (s.isSupernova) effs.push('☀️');
+            if (s.isAsteroidField) effs.push('🪨');
+            const effectsSummary = effs.join(' ');
 
-            // Build the <li> for this system
-            const li = document.createElement('li');
-            // Visually mark as "used" if already assigned on map
-            if (isRealIDUsed(s.id)) li.classList.add('used');
-            li.textContent = `${s.id} — ${s.name || ''}${extras ? ' — ' + extras : ''}`;
+            // Legendary star
+            const legend = (s.planets || []).some(p => p.legendaryAbilityName) ? '⭐' : '';
 
-            // When clicked: prepare to assign this system, mark as used, and show modal
-            li.addEventListener('click', () => {
+            // Row
+            const tr = document.createElement('tr');
+            if (isRealIDUsed(s.id)) tr.classList.add('used');
+            tr.innerHTML = `
+            <td><b>${s.id}</b></td>
+            <td>${s.name || ''}</td>
+            <td>${planetSummaries}</td>
+            <td>${techHtml}</td>
+            <td>${wormHtml}</td>
+            <td>${effectsSummary}</td>
+            <td>${legend}</td>
+        `;
+            tr.addEventListener('click', () => {
                 editor.pendingSystemId = s.id.toString().toUpperCase();
-                //markRealIDUsed(s.id);
                 showModal('systemLookupModal', false);
-                // (User then clicks a hex to assign)
             });
-            list.appendChild(li);
+            tbody.appendChild(tr);
         });
+
+        table.appendChild(tbody);
+        list.appendChild(table);
     }
 
     // 4) Expose the render function globally for filter/search refresh
@@ -106,12 +157,25 @@ export default async function initSystemLookup(editor) {
     input.addEventListener('input', () => {
         const term = input.value.trim().toLowerCase();
         let toShow = getActiveFilterPass(editor);
+
         if (term) {
-            toShow = toShow.filter(s =>
-                s.id.toString().includes(term) ||
-                (s.name || '').toLowerCase().includes(term)
-            );
+            // Advanced: allow searching for numbers within IDs even if ID is not purely numeric
+            toShow = toShow.filter(s => {
+                const id = s.id.toString().toLowerCase();
+                const name = (s.name || '').toLowerCase();
+
+                // If term is only digits, match IDs that contain those digits anywhere (even inside strings)
+                if (/^\d+$/.test(term)) {
+                    // Remove all non-digits from ID for numeric search
+                    const idDigits = id.replace(/\D/g, '');
+                    return id.includes(term) || idDigits.includes(term) || name.includes(term);
+                }
+
+                // Otherwise, behave as normal: substring match on ID or name
+                return id.includes(term) || name.includes(term);
+            });
         }
+
         renderList(toShow);
     });
 
