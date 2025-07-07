@@ -24,9 +24,9 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/AsyncTI4/TI4_map_generator_bot temp-bot-repo
 
-      - name: Copy systems and planets
+      - name: Copy systems, planets, and hyperlanes.properties
         run: |
-          mkdir -p public/data/systems public/data/planets
+          mkdir -p public/data/systems public/data/planets public/data
           cp -r temp-bot-repo/src/main/resources/systems/*.json public/data/systems/
           cp -r temp-bot-repo/src/main/resources/planets/*.json public/data/planets/
           cp temp-bot-repo/src/main/resources/data/hyperlanes.properties public/data/hyperlanes.properties
@@ -63,12 +63,30 @@ jobs:
             
           EOF
 
+      - name: Convert hyperlanes.properties to hyperlanes.json
+        run: |
+          python3 - << 'EOF'
+          import json
+          props = {}
+          with open('public/data/hyperlanes.properties', encoding='utf-8') as f:
+              for line in f:
+                  line = line.strip()
+                  if not line or line.startswith('#'): continue
+                  if '=' in line:
+                      k, v = line.split('=', 1)
+                      props[k.strip()] = v.strip()
+          with open('public/data/hyperlanes.json', 'w', encoding='utf-8') as out:
+              json.dump(props, out, indent=2, ensure_ascii=False)
+          EOF
+
       - name: Commit & push changes
         run: |
           git add public/data/systems \
                   public/data/planets \
-                  public/data/SystemInfo.json
-          git commit -m "🤖 Sync AsyncTI4 data + build SystemInfo.json" \
+                  public/data/SystemInfo.json \
+                  public/data/hyperlanes.json \
+                  public/data/hyperlanes.properties
+          git commit -m "🤖 Sync AsyncTI4 data + build SystemInfo.json and hyperlanes.json" \
                      || echo "No changes to commit"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git \
                    HEAD:${{ github.ref_name }}
