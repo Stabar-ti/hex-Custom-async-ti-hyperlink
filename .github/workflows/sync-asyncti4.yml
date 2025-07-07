@@ -26,7 +26,7 @@ jobs:
 
       - name: Copy systems, planets, and hyperlanes.properties
         run: |
-          mkdir -p public/data/systems public/data/planets public/data
+          mkdir -p public/data/systems public/data/planets public/data public/data/tiles
           cp -r temp-bot-repo/src/main/resources/systems/*.json public/data/systems/
           cp -r temp-bot-repo/src/main/resources/planets/*.json public/data/planets/
           cp -r temp-bot-repo/src/main/resources/tiles/*.png public/data/tiles/
