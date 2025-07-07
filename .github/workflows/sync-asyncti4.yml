@@ -29,6 +29,7 @@ jobs:
           mkdir -p public/data/systems public/data/planets
           cp -r temp-bot-repo/src/main/resources/systems/*.json public/data/systems/
           cp -r temp-bot-repo/src/main/resources/planets/*.json public/data/planets/
+          cp temp-bot-repo/src/main/resources/data/hyperlanes.properties public/data/hyperlanes.properties
 
       - name: Combine into a single bundle
         run: |
