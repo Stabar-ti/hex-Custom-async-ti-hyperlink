@@ -63,7 +63,7 @@ jobs:
             
           EOF
 
-      - name: Convert hyperlanes.properties to hyperlanes.json
+      - name: Convert hyperlanes.properties to hyperlanes.json (as arrays)
         run: |
           python3 - << 'EOF'
           import json
@@ -74,7 +74,12 @@ jobs:
                   if not line or line.startswith('#'): continue
                   if '=' in line:
                       k, v = line.split('=', 1)
-                      props[k.strip()] = v.strip()
+                      # Split into rows, then values, then ints
+                      matrix = [
+                          [int(x) for x in row.split(',')]
+                          for row in v.strip().split(';') if row
+                      ]
+                      props[k.strip()] = matrix
           with open('public/data/hyperlanes.json', 'w', encoding='utf-8') as out:
               json.dump(props, out, indent=2, ensure_ascii=False)
           EOF
