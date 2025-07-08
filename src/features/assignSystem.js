@@ -1,6 +1,8 @@
 // features/assignSystem.js
 import { toggleWormhole } from '../features/wormholes.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
+import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
+import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 
 /**
  * Assigns a system object to a hex tile, updating all overlays, type, and state.
@@ -86,5 +88,8 @@ export function assignSystem(editor, sys, hexID) {
       toggleWormhole(editor, hexID, wh.toLowerCase());
     }
   });
+
+  updateTileImageLayer(editor);
+  enforceSvgLayerOrder(editor.svg);
 
 }

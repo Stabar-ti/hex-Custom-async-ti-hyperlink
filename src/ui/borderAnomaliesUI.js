@@ -1,5 +1,6 @@
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 import { toggleBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay.js';
+import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 
 export function installBorderAnomaliesUI(editor) {
     function addPopupLauncher() {
@@ -93,6 +94,7 @@ export function installBorderAnomaliesUI(editor) {
         popup.appendChild(toolBtn('Gravity Wave', 'border-anomaly-single', 'One-way block'));
         popup.appendChild(toolBtn('Remove', 'border-anomaly-remove', 'Remove all anomalies from hex'));
 
+
         // Overlay toggle button (persistent)
         /*const overlayToggle = document.createElement('button');
         overlayToggle.textContent = "Toggle Overlay";
@@ -156,6 +158,7 @@ export function installBorderAnomaliesUI(editor) {
                 this.hexes[primary].polygon.classList.remove('selected');
                 this._pendingBorderAnomaly = null;
                 drawBorderAnomaliesLayer(this);
+                enforceSvgLayerOrder(editor.svg);
             }
             return;
         }
@@ -180,6 +183,7 @@ export function installBorderAnomaliesUI(editor) {
                 this.hexes[primary].polygon.classList.remove('selected');
                 this._pendingBorderAnomaly = null;
                 drawBorderAnomaliesLayer(this);
+                enforceSvgLayerOrder(editor.svg);
             }
             return;
         }
@@ -202,6 +206,7 @@ export function installBorderAnomaliesUI(editor) {
                 }
                 delete hex.borderAnomalies;
                 drawBorderAnomaliesLayer(this);
+                enforceSvgLayerOrder(editor.svg);
             }
             return;
         }

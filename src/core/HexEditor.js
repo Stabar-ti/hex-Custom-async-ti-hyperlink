@@ -47,8 +47,9 @@ import { unmarkRealIDUsed, clearRealIDUsage } from '../ui/uiFilters.js';
 import { initRealIDFeatures, updateLayerVisibility, redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 // Loads system data for all tiles (names, IDs, etc.)
 import { loadSystemInfo } from '../data/import.js';
-
 import { updateEffectsVisibility, updateWormholeVisibility } from '../features/baseOverlays.js'
+import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
+import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 
 // Apply the last-used theme (light/dark)
 applySavedTheme();
@@ -85,6 +86,7 @@ export default class HexEditor {
     this.effectIconPositions = effectIconPositions; // Offset icons so overlays don't stack
     this.sectorColors = sectorColors;           // Color for each sector type
     this._posIndex = 0;         // For cycling control panel positions
+    this.showTileImages = false;
 
 
     // ─── UI + map grid setup ───
@@ -324,6 +326,17 @@ export default class HexEditor {
     updateLayerVisibility(this, 'resInfLayer', this.showResInf);
     updateLayerVisibility(this, 'idealRILayer', this.showIdealRI);
     updateLayerVisibility(this, 'realIDLabelLayer', this.showRealID);
+
+    updateTileImageLayer(this);
+
+    // Add wormholeIconLayer (for wormhole overlays, above tile images)
+    let wormholeIconLayer = this.svg.querySelector('#wormholeIconLayer');
+    if (!wormholeIconLayer) {
+      wormholeIconLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      wormholeIconLayer.setAttribute('id', 'wormholeIconLayer');
+      this.svg.appendChild(wormholeIconLayer);
+    }
+    enforceSvgLayerOrder(this.svg);
 
     autoscaleView(this);
   }

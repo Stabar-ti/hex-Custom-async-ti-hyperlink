@@ -207,6 +207,7 @@ export function importSectorTypes(editor, tokenString) {
 
     // Redraw overlays
     redrawAllRealIDOverlays(editor);
+    updateTileImageLayer(editor);
   } finally {
     endBatch?.();
   }
@@ -384,6 +385,7 @@ export function importFullState(editor, jsonText) {
     drawBorderAnomaliesLayer(editor);
     updateEffectsVisibility(editor);
     updateWormholeVisibility(editor);
+    updateTileImageLayer(editor);
 
   } catch (err) {
     console.error(err);

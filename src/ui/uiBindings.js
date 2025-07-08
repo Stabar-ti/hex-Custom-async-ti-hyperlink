@@ -11,6 +11,7 @@ import { generateRings } from '../draw/drawHexes.js';
 import { makePopupDraggable, syncToggleButtons } from './uiUtils.js';
 import { toggleBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay.js';
 import { toggleCustomLinksOverlay } from '../features/customLinksOverlay.js';
+import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 
 import { exportAdjacencyOverrides, exportCustomAdjacents, exportBorderAnomaliesGrouped } from '../data/export.js'; // use your actual path
 
@@ -29,6 +30,8 @@ export function bindUI(editor) {
     editor.showPlanetTypes = !editor.showPlanetTypes;
     updateLayerVisibility(editor, 'planetTypeLayer', editor.showPlanetTypes);
     btnPlanetTypes.classList.toggle('active', editor.showPlanetTypes);
+    // Ensure correct SVG layering after toggling
+    enforceSVGLayerOrder(editor.svg);
   });
 
   const btnResInf = document.getElementById('toggleResInf');
@@ -36,6 +39,8 @@ export function bindUI(editor) {
     editor.showResInf = !editor.showResInf;
     updateLayerVisibility(editor, 'resInfLayer', editor.showResInf);
     btnResInf.classList.toggle('active', editor.showResInf);
+    // Ensure correct SVG layering after toggling
+    enforceSVGLayerOrder(editor.svg);
   });
 
   const btnIdealRI = document.getElementById('toggleIdealRI');
@@ -43,6 +48,8 @@ export function bindUI(editor) {
     editor.showIdealRI = !editor.showIdealRI;
     updateLayerVisibility(editor, 'idealRILayer', editor.showIdealRI);
     btnIdealRI.classList.toggle('active', editor.showIdealRI);
+    // Ensure correct SVG layering after toggling
+    enforceSVGLayerOrder(editor.svg);
   });
 
   const btnRealID = document.getElementById('toggleRealID');
@@ -50,6 +57,8 @@ export function bindUI(editor) {
     editor.showRealID = !editor.showRealID;
     updateLayerVisibility(editor, 'realIDLabelLayer', editor.showRealID);
     btnRealID.classList.toggle('active', editor.showRealID);
+    // Ensure correct SVG layering after toggling
+    enforceSVGLayerOrder(editor.svg);
   });
 
   // IDs for all toggles of each overlay
@@ -60,11 +69,15 @@ export function bindUI(editor) {
   function toggleBorderAnomaliesAll() {
     toggleBorderAnomaliesOverlay(editor);  // This toggles editor.showBorderAnomalies and SVG
     syncToggleButtons(borderAnomalyBtnIds, editor.showBorderAnomalies);
+    // Ensure correct SVG layering after toggling
+    enforceSVGLayerOrder(editor.svg);
   }
   function toggleCustomLinksAll() {
     editor.showCustomLinks = !editor.showCustomLinks;
     toggleCustomLinksOverlay(editor);
     syncToggleButtons(customLinksBtnIds, editor.showCustomLinks);
+    // Ensure correct SVG layering after toggling
+    enforceSVGLayerOrder(editor.svg);
   }
 
   // Attach all buttons (repeat if you add more UI for these overlays)

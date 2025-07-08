@@ -10,6 +10,7 @@
 
 import { assignSystem } from '../features/assignSystem.js';
 import { wormholeTypes } from '../constants/constants.js';
+import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 
 export function registerClickHandler(editor) {
   editor._onHexClick = function (e, label) {
@@ -56,5 +57,10 @@ export function registerClickHandler(editor) {
     // 5. Sector type fill (for all other modes): setSectorType now always saves history unless told to skip
     if (this.clearAll) this.clearAll(label);
     this.setSectorType(label, this.mode);
+
+    // --- ENFORCE SVG LAYER ORDER AFTER ANY ACTION ---
+    if (typeof enforceSVGLayerOrder === "function") {
+      enforceSVGLayerOrder(this.svg);
+    }
   };
 }

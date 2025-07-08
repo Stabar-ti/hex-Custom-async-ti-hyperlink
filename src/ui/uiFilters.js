@@ -222,3 +222,5 @@ export function getActiveFilterPass(editor) {
     });
   });
 }
+
+export { FILTERS };

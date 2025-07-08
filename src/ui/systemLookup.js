@@ -19,6 +19,9 @@ import {
     usedRealIDs
 } from './uiFilters.js';
 import { wormholeTypes, techSpecialtyColors } from '../constants/constants.js';
+// Add this to re-use filter logic for non-unique mode:
+import { FILTERS } from './uiFilters.js';
+import { makePopupDraggable } from './uiUtils.js';
 //import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 //import { assignSystem } from '../features/assignSystem.js';
 
@@ -38,6 +41,33 @@ export default async function initSystemLookup(editor) {
     const filtersContainer = document.getElementById('uiFiltersContainer');
     const genMapBtn = document.getElementById('genMapBtn');
     const jumpBtn = document.getElementById('jumpToSystemBtn');
+
+    // --- Add Random Tile UI ---
+    const randomDiv = document.createElement('div');
+    randomDiv.style.margin = '12px 0 10px 0';
+    randomDiv.style.display = 'flex';
+    randomDiv.style.alignItems = 'center';
+
+    const uniqueCheck = document.createElement('input');
+    uniqueCheck.type = 'checkbox';
+    uniqueCheck.id = 'randomUnique';
+    uniqueCheck.checked = true;
+    uniqueCheck.style.marginRight = '6px';
+    const uniqueLabel = document.createElement('label');
+    uniqueLabel.htmlFor = 'randomUnique';
+    uniqueLabel.textContent = 'Unique';
+
+    const randomBtn = document.createElement('button');
+    randomBtn.id = 'randomTileBtn';
+    randomBtn.textContent = '🎲 DJWizzy Random Tile Bonanza';
+    randomBtn.style.marginLeft = '12px';
+
+    randomDiv.appendChild(uniqueCheck);
+    randomDiv.appendChild(uniqueLabel);
+    randomDiv.appendChild(randomBtn);
+
+    // Place above the filters
+    filtersContainer.parentNode.insertBefore(randomDiv, filtersContainer.nextSibling);
 
     // 3) Main list rendering function: show systems in the <ul>
     function getTechLetterColor(tech) {
@@ -215,6 +245,46 @@ export default async function initSystemLookup(editor) {
         renderList(toShow);
     });
 
+    let lastRandom = null;
+    randomBtn.addEventListener('click', () => {
+        const unique = uniqueCheck.checked;
+        let candidates;
+
+        if (unique) {
+            // Use both filter pass and isRealIDUsed!
+            candidates = getActiveFilterPass(editor)
+                .filter(s => !isRealIDUsed(s.id));
+        } else {
+            // All filtered systems, even if used already
+            candidates = (Array.isArray(editor.allSystems) ? editor.allSystems : []).filter(sys =>
+                FILTERS.every(({ key, test }) => {
+                    const btn = document.getElementById(`filter-${key}`);
+                    const active = btn?.dataset.active === 'true';
+                    return test(sys, active);
+                })
+            );
+        }
+
+        if (!candidates.length) {
+            alert('No tiles match the current filters!');
+            return;
+        }
+
+        // Don't repeat the last tile (unless only one match)
+        let filtered = candidates;
+        if (candidates.length > 1 && lastRandom != null) {
+            filtered = candidates.filter(s => s.id !== lastRandom);
+            if (!filtered.length) filtered = candidates;
+        }
+        const sys = filtered[Math.floor(Math.random() * filtered.length)];
+        lastRandom = sys.id;
+
+        showRandomTilePopup(sys, editor, () => lastRandom = null);
+    });
+
+    // Optional: Reset lastRandom on unique toggle
+    uniqueCheck.addEventListener('change', () => { lastRandom = null; });
+
     // 7) When generating a new map, clear all "used" system IDs
     genMapBtn?.addEventListener('click', () => {
         Array.from(usedRealIDs).forEach(id => unmarkRealIDUsed(id));
@@ -236,3 +306,81 @@ export function refreshSystemList() {
 window.addEventListener('DOMContentLoaded', () => {
     initSystemLookup(window.editor);
 });
+
+function showRandomTilePopup(sys, editor, onAssign) {
+    document.getElementById('randomTilePopup')?.remove();
+    const div = document.createElement('div');
+    div.id = 'randomTilePopup';
+    div.style.position = 'fixed';
+    div.style.left = '50%';
+    div.style.top = '30%';
+    div.style.transform = 'translate(-50%, -20%)';
+    div.style.background = '#222';
+    div.style.color = '#fff';
+    div.style.padding = '18px';
+    div.style.border = '2px solid #0af';
+    div.style.borderRadius = '12px';
+    div.style.zIndex = 10004;
+    div.style.minWidth = '280px';
+
+    // --- Add draggable handle ---
+    div.innerHTML = `
+      <div class="draggable-handle" style="cursor:move; font-size:16px; font-weight:bold; margin-bottom:10px; background:#124;margin:-18px -18px 12px -18px;padding:8px 14px;border-radius:10px 10px 0 0;">🎲 Random Tile</div>
+      <div style="font-size:18px;"><b>Tile:</b> <span style="color:#e4f">${sys.id}</span> – ${sys.name}</div>
+      ${sys.imagePath ? `<img src="public/data/tiles/${sys.imagePath}" style="width:92px; margin:12px 0; border-radius:8px;">` : ''}
+      <div style="margin:7px 0;">${(sys.planets || []).map(p => `${p.name || ''} (${p.resources}/${p.influence})`).join('<br>')}</div>
+      <button id="assignRandomTileBtn">Assign to map</button>
+      <button id="closeRandomTileBtn" style="margin-left:10px;">Close</button>
+    `;
+
+    document.body.appendChild(div);
+
+    // ---- Restore previous position if available ----
+    const pos = localStorage.getItem('randomTilePopupPos');
+    if (pos) {
+        const [left, top] = pos.split(',').map(Number);
+        div.style.left = left + 'px';
+        div.style.top = top + 'px';
+        div.style.transform = 'none';
+    }
+
+    // --- Make draggable, and save position when moved ---
+    makePopupDraggable('randomTilePopup');
+
+    // Patch: add listener to save position
+    const header = div.querySelector('.draggable-handle');
+    if (header) {
+        let isDragging = false, offsetX, offsetY;
+
+        header.onmousedown = function (e) {
+            isDragging = true;
+            offsetX = e.clientX - div.offsetLeft;
+            offsetY = e.clientY - div.offsetTop;
+            document.onmousemove = function (e) {
+                if (isDragging) {
+                    div.style.left = (e.clientX - offsetX) + 'px';
+                    div.style.top = (e.clientY - offsetY) + 'px';
+                    div.style.transform = 'none';
+                }
+            };
+            document.onmouseup = function () {
+                if (isDragging) {
+                    // Save to localStorage
+                    localStorage.setItem('randomTilePopupPos', [div.offsetLeft, div.offsetTop].join(','));
+                }
+                isDragging = false;
+                document.onmousemove = null;
+                document.onmouseup = null;
+            };
+        };
+    }
+
+    document.getElementById('closeRandomTileBtn').onclick = () => div.remove();
+    document.getElementById('assignRandomTileBtn').onclick = () => {
+        editor.pendingSystemId = sys.id.toString().toUpperCase();
+        div.remove();
+        showModal('systemLookupModal', false);
+        if (onAssign) onAssign();
+    };
+}
+

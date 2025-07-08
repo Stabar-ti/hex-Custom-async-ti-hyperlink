@@ -1,5 +1,6 @@
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { toggleCustomLinksOverlay } from '../features/customLinksOverlay.js';
+import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 
 export function installCustomLinksUI(editor) {
     // --- Add popup launcher at sector controls bottom ---
@@ -224,6 +225,7 @@ export function installCustomLinksUI(editor) {
             editor.hexes[a].polygon.classList.remove('selected');
             editor._pendingCustomAdj = null;
             drawCustomAdjacencyLayer(editor);
+            enforceSvgLayerOrder(editor.svg);
         } else if (mode === 'custom-adj-double') {
             editor.beginUndoGroup();
             editor.saveState(a);
@@ -237,6 +239,7 @@ export function installCustomLinksUI(editor) {
             editor.hexes[b].polygon.classList.remove('selected');
             editor._pendingCustomAdj = null;
             drawCustomAdjacencyLayer(editor);
+            enforceSvgLayerOrder(editor.svg);
         }
     }
 
@@ -353,6 +356,7 @@ export function installCustomLinksUI(editor) {
                 overrideState = { step: 0, start: null, dir: null };
 
                 drawCustomAdjacencyLayer(this);
+                enforceSvgLayerOrder(editor.svg);
             }
             return;
         }
@@ -412,6 +416,7 @@ export function installCustomLinksUI(editor) {
     editor.generateMap = function () {
         oldGenerateMap.call(this);
         drawCustomAdjacencyLayer(this);
+        enforceSvgLayerOrder(editor.svg);
     };
 
     // Expose redraw method

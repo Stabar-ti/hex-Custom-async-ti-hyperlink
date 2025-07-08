@@ -25,6 +25,8 @@ import { installCustomLinksUI } from './ui/customLinksUI.js';
 import { installBorderAnomaliesUI } from './ui/borderAnomaliesUI.js';
 import { redrawBorderAnomaliesOverlay } from './features/borderAnomaliesOverlay.js';
 import { overlayDefaults } from './config/toggleSettings.js';
+import { updateTileImageLayer } from './features/imageSystemsOverlay.js';
+import { enforceSvgLayerOrder } from './draw/enforceSvgLayerOrder.js';
 
 // ───── Initialize the core HexEditor and set defaults ─────
 const svg = document.getElementById('hexMap');
@@ -182,6 +184,7 @@ if (btnToggleWormholes) {
     editor.showWormholes = !editor.showWormholes;
     import('./features/baseOverlays.js').then(({ updateWormholeVisibility }) => {
       updateWormholeVisibility(editor);
+      enforceSvgLayerOrder(editor.svg); // <--- ENSURE PROPER LAYER ORDER
     });
     btnToggleWormholes.classList.toggle('active', editor.showWormholes);
   });
@@ -196,8 +199,21 @@ if (btnToggleEffects) {
     editor.showEffects = !editor.showEffects;
     import('./features/baseOverlays.js').then(({ updateEffectsVisibility }) => {
       updateEffectsVisibility(editor);
+      enforceSvgLayerOrder(editor.svg); // <--- ENSURE PROPER LAYER ORDER
     });
     btnToggleEffects.classList.toggle('active', editor.showEffects);
+  });
+}
+
+const btnTileImages = document.getElementById('toggleTileImagesBtn');
+if (btnTileImages) {
+  editor.showTileImages = !!editor.showTileImages; // default (or from localStorage)
+  btnTileImages.classList.toggle('active', editor.showTileImages);
+  btnTileImages.addEventListener('click', () => {
+    editor.showTileImages = !editor.showTileImages;
+    btnTileImages.classList.toggle('active', editor.showTileImages);
+    updateTileImageLayer(editor);
+    enforceSvgLayerOrder(editor.svg); // <--- ENSURE PROPER LAYER ORDER
   });
 }
 

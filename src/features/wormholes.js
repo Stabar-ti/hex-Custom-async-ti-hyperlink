@@ -59,7 +59,12 @@ export function toggleWormhole(editor, hexId, type) {
       w.toLowerCase()
     );
 
-    editor.svg.appendChild(overlay);
+    const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
+    if (wormholeIconLayer) {
+      wormholeIconLayer.appendChild(overlay);
+    } else {
+      editor.svg.appendChild(overlay);
+    }
     hex.wormholeOverlays.push(overlay);
   });
 

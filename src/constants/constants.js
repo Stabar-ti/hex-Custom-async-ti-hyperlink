@@ -151,3 +151,18 @@ export const techSpecialtyColors = {
   WARFARE: 'red',
   PROPULSION: '#00BFFF', // blue-ish (deep sky blue)
 };
+
+export const SVG_LAYER_ORDER = [
+  // bottom-most visible (under all overlays)
+  'wormholeLineLayer',      // bottom-most
+  'planetTypeLayer',
+  'resInfLayer',
+  'idealRILayer',
+  'realIDLabelLayer',
+  'tileImageLayer',         // images
+  'wormholeIconLayer',      // <--- tokens/icons go here
+  'customAdjacencyLayer',
+  'borderAnomalyLayer'      // top-most
+
+  // top-most
+];
