@@ -95,7 +95,9 @@ _No build or install steps needed for the main app._
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) 
+
+With exception of everything in /public/data/ This is borrowed from async Ti Bot and same rules should apply.
 
 ---
 
