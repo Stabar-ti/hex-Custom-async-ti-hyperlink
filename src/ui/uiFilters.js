@@ -50,10 +50,25 @@ const FILTERS = [
   { key: 'isLegendary', label: 'Legendary', defaultOn: false, test(sys, a) { if (!a) return true; return Array.isArray(sys.planets) && sys.planets.some(p => !!p.legendaryAbilityName); } },
   { key: 'noFaction', label: 'No Faction', defaultOn: true, test(sys, a) { if (!a) return true; return Array.isArray(sys.planets) && !sys.planets.some(p => !!p.factionHomeworld); } },
   {
-    key: 'weirdTiles', label: 'Weird Tiles', defaultOn: true, test(sys, a) {
-      // Exclude tiles with certain names/IDs ("fow", "hl_", "blank", "hyperlane") by default
+    key: 'showHyperlanes',
+    label: 'Show Hyperlanes Only',
+    defaultOn: false,
+    test(sys, active) {
+      // If ON, show only hyperlanes
+      if (active) return !!sys.isHyperlane;
+      // If OFF, hide all hyperlanes
+      return !sys.isHyperlane;
+    }
+  },
+  {
+    key: 'weirdTiles',
+    label: 'Weird Tiles',
+    defaultOn: true,
+    test(sys, a) {
+      // Exclude tiles with certain names/IDs, but do NOT match "hyperlane" or "hl_" anymore
       const txt = `${sys.id} ${sys.name}`.toLowerCase();
-      const isWeird = /fow|hl_|blank|hyperlane|-1|Prison|0b|0g|0g|0r|0gray|0border/.test(txt);
+      // Remove |hl_|hyperlane from this regex:
+      const isWeird = /fow|blank|-1|Prison|0b|0g|0r|0gray|0border/.test(txt);
       return a ? !isWeird : isWeird;
     }
   }
@@ -126,7 +141,7 @@ export function applyFilters(editor, onResults) {
  */
 export function markRealIDUsed(id) {
   usedRealIDs.add(id);
-  console.log('realIDmarked')
+  //  console.log('realIDmarked')
   if (!_batchMode) refreshSystemList();
 }
 

@@ -23,6 +23,11 @@ export function bindHyperlaneEditing(editor) {
    * (unless it's the first click), then tries to draw a link.
    */
   editor._selectHex = function (label) {
+    // --- Block hyperlane drawing if modal open or pending system assignment ---
+    if (document.getElementById('systemLookupModal')?.classList.contains('open') ||
+      this.pendingSystemId) {
+      return;
+    }
     if (!this.linking) return;
     const last = this.selectedPath[this.selectedPath.length - 1];
     // Only allow path to grow to neighbors (unless it's the start of the path)

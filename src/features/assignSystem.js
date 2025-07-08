@@ -1,5 +1,6 @@
 // features/assignSystem.js
 import { toggleWormhole } from '../features/wormholes.js';
+import { drawMatrixLinks } from '../features/hyperlanes.js';
 
 /**
  * Assigns a system object to a hex tile, updating all overlays, type, and state.
@@ -11,22 +12,44 @@ import { toggleWormhole } from '../features/wormholes.js';
 export function assignSystem(editor, sys, hexID) {
   const hex = editor.hexes[hexID];
   if (!hex) return;
-  // console.log('assignSystem: called for', hexID, sys);
+  //console.log('assignSystem: called for', hexID, sys);
 
   // 1. Remove ALL old state/overlays before assignment.
   editor.clearAll(hexID);
-  // console.log('assignSystem: after clearAll', {...hex});
+  //console.log('assignSystem: after clearAll', { ...hex });
 
-  // 2. Set new realID and planet data
+  // 2. Hyperlane tile? Draw links & SKIP baseType/overlays.
+  if (sys.isHyperlane) {
+    // console.log('isHyperlane');
+    const id = sys.id?.toLowerCase?.();
+    //console.log(editor.hyperlaneMatrices)
+    if (editor.hyperlaneMatrices && id && editor.hyperlaneMatrices[id]) {
+      const matrix = editor.hyperlaneMatrices[id];
+      editor.deleteAllSegments(hexID);
+      hex.matrix = matrix.map(row => [...row]); // deep copy for safety
+      drawMatrixLinks(editor, hexID, hex.matrix);
+      //   console.log('drawn hyperlanes');
+    }
+    // Assign realId for overlays (optional)
+    hex.realId = sys.id;
+    // No baseType assignment!
+    // Still update DOM for realId overlays if needed
+    const el = document.getElementById(hexID);
+    if (el) el.dataset.realId = sys.id.toString();
+    // Do not assign planets or overlays!
+    return; // <- STOP HERE for hyperlane tiles!
+  }
+
+  // 3. Set new realID and planet data
   hex.realId = sys.id;
   hex.planets = sys.planets || [];
   //   console.log('assignSystem: after assigning realId and planets', {...hex});
 
-  // 3. Update DOM for overlays if needed
+  // 4. Update DOM for overlays if needed
   const el = document.getElementById(hexID);
   if (el) el.dataset.realId = sys.id.toString();
 
-  // 4. Classify sector type for color and overlays
+  // 5. Classify sector type for color and overlays
   let baseType;
   const planets = Array.isArray(sys.planets) ? sys.planets : [];
   if (planets.some(p => p.legendaryAbilityName && p.legendaryAbilityText)) {
@@ -46,13 +69,13 @@ export function assignSystem(editor, sys, hexID) {
   }
   editor.setSectorType(hexID, baseType, { skipSave: true });
 
-  // 5. Effects overlays
+  // 6. Effects overlays
   if (sys.isNebula) editor.applyEffect(hexID, 'nebula');
   if (sys.isGravityRift) editor.applyEffect(hexID, 'rift');
   if (sys.isSupernova) editor.applyEffect(hexID, 'supernova');
   if (sys.isAsteroidField) editor.applyEffect(hexID, 'asteroid');
 
-  // 6. Inherent wormholes (always lowercase for key)
+  // 7. Inherent wormholes (always lowercase for key)
   // Make sure sys.wormholes is always an array for the rest of the function
   const wormholes = Array.isArray(sys.wormholes) ? sys.wormholes : [];
   hex.inherentWormholes = new Set(

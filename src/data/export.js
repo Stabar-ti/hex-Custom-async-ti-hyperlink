@@ -187,6 +187,12 @@ export function exportSectorTypes(editor) {
       const flat = hex.matrix.flat();
       const allZero = flat.every(v => v === 0);
       if (!allZero && flat.includes(1)) {
+        // If this hex has a realId AND is a hyperlane tile, export its realId (string)
+        if (hex.realId != null && hex.realId !== '') {
+          // Optional: If you want to guarantee lowercase or match key, add .toLowerCase()
+          return hex.realId.toString();
+        }
+        // Fallback: legacy, unknown/anonymous hyperlane
         return 'HL';
       }
     }

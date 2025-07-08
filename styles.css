@@ -1106,6 +1106,39 @@ Layout butoons and other Popup & Buttons
 }
 
 /*──────────────────────────────────────────────────────────────────────────────
+ show small tumbnail
+──────────────────────────────────────────────────────────────────────────────*/
+
+.tile-thumb {
+  border-radius: 4px;
+  box-shadow: 0 1px 2px #0006;
+  margin-right: 4px;
+  display: inline-block;
+  background: #222;
+  vertical-align: middle;
+}
+
+#tilePreviewPopup {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  display: none;
+  background: rgba(0, 0, 0, 0.9);
+  border-radius: 10px;
+  box-shadow: 0 2px 16px #000b;
+  padding: 6px;
+}
+
+#tilePreviewPopup img {
+  display: block;
+  max-width: 190px;
+  max-height: 210px;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+
+/*──────────────────────────────────────────────────────────────────────────────
   Force Export/Import, Wormhole & Effects toggles to stay dark in dark mode
 ──────────────────────────────────────────────────────────────────────────────*/
 /*body.dark 

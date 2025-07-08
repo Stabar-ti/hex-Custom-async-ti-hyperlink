@@ -64,14 +64,25 @@ export default async function initSystemLookup(editor) {
     function renderList(items = systems) {
         list.innerHTML = '';
 
+        // Set up the floating preview popup once
+        let tilePreview = document.getElementById('tilePreviewPopup');
+        if (!tilePreview) {
+            tilePreview = document.createElement('div');
+            tilePreview.id = 'tilePreviewPopup';
+            document.body.appendChild(tilePreview);
+        }
+        tilePreview.style.display = 'none';
+        let hoverTimeout = null;
+
         // Build table header
         const table = document.createElement('table');
         table.className = 'system-table';
         table.innerHTML = `<thead>
         <tr>
+            <th>Tile</th>
             <th>ID</th>
             <th>Name</th>
-            <th>Planets    </th>
+            <th>Planets</th>
             <th>Techs</th>
             <th>Worms</th>
             <th>Eff</th>
@@ -82,11 +93,15 @@ export default async function initSystemLookup(editor) {
         const tbody = document.createElement('tbody');
 
         items.forEach(s => {
+            // Thumbnail src (ensure safe fallback)
+            const smallImgSrc = s.imagePath
+                ? `public/data/tiles/${s.imagePath}`
+                : '';
+
+            // Planets, techs, worms, etc (as in your existing code)
             const planetSummaries = (s.planets || [])
-                //  .map((p, i) => `p${i + 1} ${p.resources}/${p.influence}`).join(' ');
                 .map((p, i) => `${p.resources}/${p.influence}`).join(' ');
 
-            // Techs: unique, single letters, color-coded
             const techsArr = Array.from(new Set(
                 (s.planets || []).flatMap(p => p.techSpecialties || [])
             ));
@@ -97,7 +112,6 @@ export default async function initSystemLookup(editor) {
                     : '';
             }).join(' ');
 
-            // Wormholes: color-coded, single letter
             const wormArr = Array.isArray(s.wormholes) ? s.wormholes : [];
             const wormHtml = wormArr.map(w => {
                 const whc = getWormholeCharColor(w);
@@ -106,7 +120,6 @@ export default async function initSystemLookup(editor) {
                     : '';
             }).join(' ');
 
-            // Effects summary
             const effs = [];
             if (s.isNebula) effs.push('☁️');
             if (s.isGravityRift) effs.push('🕳️');
@@ -114,13 +127,14 @@ export default async function initSystemLookup(editor) {
             if (s.isAsteroidField) effs.push('🪨');
             const effectsSummary = effs.join(' ');
 
-            // Legendary star
             const legend = (s.planets || []).some(p => p.legendaryAbilityName) ? '⭐' : '';
 
-            // Row
             const tr = document.createElement('tr');
             if (isRealIDUsed(s.id)) tr.classList.add('used');
             tr.innerHTML = `
+            <td>
+                ${smallImgSrc ? `<img src="${smallImgSrc}" class="tile-thumb" loading="lazy" style="width:32px; height:28px;" />` : ''}
+            </td>
             <td><b>${s.id}</b></td>
             <td>${s.name || ''}</td>
             <td>${planetSummaries}</td>
@@ -129,6 +143,28 @@ export default async function initSystemLookup(editor) {
             <td>${effectsSummary}</td>
             <td>${legend}</td>
         `;
+
+            // --- Hover preview logic for image (if exists) ---
+            if (smallImgSrc) {
+                const img = tr.querySelector('img.tile-thumb');
+                let latestHoverToken = {};
+                tr.addEventListener('mouseenter', e => {
+                    // Begin the timer for 2s delayed popup
+                    hoverTimeout = setTimeout(() => {
+                        tilePreview.innerHTML = `<img src="${smallImgSrc}" alt="tile preview" />`;
+                        tilePreview.style.display = 'block';
+                        // Position right of row, or fallback near cursor
+                        const rect = tr.getBoundingClientRect();
+                        tilePreview.style.left = (rect.right + 12) + 'px';
+                        tilePreview.style.top = (rect.top - 8) + 'px';
+                    }, 500);
+                });
+                tr.addEventListener('mouseleave', e => {
+                    clearTimeout(hoverTimeout);
+                    tilePreview.style.display = 'none';
+                });
+            }
+
             tr.addEventListener('click', () => {
                 editor.pendingSystemId = s.id.toString().toUpperCase();
                 showModal('systemLookupModal', false);

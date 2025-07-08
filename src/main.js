@@ -14,7 +14,7 @@ import { exportFullState } from './data/export.js';
 import { importFullState } from './data/import.js';
 import { initHistory } from './features/history.js';
 import { showModal, closeModal } from './ui/uiModals.js';
-import { loadSystemInfo } from './data/import.js';
+import { loadSystemInfo, loadHyperlaneMatrices } from './data/import.js';
 import { assignSystem } from './features/assignSystem.js';
 import './ui/systemLookup.js'; // Adds system search modal
 import { redrawAllRealIDOverlays } from './features/realIDsOverlays.js';
@@ -137,6 +137,7 @@ document.getElementById('downloadExportFull')?.addEventListener('click', () => {
 // ───── Load system reference data (ID/name/aliases) ─────
 (async () => {
   await loadSystemInfo(editor);
+  await loadHyperlaneMatrices(editor);
 })();
 
 // ───── Show Import modal for full map JSON ─────
@@ -262,11 +263,37 @@ document.body.focus();
   });
 })();
 
+
 svg.addEventListener('click', e => {
   const poly = e.target.closest('polygon');
   if (!poly) return;
   const hexID = poly.dataset.label;
   if (!hexID) return;
+
+  // --- Prevent ANY action (including hyperlane mode) if system lookup modal is open ---
+  const lookupModalOpen = document.getElementById('systemLookupModal')?.classList.contains('open');
+  if (lookupModalOpen) {
+    // Optionally, flash or shake modal here to show user it's still open
+    return;
+  }
+
+  // --- System assignment from Async Tiles ---
+  if (editor.pendingSystemId) {
+    editor.selectedHex = hexID;
+    const sys = editor.sectorIDLookup[editor.pendingSystemId.toUpperCase()];
+    if (sys) {
+      editor.beginUndoGroup();
+      editor._historyLocked = true;
+      editor.saveState(hexID);
+      assignSystem(editor, sys, hexID);
+      markRealIDUsed(sys.id)
+      editor._historyLocked = false;
+      editor.commitUndoGroup();
+      redrawAllRealIDOverlays(editor);
+    }
+    editor.pendingSystemId = null;
+    return; // <--- Prevents hyperlane drawing after system assign!
+  }
 
   editor.selectedHex = hexID;
 

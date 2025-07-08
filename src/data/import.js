@@ -44,8 +44,8 @@ export function importMap(editor, dataText) {
 export async function loadSystemInfo(editor) {
   try {
     const res = await fetch(window.location.pathname.replace(/\/[^/]*$/, '/public/data/SystemInfo.json'))
-   // if (!res.ok) throw new Error(`HTTP ${res.status}`);
-   // const res = await fetch('data/SystemInfo.json');
+    // if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // const res = await fetch('data/SystemInfo.json');
     //let res = await fetch('data/SystemInfo.json');
     //if (!res.ok) res = await fetch('public/data/SystemInfo.json');
     //if (!res.ok) res = await fetch('/data/SystemInfo.json');
@@ -71,6 +71,15 @@ export async function loadSystemInfo(editor) {
     console.error('Failed to load SystemInfo.json:', err);
     alert('Error loading system data.');
   }
+}
+
+export async function loadHyperlaneMatrices(editor) {
+  let res = await fetch(window.location.pathname.replace(/\/[^/]*$/, '/public/data/hyperlanes.json'));
+  if (!res.ok) res = await fetch('data/hyperlanes.json');
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const matrices = await res.json();
+  editor.hyperlaneMatrices = matrices;
+  console.log('Loaded hyperlaneMatrices', Object.keys(matrices));
 }
 
 export function importSectorTypes(editor, tokenString) {
@@ -121,18 +130,38 @@ export function importSectorTypes(editor, tokenString) {
       const hex = editor.hexes[id];
       if (!hex) continue;
 
-      // Attach realId and planets
+      // --- Handle hyperlane tiles (isHyperlane) ---
+      if (info.isHyperlane) {
+        // console.log('tester2')
+        hex.realId = info.id ?? null;
+        if (hex.realId) markRealIDUsed(hex.realId);
+        hex.planets = [];
+        // Draw hyperlane matrix if found in hyperlaneMatrices
+        let matrixKey = (info.id || code || '').toLowerCase();
+        if (editor.hyperlaneMatrices && matrixKey && editor.hyperlaneMatrices[matrixKey]) {
+          editor.deleteAllSegments(id);
+          //     console.log('tester3', matrixKey);
+          const matrix = editor.hyperlaneMatrices[matrixKey];
+          console.log(matrix);
+          hex.matrix = matrix.map(row => [...row]);
+          hex.links = hex.matrix; // <-- This makes export/import and rendering consistent!
+          drawMatrixLinks(editor, id, hex.matrix);
+        } else {
+          editor.deleteAllSegments(id);
+          hex.matrix = Array.from({ length: 6 }, () => Array(6).fill(0));
+          hex.links = hex.matrix;
+        }
+        // Clear wormholes, overlays, and skip everything else for this hex
+        hex.wormholes = new Set();
+        hex.wormholeOverlays?.forEach(o => editor.svg.removeChild(o));
+        hex.wormholeOverlays = [];
+        continue;
+      }
+
+      // --- The rest is unchanged, for normal tiles only ---
       hex.realId = info.id ?? null;
       if (hex.realId) markRealIDUsed(hex.realId);
       hex.planets = info.planets || [];
-
-      // Restore customAdjacents, adjacencyOverrides, borderAnomalies if present
-      //  if (h.customAdjacents !== undefined) hex.customAdjacents = JSON.parse(JSON.stringify(h.customAdjacents));
-      //  else delete hex.customAdjacents;
-      //  if (h.adjacencyOverrides !== undefined) hex.adjacencyOverrides = JSON.parse(JSON.stringify(h.adjacencyOverrides));
-      //  else delete hex.adjacencyOverrides;
-      //  if (h.borderAnomalies !== undefined) hex.borderAnomalies = JSON.parse(JSON.stringify(h.borderAnomalies));
-      //  else delete hex.borderAnomalies;
 
       // Clear existing wormholes
       hex.wormholes = new Set();
@@ -174,6 +203,7 @@ export function importSectorTypes(editor, tokenString) {
       if (info.isSupernova) editor.applyEffect(id, 'supernova');
       if (info.isAsteroidField) editor.applyEffect(id, 'asteroid');
     }
+
 
     // Redraw overlays
     redrawAllRealIDOverlays(editor);
@@ -266,12 +296,32 @@ export function importFullState(editor, jsonText) {
         info = {};
       }
 
-      // Attach realId and planets
+      // --------- Hyperlane tile logic ---------
+      if (info.isHyperlane) {
+        // Always mark as used and assign realId
+        hex.realId = info.id ?? realId;
+        if (hex.realId) markRealIDUsed(hex.realId);
+
+        // Use matrix from map import (if present and non-empty), or from hyperlaneMatrices
+        if (h.links && !isMatrixEmpty(h.links)) {
+          hex.matrix = h.links;
+          drawMatrixLinks(editor, id, hex.matrix);
+        } else if (editor.hyperlaneMatrices && info.id && editor.hyperlaneMatrices[info.id.toLowerCase()]) {
+          const matrix = editor.hyperlaneMatrices[info.id.toLowerCase()];
+          hex.matrix = matrix.map(row => [...row]); // deep copy
+          drawMatrixLinks(editor, id, hex.matrix);
+        }
+        // Do NOT assign baseType, overlays, planets, etc
+        return;
+      }
+      // --------- End hyperlane tile logic ---------
+
+      // Attach realId and planets (for normal tiles)
       hex.realId = info.id ?? (h.realId ?? null);
       if (hex.realId) markRealIDUsed(hex.realId);
       hex.planets = info.planets || h.planets || [];
 
-      // ---- Matrix/links
+      // ---- Matrix/links (for non-hyperlane tiles)
       hex.matrix = h.links || Array.from({ length: 6 }, () => Array(6).fill(0));
       drawMatrixLinks(editor, id, hex.matrix);
 
@@ -284,7 +334,6 @@ export function importFullState(editor, jsonText) {
       else delete hex.borderAnomalies;
 
       // ---- WORMHOLES: robust restoration
-      // ---- WORMHOLES: restore overlays for ALL wormholes (system + user)
       hex.wormholeOverlays = [];
       hex.wormholes = new Set();
 
