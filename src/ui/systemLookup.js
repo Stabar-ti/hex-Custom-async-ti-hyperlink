@@ -66,12 +66,11 @@ export default async function initSystemLookup(editor) {
     randomDiv.appendChild(uniqueLabel);
     randomDiv.appendChild(randomBtn);
 
-    // Place above the filters
+    // Place BELOW the filters
     filtersContainer.parentNode.insertBefore(randomDiv, filtersContainer.nextSibling);
 
     // 3) Main list rendering function: show systems in the <ul>
     function getTechLetterColor(tech) {
-        // Map tech specialty to {letter, color}
         switch ((tech || '').toUpperCase()) {
             case 'CYBERNETIC': return { l: 'Y', c: techSpecialtyColors.CYBERNETIC || '#FFD700' };
             case 'BIOTIC': return { l: 'G', c: techSpecialtyColors.BIOTIC || 'green' };
@@ -82,11 +81,9 @@ export default async function initSystemLookup(editor) {
     }
 
     function getWormholeCharColor(worm) {
-        // Map wormhole type to {char, color}
         const w = (worm || '').toLowerCase();
         const info = wormholeTypes[w];
         if (!info) return null;
-        // Use first character of label as symbol
         return { ch: info.label?.charAt(0) || '?', c: info.color || '#888' };
     }
 
@@ -123,10 +120,9 @@ export default async function initSystemLookup(editor) {
         const tbody = document.createElement('tbody');
 
         items.forEach(s => {
-            // Thumbnail src (ensure safe fallback)
-            const smallImgSrc = s.imagePath
-                ? `public/data/tiles/${s.imagePath}`
-                : '';
+            // Only use image if it is non-empty and exists
+            const hasImage = !!(s.imagePath && s.imagePath.trim());
+            const smallImgSrc = hasImage ? `public/data/tiles/${s.imagePath}` : '';
 
             // Planets, techs, worms, etc (as in your existing code)
             const planetSummaries = (s.planets || [])
@@ -163,7 +159,7 @@ export default async function initSystemLookup(editor) {
             if (isRealIDUsed(s.id)) tr.classList.add('used');
             tr.innerHTML = `
             <td>
-                ${smallImgSrc ? `<img src="${smallImgSrc}" class="tile-thumb" loading="lazy" style="width:32px; height:28px;" />` : ''}
+                ${hasImage ? `<img src="${smallImgSrc}" class="tile-thumb" loading="lazy" style="width:32px; height:28px;" onerror="this.style.display='none'" />` : ''}
             </td>
             <td><b>${s.id}</b></td>
             <td>${s.name || ''}</td>
@@ -175,25 +171,36 @@ export default async function initSystemLookup(editor) {
         `;
 
             // --- Hover preview logic for image (if exists) ---
-            if (smallImgSrc) {
+            if (hasImage) {
                 const img = tr.querySelector('img.tile-thumb');
-                let latestHoverToken = {};
                 tr.addEventListener('mouseenter', e => {
-                    // Begin the timer for 2s delayed popup
                     hoverTimeout = setTimeout(() => {
-                        tilePreview.innerHTML = `<img src="${smallImgSrc}" alt="tile preview" />`;
-                        tilePreview.style.display = 'block';
-                        // Position right of row, or fallback near cursor
-                        const rect = tr.getBoundingClientRect();
-                        tilePreview.style.left = (rect.right + 12) + 'px';
-                        tilePreview.style.top = (rect.top - 8) + 'px';
+                        // Try loading the image, only show if successful
+                        const previewImg = new window.Image();
+                        previewImg.src = smallImgSrc;
+                        previewImg.style.maxWidth = '120px';
+                        previewImg.style.maxHeight = '120px';
+                        previewImg.onload = () => {
+                            tilePreview.innerHTML = '';
+                            tilePreview.appendChild(previewImg);
+                            tilePreview.style.display = 'block';
+                            const rect = tr.getBoundingClientRect();
+                            tilePreview.style.left = (rect.right + 12) + 'px';
+                            tilePreview.style.top = (rect.top - 8) + 'px';
+                        };
+                        previewImg.onerror = () => {
+                            tilePreview.style.display = 'none';
+                            tilePreview.innerHTML = '';
+                        };
                     }, 500);
                 });
                 tr.addEventListener('mouseleave', e => {
                     clearTimeout(hoverTimeout);
                     tilePreview.style.display = 'none';
+                    tilePreview.innerHTML = '';
                 });
             }
+
 
             tr.addEventListener('click', () => {
                 editor.pendingSystemId = s.id.toString().toUpperCase();
@@ -232,7 +239,6 @@ export default async function initSystemLookup(editor) {
 
                 // If term is only digits, match IDs that contain those digits anywhere (even inside strings)
                 if (/^\d+$/.test(term)) {
-                    // Remove all non-digits from ID for numeric search
                     const idDigits = id.replace(/\D/g, '');
                     return id.includes(term) || idDigits.includes(term) || name.includes(term);
                 }
@@ -251,11 +257,9 @@ export default async function initSystemLookup(editor) {
         let candidates;
 
         if (unique) {
-            // Use both filter pass and isRealIDUsed!
             candidates = getActiveFilterPass(editor)
                 .filter(s => !isRealIDUsed(s.id));
         } else {
-            // All filtered systems, even if used already
             candidates = (Array.isArray(editor.allSystems) ? editor.allSystems : []).filter(sys =>
                 FILTERS.every(({ key, test }) => {
                     const btn = document.getElementById(`filter-${key}`);
@@ -270,7 +274,6 @@ export default async function initSystemLookup(editor) {
             return;
         }
 
-        // Don't repeat the last tile (unless only one match)
         let filtered = candidates;
         if (candidates.length > 1 && lastRandom != null) {
             filtered = candidates.filter(s => s.id !== lastRandom);
@@ -282,13 +285,11 @@ export default async function initSystemLookup(editor) {
         showRandomTilePopup(sys, editor, () => lastRandom = null);
     });
 
-    // Optional: Reset lastRandom on unique toggle
     uniqueCheck.addEventListener('change', () => { lastRandom = null; });
 
     // 7) When generating a new map, clear all "used" system IDs
     genMapBtn?.addEventListener('click', () => {
         Array.from(usedRealIDs).forEach(id => unmarkRealIDUsed(id));
-        // If the lookup modal is open, refresh its results
         if (document.getElementById('systemLookupModal')?.classList.contains('open')) {
             refreshSystemList();
         }
@@ -296,7 +297,6 @@ export default async function initSystemLookup(editor) {
 }
 
 // 8) Exported: Forces the system list to be re-filtered and re-rendered.
-// Used by other modules to ensure current assignment/search/filter state is visible.
 export function refreshSystemList() {
     const items = getActiveFilterPass(window.editor);
     window.renderSystemList(items);
@@ -323,11 +323,10 @@ function showRandomTilePopup(sys, editor, onAssign) {
     div.style.zIndex = 10004;
     div.style.minWidth = '280px';
 
-    // --- Add draggable handle ---
     div.innerHTML = `
       <div class="draggable-handle" style="cursor:move; font-size:16px; font-weight:bold; margin-bottom:10px; background:#124;margin:-18px -18px 12px -18px;padding:8px 14px;border-radius:10px 10px 0 0;">🎲 Random Tile</div>
       <div style="font-size:18px;"><b>Tile:</b> <span style="color:#e4f">${sys.id}</span> – ${sys.name}</div>
-      ${sys.imagePath ? `<img src="public/data/tiles/${sys.imagePath}" style="width:92px; margin:12px 0; border-radius:8px;">` : ''}
+      <div id="randomTileImgContainer"></div>
       <div style="margin:7px 0;">${(sys.planets || []).map(p => `${p.name || ''} (${p.resources}/${p.influence})`).join('<br>')}</div>
       <button id="assignRandomTileBtn">Assign to map</button>
       <button id="closeRandomTileBtn" style="margin-left:10px;">Close</button>
@@ -335,7 +334,21 @@ function showRandomTilePopup(sys, editor, onAssign) {
 
     document.body.appendChild(div);
 
-    // ---- Restore previous position if available ----
+    // Only show the image if it actually loads!
+    const imgContainer = div.querySelector('#randomTileImgContainer');
+    if (sys.imagePath && sys.imagePath.trim()) {
+        const img = new window.Image();
+        img.src = `public/data/tiles/${sys.imagePath}`;
+        img.style.width = '92px';
+        img.style.margin = '12px 0';
+        img.style.borderRadius = '8px';
+        img.onload = function () {
+            imgContainer.appendChild(img);
+        };
+        // If the image fails to load, do nothing (no broken icon).
+    }
+
+    // Restore position
     const pos = localStorage.getItem('randomTilePopupPos');
     if (pos) {
         const [left, top] = pos.split(',').map(Number);
@@ -344,14 +357,12 @@ function showRandomTilePopup(sys, editor, onAssign) {
         div.style.transform = 'none';
     }
 
-    // --- Make draggable, and save position when moved ---
     makePopupDraggable('randomTilePopup');
 
-    // Patch: add listener to save position
+    // Save new position on drag
     const header = div.querySelector('.draggable-handle');
     if (header) {
         let isDragging = false, offsetX, offsetY;
-
         header.onmousedown = function (e) {
             isDragging = true;
             offsetX = e.clientX - div.offsetLeft;
@@ -365,7 +376,6 @@ function showRandomTilePopup(sys, editor, onAssign) {
             };
             document.onmouseup = function () {
                 if (isDragging) {
-                    // Save to localStorage
                     localStorage.setItem('randomTilePopupPos', [div.offsetLeft, div.offsetTop].join(','));
                 }
                 isDragging = false;
@@ -383,4 +393,3 @@ function showRandomTilePopup(sys, editor, onAssign) {
         if (onAssign) onAssign();
     };
 }
-

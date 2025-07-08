@@ -25,19 +25,24 @@ export function updateTileImageLayer(editor) {
         if (!hex.center) continue;
         const imgHref = `public/data/tiles/${sys.imagePath}`;
 
-        const r = editor.hexRadius * 1.9; // Or tweak as needed
-        const x = hex.center.x - r / 2;
-        const y = hex.center.y - r / 2;
-
-        const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-        image.setAttributeNS('http://www.w3.org/1999/xlink', 'href', imgHref);
-        image.setAttribute('x', x);
-        image.setAttribute('y', y);
-        image.setAttribute('width', r);
-        image.setAttribute('height', r);
-        image.setAttribute('opacity', 0.95); // Or tweak
-        image.setAttribute('pointer-events', 'none'); // Does not block map clicks
-        layer.appendChild(image);
+        // Preload test as HTML image
+        const htmlImg = new window.Image();
+        htmlImg.src = imgHref;
+        htmlImg.onload = () => {
+            const r = editor.hexRadius * 1.9;
+            const x = hex.center.x - r / 2;
+            const y = hex.center.y - r / 2;
+            const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+            image.setAttributeNS('http://www.w3.org/1999/xlink', 'href', imgHref);
+            image.setAttribute('x', x);
+            image.setAttribute('y', y);
+            image.setAttribute('width', r);
+            image.setAttribute('height', r);
+            image.setAttribute('opacity', 0.95);
+            image.setAttribute('pointer-events', 'none');
+            layer.appendChild(image);
+        };
+        // Do nothing on error
     }
 
     editor.svg.appendChild(layer);
