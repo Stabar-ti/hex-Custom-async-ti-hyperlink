@@ -8,11 +8,11 @@ export function enforceSvgLayerOrder(svg) {
     SVG_LAYER_ORDER.forEach(layerId => {
         const node = svg.querySelector(`#${layerId}`);
         if (node) {
-            console.log(`[enforceSvgLayerOrder] Moving layer: #${layerId}`);
+            //    console.log(`[enforceSvgLayerOrder] Moving layer: #${layerId}`);
             svg.appendChild(node); // Moves to top, but since we go bottom-to-top, correct order is enforced
         } else {
-            console.warn(`[enforceSvgLayerOrder] Layer missing: #${layerId}`);
+            //   console.warn(`[enforceSvgLayerOrder] Layer missing: #${layerId}`);
         }
     });
-    console.log('[enforceSvgLayerOrder] Done reordering layers.');
+    //   console.log('[enforceSvgLayerOrder] Done reordering layers.');
 }

@@ -27,6 +27,8 @@ import { redrawBorderAnomaliesOverlay } from './features/borderAnomaliesOverlay.
 import { overlayDefaults } from './config/toggleSettings.js';
 import { updateTileImageLayer } from './features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from './draw/enforceSvgLayerOrder.js';
+import { startCopyPasteWizard } from './features/tileCopyPasteWizard.js';
+import { setupTileCopySingleButtonAndPopup } from './ui/tileCopyPasteWizardUI.js';
 
 // ───── Initialize the core HexEditor and set defaults ─────
 const svg = document.getElementById('hexMap');
@@ -59,6 +61,23 @@ initHexHoverInfo(editor); // <- Add this line
 
 installCustomLinksUI(editor);
 installBorderAnomaliesUI(editor);
+
+/*// Add Copy/Move and Cut buttons to top bar
+const leftControls = document.getElementById('leftControls');
+if (leftControls && !document.getElementById('tileCopyBtn')) {
+  const copyBtn = document.createElement('button');
+  copyBtn.id = 'tileCopyBtn';
+  copyBtn.className = 'mode-button';
+  copyBtn.textContent = 'Copy Tiles';
+  leftControls.appendChild(copyBtn);
+  copyBtn.onclick = () => startCopyPasteWizard(editor, false);
+  const cutBtn = document.createElement('button');
+  cutBtn.id = 'tileCutBtn';
+  cutBtn.className = 'mode-button';
+  cutBtn.textContent = 'Cut Tiles';
+  leftControls.appendChild(cutBtn);
+  cutBtn.onclick = () => startCopyPasteWizard(editor, true);
+}*/
 
 // ───── Options Modal: Save settings and update map behavior ─────
 document.getElementById('saveOptionsBtn').addEventListener('click', () => {
@@ -336,5 +355,9 @@ svg.addEventListener('click', e => {
     }
     editor.pendingSystemId = null;
   }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  setupTileCopySingleButtonAndPopup();
 });
 

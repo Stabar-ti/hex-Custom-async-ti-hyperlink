@@ -92,6 +92,8 @@ export function bindSvgHandlers(editor) {
 
   // ────────────── Mouse Wheel Zoom ──────────────
   svg.addEventListener('wheel', (e) => {
+    // Only zoom if Ctrl is held or no modifier (not Alt/Shift)
+    if (e.altKey || e.shiftKey) return;
     e.preventDefault();
     const [x, y, w, h] = editor._currentViewBox;
     const factor = 1.1;

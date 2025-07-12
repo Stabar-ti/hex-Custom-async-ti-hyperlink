@@ -22,6 +22,7 @@ import { wormholeTypes, techSpecialtyColors } from '../constants/constants.js';
 // Add this to re-use filter logic for non-unique mode:
 import { FILTERS } from './uiFilters.js';
 import { makePopupDraggable } from './uiUtils.js';
+import { showPopup, hidePopup } from './popupUI.js';
 //import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 //import { assignSystem } from '../features/assignSystem.js';
 
@@ -308,34 +309,15 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function showRandomTilePopup(sys, editor, onAssign) {
-    document.getElementById('randomTilePopup')?.remove();
-    const div = document.createElement('div');
-    div.id = 'randomTilePopup';
-    div.style.position = 'fixed';
-    div.style.left = '50%';
-    div.style.top = '30%';
-    div.style.transform = 'translate(-50%, -20%)';
-    div.style.background = '#222';
-    div.style.color = '#fff';
-    div.style.padding = '18px';
-    div.style.border = '2px solid #0af';
-    div.style.borderRadius = '12px';
-    div.style.zIndex = 10004;
-    div.style.minWidth = '280px';
-
-    div.innerHTML = `
-      <div class="draggable-handle" style="cursor:move; font-size:16px; font-weight:bold; margin-bottom:10px; background:#124;margin:-18px -18px 12px -18px;padding:8px 14px;border-radius:10px 10px 0 0;">🎲 Random Tile</div>
+    hidePopup('random-tile-popup');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
       <div style="font-size:18px;"><b>Tile:</b> <span style="color:#e4f">${sys.id}</span> – ${sys.name}</div>
       <div id="randomTileImgContainer"></div>
       <div style="margin:7px 0;">${(sys.planets || []).map(p => `${p.name || ''} (${p.resources}/${p.influence})`).join('<br>')}</div>
-      <button id="assignRandomTileBtn">Assign to map</button>
-      <button id="closeRandomTileBtn" style="margin-left:10px;">Close</button>
     `;
-
-    document.body.appendChild(div);
-
     // Only show the image if it actually loads!
-    const imgContainer = div.querySelector('#randomTileImgContainer');
+    const imgContainer = wrapper.querySelector('#randomTileImgContainer');
     if (sys.imagePath && sys.imagePath.trim()) {
         const img = new window.Image();
         img.src = `public/data/tiles/${sys.imagePath}`;
@@ -347,49 +329,37 @@ function showRandomTilePopup(sys, editor, onAssign) {
         };
         // If the image fails to load, do nothing (no broken icon).
     }
-
-    // Restore position
-    const pos = localStorage.getItem('randomTilePopupPos');
-    if (pos) {
-        const [left, top] = pos.split(',').map(Number);
-        div.style.left = left + 'px';
-        div.style.top = top + 'px';
-        div.style.transform = 'none';
-    }
-
-    makePopupDraggable('randomTilePopup');
-
-    // Save new position on drag
-    const header = div.querySelector('.draggable-handle');
-    if (header) {
-        let isDragging = false, offsetX, offsetY;
-        header.onmousedown = function (e) {
-            isDragging = true;
-            offsetX = e.clientX - div.offsetLeft;
-            offsetY = e.clientY - div.offsetTop;
-            document.onmousemove = function (e) {
-                if (isDragging) {
-                    div.style.left = (e.clientX - offsetX) + 'px';
-                    div.style.top = (e.clientY - offsetY) + 'px';
-                    div.style.transform = 'none';
-                }
-            };
-            document.onmouseup = function () {
-                if (isDragging) {
-                    localStorage.setItem('randomTilePopupPos', [div.offsetLeft, div.offsetTop].join(','));
-                }
-                isDragging = false;
-                document.onmousemove = null;
-                document.onmouseup = null;
-            };
-        };
-    }
-
-    document.getElementById('closeRandomTileBtn').onclick = () => div.remove();
-    document.getElementById('assignRandomTileBtn').onclick = () => {
-        editor.pendingSystemId = sys.id.toString().toUpperCase();
-        div.remove();
-        showModal('systemLookupModal', false);
-        if (onAssign) onAssign();
-    };
+    const actions = [
+        {
+            label: 'Assign to map',
+            action: () => {
+                editor.pendingSystemId = sys.id.toString().toUpperCase();
+                hidePopup('random-tile-popup');
+                showModal('systemLookupModal', false);
+                if (onAssign) onAssign();
+            }
+        },
+        {
+            label: 'Close',
+            action: () => hidePopup('random-tile-popup')
+        }
+    ];
+    showPopup({
+        id: 'random-tile-popup',
+        className: 'random-tile-popup',
+        content: wrapper,
+        actions,
+        draggable: true,
+        dragHandleSelector: '.popup-ui-titlebar',
+        scalable: true,
+        rememberPosition: true,
+        modal: false,
+        title: '🎲 Random Tile',
+        style: {
+            minWidth: '280px',
+            borderRadius: '12px',
+            zIndex: 10004
+        },
+        showHelp: false
+    });
 }

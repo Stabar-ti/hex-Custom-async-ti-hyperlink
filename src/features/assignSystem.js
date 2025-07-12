@@ -89,6 +89,8 @@ export function assignSystem(editor, sys, hexID) {
     }
   });
 
+  console.log('assignSystem');
+
   updateTileImageLayer(editor);
   enforceSvgLayerOrder(editor.svg);
 
