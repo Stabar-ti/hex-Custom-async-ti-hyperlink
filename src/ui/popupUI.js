@@ -31,7 +31,8 @@ export function showPopup({
     style = {},
     rememberPosition = false,
     showHelp = false, // NEW: show Help button
-    onHelp = null // NEW: Help button callback
+    onHelp = null, // NEW: Help button callback
+    title = '' // <-- ADD THIS LINE
 }) {
     // Remove any existing popup with the same id
     if (id) {
@@ -46,6 +47,7 @@ export function showPopup({
     popup.style.borderRadius = style.borderRadius || '16px';
 
     // --- Restore position/size from localStorage if enabled ---
+    let hasStoredPos = false;
     if (rememberPosition && id) {
         const pos = localStorage.getItem('popup-pos-' + id);
         if (pos) {
@@ -56,6 +58,7 @@ export function showPopup({
                 if (width !== undefined) popup.style.width = width + 'px';
                 if (height !== undefined) popup.style.height = height + 'px';
                 popup.style.position = 'fixed';
+                hasStoredPos = true;
             } catch { }
         }
     }
@@ -105,7 +108,6 @@ export function showPopup({
         if (!titleBar) {
             titleBar = document.createElement('div');
             titleBar.className = 'popup-ui-titlebar';
-            // Style: bigger height, flex row, align items center, padding
             titleBar.style.height = '40px';
             titleBar.style.display = 'flex';
             titleBar.style.alignItems = 'center';
@@ -115,6 +117,17 @@ export function showPopup({
             titleBar.style.userSelect = 'none';
             titleBar.style.padding = '0 8px 0 8px';
             titleBar.style.marginBottom = '8px';
+            // --- Insert title text if provided ---
+            if (typeof title !== 'undefined' && title !== null && title !== '') {
+                const titleText = document.createElement('span');
+                titleText.className = 'popup-ui-title';
+                titleText.textContent = title;
+                titleText.style.flex = '1';
+                titleText.style.fontWeight = 'bold';
+                titleText.style.fontSize = '1.1em';
+                titleText.style.color = '#ffe066';
+                titleBar.appendChild(titleText);
+            }
             popup.insertBefore(titleBar, popup.firstChild);
         }
         // Remove any existing close button in the title bar
@@ -223,6 +236,22 @@ export function showPopup({
     // Add to DOM
     (parent || document.body).appendChild(popup);
 
+    // Center popup if no stored position and not already positioned
+    if (!hasStoredPos) {
+        // Wait for DOM to render and size to be set
+        setTimeout(() => {
+            // Only center if not already positioned
+            if (!popup.style.left && !popup.style.top) {
+                const winW = window.innerWidth;
+                const winH = window.innerHeight;
+                const rect = popup.getBoundingClientRect();
+                popup.style.position = 'fixed';
+                popup.style.left = Math.max(0, Math.round((winW - rect.width) / 2)) + 'px';
+                popup.style.top = Math.max(0, Math.round((winH - rect.height) / 2)) + 'px';
+            }
+        }, 0);
+    }
+
     // Focus for accessibility
     setTimeout(() => popup.focus?.(), 0);
     return popup;
@@ -237,4 +266,12 @@ export function hidePopup(popup) {
     if (popup && popup.parentNode) popup.parentNode.removeChild(popup);
 }
 
-// --- Remove general-purpose Help Popup from popupUI.js ---
+/**
+ * Reset all stored popup positions and sizes from localStorage.
+ * Call this to clear all memorized popup locations.
+ */
+export function resetAllPopupPositions() {
+    Object.keys(localStorage)
+        .filter(key => key.startsWith('popup-pos-'))
+        .forEach(key => localStorage.removeItem(key));
+}

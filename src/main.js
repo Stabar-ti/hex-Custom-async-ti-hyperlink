@@ -29,6 +29,8 @@ import { updateTileImageLayer } from './features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from './draw/enforceSvgLayerOrder.js';
 import { startCopyPasteWizard } from './features/tileCopyPasteWizard.js';
 import { setupTileCopySingleButtonAndPopup } from './ui/tileCopyPasteWizardUI.js';
+import { showOptionsPopup } from './ui/simplepPopup.js';
+import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
 
 // ───── Initialize the core HexEditor and set defaults ─────
 const svg = document.getElementById('hexMap');
@@ -80,6 +82,7 @@ if (leftControls && !document.getElementById('tileCopyBtn')) {
 }*/
 
 // ───── Options Modal: Save settings and update map behavior ─────
+/*
 document.getElementById('saveOptionsBtn').addEventListener('click', () => {
   const supernovaCB = document.getElementById('toggleSupernova');
   const asteroidCB = document.getElementById('toggleAsteroid');
@@ -104,8 +107,8 @@ document.getElementById('saveOptionsBtn').addEventListener('click', () => {
   maxDistInp.value = md;
 
   closeModal('optionsModal');
-});
-
+});*/
+document.getElementById('optionsBtn').onclick = () => showOptionsPopup(editor);
 
 const btnPlanetTypes = document.getElementById('togglePlanetTypes');
 if (btnPlanetTypes) btnPlanetTypes.classList.toggle('active', editor.showPlanetTypes);
@@ -360,4 +363,8 @@ svg.addEventListener('click', e => {
 document.addEventListener('DOMContentLoaded', () => {
   setupTileCopySingleButtonAndPopup();
 });
+
+document.getElementById('helpToggle').onclick = showHelpPopup;
+document.getElementById('infoToggle').onclick = showInfoPopup;
+document.getElementById('featuresToggle').onclick = showFeaturesPopup;
 
