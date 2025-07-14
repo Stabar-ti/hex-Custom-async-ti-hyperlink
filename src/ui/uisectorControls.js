@@ -7,6 +7,7 @@
 import { sectorModes, wormholeTypes } from '../constants/constants.js';
 import { showModal } from './uiModals.js';
 import { makePopupDraggable } from './uiUtils.js';
+import { showPopup, hidePopup } from './popupUI.js';
 
 export function populateSectorControls(editor) {
   const container = document.getElementById('sectorControlsContainer');
@@ -48,8 +49,45 @@ export function populateSectorControls(editor) {
   effectsBtn.textContent = 'Effects…';
   effectsBtn.title = 'Select Effect';
   effectsBtn.onclick = () => {
-    const popup = document.getElementById('effectsPopupModal');
-    if (popup) popup.style.display = 'block';
+    showPopup({
+      id: 'effectsPopupModal',
+      className: 'layout-options-popup',
+      title: 'Effects',
+      draggable: true,
+      dragHandleSelector: '.popup-ui-titlebar',
+      scalable: true,
+      rememberPosition: true,
+      style: {
+        left: '420px',
+        top: '150px',
+        minWidth: '220px',
+        maxWidth: '600px',
+        minHeight: '120px',
+        maxHeight: '600px',
+        //  background: '#222',
+        color: '#fff',
+        border: '2px solid #ffe066',
+        boxShadow: '0 8px 40px #000a',
+        padding: '0 0 18px 0',
+        zIndex: 1300
+      },
+      content: (() => {
+        const content = document.createElement('div');
+        content.className = 'modal-content popup-btn-grid effects-btn-grid';
+        ['nebula', 'rift', 'asteroid', 'supernova'].forEach(effect => {
+          const btn = document.createElement('button');
+          btn.textContent = effect;
+          btn.className = `mode-button btn-${effect}`;
+          btn.addEventListener('click', (e) => {
+            content.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            editor.setMode(effect);
+          });
+          content.appendChild(btn);
+        });
+        return content;
+      })()
+    });
   };
   container.appendChild(effectsBtn);
 
@@ -58,103 +96,50 @@ export function populateSectorControls(editor) {
   wormholesBtn.id = 'launchWormholesPopup';
   wormholesBtn.className = 'mode-button';
   wormholesBtn.textContent = 'Wormholes…';
-  wormholesBtn.title = 'Pick Wormhole'
+  wormholesBtn.title = 'Pick Wormhole';
   wormholesBtn.onclick = () => {
-    const popup = document.getElementById('wormholesPopupModal');
-    if (popup) popup.style.display = 'block';
+    showPopup({
+      id: 'wormholesPopupModal',
+      className: 'layout-options-popup',
+      title: 'Wormholes',
+      draggable: true,
+      dragHandleSelector: '.popup-ui-titlebar',
+      scalable: true,
+      rememberPosition: true,
+      style: {
+        left: '600px',
+        top: '160px',
+        minWidth: '220px',
+        maxWidth: '600px',
+        minHeight: '120px',
+        maxHeight: '600px',
+        //   background: '#222',
+        color: '#fff',
+        border: '2px solid #ffe066',
+        boxShadow: '0 8px 40px #000a',
+        padding: '0 0 18px 0',
+        zIndex: 1300
+      },
+      content: (() => {
+        const content = document.createElement('div');
+        content.className = 'modal-content popup-btn-grid wormhole-btn-grid';
+        Object.entries(wormholeTypes).forEach(([type, { label, color }]) => {
+          const btn = document.createElement('button');
+          btn.textContent = label;
+          btn.className = 'mode-button btn-wormhole';
+          btn.style.backgroundColor = color;
+          btn.addEventListener('click', (e) => {
+            content.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            editor.setMode(type);
+          });
+          content.appendChild(btn);
+        });
+        return content;
+      })()
+    });
   };
   container.appendChild(wormholesBtn);
 
-  // ───────────── Effects Popup Modal ─────────────
-  if (!document.getElementById('effectsPopupModal')) {
-    const popup = document.createElement('div');
-    popup.id = 'effectsPopupModal';
-    popup.className = 'modal layout-options-popup';
-    popup.style.display = 'none';
-    popup.style.position = 'absolute';
-    popup.style.left = '420px';
-    popup.style.top = '150px';
-    popup.style.minWidth = '220px';
-    popup.style.zIndex = 1300;
-
-    // Draggable header
-    const header = document.createElement('div');
-    header.className = 'modal-header draggable-handle';
-    header.innerHTML = '<span>Effects</span>';
-    // Close button
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'popup-close-btn';
-    closeBtn.title = 'Close';
-    closeBtn.textContent = '✕';
-    closeBtn.onclick = () => { popup.style.display = 'none'; };
-    header.appendChild(closeBtn);
-
-    popup.appendChild(header);
-
-    // Content: effect buttons in grid
-    const content = document.createElement('div');
-    content.className = 'modal-content popup-btn-grid effects-btn-grid';
-    ['nebula', 'rift', 'asteroid', 'supernova'].forEach(effect => {
-      const btn = document.createElement('button');
-      btn.textContent = effect;
-      btn.className = `mode-button btn-${effect}`;
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('#effectsPopupModal .mode-button').forEach(b => b.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        editor.setMode(effect);
-      });
-      content.appendChild(btn);
-    });
-
-    popup.appendChild(content);
-    document.body.appendChild(popup);
-    makePopupDraggable('effectsPopupModal');
-  }
-
-  // ───────────── Wormholes Popup Modal ─────────────
-  if (!document.getElementById('wormholesPopupModal')) {
-    const popup = document.createElement('div');
-    popup.id = 'wormholesPopupModal';
-    popup.className = 'modal layout-options-popup';
-    popup.style.display = 'none';
-    popup.style.position = 'absolute';
-    popup.style.left = '600px';
-    popup.style.top = '160px';
-    popup.style.minWidth = '220px';
-    popup.style.zIndex = 1300;
-
-    // Draggable header
-    const header = document.createElement('div');
-    header.className = 'modal-header draggable-handle';
-    header.innerHTML = '<span>Wormholes</span>';
-    // Close button
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'popup-close-btn';
-    closeBtn.title = 'Close';
-    closeBtn.textContent = '✕';
-    closeBtn.onclick = () => { popup.style.display = 'none'; };
-    header.appendChild(closeBtn);
-
-    popup.appendChild(header);
-
-    // Content: wormhole buttons in grid
-    const content = document.createElement('div');
-    content.className = 'modal-content popup-btn-grid wormhole-btn-grid';
-    Object.entries(wormholeTypes).forEach(([type, { label, color }]) => {
-      const btn = document.createElement('button');
-      btn.textContent = label;
-      btn.className = 'mode-button btn-wormhole';
-      btn.style.backgroundColor = color;
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('#wormholesPopupModal .mode-button').forEach(b => b.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        editor.setMode(type);
-      });
-      content.appendChild(btn);
-    });
-
-    popup.appendChild(content);
-    document.body.appendChild(popup);
-    makePopupDraggable('wormholesPopupModal');
-  }
+  // Remove the old manual popup creation code for effectsPopupModal and wormholesPopupModal.
 }

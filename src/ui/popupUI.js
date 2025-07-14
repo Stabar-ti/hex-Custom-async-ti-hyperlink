@@ -30,19 +30,35 @@ export function showPopup({
     parent = document.body,
     style = {},
     rememberPosition = false,
-    showHelp = false, // NEW: show Help button
-    onHelp = null, // NEW: Help button callback
-    title = '' // <-- ADD THIS LINE
+    showHelp = false,
+    onHelp = null,
+    title = '',
+    confineTo = null
 }) {
     // Remove any existing popup with the same id
     if (id) {
-        document.getElementById(id)?.remove();
+        const old = document.getElementById(id);
+        if (old) old.remove();
     }
     // Create popup container
     const popup = document.createElement('div');
     popup.className = 'popup-ui' + (className ? ' ' + className : '');
     if (id) popup.id = id;
-    Object.assign(popup.style, style);
+
+    // Prevent style.width from accumulating (fixes horizontal growth)
+    if (style && style.width) {
+        popup.style.width = style.width;
+    }
+
+    // Only apply style properties that are not background or color
+    if (style) {
+        for (const [key, value] of Object.entries(style)) {
+            if (key !== 'background' && key !== 'backgroundColor' && key !== 'color') {
+                popup.style[key] = value;
+            }
+        }
+    }
+
     // Always apply rounded corners to all popups
     popup.style.borderRadius = style.borderRadius || '16px';
 
@@ -69,9 +85,11 @@ export function showPopup({
         contentDiv.className = 'popup-ui-content';
         contentDiv.innerHTML = content;
         contentDiv.style.paddingLeft = '24px'; // Indent content further to the right
+        contentDiv.style.width = 'auto'; // Prevent width accumulation
         popup.appendChild(contentDiv);
     } else if (content instanceof HTMLElement) {
         content.style.paddingLeft = '24px'; // Indent content further to the right
+        content.style.width = 'auto'; // Prevent width accumulation
         popup.appendChild(content);
     }
 
@@ -81,6 +99,7 @@ export function showPopup({
         btnRow.className = 'popup-ui-actions';
         btnRow.style.marginTop = '18px'; // Add more space above the buttons
         btnRow.style.paddingLeft = '24px'; // Align left edge with text content
+        btnRow.style.width = 'auto'; // Prevent width accumulation
         actions.forEach(({ label, action, toggled }) => {
             const btn = document.createElement('button');
             btn.className = 'wizard-btn';
@@ -177,10 +196,64 @@ export function showPopup({
         titleBar.appendChild(closeBtn);
     }
 
+    // --- Confinement logic ---
+    function getConfinementRect() {
+        if (confineTo && confineTo.getBoundingClientRect) {
+            return confineTo.getBoundingClientRect();
+        }
+        // Default to visible viewport (not full window, so scroll works)
+        return {
+            left: 0,
+            top: 0,
+            right: window.innerWidth,
+            bottom: window.innerHeight,
+            width: window.innerWidth,
+            height: window.innerHeight
+        };
+    }
+
+    // --- Constrain popup position on drag/resize ---
+    function confinePopupToRect() {
+        const confineRect = getConfinementRect();
+        const rect = popup.getBoundingClientRect();
+        let left = rect.left, top = rect.top;
+        let width = rect.width, height = rect.height;
+
+        // Clamp left/top so popup stays inside confineRect
+        if (left < confineRect.left) left = confineRect.left;
+        if (top < confineRect.top) top = confineRect.top;
+        if (left + width > confineRect.right) left = confineRect.right - width;
+        if (top + height > confineRect.bottom) top = confineRect.bottom - height;
+
+        // Prevent negative width/height if popup is larger than viewport
+        if (width > confineRect.width) left = confineRect.left;
+        if (height > confineRect.height) top = confineRect.top;
+
+        popup.style.left = left + 'px';
+        popup.style.top = top + 'px';
+    }
+
+    // Center popup if no stored position and not already positioned
+    if (!hasStoredPos) {
+        setTimeout(() => {
+            if (!popup.style.left && !popup.style.top) {
+                const rect = popup.getBoundingClientRect();
+                const confineRect = getConfinementRect();
+                let left = Math.max(confineRect.left, Math.round(confineRect.left + (confineRect.width - rect.width) / 2));
+                let top = Math.max(confineRect.top, Math.round(confineRect.top + (confineRect.height - rect.height) / 2));
+                // Prevent negative left/top if popup is larger than viewport
+                if (rect.width > confineRect.width) left = confineRect.left;
+                if (rect.height > confineRect.height) top = confineRect.top;
+                popup.style.position = 'fixed';
+                popup.style.left = left + 'px';
+                popup.style.top = top + 'px';
+            }
+        }, 0);
+    }
+
     // Draggability
     if (draggable) {
         popup.style.position = 'fixed';
-        // Only allow dragging by a specific handle if provided
         let dragHandle = dragHandleSelector ? popup.querySelector(dragHandleSelector) : popup;
         let offsetX, offsetY, dragging = false;
         if (dragHandle) {
@@ -198,12 +271,12 @@ export function showPopup({
             if (!dragging) return;
             popup.style.left = (e.clientX - offsetX) + 'px';
             popup.style.top = (e.clientY - offsetY) + 'px';
+            confinePopupToRect();
         }
         function onStopDrag() {
             if (dragging) {
                 dragging = false;
                 document.body.style.userSelect = '';
-                // Save position if enabled
                 if (rememberPosition && id) {
                     savePopupPos();
                 }
@@ -215,9 +288,10 @@ export function showPopup({
     if (scalable) {
         popup.style.resize = 'both';
         popup.style.overflow = 'auto';
-        // Save size on mouseup
+        // Save size on mouseup and confine after resize
         popup.addEventListener('mouseup', function () {
             if (rememberPosition && id) savePopupPos();
+            confinePopupToRect();
         });
     }
 
@@ -235,6 +309,11 @@ export function showPopup({
 
     // Add to DOM
     (parent || document.body).appendChild(popup);
+
+    // Remove any minWidth/maxWidth set by previous popups to prevent growth
+    popup.style.minWidth = style.minWidth || '';
+    popup.style.maxWidth = style.maxWidth || '';
+    popup.style.width = style.width || '';
 
     // Center popup if no stored position and not already positioned
     if (!hasStoredPos) {

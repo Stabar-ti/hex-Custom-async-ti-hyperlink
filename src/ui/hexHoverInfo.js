@@ -1,4 +1,4 @@
-// ui/hexHoverInfo.js
+/*// ui/hexHoverInfo.js
 export function initHexHoverInfo(editor) {
   let hoverInfoEnabled = false;
   const infoDiv = document.getElementById('hexHoverInfo');
@@ -124,3 +124,4 @@ export function initHexHoverInfo(editor) {
   // Attach initially (after first map draw)
   setTimeout(attachHexHoverHandlers, 200);
 }
+*/

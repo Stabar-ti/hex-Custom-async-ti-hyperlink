@@ -1,6 +1,7 @@
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { toggleCustomLinksOverlay } from '../features/customLinksOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
+import { showPopup, hidePopup } from './popupUI.js'; // <-- Add hidePopup import
 
 export function installCustomLinksUI(editor) {
     // --- Add popup launcher at sector controls bottom ---
@@ -14,64 +15,23 @@ export function installCustomLinksUI(editor) {
         launcher.textContent = 'Custom Links...';
         launcher.style.marginTop = '24px';
         launcher.onclick = () => {
-            document.getElementById('customLinksPopup').style.display = 'block';
+            showCustomLinksPopup();
         };
         container.appendChild(launcher);
     }
 
-    // --- Movable popup ---
-    function createPopup() {
+    // --- Main Custom Links popup using PopupUI ---
+    function showCustomLinksPopup() {
+        // Only one instance
         if (document.getElementById('customLinksPopup')) return;
-        const popup = document.createElement('div');
-        popup.id = 'customLinksPopup';
-        popup.classList.add('border-anomalies-popup');
-        popup.style.left = '520px';
-        popup.style.top = '80px';
-        popup.style.display = 'none';
 
-        // Drag logic (click+hold popup background)
-        popup.onmousedown = function (e) {
-            if (e.target !== popup) return;
-            let shiftX = e.clientX - popup.getBoundingClientRect().left;
-            let shiftY = e.clientY - popup.getBoundingClientRect().top;
-            function move(e) {
-                popup.style.left = e.pageX - shiftX + 'px';
-                popup.style.top = e.pageY - shiftY + 'px';
-            }
-            document.onmousemove = move;
-            document.onmouseup = () => {
-                document.onmousemove = null;
-                document.onmouseup = null;
-            };
-        };
-
-        // Close button
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = "✕";
-        closeBtn.classList.add('popup-close-btn');
-        closeBtn.onclick = () => popup.style.display = 'none';
-        popup.appendChild(closeBtn);
-
-        // Help button (green)
-        const helpBtn = document.createElement('button');
-        helpBtn.textContent = "Help";
-        helpBtn.classList.add('popup-help-btn');
-        helpBtn.onclick = () => {
-            alert(
-                "Custom Link Tools:\n\n" +
-                "Single Link: Click two hexes to create a dark yellow one-way link. (No labels)\n" +
-                "Double Link: Click two hexes for a blue bidirectional link. (No labels)\n" +
-                "Adj Override: Click PRIMARY hex, then a DIRECTION hex (neighbor), then SECONDARY hex. This draws a magenta label on the PRIMARY hex (edge facing DIRECTION, showing SECONDARY label) and on the SECONDARY hex (opposite edge, showing PRIMARY label). No lines.\n" +
-                "Remove: Click a hex to remove ALL its custom links and overrides."
-            );
-        };
-        popup.appendChild(helpBtn);
-
+        // Build content
+        const content = document.createElement('div');
         // Tool label
         const label = document.createElement('div');
         label.textContent = "Custom Link Tools:";
         label.classList.add('popup-tool-label');
-        popup.appendChild(label);
+        content.appendChild(label);
 
         // --- Bug warning toggle ---
         const bugToggleLabel = document.createElement('label');
@@ -85,10 +45,14 @@ export function installCustomLinksUI(editor) {
 
         bugToggleLabel.appendChild(bugToggle);
         bugToggleLabel.appendChild(document.createTextNode(' Warn if mixing single/double custom links (async bot bug workaround)'));
+        content.appendChild(bugToggleLabel);
 
-        popup.appendChild(bugToggleLabel);
+        // Tool buttons
+        const btnRow = document.createElement('div');
+        btnRow.style.margin = '8px 0 0 0';
+        btnRow.style.display = 'flex';
+        btnRow.style.flexWrap = 'wrap';
 
-        // Button helper
         function toolBtn(text, mode, title) {
             const btn = document.createElement('button');
             btn.textContent = text;
@@ -96,7 +60,7 @@ export function installCustomLinksUI(editor) {
             btn.title = title;
             btn.style.margin = '2px 4px 2px 0';
             btn.onclick = () => {
-                Array.from(popup.querySelectorAll('.mode-button')).forEach(b => b.classList.remove('active'));
+                Array.from(btnRow.querySelectorAll('.mode-button')).forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 if (editor._pendingCustomAdj) {
                     const prev = editor._pendingCustomAdj;
@@ -119,57 +83,114 @@ export function installCustomLinksUI(editor) {
             };
             return btn;
         }
-        popup.appendChild(toolBtn('Single Link', 'custom-adj-single', 'One-way custom link'));
-        popup.appendChild(toolBtn('Double Link', 'custom-adj-double', 'Two-way custom link'));
-        popup.appendChild(toolBtn('Adj Override', 'custom-adj-override', '3 clicks: PRIMARY, DIRECTION, SECONDARY'));
-        popup.appendChild(toolBtn('Remove Links', 'custom-adj-remove', 'Click hex to remove its custom links'));
+        btnRow.appendChild(toolBtn('Single Link', 'custom-adj-single', 'One-way custom link'));
+        btnRow.appendChild(toolBtn('Double Link', 'custom-adj-double', 'Two-way custom link'));
+        btnRow.appendChild(toolBtn('Adj Override', 'custom-adj-override', '3 clicks: PRIMARY, DIRECTION, SECONDARY'));
+        btnRow.appendChild(toolBtn('Remove Links', 'custom-adj-remove', 'Click hex to remove its custom links'));
+        content.appendChild(btnRow);
 
-        document.body.appendChild(popup);
+        showPopup({
+            id: 'customLinksPopup',
+            className: 'border-anomalies-popup',
+            title: 'Custom Links',
+            content,
+            draggable: true,
+            dragHandleSelector: '.popup-ui-titlebar',
+            scalable: true,
+            rememberPosition: true,
+            style: {
+                left: '520px',
+                top: '80px',
+                minWidth: '340px',
+                maxWidth: '800px',
+                minHeight: '200px',
+                maxHeight: '800px',
+                //background: '#222',
+                color: '#fff',
+                border: '2px solid #ffe066',
+                boxShadow: '0 8px 40px #000a',
+                padding: '18px 0 18px 0'
+            },
+            showHelp: true,
+            onHelp: () => {
+                showPopup({
+                    id: 'customLinksHelpPopup',
+                    title: 'Custom Link Tools Help',
+                    content:
+                        "Single Link: Click two hexes to create a dark yellow one-way link. (No labels)<br>" +
+                        "Double Link: Click two hexes for a blue bidirectional link. (No labels)<br>" +
+                        "Adj Override: Click PRIMARY hex, then a DIRECTION hex (neighbor), then SECONDARY hex. This draws a magenta label on the PRIMARY hex (edge facing DIRECTION, showing SECONDARY label) and on the SECONDARY hex (opposite edge, showing PRIMARY label). No lines.<br>" +
+                        "Remove: Click a hex to remove ALL its custom links and overrides.",
+                    draggable: true,
+                    dragHandleSelector: '.popup-ui-titlebar',
+                    scalable: true,
+                    rememberPosition: true,
+                    style: {
+                        //       background: '#222',
+                        color: '#fff',
+                        border: '2px solid #2ecc40',
+                        borderRadius: '10px',
+                        boxShadow: '0 8px 40px #000a',
+                        minWidth: '340px',
+                        maxWidth: '800px',
+                        minHeight: '200px',
+                        maxHeight: '800px',
+                        padding: '24px'
+                    }
+                });
+            }
+        });
     }
 
     // --- Custom link warning popup utility ---
     function showCustomLinkWarning(confirmCallback, cancelCallback) {
-        let old = document.getElementById('customLinkWarningPopup');
-        if (old) old.remove();
-
-        const popup = document.createElement('div');
-        popup.id = 'customLinkWarningPopup';
-        popup.style.position = 'fixed';
-        popup.style.left = '50%';
-        popup.style.top = '30%';
-        popup.style.transform = 'translate(-50%, -30%)';
-        popup.style.zIndex = '10001';
-        popup.style.background = '#222';
-        popup.style.color = '#fff';
-        popup.style.padding = '24px';
-        popup.style.border = '2px solid #ff9800';
-        popup.style.borderRadius = '10px';
-        popup.style.boxShadow = '0 8px 40px #000a';
-
-        popup.innerHTML = `<div style="margin-bottom:14px;">Warning:<br>
-            The async bot only allows one type of custom link (single or double) per hex.<br>
-            Creating this link will <b>remove all previous custom links of the other type</b> for both involved hexes.<br>
-            <br>Are you sure you want to continue?</div>`;
-
-        const confirmBtn = document.createElement('button');
-        confirmBtn.textContent = 'Confirm';
-        confirmBtn.style.marginRight = '16px';
-        confirmBtn.onclick = function () {
-            popup.remove();
-            confirmCallback();
-        };
-
-        const cancelBtn = document.createElement('button');
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.onclick = function () {
-            popup.remove();
-            if (cancelCallback) cancelCallback();
-        };
-
-        popup.appendChild(confirmBtn);
-        popup.appendChild(cancelBtn);
-
-        document.body.appendChild(popup);
+        showPopup({
+            id: 'customLinkWarningPopup',
+            className: '',
+            modal: true,
+            title: 'Custom Link Type Conflict',
+            content: `
+                <div style="margin-bottom:18px;font-size:1.08em;">
+                    <span style="font-size:1.3em;color:#ff9800;font-weight:bold;">⚠️ Warning</span><br><br>
+                    The async bot only allows <b>one type</b> of custom link (single or double) per hex.<br>
+                    <span style="color:#ffe066;">Creating this link will <b>remove all previous custom links of the other type</b> for both involved hexes.</span>
+                    <br><br>
+                    Are you sure you want to continue?
+                </div>
+            `,
+            actions: [
+                {
+                    label: 'Confirm',
+                    action: (btn) => {
+                        hidePopup('customLinkWarningPopup');
+                        if (typeof confirmCallback === 'function') confirmCallback();
+                    }
+                },
+                {
+                    label: 'Cancel',
+                    action: (btn) => {
+                        hidePopup('customLinkWarningPopup');
+                        if (typeof cancelCallback === 'function') cancelCallback();
+                    }
+                }
+            ],
+            draggable: true,
+            dragHandleSelector: '.popup-ui-titlebar',
+            scalable: true,
+            rememberPosition: true,
+            style: {
+                //     background: '#222',
+                color: '#fff',
+                border: '2px solid #ff9800',
+                borderRadius: '14px',
+                boxShadow: '0 8px 40px #000a',
+                minWidth: '340px',
+                maxWidth: '800px',
+                minHeight: '200px',
+                maxHeight: '800px',
+                padding: '24px'
+            }
+        });
     }
 
     // --- Per-hex global type-mixing conflict detection ---
@@ -205,11 +226,9 @@ export function installCustomLinksUI(editor) {
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", () => {
             addPopupLauncher();
-            createPopup();
         });
     } else {
         addPopupLauncher();
-        createPopup();
     }
 
     // ---- CLICK LOGIC FOR ALL TOOLS ----

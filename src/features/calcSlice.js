@@ -1,47 +1,91 @@
-
 import { wormholeTypes, planetTypeColors, techSpecialtyColors } from '../constants/constants.js';
+import { showPopup, hidePopup } from '../ui/popupUI.js';
+import { showOptionsPopup } from '../ui/simplepPopup.js';
+
+let calcSlicePopup = null;
 
 export function openCalcSlicePopup() {
-    const popup = document.getElementById('calcSlicePopup');
-    const resultsDiv = document.getElementById('calcSliceResults');
-    renderSliceAnalysis(window.editor, resultsDiv);
-    popup.style.display = 'block';
-    popup.focus();
-    popup.style.left = '25vw';
-    popup.style.top = '100px';
+    // Build content wrapper
+    const wrapper = document.createElement('div');
+    wrapper.id = 'calcSliceResults';
+    renderSliceAnalysis(window.editor, wrapper);
+
+    // Show popup using popupUI.js
+    showPopup({
+        id: 'calcSlicePopup',
+        className: 'popup-ui',
+        title: 'Slice Analysis',
+        content: wrapper,
+        draggable: true,
+        dragHandleSelector: '.popup-ui-titlebar, .draggable-handle',
+        scalable: true,
+        rememberPosition: true,
+        style: {
+            minWidth: '420px',
+            minHeight: '220px',
+            left: '25vw',
+            top: '100px',
+            zIndex: 2000
+        },
+        actions: [
+            {
+                label: 'Options',
+                action: () => showOptionsPopup(window.editor)
+            },
+            {
+                label: 'Close',
+                action: () => hidePopup('calcSlicePopup')
+            }
+        ],
+        showHelp: true,
+        onHelp: showCalcSliceHelpPopup
+    });
 }
 
-// Modal close
+// --- Help popup for Calculate Slice ---
+function showCalcSliceHelpPopup() {
+    showPopup({
+        id: 'calcSliceHelpPopup',
+        className: 'popup-ui popup-ui-info',
+        title: 'Slice Analysis Help',
+        content: `
+            <div style="max-width:520px;line-height:1.6;">
+                <b>Slice Analysis</b> calculates the planets, techs, resources/influence, and wormholes within a certain distance from each <b>homesystem</b> on the map.<br><br>
+                <ul>
+                  <li>The distance used is set in <b>Distance Calculator Options</b> (gear icon or Options button).</li>
+                  <li>Each slice includes all tiles within <b>max distance</b> (default: 2) from the homesystem, excluding the homesystem itself.</li>
+                  <li>Clicking a homesystem while holding <b>Shift</b> and <b>D</b> (Shift+D+Click) will also highlight the slice on the map using the same distance setting.</li>
+                  <li>Use this tool to quickly compare starting positions and plan your draft or game setup.</li>
+                </ul>
+                <b>Tip:</b> Adjust the max distance in <b>Distance Calculator Options</b> to match your preferred slice size.
+            </div>
+        `,
+        actions: [
+            { label: 'Close', action: () => hidePopup('calcSliceHelpPopup') }
+        ],
+        draggable: true,
+        dragHandleSelector: '.popup-ui-titlebar',
+        scalable: false,
+        rememberPosition: true,
+        style: {
+            minWidth: '340px',
+            maxWidth: '600px',
+            border: '2px solid #2196f3',
+            borderRadius: '14px',
+            boxShadow: '0 8px 40px #000a',
+            zIndex: 2100
+        }
+    });
+}
+
+// Modal close (for compatibility with old close button)
 document.getElementById('closeCalcSlice')?.addEventListener('click', () => {
-    document.getElementById('calcSlicePopup').style.display = 'none';
+    hidePopup('calcSlicePopup');
 });
 
-// Optional: Dismiss on background click
+// Optional: Dismiss on background click (if popupUI is used, this is not needed, but kept for legacy)
 document.getElementById('calcSlicePopup')?.addEventListener('mousedown', (e) => {
-    if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
-});
-
-// Movable popup logic
-let isDragging = false, dragOffsetX = 0, dragOffsetY = 0;
-const popup = document.getElementById('calcSlicePopup');
-const header = popup.querySelector('.draggable-handle');
-header.style.cursor = "move";
-header.addEventListener('mousedown', function (e) {
-    isDragging = true;
-    dragOffsetX = e.clientX - popup.offsetLeft;
-    dragOffsetY = e.clientY - popup.offsetTop;
-    document.body.style.userSelect = 'none';
-});
-window.addEventListener('mousemove', function (e) {
-    if (isDragging) {
-        popup.style.left = (e.clientX - dragOffsetX) + 'px';
-        popup.style.top = (e.clientY - dragOffsetY) + 'px';
-        popup.style.position = 'fixed';
-    }
-});
-window.addEventListener('mouseup', function () {
-    isDragging = false;
-    document.body.style.userSelect = '';
+    if (e.target === e.currentTarget) hidePopup('calcSlicePopup');
 });
 
 // ---------- MAIN RENDER FUNCTION ----------

@@ -875,7 +875,9 @@ body.dark .mode-button.btn-special {
 ──────────────────────────────────────────────────────────────────────────────*/
 .border-anomalies-popup {
   position: absolute;
-  background: var(--modal-bg);
+  background: rgba(32, 32, 32, 0.89);
+  /* match .popup-ui */
+  /*background: var(--modal-bg);*/
   border: 2px solid #e32b2b;
   border-radius: 10px;
   padding: 12px 14px 12px 10px;
@@ -1296,7 +1298,7 @@ Layout butoons and other Popup & Buttons
 .popup-ui,
 .popup-ui-info,
 .wizard-main-popup {
-  background: rgba(32, 32, 32, 0.97);
+  background: rgba(32, 32, 32, 0.89);
   /* Less transparent */
   color: #f0f0f0;
   border: 2px solid #2196f3;

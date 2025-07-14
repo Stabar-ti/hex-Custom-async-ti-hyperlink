@@ -26,24 +26,27 @@ export function showWizardPopup(message, actions = []) {
         id: 'wizard-popup',
         className: 'wizard-main-popup',
         draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar', // Use generic popup title bar
+        dragHandleSelector: '.popup-ui-titlebar',
         scalable: true,
         rememberPosition: true,
         modal: false,
-        title: 'Copy/Cut Wizard', // Pass title to generic popup system
+        title: 'Copy/Cut Wizard',
         style: {
             borderRadius: '16px'
         },
-        showHelp: true, // Show Help button in title bar
-        onHelp: showWizardHelpPopup // Callback for Help button
+        showHelp: false, // We'll add the help button manually below
+        // onHelp: showWizardHelpPopup // Don't use built-in, we'll add it manually
     });
-    // Add the title text to the generic popup title bar
+    // Add the title text and help button to the generic popup title bar
     setTimeout(() => {
         const titleBar = wizardPopup.querySelector('.popup-ui-titlebar');
         if (titleBar) {
-            // Remove any previous title text
+            // Remove any previous title text except close/help
             Array.from(titleBar.childNodes).forEach(node => {
-                if (node.nodeType === 3 || (node.tagName === 'SPAN' && node.className !== 'popup-ui-close')) node.remove();
+                if (
+                    node.nodeType === 3 ||
+                    (node.tagName === 'SPAN' && node.className !== 'popup-ui-close' && node.className !== 'popup-ui-help')
+                ) node.remove();
             });
             // Insert the title text before the close button
             const titleText = document.createElement('span');
@@ -52,8 +55,39 @@ export function showWizardPopup(message, actions = []) {
             titleText.style.fontWeight = 'bold';
             titleText.style.flex = '1';
             titleText.style.alignSelf = 'center';
+
+            // Find the close button
             const closeBtn = titleBar.querySelector('.popup-ui-close');
-            titleBar.insertBefore(titleText, closeBtn);
+            // Remove any existing help button
+            const oldHelp = titleBar.querySelector('.popup-ui-help');
+            if (oldHelp) oldHelp.remove();
+            // Create the help button
+            const helpBtn = document.createElement('button');
+            helpBtn.className = 'popup-ui-help wizard-btn';
+            helpBtn.innerHTML = '?';
+            helpBtn.title = 'Help';
+            helpBtn.style.background = '#2ecc40';
+            helpBtn.style.color = '#fff';
+            helpBtn.style.fontWeight = 'bold';
+            helpBtn.style.fontSize = '1.1rem';
+            helpBtn.style.width = '28px';
+            helpBtn.style.height = '28px';
+            helpBtn.style.lineHeight = '28px';
+            helpBtn.style.position = 'relative';
+            helpBtn.style.marginLeft = '8px';
+            helpBtn.style.display = 'flex';
+            helpBtn.style.alignItems = 'center';
+            helpBtn.style.justifyContent = 'center';
+            helpBtn.onclick = showWizardHelpPopup;
+
+            // Insert: [titleText][flex][helpBtn][closeBtn]
+            if (closeBtn) {
+                titleBar.insertBefore(titleText, closeBtn);
+                titleBar.insertBefore(helpBtn, closeBtn);
+            } else {
+                titleBar.appendChild(titleText);
+                titleBar.appendChild(helpBtn);
+            }
         }
     }, 0);
     // Set the message in the dedicated message area

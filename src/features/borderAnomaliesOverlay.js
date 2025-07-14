@@ -6,8 +6,13 @@ import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
  * Do NOT touch UI button state here! Let the UI code (bindUI) handle that.
  */
 export function toggleBorderAnomaliesOverlay(editor) {
+    // Always toggle the flag and update visibility
     editor.showBorderAnomalies = !editor.showBorderAnomalies;
     let layer = editor.svg.querySelector('#borderAnomalyLayer');
+    if (!layer) {
+        drawBorderAnomaliesLayer(editor);
+        layer = editor.svg.querySelector('#borderAnomalyLayer');
+    }
     if (layer) {
         layer.setAttribute('visibility', editor.showBorderAnomalies ? 'visible' : 'hidden');
     }
@@ -19,8 +24,11 @@ export function toggleBorderAnomaliesOverlay(editor) {
 export function showBorderAnomaliesOverlay(editor) {
     editor.showBorderAnomalies = true;
     let layer = editor.svg.querySelector('#borderAnomalyLayer');
+    if (!layer) {
+        drawBorderAnomaliesLayer(editor);
+        layer = editor.svg.querySelector('#borderAnomalyLayer');
+    }
     if (layer) layer.setAttribute('visibility', 'visible');
-    else drawBorderAnomaliesLayer(editor);
     // NO .classList.add('active') here!
 }
 

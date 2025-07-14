@@ -235,6 +235,8 @@ export function initRealIDFeatures(editor) {
     editor.showResInf = false;
     editor.showIdealRI = true;
     editor.showRealID = true;
+    editor.showBorderAnomalies = true; // <-- Default to true
+    editor.showCustomAdjacency = true; // <-- Default to true for custom links
 }
 
 /**

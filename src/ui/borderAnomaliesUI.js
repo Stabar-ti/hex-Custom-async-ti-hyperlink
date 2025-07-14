@@ -1,6 +1,7 @@
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 import { toggleBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
+import { showPopup, hidePopup } from './popupUI.js';
 
 export function installBorderAnomaliesUI(editor) {
     function addPopupLauncher() {
@@ -13,76 +14,38 @@ export function installBorderAnomaliesUI(editor) {
         launcher.textContent = 'Border Anomalies...';
         launcher.style.marginTop = '24px';
         launcher.onclick = () => {
-            document.getElementById('borderAnomaliesPopup').style.display = 'block';
+            showBorderAnomaliesPopup();
         };
         container.appendChild(launcher);
     }
 
-    function createPopup() {
+    function showBorderAnomaliesPopup() {
         if (document.getElementById('borderAnomaliesPopup')) return;
-        const popup = document.createElement('div');
-        popup.id = 'borderAnomaliesPopup';
-        popup.classList.add('border-anomalies-popup');
-        popup.style.left = '520px';
-        popup.style.top = '80px';
-        popup.style.display = 'none';
 
-        // Drag logic
-        popup.onmousedown = function (e) {
-            if (e.target !== popup) return;
-            let shiftX = e.clientX - popup.getBoundingClientRect().left;
-            let shiftY = e.clientY - popup.getBoundingClientRect().top;
-            function move(e) {
-                popup.style.left = e.pageX - shiftX + 'px';
-                popup.style.top = e.pageY - shiftY + 'px';
-            }
-            document.onmousemove = move;
-            document.onmouseup = () => {
-                document.onmousemove = null;
-                document.onmouseup = null;
-            };
-        };
-
-        // Close button
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = "✕";
-        closeBtn.classList.add('popup-close-btn');
-        closeBtn.onclick = () => popup.style.display = 'none';
-        popup.appendChild(closeBtn);
-
-        // Help button (green)
-        const helpBtn = document.createElement('button');
-        helpBtn.textContent = "Help";
-        helpBtn.classList.add('popup-help-btn');
-        helpBtn.onclick = () => {
-            alert(
-                "Border Anomaly Tools:\n\n" +
-                "1. Click a primary hex, then a neighbor to select the edge.\n" +
-                "2. Choose type (Spatial Tear = double, Gravity Wave = single).\n" +
-                "3. Remove: Click a hex to remove all its border anomalies."
-            );
-        };
-        popup.appendChild(helpBtn);
-
+        // Build content
+        const content = document.createElement('div');
         // Tool label
         const label = document.createElement('div');
         label.textContent = "Border Anomaly Tools:";
         label.classList.add('popup-tool-label');
-        popup.appendChild(label);
+        content.appendChild(label);
 
-        // Tool button generator
+        // Tool buttons
+        const btnRow = document.createElement('div');
+        btnRow.style.margin = '8px 0 0 0';
+        btnRow.style.display = 'flex';
+        btnRow.style.flexWrap = 'wrap';
+
         function toolBtn(text, mode, title) {
             const btn = document.createElement('button');
             btn.textContent = text;
-            btn.className = 'mode-button border-anomaly-tool-btn'; // Add extra class!
+            btn.className = 'mode-button border-anomaly-tool-btn';
             btn.title = title;
             btn.style.margin = '2px 4px 2px 0';
             btn.onclick = () => {
-                // Only clear .active from tool buttons, not overlay toggle
-                Array.from(popup.querySelectorAll('.border-anomaly-tool-btn')).forEach(b => b.classList.remove('active'));
+                Array.from(btnRow.querySelectorAll('.border-anomaly-tool-btn')).forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 editor.setMode(mode);
-                // Clear UI state
                 if (editor._pendingBorderAnomaly) {
                     editor.hexes[editor._pendingBorderAnomaly]?.polygon?.classList.remove('selected');
                 }
@@ -90,43 +53,102 @@ export function installBorderAnomaliesUI(editor) {
             };
             return btn;
         }
-        popup.appendChild(toolBtn('Spatial Tear', 'border-anomaly-double', 'Double block (both ways)'));
-        popup.appendChild(toolBtn('Gravity Wave', 'border-anomaly-single', 'One-way block'));
-        popup.appendChild(toolBtn('Remove', 'border-anomaly-remove', 'Remove all anomalies from hex'));
+        btnRow.appendChild(toolBtn('Spatial Tear', 'border-anomaly-double', 'Double block (both ways)'));
+        btnRow.appendChild(toolBtn('Gravity Wave', 'border-anomaly-single', 'One-way block'));
+        btnRow.appendChild(toolBtn('Remove', 'border-anomaly-remove', 'Remove all anomalies from hex'));
+        content.appendChild(btnRow);
 
+        showPopup({
+            id: 'borderAnomaliesPopup',
+            className: 'popup-ui border-anomalies-popup', // Add popup-ui for transparency
+            title: 'Border Anomalies',
+            content,
+            draggable: true,
+            dragHandleSelector: '.popup-ui-titlebar',
+            scalable: true,
+            rememberPosition: true,
+            style: {
+                left: '520px',
+                top: '80px',
+                minWidth: '340px',
+                maxWidth: '800px',
+                minHeight: '200px',
+                maxHeight: '800px',
+                // background intentionally omitted to allow .popup-ui CSS to apply transparency
+                // color intentionally omitted to allow .popup-ui CSS to apply
+                border: '2px solid #ffe066',
+                boxShadow: '0 8px 40px #000a',
+                padding: '18px 0 18px 0'
+            },
+            showHelp: true,
+            onHelp: () => {
+                showPopup({
+                    id: 'borderAnomaliesHelpPopup',
+                    className: 'popup-ui popup-ui-info',
+                    title: 'Border Anomaly Tools Help',
+                    content:
+                        "1. Click a primary hex, then a neighbor to select the edge.<br>" +
+                        "2. Choose type (Spatial Tear = double, Gravity Wave = single).<br>" +
+                        "3. Remove: Click a hex to remove all its border anomalies.",
+                    draggable: true,
+                    dragHandleSelector: '.popup-ui-titlebar',
+                    scalable: true,
+                    rememberPosition: true,
+                    style: {
+                        // background intentionally omitted
+                        // color intentionally omitted
+                        border: '2px solid #2ecc40',
+                        borderRadius: '10px',
+                        boxShadow: '0 8px 40px #000a',
+                        minWidth: '340px',
+                        maxWidth: '800px',
+                        minHeight: '200px',
+                        maxHeight: '800px',
+                        padding: '24px'
+                    }
+                });
+            }
+        });
+    }
 
-        // Overlay toggle button (persistent)
-        /*const overlayToggle = document.createElement('button');
-        overlayToggle.textContent = "Toggle Overlay";
-        overlayToggle.className = 'mode-button overlay-toggle-btn';
-        overlayToggle.id = 'toggleBorderAnomalies'; // Important for bindUI!
-        overlayToggle.style.marginTop = '14px';
-        popup.appendChild(document.createElement('br'));
-        popup.appendChild(overlayToggle);
-        */
-
-        document.body.appendChild(popup);
-
-
-        // Set initial visibility on SVG layer directly if needed:
-        if (typeof editor.showBorderAnomalies === 'undefined') {
-            editor.showBorderAnomalies = true;
-        }
-        drawBorderAnomaliesLayer(editor);
-        let layer = editor.svg.querySelector('#borderAnomalyLayer');
-        if (layer) layer.setAttribute('visibility', editor.showBorderAnomalies ? 'visible' : 'hidden');
-
+    // --- Error popup utility using popupUI ---
+    function showErrorPopup(message) {
+        showPopup({
+            id: 'borderAnomaliesErrorPopup',
+            title: 'Error',
+            content: `<div style="margin-bottom:14px;font-size:1.1em;color:#ff9800;">${message}</div>`,
+            actions: [
+                {
+                    label: 'OK',
+                    action: (btn) => hidePopup('borderAnomaliesErrorPopup')
+                }
+            ],
+            draggable: true,
+            dragHandleSelector: '.popup-ui-titlebar',
+            scalable: true,
+            rememberPosition: true,
+            style: {
+                //    background: '#222',
+                color: '#fff',
+                border: '2px solid #ff9800',
+                borderRadius: '12px',
+                boxShadow: '0 8px 40px #000a',
+                minWidth: '320px',
+                maxWidth: '600px',
+                minHeight: '120px',
+                maxHeight: '400px',
+                padding: '24px'
+            }
+        });
     }
 
     // DOM ready
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", () => {
             addPopupLauncher();
-            createPopup();
         });
     } else {
         addPopupLauncher();
-        createPopup();
     }
 
     // --- CLICK LOGIC MIRRORING CUSTOM LINKS ---
@@ -145,7 +167,8 @@ export function installBorderAnomaliesUI(editor) {
                 editor.saveState(secondary);
                 const side = getSideBetween(this.hexes, primary, secondary);
                 if (side === undefined) {
-                    alert('Tiles are not neighbors!');
+                    hidePopup('borderAnomaliesErrorPopup');
+                    showErrorPopup('Tiles are not neighbors!');
                     this.hexes[primary].polygon.classList.remove('selected');
                     this._pendingBorderAnomaly = null;
                     return;
@@ -173,7 +196,8 @@ export function installBorderAnomaliesUI(editor) {
                 editor.saveState(primary);
                 const side = getSideBetween(this.hexes, primary, secondary);
                 if (side === undefined) {
-                    alert('Tiles are not neighbors!');
+                    hidePopup('borderAnomaliesErrorPopup');
+                    showErrorPopup('Tiles are not neighbors!');
                     this.hexes[primary].polygon.classList.remove('selected');
                     this._pendingBorderAnomaly = null;
                     return;
@@ -192,8 +216,7 @@ export function installBorderAnomaliesUI(editor) {
         if (this.mode === 'border-anomaly-remove') {
             const hex = this.hexes[label];
             if (hex.borderAnomalies) {
-                editor.saveState(label); // <--- Add
-                // Clean up any reciprocal double blockers
+                editor.saveState(label);
                 for (const [side, anomaly] of Object.entries(hex.borderAnomalies)) {
                     if (anomaly.type === "Spatial Tear") {
                         const neighbor = getNeighborHex(this.hexes, label, side);
@@ -245,10 +268,8 @@ export function installBorderAnomaliesUI(editor) {
     editor.generateMap = function () {
         oldGenerateMap.call(this);
         drawBorderAnomaliesLayer(this);
-        // Respect visibility flag on redraw
         let layer = this.svg.querySelector('#borderAnomalyLayer');
         if (layer) layer.setAttribute('visibility', this.showBorderAnomalies ? 'visible' : 'hidden');
-        // Also sync button
         const btn = document.getElementById('toggleBorderAnomalies');
         if (btn) btn.classList.toggle('active', this.showBorderAnomalies);
     };

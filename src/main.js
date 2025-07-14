@@ -19,7 +19,7 @@ import { assignSystem } from './features/assignSystem.js';
 import './ui/systemLookup.js'; // Adds system search modal
 import { redrawAllRealIDOverlays } from './features/realIDsOverlays.js';
 import { markRealIDUsed } from './ui/uiFilters.js';
-import { initHexHoverInfo } from './ui/hexHoverInfo.js';
+//import { initHexHoverInfo } from './ui/hexHoverInfo.js';
 import { openCalcSlicePopup } from './features/calcSlice.js';
 import { installCustomLinksUI } from './ui/customLinksUI.js';
 import { installBorderAnomaliesUI } from './ui/borderAnomaliesUI.js';
@@ -29,8 +29,9 @@ import { updateTileImageLayer } from './features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from './draw/enforceSvgLayerOrder.js';
 import { startCopyPasteWizard } from './features/tileCopyPasteWizard.js';
 import { setupTileCopySingleButtonAndPopup } from './ui/tileCopyPasteWizardUI.js';
-import { showOptionsPopup } from './ui/simplepPopup.js';
+import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup } from './ui/simplepPopup.js';
 import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
+import { resetAllPopupPositions } from './ui/popupUI.js';
 
 // ───── Initialize the core HexEditor and set defaults ─────
 const svg = document.getElementById('hexMap');
@@ -59,7 +60,7 @@ window.editor = editor;
 
 // Enable undo/redo history tracking
 initHistory(editor);
-initHexHoverInfo(editor); // <- Add this line
+//initHexHoverInfo(editor); // <- Add this line
 
 installCustomLinksUI(editor);
 installBorderAnomaliesUI(editor);
@@ -360,6 +361,15 @@ svg.addEventListener('click', e => {
   }
 });
 
+
+const resetPopupBtn = document.getElementById('resetPopupPositionsBtn');
+if (resetPopupBtn) {
+  resetPopupBtn.onclick = () => {
+    resetAllPopupPositions();
+    alert('All popup positions have been reset. Please reopen your popups.');
+  };
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   setupTileCopySingleButtonAndPopup();
 });
@@ -367,4 +377,18 @@ document.addEventListener('DOMContentLoaded', () => {
 document.getElementById('helpToggle').onclick = showHelpPopup;
 document.getElementById('infoToggle').onclick = showInfoPopup;
 document.getElementById('featuresToggle').onclick = showFeaturesPopup;
+
+const overlayToggleBtn = document.getElementById('overlayToggleBtn');
+if (overlayToggleBtn) {
+  overlayToggleBtn.onclick = () => {
+    console.log('Overlay toggle button clicked'); // Debug: log on click
+    showOverlayOptionsPopup();
+  };
+  console.log('Overlay toggle button initialized'); // Debug: log on page load
+}
+
+const layoutToggleBtn = document.getElementById('layoutToggleBtn');
+if (layoutToggleBtn) {
+  layoutToggleBtn.onclick = () => showLayoutOptionsPopup();
+}
 
