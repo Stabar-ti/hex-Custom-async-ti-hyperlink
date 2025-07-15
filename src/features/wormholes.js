@@ -27,7 +27,9 @@ export function toggleWormhole(editor, hexId, type) {
   if (!hex) return;
 
   // Ensure wormholes and overlays exist
-  if (!hex.wormholes) hex.wormholes = new Set();
+  if (!hex.wormholes || !('has' in hex.wormholes && typeof hex.wormholes.has === 'function')) {
+    hex.wormholes = new Set(hex.wormholes ? Array.from(hex.wormholes) : []);
+  }
   if (!hex.wormholeOverlays) hex.wormholeOverlays = [];
 
   // Save editor state for undo/redo/history
@@ -41,7 +43,11 @@ export function toggleWormhole(editor, hexId, type) {
   }
 
   // Remove all existing wormhole overlay SVGs from map
-  hex.wormholeOverlays.forEach(o => editor.svg.removeChild(o));
+  hex.wormholeOverlays.forEach(o => {
+    if (o.parentNode) {
+      o.parentNode.removeChild(o);
+    }
+  });
   hex.wormholeOverlays = [];
 
   // Render each wormhole in reverse icon position order for better stacking

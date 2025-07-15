@@ -339,7 +339,7 @@ export function importFullState(editor, jsonText) {
       hex.wormholes = new Set();
 
       const inherentWormholes = (info.wormholes || []).filter(Boolean).map(w => w.toLowerCase());
-      const userWormholes = (h.wormholes || []).filter(Boolean).map(w => w.toLowerCase());
+      const userWormholes = Array.from(h.wormholes || []).filter(Boolean).map(w => w.toLowerCase());
       const allWormholes = new Set([...inherentWormholes, ...userWormholes]);
 
       for (const w of allWormholes) {

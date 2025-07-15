@@ -75,13 +75,23 @@ export function exportWormholePositions(editor) {
   const groups = {};
 
   for (const [id, hex] of Object.entries(editor.hexes)) {
-    if (!/^\d{3,4}$/.test(id)) continue;
+    if (!/^[0-9]{3,4}$/.test(id)) continue;
 
     // Find inherent/system wormholes (lowercase)
-    const inherent = new Set(
+    let inherent = new Set(
       Array.from(hex.inherentWormholes || hex.systemWormholes || [])
+        .filter(Boolean)
         .map(w => w.toLowerCase())
     );
+    // Also check system info for realId (async tile inherent wormholes)
+    if (hex.realId && editor.sectorIDLookup && editor.sectorIDLookup[hex.realId.toString().toUpperCase()]) {
+      const sysInfo = editor.sectorIDLookup[hex.realId.toString().toUpperCase()];
+      if (Array.isArray(sysInfo.wormholes)) {
+        for (const w of sysInfo.wormholes) {
+          if (w) inherent.add(w.toLowerCase());
+        }
+      }
+    }
 
     // User wormholes: in .wormholes but not inherent
     const userWormholes = Array.from(hex.wormholes || []).filter(
