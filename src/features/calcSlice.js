@@ -161,7 +161,6 @@ export function renderSliceAnalysis(editor, container) {
                 else if (p.influence > p.resources) b += p.influence;
             });
             if (hex.wormholes) hex.wormholes.forEach(w => wormholes.add(w));
-            if (hex.inherentWormholes) hex.inherentWormholes.forEach(w => wormholes.add(w));
         });
 
         // Build color-coded breakdowns

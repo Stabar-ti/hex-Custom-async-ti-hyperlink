@@ -20,6 +20,7 @@ import { generateRings } from '../draw/drawHexes.js';
 import { isMatrixEmpty } from '../utils/matrix.js';
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
+import { createWormholeOverlay } from '../features/baseOverlays.js';
 
 /**
  * Import map adjacency from a space-separated list of label,hexMatrix pairs.
@@ -170,7 +171,16 @@ export function importSectorTypes(editor, tokenString) {
 
       // Inherent wormholes
       (info.wormholes || []).filter(Boolean).forEach(wh => {
-        toggleWormhole(editor, id, wh.toLowerCase());
+        console.log('importSectorTypes: inherent wormhole', id, wh);
+        // Only set as inherent, do not toggle as custom
+        if (!hex.inherentWormholes) hex.inherentWormholes = new Set();
+        hex.inherentWormholes.add(wh.toLowerCase());
+      });
+      // Debug: log after setting inherent
+      console.log('importSectorTypes: after inherent', id, {
+        inherentWormholes: Array.from(hex.inherentWormholes || []),
+        customWormholes: Array.from(hex.customWormholes || []),
+        wormholes: Array.from(hex.wormholes || [])
       });
 
       // Sector classification
@@ -336,15 +346,40 @@ export function importFullState(editor, jsonText) {
 
       // ---- WORMHOLES: robust restoration
       hex.wormholeOverlays = [];
-      hex.wormholes = new Set();
-
-      const inherentWormholes = (info.wormholes || []).filter(Boolean).map(w => w.toLowerCase());
-      const userWormholes = Array.from(h.wormholes || []).filter(Boolean).map(w => w.toLowerCase());
-      const allWormholes = new Set([...inherentWormholes, ...userWormholes]);
-
-      for (const w of allWormholes) {
-        toggleWormhole(editor, id, w);
-      }
+      // Set inherent and custom wormholes separately
+      hex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
+      hex.customWormholes = new Set(Array.from(h.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
+      // Always update hex.wormholes as the union
+      hex.wormholes = new Set([...hex.inherentWormholes, ...hex.customWormholes]);
+      // Debug: log after setting both
+      // console.log('importFullState: after wormhole restore', id, {
+      //   inherentWormholes: Array.from(hex.inherentWormholes),
+      //   customWormholes: Array.from(hex.customWormholes),
+      //   wormholes: Array.from(hex.wormholes)
+      // });
+      // Draw overlays for ALL wormholes (inherent + custom)
+      hex.wormholeOverlays = [];
+      Array.from(hex.wormholes).forEach((w, i) => {
+        const positions = editor.effectIconPositions;
+        const len = positions.length;
+        const reversedIndex = len - 1 - (i % len);
+        const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
+        const overlay = (typeof createWormholeOverlay === 'function')
+          ? createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase())
+          : null;
+        if (overlay) {
+          const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
+          if (wormholeIconLayer) {
+            wormholeIconLayer.appendChild(overlay);
+          } else {
+            editor.svg.appendChild(overlay);
+          }
+          hex.wormholeOverlays.push(overlay);
+          // console.log('importFullState: drew overlay', id, w);
+        } else {
+          // console.warn('importFullState: failed to create overlay', id, w);
+        }
+      });
 
       // ---- Effects from JSON (always restore)
       (h.effects || []).forEach(eff => eff && editor.applyEffect(id, eff));

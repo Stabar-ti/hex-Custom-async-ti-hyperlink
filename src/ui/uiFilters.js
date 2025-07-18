@@ -37,7 +37,16 @@ export function endBatch(renderFn) {
 // that checks if a system should pass the filter when "active".
 // ──────────────────────────────
 const FILTERS = [
-  { key: 'hasWormhole', label: 'Has Wormhole', defaultOn: false, test(sys, a) { if (!a) return true; return Array.isArray(sys.wormholes) && sys.wormholes.length > 0; } },
+  // Wormhole filter: supports both Set and Array for wormholes (union of inherent+custom)
+  {
+    key: 'hasWormhole', label: 'Has Wormhole', defaultOn: false, test(sys, a) {
+      if (!a) return true;
+      // New pattern: wormholes is always a Set (union), but support Array for legacy/test data
+      if (sys.wormholes instanceof Set) return sys.wormholes.size > 0;
+      if (Array.isArray(sys.wormholes)) return sys.wormholes.length > 0;
+      return false;
+    }
+  },
   { key: 'hasTech', label: 'Has Tech', defaultOn: false, test(sys, a) { if (!a) return true; return Array.isArray(sys.planets) && sys.planets.some(p => (Array.isArray(p.techSpecialties) && p.techSpecialties.length > 0) || (!!p.techSpecialty)); } },
   { key: 'hasRift', label: 'Has Rift', defaultOn: false, test(sys, a) { if (!a) return true; return sys.isGravityRift === true; } },
   { key: 'hasNebula', label: 'Has Nebula', defaultOn: false, test(sys, a) { if (!a) return true; return sys.isNebula === true; } },
