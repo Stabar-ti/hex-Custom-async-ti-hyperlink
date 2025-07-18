@@ -131,30 +131,39 @@ export function exportHyperlaneTilePositions(editor) {
 }
 
 /**
- * Exports the full editor state as a JSON object (for saving/loading).
- * Includes only user-added wormholes (not inherent/system).
+ * Exports the full editor state as a compact JSON object (for saving/loading).
+ * Only non-empty fields are exported, and property names are shortened for compactness.
  *
- * Only customWormholes are exported (see wormhole handling pattern above).
+ * Field mapping:
+ *   id: label
+ *   rid: realId
+ *   q, r: coordinates
+ *   pl: planets
+ *   bt: baseType
+ *   fx: effects
+ *   wh: customWormholes
+ *   ca: customAdjacents
+ *   ao: adjacencyOverrides
+ *   ba: borderAnomalies
+ *   ln: links (matrix)
  */
 export function exportFullState(editor) {
   const hexes = Object.entries(editor.hexes).map(([label, hex]) => {
-    return {
-      id: label,
-      realId: hex.realId != null ? hex.realId.toString() : '',
-      q: hex.q,
-      r: hex.r,
-      planets: Array.from(hex.planets || []),
-      baseType: hex.baseType || '',
-      effects: Array.from(hex.effects || []),
-      wormholes: Array.from(hex.customWormholes || []),
-      customAdjacents: hex.customAdjacents ? JSON.parse(JSON.stringify(hex.customAdjacents)) : undefined,
-      adjacencyOverrides: hex.adjacencyOverrides ? JSON.parse(JSON.stringify(hex.adjacencyOverrides)) : undefined,
-      borderAnomalies: hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
-      links: hex.matrix,
-    };
+    const h = { id: label };
+    if (hex.realId != null && hex.realId !== '') h.rid = hex.realId.toString();
+    if (typeof hex.q === 'number') h.q = hex.q;
+    if (typeof hex.r === 'number') h.r = hex.r;
+    if (hex.planets && hex.planets.length) h.pl = Array.from(hex.planets);
+    if (hex.baseType && hex.baseType !== '') h.bt = hex.baseType;
+    if (hex.effects && hex.effects.size) h.fx = Array.from(hex.effects);
+    if (hex.customWormholes && hex.customWormholes.size) h.wh = Array.from(hex.customWormholes);
+    if (hex.customAdjacents && Object.keys(hex.customAdjacents).length) h.ca = JSON.parse(JSON.stringify(hex.customAdjacents));
+    if (hex.adjacencyOverrides && Object.keys(hex.adjacencyOverrides).length) h.ao = JSON.parse(JSON.stringify(hex.adjacencyOverrides));
+    if (hex.borderAnomalies && Object.keys(hex.borderAnomalies).length) h.ba = JSON.parse(JSON.stringify(hex.borderAnomalies));
+    if (hex.matrix && hex.matrix.flat().some(x => x !== 0)) h.ln = hex.matrix;
+    return h;
   });
-
-  return JSON.stringify({ hexes }, null, 2);
+  return JSON.stringify({ hexes }, null, 1);
 }
 
 /**
