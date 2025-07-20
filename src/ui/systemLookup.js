@@ -206,6 +206,10 @@ export default async function initSystemLookup(editor) {
             tr.addEventListener('click', () => {
                 editor.pendingSystemId = s.id.toString().toUpperCase();
                 showModal('systemLookupModal', false);
+                // --- Fix: Reset mode to prevent spurious wormhole overlays ---
+                if (typeof editor.setMode === 'function') editor.setMode('select');
+                // Remove 'active' from wormhole tool buttons (if any)
+                document.querySelectorAll('.btn-wormhole.active').forEach(btn => btn.classList.remove('active'));
             });
             tbody.appendChild(tr);
         });
@@ -336,6 +340,9 @@ function showRandomTilePopup(sys, editor, onAssign) {
                 editor.pendingSystemId = sys.id.toString().toUpperCase();
                 hidePopup('random-tile-popup');
                 showModal('systemLookupModal', false);
+                // --- Fix: Reset mode to prevent spurious wormhole overlays ---
+                if (typeof editor.setMode === 'function') editor.setMode('select');
+                document.querySelectorAll('.btn-wormhole.active').forEach(btn => btn.classList.remove('active'));
                 if (onAssign) onAssign();
             }
         },
