@@ -314,21 +314,91 @@ body.dark .dropdown-toggle:focus {
 ──────────────────────────────────────────────────────────────────────────────*/
 #controlsPanel {
   position: fixed;
-  top: 60px;
-  /* same as before */
-  left: 16px;
-  background: var(--bg-color);
-  padding: 8px;
-  border: 1px solid var(--modal-border);
-  z-index: 50;
-  transition: transform 0.3s ease, opacity 0.3s ease;
+  top: 70px;
+  /* Adjust to align with your top bar */
+  left: 0;
+  z-index: 100;
+  width: 340px;
+  /* Adjust width as needed */
+  max-width: 95vw;
+  background: var(--bg-color, #fff);
+  border: 1px solid var(--modal-border, #ccc);
+  border-radius: 0 12px 12px 0;
+  box-shadow: 2px 4px 16px #0002;
+  padding: 18px 18px 18px 18px;
+  transition: transform 0.3s, opacity 0.3s;
 }
 
 /* slide it off to the left and fade out */
 #controlsPanel.collapsed {
-  transform: translateX(-100%);
+  transform: translateX(-110%);
   opacity: 0;
   pointer-events: none;
+  transition: transform 0.3s, opacity 0.3s;
+}
+
+/* Controls Panel Hide/Show Arrow Buttons */
+#controlsPanelCloseBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  font-size: 1.3em;
+  background: transparent;
+  border: none;
+  color: #444;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+#controlsPanelCloseBtn:hover {
+  color: #222;
+  background: #ffe066;
+  border-radius: 50%;
+}
+
+#controlsPanelOpenBtn {
+  display: none;
+  position: fixed;
+  top: 90px;
+  /* Adjust to match controlsPanel vertical position */
+  left: 0;
+  z-index: 101;
+  font-size: 1.3em;
+  background: #ffe066;
+  border: none;
+  border-radius: 0 8px 8px 0;
+  padding: 6px 10px;
+  box-shadow: 1px 2px 8px #0002;
+  color: #444;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+#controlsPanelOpenBtn:hover {
+  background: #ffd700;
+  color: #222;
+}
+
+/* Controls panel size variants */
+#controlsPanel.size-small {
+  width: 220px !important;
+  font-size: 0.92em;
+}
+
+#controlsPanel.size-medium {
+  width: 340px !important;
+  font-size: 1em;
+}
+
+#controlsPanel.size-large {
+  width: 440px !important;
+  font-size: 1em;
+}
+
+#controlsPanel.size-xlarge {
+  width: 600px !important;
+  font-size: 1em;
 }
 
 /*──────────────────────────────────────────────────────────────────────────────
@@ -343,7 +413,7 @@ body.dark .dropdown-toggle:focus {
 }
 
 .pos-left {
-  top: 256px;
+  top: 285px;
   left: 16px;
   flex-direction: column;
   width: 160px;
@@ -1345,4 +1415,48 @@ Layout butoons and other Popup & Buttons
   color: #ffe066;
   text-align: left;
   padding-left: 4px;
+}
+
+/* Make the controls panel close and open buttons yellow, round, and accessible, with hover/focus states */
+#controlsPanelCloseBtn,
+#controlsPanelOpenBtn {
+  background: #ffe066;
+  color: #333;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 1.5em;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+  cursor: pointer;
+  outline: none;
+  transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#controlsPanelCloseBtn:hover,
+#controlsPanelOpenBtn:hover,
+#controlsPanelCloseBtn:focus,
+#controlsPanelOpenBtn:focus {
+  background: #ffd43b;
+  color: #111;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+#controlsPanelCloseBtn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1002;
+}
+
+#controlsPanelOpenBtn {
+  position: fixed;
+  top: 100px;
+  left: 0;
+  z-index: 1001;
+  opacity: 0.95;
 }

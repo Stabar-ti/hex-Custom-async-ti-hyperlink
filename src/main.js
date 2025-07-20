@@ -243,12 +243,17 @@ if (btnTileImages) {
 // ───── Collapse/Expand Import/Export panel ─────
 const toggleControlsBtn = document.getElementById('toggleControlsBtn');
 const controlsPanel = document.getElementById('controlsPanel');
+const controlsPanelOpenBtn = document.getElementById('controlsPanelOpenBtn');
 
 toggleControlsBtn?.addEventListener('click', () => {
   controlsPanel.classList.toggle('collapsed');
-  toggleControlsBtn.textContent = controlsPanel.classList.contains('collapsed')
+  const isCollapsed = controlsPanel.classList.contains('collapsed');
+  toggleControlsBtn.textContent = isCollapsed
     ? 'Show Im/Export & mapGen'
     : 'hide Im/Export & mapGen';
+  if (controlsPanelOpenBtn) {
+    controlsPanelOpenBtn.style.display = isCollapsed ? 'block' : 'none';
+  }
 });
 
 // Enable keyboard focus for global hotkeys
@@ -370,8 +375,51 @@ if (resetPopupBtn) {
   };
 }
 
+
+
 document.addEventListener('DOMContentLoaded', () => {
   setupTileCopySingleButtonAndPopup();
+
+  // Controls Panel Hide/Show Arrow Buttons
+  const controlsPanel = document.getElementById('controlsPanel');
+  controlsPanel.classList.add('size-xlarge'); // Set initial size
+  const controlsPanelCloseBtn = document.getElementById('controlsPanelCloseBtn');
+  const controlsPanelOpenBtn = document.getElementById('controlsPanelOpenBtn');
+  if (controlsPanel && controlsPanelCloseBtn && controlsPanelOpenBtn) {
+    controlsPanelCloseBtn.addEventListener('click', () => {
+      controlsPanel.classList.add('collapsed');
+      controlsPanelOpenBtn.style.display = 'block';
+      controlsPanelOpenBtn.setAttribute('aria-hidden', 'false');
+      controlsPanelOpenBtn.tabIndex = 0;
+    });
+    controlsPanelOpenBtn.addEventListener('click', () => {
+      controlsPanel.classList.remove('collapsed');
+      controlsPanelOpenBtn.style.display = 'none';
+      controlsPanelOpenBtn.setAttribute('aria-hidden', 'true');
+      controlsPanelOpenBtn.tabIndex = -1;
+    });
+    // Hide open button if panel is visible on load
+    if (!controlsPanel.classList.contains('collapsed')) {
+      controlsPanelOpenBtn.style.display = 'none';
+      controlsPanelOpenBtn.setAttribute('aria-hidden', 'true');
+      controlsPanelOpenBtn.tabIndex = -1;
+    }
+  }
+
+  // Also handle toggleControlsBtn from Layout Options popup
+  const toggleControlsBtn = document.getElementById('toggleControlsBtn');
+  if (toggleControlsBtn && controlsPanel && controlsPanelOpenBtn) {
+    toggleControlsBtn.addEventListener('click', () => {
+      controlsPanel.classList.toggle('collapsed');
+      const isCollapsed = controlsPanel.classList.contains('collapsed');
+      toggleControlsBtn.textContent = isCollapsed
+        ? 'Show Im/Export & mapGen'
+        : 'hide Im/Export & mapGen';
+      controlsPanelOpenBtn.style.display = isCollapsed ? 'block' : 'none';
+      controlsPanelOpenBtn.setAttribute('aria-hidden', isCollapsed ? 'false' : 'true');
+      controlsPanelOpenBtn.tabIndex = isCollapsed ? 0 : -1;
+    });
+  }
 });
 
 document.getElementById('helpToggle').onclick = showHelpPopup;
