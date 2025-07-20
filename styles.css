@@ -321,7 +321,11 @@ body.dark .dropdown-toggle:focus {
   width: 340px;
   /* Adjust width as needed */
   max-width: 95vw;
-  background: var(--bg-color, #fff);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+body.dark #controlsPanel {
+  background: rgba(18, 18, 18, 0.9);
   border: 1px solid var(--modal-border, #ccc);
   border-radius: 0 12px 12px 0;
   box-shadow: 2px 4px 16px #0002;
@@ -346,7 +350,7 @@ body.dark .dropdown-toggle:focus {
   font-size: 1.3em;
   background: transparent;
   border: none;
-  color: #444;
+  color: #00380c;
   cursor: pointer;
   transition: color 0.2s;
 }

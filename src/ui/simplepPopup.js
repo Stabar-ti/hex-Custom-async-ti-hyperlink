@@ -225,11 +225,26 @@ export function showOverlayOptionsPopup() {
         // Custom Links toggle (handled above in setupToggle)
         setupToggle('toggleCustomLinks', 'showCustomAdjacency');
 
-        // Link Wormholes button (not a toggle, just an action)
+        // Link Wormholes button (now a toggle, consistent with other overlays)
         const linkBtn = document.getElementById('linkWormholesBtn');
         if (linkBtn) {
+            // Initialize state if not present
+            if (typeof editor.showWormholeLinks === 'undefined') editor.showWormholeLinks = false;
+            // Set initial button state
+            linkBtn.classList.toggle('active', !!editor.showWormholeLinks);
             linkBtn.onclick = () => {
-                if (typeof editor.drawWormholeLinks === 'function') editor.drawWormholeLinks();
+                editor.showWormholeLinks = !editor.showWormholeLinks;
+                linkBtn.classList.toggle('active', editor.showWormholeLinks);
+                if (typeof editor.toggleWormholeLinksOverlay === 'function') {
+                    editor.toggleWormholeLinksOverlay(editor.showWormholeLinks);
+                } else if (typeof editor.drawWormholeLinks === 'function') {
+                    // Fallback: draw or clear overlay
+                    if (editor.showWormholeLinks) {
+                        editor.drawWormholeLinks();
+                    } else if (typeof editor.clearWormholeLinks === 'function') {
+                        editor.clearWormholeLinks();
+                    }
+                }
             };
         }
 
