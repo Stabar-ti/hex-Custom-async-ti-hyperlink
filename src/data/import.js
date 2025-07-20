@@ -450,12 +450,17 @@ export function importFullState(editor, jsonText) {
       let realId = h.rid ?? h.realId ?? h.realID;
       hex.realId = realId ?? null;
       if (hex.realId) markRealIDUsed(hex.realId);
+      // Recover system info for inherent wormholes if realId is present
+      let info = {};
+      let realIdKey = realId ? realId.toString().toUpperCase() : null;
+      if (realIdKey && editor.sectorIDLookup && editor.sectorIDLookup[realIdKey]) {
+        info = editor.sectorIDLookup[realIdKey] || {};
+      }
       hex.planets = h.pl || h.planets || [];
       // Restore baseType (color/classification)
       if (h.bt !== undefined) hex.baseType = h.bt;
       else if (h.baseType !== undefined) hex.baseType = h.baseType;
       else delete hex.baseType;
-      // Ensure overlays/color are updated for baseType
       if (hex.baseType) editor.setSectorType(h.id, hex.baseType);
       // Matrix/links
       hex.matrix = h.ln || h.links || Array.from({ length: 6 }, () => Array(6).fill(0));
@@ -470,10 +475,10 @@ export function importFullState(editor, jsonText) {
       if (h.ba !== undefined) hex.borderAnomalies = JSON.parse(JSON.stringify(h.ba));
       else if (h.borderAnomalies !== undefined) hex.borderAnomalies = JSON.parse(JSON.stringify(h.borderAnomalies));
       else delete hex.borderAnomalies;
-      // Wormholes
-      hex.inherentWormholes = new Set();
+      // Wormholes: recover inherent from system info, custom from save
+      hex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
       hex.customWormholes = new Set(Array.from(h.wh || h.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
-      hex.wormholes = new Set([...hex.customWormholes]);
+      hex.wormholes = new Set([...hex.inherentWormholes, ...hex.customWormholes]);
       hex.wormholeOverlays = [];
       Array.from(hex.wormholes).forEach((w, i) => {
         const positions = editor.effectIconPositions;
