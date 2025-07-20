@@ -435,6 +435,68 @@ export function importFullState(editor, jsonText) {
       if (info.isAsteroidField) editor.applyEffect(id, 'asteroid');
     });
 
+    // ---- 6. Restore any extra hexes (e.g. corners: tl, tr, bl, br) ----
+    const extraHexes = hexArr.filter(h => !labelList.includes(h.id));
+    extraHexes.forEach(h => {
+      let hex = editor.hexes[h.id];
+      if (!hex) return;
+      // Clean overlays/effects/wormholes
+      hex.overlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
+      hex.overlays = [];
+      hex.wormholeOverlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
+      hex.wormholeOverlays = [];
+      hex.effects = new Set();
+      // Attach realId and planets
+      let realId = h.rid ?? h.realId ?? h.realID;
+      hex.realId = realId ?? null;
+      if (hex.realId) markRealIDUsed(hex.realId);
+      hex.planets = h.pl || h.planets || [];
+      // Restore baseType (color/classification)
+      if (h.bt !== undefined) hex.baseType = h.bt;
+      else if (h.baseType !== undefined) hex.baseType = h.baseType;
+      else delete hex.baseType;
+      // Ensure overlays/color are updated for baseType
+      if (hex.baseType) editor.setSectorType(h.id, hex.baseType);
+      // Matrix/links
+      hex.matrix = h.ln || h.links || Array.from({ length: 6 }, () => Array(6).fill(0));
+      drawMatrixLinks(editor, h.id, hex.matrix);
+      // Adjacency/custom links/border anomalies
+      if (h.ca !== undefined) hex.customAdjacents = JSON.parse(JSON.stringify(h.ca));
+      else if (h.customAdjacents !== undefined) hex.customAdjacents = JSON.parse(JSON.stringify(h.customAdjacents));
+      else delete hex.customAdjacents;
+      if (h.ao !== undefined) hex.adjacencyOverrides = JSON.parse(JSON.stringify(h.ao));
+      else if (h.adjacencyOverrides !== undefined) hex.adjacencyOverrides = JSON.parse(JSON.stringify(h.adjacencyOverrides));
+      else delete hex.adjacencyOverrides;
+      if (h.ba !== undefined) hex.borderAnomalies = JSON.parse(JSON.stringify(h.ba));
+      else if (h.borderAnomalies !== undefined) hex.borderAnomalies = JSON.parse(JSON.stringify(h.borderAnomalies));
+      else delete hex.borderAnomalies;
+      // Wormholes
+      hex.inherentWormholes = new Set();
+      hex.customWormholes = new Set(Array.from(h.wh || h.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
+      hex.wormholes = new Set([...hex.customWormholes]);
+      hex.wormholeOverlays = [];
+      Array.from(hex.wormholes).forEach((w, i) => {
+        const positions = editor.effectIconPositions;
+        const len = positions.length;
+        const reversedIndex = len - 1 - (i % len);
+        const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
+        const overlay = (typeof createWormholeOverlay === 'function')
+          ? createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase())
+          : null;
+        if (overlay) {
+          const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
+          if (wormholeIconLayer) {
+            wormholeIconLayer.appendChild(overlay);
+          } else {
+            editor.svg.appendChild(overlay);
+          }
+          hex.wormholeOverlays.push(overlay);
+        }
+      });
+      // Effects
+      (h.fx || h.effects || []).forEach(eff => eff && editor.applyEffect(h.id, eff));
+    });
+
     redrawAllRealIDOverlays(editor);
     drawCustomAdjacencyLayer(editor);
     drawBorderAnomaliesLayer(editor);
