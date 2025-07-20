@@ -131,11 +131,15 @@ export function showPopup({
             titleBar.style.display = 'flex';
             titleBar.style.alignItems = 'center';
             titleBar.style.justifyContent = 'flex-end';
-            titleBar.style.position = 'relative';
+            // --- Sticky title bar ---
+            titleBar.style.position = 'sticky';
+            titleBar.style.top = '0';
+            titleBar.style.zIndex = '2';
             titleBar.style.background = '#444'; // Lighter gray background for title bar
             titleBar.style.userSelect = 'none';
             titleBar.style.padding = '0 8px 0 8px';
             titleBar.style.marginBottom = '8px';
+            titleBar.style.boxShadow = '0 2px 6px #0002'; // subtle shadow for separation
             // --- Insert title text if provided ---
             if (typeof title !== 'undefined' && title !== null && title !== '') {
                 const titleText = document.createElement('span');
