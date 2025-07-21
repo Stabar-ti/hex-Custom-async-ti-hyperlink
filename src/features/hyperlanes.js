@@ -23,9 +23,10 @@ export function bindHyperlaneEditing(editor) {
    * (unless it's the first click), then tries to draw a link.
    */
   editor._selectHex = function (label) {
-    // --- Block hyperlane drawing if modal open or pending system assignment ---
-    if (document.getElementById('systemLookupModal')?.classList.contains('open') ||
-      this.pendingSystemId) {
+    // --- Block hyperlane drawing if modal/popup open or pending system assignment ---
+    const lookupPopupOpen = document.getElementById('system-lookup-popup') !== null;
+    const lookupModalOpen = document.getElementById('systemLookupModal')?.classList.contains('open');
+    if (lookupPopupOpen || lookupModalOpen || this.pendingSystemId) {
       return;
     }
     if (!this.linking) return;

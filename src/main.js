@@ -268,11 +268,16 @@ document.body.focus();
   }
 
   jumpBtn.addEventListener('click', () => {
-    showModal('systemLookupModal');
-    searchInput.value = '';
-    resultsList.innerHTML = '';
-    editor.pendingSystemId = null;
-    setTimeout(() => searchInput.focus(), 0);
+    // Use the new popup system if available, fallback to old modal
+    if (typeof window.showSystemLookupPopup === 'function') {
+      window.showSystemLookupPopup();
+    } else {
+      showModal('systemLookupModal');
+      searchInput.value = '';
+      resultsList.innerHTML = '';
+      editor.pendingSystemId = null;
+      setTimeout(() => searchInput.focus(), 0);
+    }
   });
 
   searchInput.addEventListener('input', e => {
@@ -309,10 +314,11 @@ svg.addEventListener('click', e => {
   const hexID = poly.dataset.label;
   if (!hexID) return;
 
-  // --- Prevent ANY action (including hyperlane mode) if system lookup modal is open ---
+  // --- Prevent ANY action (including hyperlane mode) if system lookup popup is open ---
+  const lookupPopupOpen = document.getElementById('system-lookup-popup') !== null;
   const lookupModalOpen = document.getElementById('systemLookupModal')?.classList.contains('open');
-  if (lookupModalOpen) {
-    // Optionally, flash or shake modal here to show user it's still open
+  if (lookupPopupOpen || lookupModalOpen) {
+    // Optionally, flash or shake modal/popup here to show user it's still open
     return;
   }
 

@@ -37,7 +37,14 @@ export function populateSectorControls(editor) {
       realIdBtn.className = 'mode-button btn-lookup-id';
       realIdBtn.textContent = 'Async Tiles';
       realIdBtn.title = 'Choose Async Tile';
-      realIdBtn.addEventListener('click', () => showModal('systemLookupModal'));
+      realIdBtn.addEventListener('click', () => {
+        // Use the new popup system if available, fallback to old modal
+        if (typeof window.showSystemLookupPopup === 'function') {
+          window.showSystemLookupPopup();
+        } else {
+          showModal('systemLookupModal');
+        }
+      });
       container.appendChild(realIdBtn);
     }
   });

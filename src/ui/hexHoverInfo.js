@@ -4,6 +4,12 @@ export function initHexHoverInfo(editor) {
   const infoDiv = document.getElementById('hexHoverInfo');
   const toggleBtn = document.getElementById('toggleHoverInfoBtn');
 
+  // Check if the toggle button exists (it might be commented out in HTML)
+  if (!toggleBtn) {
+    console.warn('toggleHoverInfoBtn not found - hover info toggle disabled');
+    return;
+  }
+
   // Toggle the hover info window
   toggleBtn.addEventListener('click', () => {
     hoverInfoEnabled = !hoverInfoEnabled;

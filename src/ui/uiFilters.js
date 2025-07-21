@@ -199,7 +199,7 @@ export function refreshSystemList() {
 
   // 3) Render the final results via the lookup UI
   if (typeof window.renderSystemList === 'function') {
-    window.renderSystemList(searched);
+    window.renderSystemList();
   }
 }
 

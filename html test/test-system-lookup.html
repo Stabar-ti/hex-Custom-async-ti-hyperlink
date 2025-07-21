@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Lookup Popup Test</title>
+    <style>
+        body {
+            background: #222;
+            color: #ccc;
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        
+        .test-controls {
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .test-btn {
+            background: #2a5a2a;
+            color: #cfc;
+            border: 1px solid #4a7a4a;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .test-btn:hover {
+            background: #3a6a3a;
+        }
+        
+        .status {
+            background: #444;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .wizard-btn {
+            background: #555;
+            color: #fff;
+            border: 1px solid #777;
+            padding: 6px 12px;
+            margin: 2px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .modal-input {
+            background: #444;
+            color: #ccc;
+            border: 1px solid #666;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        
+        .filter-button {
+            background: #666;
+            color: #ccc;
+            border: 1px solid #888;
+            padding: 4px 8px;
+            margin: 2px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        
+        .filter-button.active {
+            background: #4a7a4a;
+            color: #cfc;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 System Lookup Popup Test</h1>
+    
+    <div class="test-controls">
+        <h3>Test Controls</h3>
+        <button id="testSystemLookup" class="test-btn">🔍 Test System Lookup Popup</button>
+        <button id="testRandomTile" class="test-btn">🎲 Test Random Tile Popup</button>
+        <button id="testMockData" class="test-btn">📊 Load Mock Data</button>
+        <button id="resetTest" class="test-btn">🔄 Reset Test</button>
+        
+        <div id="status" class="status">Ready to test...</div>
+    </div>
+    
+    <div id="instructions">
+        <h3>Test Instructions:</h3>
+        <ol>
+            <li>Click "Load Mock Data" to create sample systems data</li>
+            <li>Click "Test System Lookup Popup" to open the main popup</li>
+            <li>Test features:
+                <ul>
+                    <li>Search functionality (type in search box)</li>
+                    <li>Filter buttons (click to toggle)</li>
+                    <li>Random tile button</li>
+                    <li>Popup dragging and resizing</li>
+                    <li>System selection</li>
+                </ul>
+            </li>
+            <li>Check console for any errors or debug info</li>
+        </ol>
+    </div>
+
+    <script type="module">
+        // Mock the editor and required systems
+        window.editor = {
+            allSystems: [],
+            hexes: {}
+        };
+        
+        // Mock system data
+        const mockSystems = [
+            {
+                id: "1", name: "Mecatol Rex", 
+                planets: [{name: "Mecatol Rex", resources: 1, influence: 6, legendaryAbilityName: "Imperial Seat"}],
+                isHyperlane: false, imagePath: "system1.png"
+            },
+            {
+                id: "2", name: "Jord", 
+                planets: [{name: "Jord", resources: 4, influence: 2, factionHomeworld: true}],
+                isHyperlane: false, imagePath: "system2.png"
+            },
+            {
+                id: "3", name: "Muaat", 
+                planets: [{name: "Muaat", resources: 4, influence: 1, factionHomeworld: true}],
+                isHyperlane: false, imagePath: "system3.png"
+            },
+            {
+                id: "25", name: "Quann + Lodor", 
+                planets: [
+                    {name: "Quann", resources: 2, influence: 1, techSpecialties: ["CYBERNETIC"]},
+                    {name: "Lodor", resources: 3, influence: 1}
+                ],
+                isHyperlane: false, imagePath: "system25.png"
+            },
+            {
+                id: "26", name: "New Albion + Starpoint", 
+                planets: [
+                    {name: "New Albion", resources: 1, influence: 1, techSpecialties: ["BIOTIC"]},
+                    {name: "Starpoint", resources: 3, influence: 1, techSpecialties: ["WARFARE"]}
+                ],
+                isHyperlane: false, imagePath: "system26.png"
+            },
+            {
+                id: "39", name: "Asteroid Field", 
+                planets: [],
+                isAsteroidField: true,
+                isHyperlane: false, imagePath: "system39.png"
+            },
+            {
+                id: "40", name: "Supernova", 
+                planets: [],
+                isSupernova: true,
+                isHyperlane: false, imagePath: "system40.png"
+            },
+            {
+                id: "41", name: "Nebula", 
+                planets: [],
+                isNebula: true,
+                isHyperlane: false, imagePath: "system41.png"
+            },
+            {
+                id: "79", name: "Wormhole Alpha", 
+                planets: [],
+                wormholes: ["alpha"],
+                isHyperlane: false, imagePath: "system79.png"
+            },
+            {
+                id: "80", name: "Wormhole Beta", 
+                planets: [],
+                wormholes: ["beta"],
+                isHyperlane: false, imagePath: "system80.png"
+            }
+        ];
+        
+        // Status logging
+        function log(message) {
+            const status = document.getElementById('status');
+            status.innerHTML += '<br>' + new Date().toLocaleTimeString() + ': ' + message;
+            console.log('Test:', message);
+        }
+        
+        // Test controls
+        document.getElementById('testMockData').addEventListener('click', () => {
+            window.editor.allSystems = [...mockSystems];
+            log(`✅ Loaded ${mockSystems.length} mock systems`);
+        });
+        
+        document.getElementById('testSystemLookup').addEventListener('click', () => {
+            if (typeof window.showSystemLookupPopup === 'function') {
+                log('🔍 Opening system lookup popup...');
+                window.showSystemLookupPopup();
+            } else {
+                log('❌ showSystemLookupPopup function not available');
+            }
+        });
+        
+        document.getElementById('testRandomTile').addEventListener('click', () => {
+            if (window.editor.allSystems.length > 0) {
+                const randomSys = window.editor.allSystems[Math.floor(Math.random() * window.editor.allSystems.length)];
+                log(`🎲 Testing random tile popup with system: ${randomSys.name}`);
+                // This would normally be called from within the popup
+                console.log('Random system selected:', randomSys);
+            } else {
+                log('❌ No systems loaded. Click "Load Mock Data" first.');
+            }
+        });
+        
+        document.getElementById('resetTest').addEventListener('click', () => {
+            window.editor.allSystems = [];
+            window.editor.hexes = {};
+            document.getElementById('status').innerHTML = 'Reset complete. Ready to test...';
+            // Close any open popups
+            document.querySelectorAll('[id$="-popup"]').forEach(popup => popup.remove());
+        });
+        
+        // Load the system lookup module
+        import('./src/ui/systemLookup.js').then(module => {
+            log('✅ System lookup module loaded');
+            // Initialize with mock editor
+            module.default(window.editor).then(() => {
+                log('✅ System lookup initialized');
+            }).catch(err => {
+                log('❌ Failed to initialize: ' + err.message);
+            });
+        }).catch(err => {
+            log('❌ Failed to load systemLookup.js: ' + err.message);
+        });
+    </script>
+</body>
+</html>
