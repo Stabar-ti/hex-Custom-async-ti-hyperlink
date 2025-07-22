@@ -20,7 +20,7 @@ export function showHelpPopup() {
         <h4>🖱 Base Controls</h4>
         <li><strong>Left - Click</strong> a hex to assign the selected sector, wormhole, or effect.</li>
         <li><strong>Ctrl/Cmd + Z</strong> to undo, <strong>Ctrl/Cmd + Shift + Z</strong> to redo.</li>
-        <li><strong>SHIFT-R (Hoover tile) </strong> to remove all tile info (RESET) </li>
+        <li><strong>SHIFT-R (Hoover tile) OR (Hoover tile) with Delete </strong> to remove all tile info (RESET) </li>
         <h4>🖱 Map Controls</h4>
         <li><strong>Middle mouse (drag)</strong> to pan the map; <strong>mouse wheel</strong> to zoom.</li>
         <h4>🖱 Utility Controls</h4>
