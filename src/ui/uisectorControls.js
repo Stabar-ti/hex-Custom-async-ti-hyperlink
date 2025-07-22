@@ -66,7 +66,7 @@ export function populateSectorControls(editor) {
       rememberPosition: true,
       style: {
         left: '420px',
-        top: '150px',
+        top: '180px',
         minWidth: '220px',
         maxWidth: '600px',
         minHeight: '120px',

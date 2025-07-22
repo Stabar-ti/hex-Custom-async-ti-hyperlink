@@ -1,15 +1,16 @@
 // ───────────────────────────────────────────────────────────────
-// data/export.js
+// Wormhole Handling Pattern (2024 Refactor):
 //
-// This module provides all export utilities for the TI4 map editor.
-// It supports exporting map data in multiple formats:
-// - Adjacency strings for hyperlane links
-// - User-added wormhole positions (for scripting bots, etc)
-// - Hyperlane tile positions
-// - Full JSON state for saving/sharing maps
-// - Sector code (type) string for re-import or sharing
-// Each format is designed to support both advanced automation
-// and human sharing/copy-paste workflows.
+// Each hex now has:
+//   - inherentWormholes: wormholes from system/tile/realId (never exported/imported)
+//   - customWormholes: user-placed wormholes (only these are exported/imported)
+//   - wormholes: union of inherentWormholes and customWormholes (for overlays, UI, etc)
+//
+// All logic (import, export, overlays, undo, UI, distance calculations) must distinguish
+// between inherent and custom wormholes. Only customWormholes are exported/imported.
+//
+// When mutating wormholes, always update customWormholes and call updateHexWormholes(hex)
+// to refresh the union. This makes the codebase easier to maintain and debug.
 // ───────────────────────────────────────────────────────────────
 
 import { matrixToHex, hasLinks } from '../utils/matrix.js';
@@ -62,6 +63,8 @@ export function exportMap(editor) {
  * Exports only user-added wormhole tokens/positions.
  * Omits inherent/system wormholes (from tile data).
  * Output is compatible with TTS/bot /add_token syntax.
+ *
+ * Only customWormholes are exported (see wormhole handling pattern above).
  */
 export function exportWormholePositions(editor) {
   // Build the wormhole token map
@@ -75,19 +78,15 @@ export function exportWormholePositions(editor) {
   const groups = {};
 
   for (const [id, hex] of Object.entries(editor.hexes)) {
-    if (!/^\d{3,4}$/.test(id)) continue;
-
-    // Find inherent/system wormholes (lowercase)
-    const inherent = new Set(
-      Array.from(hex.inherentWormholes || hex.systemWormholes || [])
-        .map(w => w.toLowerCase())
-    );
-
-    // User wormholes: in .wormholes but not inherent
-    const userWormholes = Array.from(hex.wormholes || []).filter(
-      w => !inherent.has(w.toLowerCase())
-    );
-
+    if (!/^[0-9]{3,4}$/.test(id)) continue;
+    // Debug: log wormhole state before export
+    console.log('exportWormholePositions', id, {
+      inherentWormholes: Array.from(hex.inherentWormholes || []),
+      customWormholes: Array.from(hex.customWormholes || []),
+      wormholes: Array.from(hex.wormholes || [])
+    });
+    // Only export customWormholes
+    const userWormholes = Array.from(hex.customWormholes || []);
     if (userWormholes.length === 0) continue;
 
     for (const whRaw of userWormholes) {
@@ -132,33 +131,39 @@ export function exportHyperlaneTilePositions(editor) {
 }
 
 /**
- * Exports the full editor state as a JSON object (for saving/loading).
- * Includes only user-added wormholes (not inherent/system).
+ * Exports the full editor state as a compact JSON object (for saving/loading).
+ * Only non-empty fields are exported, and property names are shortened for compactness.
+ *
+ * Field mapping:
+ *   id: label
+ *   rid: realId
+ *   q, r: coordinates
+ *   pl: planets
+ *   bt: baseType
+ *   fx: effects
+ *   wh: customWormholes
+ *   ca: customAdjacents
+ *   ao: adjacencyOverrides
+ *   ba: borderAnomalies
+ *   ln: links (matrix)
  */
 export function exportFullState(editor) {
   const hexes = Object.entries(editor.hexes).map(([label, hex]) => {
-    const inherent = hex.inherentWormholes || new Set();
-    const userWormholes = Array.from(hex.wormholes || [])
-      .filter(w => !inherent.has(w));
-
-    return {
-      id: label,
-      realId: hex.realId != null ? hex.realId.toString() : '',
-      q: hex.q,
-      r: hex.r,
-      planets: Array.from(hex.planets || []),
-      baseType: hex.baseType || '',
-      effects: Array.from(hex.effects || []),
-      wormholes: userWormholes,
-      customAdjacents: hex.customAdjacents ? JSON.parse(JSON.stringify(hex.customAdjacents)) : undefined,
-      adjacencyOverrides: hex.adjacencyOverrides ? JSON.parse(JSON.stringify(hex.adjacencyOverrides)) : undefined,
-      borderAnomalies: hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
-      links: hex.matrix,
-
-    };
+    const h = { id: label };
+    if (hex.realId != null && hex.realId !== '') h.rid = hex.realId.toString();
+    if (typeof hex.q === 'number') h.q = hex.q;
+    if (typeof hex.r === 'number') h.r = hex.r;
+    if (hex.planets && hex.planets.length) h.pl = Array.from(hex.planets);
+    if (hex.baseType && hex.baseType !== '') h.bt = hex.baseType;
+    if (hex.effects && hex.effects.size) h.fx = Array.from(hex.effects);
+    if (hex.customWormholes && hex.customWormholes.size) h.wh = Array.from(hex.customWormholes);
+    if (hex.customAdjacents && Object.keys(hex.customAdjacents).length) h.ca = JSON.parse(JSON.stringify(hex.customAdjacents));
+    if (hex.adjacencyOverrides && Object.keys(hex.adjacencyOverrides).length) h.ao = JSON.parse(JSON.stringify(hex.adjacencyOverrides));
+    if (hex.borderAnomalies && Object.keys(hex.borderAnomalies).length) h.ba = JSON.parse(JSON.stringify(hex.borderAnomalies));
+    if (hex.matrix && hex.matrix.flat().some(x => x !== 0)) h.ln = hex.matrix;
+    return h;
   });
-
-  return JSON.stringify({ hexes }, null, 2);
+  return JSON.stringify({ hexes }, null, 1);
 }
 
 /**

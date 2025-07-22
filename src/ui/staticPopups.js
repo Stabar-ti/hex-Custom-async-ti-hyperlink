@@ -1,8 +1,8 @@
 import { showPopup, hidePopup } from './popupUI.js';
 
 export function showHelpPopup() {
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = `
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = `
       <h3>🧭 TI4 Mapping Tool — Help</h3>
       <p>
         <strong>Welcome!</strong> This web tool lets you build, edit, and export custom
@@ -20,7 +20,7 @@ export function showHelpPopup() {
         <h4>🖱 Base Controls</h4>
         <li><strong>Left - Click</strong> a hex to assign the selected sector, wormhole, or effect.</li>
         <li><strong>Ctrl/Cmd + Z</strong> to undo, <strong>Ctrl/Cmd + Shift + Z</strong> to redo.</li>
-        <li><strong>SHIFT-R (Hoover tile) </strong> to remove all tile info (RESET) </li>
+        <li><strong>SHIFT-R (Hoover tile) OR (Hoover tile) with Delete </strong> to remove all tile info (RESET) </li>
         <h4>🖱 Map Controls</h4>
         <li><strong>Middle mouse (drag)</strong> to pan the map; <strong>mouse wheel</strong> to zoom.</li>
         <h4>🖱 Utility Controls</h4>
@@ -37,7 +37,7 @@ export function showHelpPopup() {
       <h4>🌌 Sector Types & Effects</h4>
       <ul>
         <li>Async Tiles, allow you to directly search tiles available in async server to design your maps.</li>
-        <li>just numbers: base + pok, d*** Discordant stars, er*** Erronous tiles, etc.</li>
+        <li>just numbers: base + pok, d*** Discordant stars, er*** Eronous tiles, etc.</li>
         <li>Or pick a sector type (1/2/3 planet, empty, homesystem, etc) and click tiles to assign them.</li>
         <li>Add effects (<em>rift, asteroid, nebula, supernova</em>) as emoji overlays on tiles.</li>
       </ul>
@@ -55,25 +55,25 @@ export function showHelpPopup() {
         <li>Keyboard shortcuts help you edit much faster!</li>
       </ul>
     `;
-    showPopup({
-        id: 'help-popup',
-        className: 'help-popup',
-        content: wrapper,
-        actions: [{ label: 'Close', action: () => hidePopup('help-popup') }],
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        modal: false,
-        title: 'Help',
-        style: { minWidth: '420px', borderRadius: '14px', zIndex: 10010 },
-        showHelp: false
-    });
+  showPopup({
+    id: 'help-popup',
+    className: 'help-popup',
+    content: wrapper,
+    actions: [{ label: 'Close', action: () => hidePopup('help-popup') }],
+    draggable: true,
+    dragHandleSelector: '.popup-ui-titlebar',
+    scalable: true,
+    rememberPosition: true,
+    modal: false,
+    title: 'Help',
+    style: { minWidth: '420px', borderRadius: '14px', zIndex: 10010 },
+    showHelp: false
+  });
 }
 
 export function showInfoPopup() {
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = `
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = `
       <h3>📁 Import & Export — How To</h3>
       <p>
         <strong>Quick Guide:</strong> Use the <b>Export</b> buttons to save your work, and <b>Import</b> buttons to restore it.<br>
@@ -128,25 +128,25 @@ export function showInfoPopup() {
         <b>Need help?</b> See <b>Help</b> for basic editing, or <b>Features</b> for roadmap & feedback.
       </p>
     `;
-    showPopup({
-        id: 'info-popup',
-        className: 'info-popup',
-        content: wrapper,
-        actions: [{ label: 'Close', action: () => hidePopup('info-popup') }],
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        modal: false,
-        title: 'Import/Export How-To',
-        style: { minWidth: '420px', borderRadius: '14px', zIndex: 10010 },
-        showHelp: false
-    });
+  showPopup({
+    id: 'info-popup',
+    className: 'info-popup',
+    content: wrapper,
+    actions: [{ label: 'Close', action: () => hidePopup('info-popup') }],
+    draggable: true,
+    dragHandleSelector: '.popup-ui-titlebar',
+    scalable: true,
+    rememberPosition: true,
+    modal: false,
+    title: 'Import/Export How-To',
+    style: { minWidth: '420px', borderRadius: '14px', zIndex: 10010 },
+    showHelp: false
+  });
 }
 
 export function showFeaturesPopup() {
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = `
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = `
       <h3>✨ Features & Feedback</h3>
       <ul>
         <li><strong>Major Features:</strong> Sector assignment, integrated async tiles, hyperlane editor, wormhole links,
@@ -159,18 +159,18 @@ export function showFeaturesPopup() {
         </li>
       </ul>
     `;
-    showPopup({
-        id: 'features-popup',
-        className: 'features-popup',
-        content: wrapper,
-        actions: [{ label: 'Close', action: () => hidePopup('features-popup') }],
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        modal: false,
-        title: 'Features & Feedback',
-        style: { minWidth: '420px', borderRadius: '14px', zIndex: 10010 },
-        showHelp: false
-    });
+  showPopup({
+    id: 'features-popup',
+    className: 'features-popup',
+    content: wrapper,
+    actions: [{ label: 'Close', action: () => hidePopup('features-popup') }],
+    draggable: true,
+    dragHandleSelector: '.popup-ui-titlebar',
+    scalable: true,
+    rememberPosition: true,
+    modal: false,
+    title: 'Features & Feedback',
+    style: { minWidth: '420px', borderRadius: '14px', zIndex: 10010 },
+    showHelp: false
+  });
 }

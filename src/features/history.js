@@ -141,14 +141,14 @@ export function initHistory(editor) {
       id: label,
       baseType: hex.baseType,
       realId: hex.realId ?? null,
-      // only serialize if we truly have some planet data
       planets: (hex.planets === undefined)
         ? undefined
         : JSON.parse(JSON.stringify(hex.planets)),
       effects: new Set(hex.effects),
-      wormholes: new Set(hex.wormholes),
+      // Save both inherent and custom wormholes (new pattern)
+      inherentWormholes: new Set(hex.inherentWormholes),
+      customWormholes: new Set(hex.customWormholes),
       matrix: hex.matrix.map(r => [...r]),
-      // ADD THESE:
       customAdjacents: hex.customAdjacents ? JSON.parse(JSON.stringify(hex.customAdjacents)) : undefined,
       adjacencyOverrides: hex.adjacencyOverrides ? JSON.parse(JSON.stringify(hex.adjacencyOverrides)) : undefined,
       borderAnomalies: hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
@@ -171,7 +171,6 @@ export function initHistory(editor) {
     // Remove wormhole overlays/icons
     hex.wormholeOverlays?.forEach(o => this.svg?.removeChild(o));
     hex.wormholeOverlays = [];
-    hex.wormholes = new Set();
 
     // ⬇️ DETAG and RETAG realID in filter
     if (hex.realId && hex.realId !== snap.realId) {
@@ -189,11 +188,8 @@ export function initHistory(editor) {
     } else {
       hex.planets = JSON.parse(JSON.stringify(snap.planets));
     }
-
     hex.effects = new Set(snap.effects);
-    hex.wormholes = new Set(snap.wormholes);
     hex.matrix = snap.matrix.map(row => [...row]);
-
     // Restore custom links and anomalies state
     if (snap.customAdjacents === undefined) delete hex.customAdjacents;
     else hex.customAdjacents = JSON.parse(JSON.stringify(snap.customAdjacents));
@@ -202,12 +198,48 @@ export function initHistory(editor) {
     if (snap.borderAnomalies === undefined) delete hex.borderAnomalies;
     else hex.borderAnomalies = JSON.parse(JSON.stringify(snap.borderAnomalies));
 
+    // ---- WORMHOLES: restore inherent and custom separately, then update union
+    hex.inherentWormholes = new Set(snap.inherentWormholes || []);
+    hex.customWormholes = new Set(snap.customWormholes || []);
+    if (typeof updateHexWormholes === 'function') {
+      updateHexWormholes(hex);
+      if (verbose || true) {
+        console.log('updateHexWormholes called', snap.id, {
+          afterUpdate: Array.from(hex.wormholes)
+        });
+      }
+    } else {
+      hex.wormholes = new Set([
+        ...(hex.inherentWormholes ? Array.from(hex.inherentWormholes) : []),
+        ...(hex.customWormholes ? Array.from(hex.customWormholes) : [])
+      ]);
+      if (verbose || true) {
+        console.log('manual union wormholes', snap.id, {
+          afterUnion: Array.from(hex.wormholes)
+        });
+      }
+    }
+    // Debug: log wormhole state after restore
+    if (verbose || true) {
+      console.log('RESTORE HEX', snap.id, {
+        inherentWormholes: Array.from(hex.inherentWormholes),
+        customWormholes: Array.from(hex.customWormholes),
+        wormholes: Array.from(hex.wormholes)
+      });
+    }
+    // Defensive: overlays are only for custom wormholes, never inherent
+    if (!(hex.customWormholes instanceof Set)) hex.customWormholes = new Set(hex.customWormholes || []);
+    for (const w of hex.customWormholes) {
+      if (verbose || true) {
+        console.log('DRAW OVERLAY for custom wormhole', snap.id, w);
+      }
+      toggleWormhole(this, snap.id, w);
+    }
+
     // 3. Re-draw sector, overlays, wormholes, links
     this.setSectorType(snap.id, hex.baseType);         // fill, possibly removes overlays
     hex.effects.forEach(eff => applyEffectToHex(this, snap.id, eff));
-    hex.wormholes.forEach(w => toggleWormhole(this, snap.id, w));
     drawMatrixLinks(this, snap.id, hex.matrix);
-
     // 4. All overlays are rebuilt by redrawAllRealIDOverlays in undo/redo above
   };
 }

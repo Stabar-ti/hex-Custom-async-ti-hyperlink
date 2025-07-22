@@ -87,7 +87,7 @@ export default async function initSystemLookup(editor) {
         const filtersSection = document.createElement('details');
         filtersSection.style.marginBottom = '12px';
         filtersSection.innerHTML = '<summary style="cursor: pointer; font-weight: bold; margin-bottom: 8px;">Filters</summary>';
-        
+
         filtersContainer = document.createElement('div');
         filtersContainer.id = 'uiFiltersContainer';
         filtersContainer.style.marginBottom = '8px';
@@ -203,16 +203,16 @@ export default async function initSystemLookup(editor) {
 
         // Initialize the components after popup is created
         initializePopupComponents(randomBtn, uniqueCheck);
-        
+
         // Initial render
         renderList(systems);
-        
+
         // Initialize filters
         initFilters(filtersContainer, editor, renderList);
-        
+
         // Focus search input
         setTimeout(() => searchInput?.focus(), 100);
-        
+
         // Start monitoring for system placement
         startPlacementMonitoring();
     }
@@ -310,13 +310,13 @@ export default async function initSystemLookup(editor) {
      */
     function renderList(items = systems) {
         if (!systemList) return;
-        
+
         // Prevent excessive re-renders
         if (systemList.dataset.rendering === 'true') {
             return;
         }
         systemList.dataset.rendering = 'true';
-        
+
         systemList.innerHTML = '';
 
         // Set up the floating preview popup once
@@ -406,7 +406,7 @@ export default async function initSystemLookup(editor) {
                 tr.addEventListener('mouseenter', () => tr.style.background = '#444');
                 tr.addEventListener('mouseleave', () => tr.style.background = '');
             }
-            
+
             tr.innerHTML = `
             <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 60px; min-width: 50px;">
                 ${hasImage && !imageAlreadyFailed ? `<img src="${smallImgSrc}" class="tile-thumb" loading="lazy" style="width:32px; height:28px;" />` : ''}
@@ -438,7 +438,7 @@ export default async function initSystemLookup(editor) {
                     hoverTimeout = setTimeout(() => {
                         // Skip if we've already determined this image fails
                         if (failedImages.has(smallImgSrc)) return;
-                        
+
                         // Try loading the image, only show if successful
                         const previewImg = new window.Image();
                         previewImg.src = smallImgSrc;
@@ -461,7 +461,7 @@ export default async function initSystemLookup(editor) {
                         };
                     }, 500);
                 });
-                
+
                 // Update position on mouse move within the row
                 tr.addEventListener('mousemove', e => {
                     if (tilePreview.style.display === 'block') {
@@ -469,7 +469,7 @@ export default async function initSystemLookup(editor) {
                         tilePreview.style.top = e.clientY + 'px';
                     }
                 });
-                
+
                 tr.addEventListener('mouseleave', e => {
                     clearTimeout(hoverTimeout);
                     tilePreview.style.display = 'none';
@@ -479,7 +479,7 @@ export default async function initSystemLookup(editor) {
 
             tr.addEventListener('click', () => {
                 editor.pendingSystemId = s.id.toString().toUpperCase();
-                
+
                 // Add visual feedback for the selected system
                 document.querySelectorAll('.system-table tr.selected').forEach(row => {
                     row.classList.remove('selected');
@@ -487,23 +487,27 @@ export default async function initSystemLookup(editor) {
                 });
                 tr.classList.add('selected');
                 tr.style.backgroundColor = '#3a5a3a';
-                
+
                 // Update status indicator
                 if (typeof window.updateSystemSelectionStatus === 'function') {
                     window.updateSystemSelectionStatus(s.id, s.name);
                 }
-                
+
                 console.log(`📋 System ${s.id} (${s.name}) ready to place. Click on a hex to assign it.`);
-                
+
                 // Don't close the popup - let users select multiple systems quickly!
                 // hidePopup('system-lookup-popup'); // <- Removed this line
+                // --- Fix: Reset mode to prevent spurious wormhole overlays ---
+                if (typeof editor.setMode === 'function') editor.setMode('select');
+                // Remove 'active' from wormhole tool buttons (if any)
+                document.querySelectorAll('.btn-wormhole.active').forEach(btn => btn.classList.remove('active'));
             });
             tbody.appendChild(tr);
         });
 
         table.appendChild(tbody);
         systemList.appendChild(table);
-        
+
         // Clear the rendering flag
         systemList.dataset.rendering = 'false';
     }
@@ -540,9 +544,9 @@ export default async function initSystemLookup(editor) {
     let lastPendingSystemId = null;
     function checkForSystemPlacement() {
         if (!currentPopup) return;
-        
+
         const currentPendingId = editor.pendingSystemId;
-        
+
         // Only act when pendingSystemId changes from something to null (system was placed)
         if (lastPendingSystemId && !currentPendingId) {
             // System was placed, clear visual selection and update status
@@ -558,7 +562,7 @@ export default async function initSystemLookup(editor) {
                 refreshSystemList();
             }
         }
-        
+
         lastPendingSystemId = currentPendingId;
     }
 
@@ -637,15 +641,18 @@ function showRandomTilePopup(sys, editor, onAssign) {
             label: 'Assign to map',
             action: () => {
                 editor.pendingSystemId = sys.id.toString().toUpperCase();
-                
+
                 // Update status in main popup if it's open
                 if (typeof window.updateSystemSelectionStatus === 'function') {
                     window.updateSystemSelectionStatus(sys.id, sys.name);
                 }
-                
+
                 hidePopup('random-tile-popup');
                 // Don't close the main lookup popup - let it stay open for more selections
                 // hidePopup('system-lookup-popup');
+                // --- Fix: Reset mode to prevent spurious wormhole overlays ---
+                if (typeof editor.setMode === 'function') editor.setMode('select');
+                document.querySelectorAll('.btn-wormhole.active').forEach(btn => btn.classList.remove('active'));
                 if (onAssign) onAssign();
             }
         },

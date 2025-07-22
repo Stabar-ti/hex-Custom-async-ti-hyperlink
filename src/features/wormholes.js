@@ -6,16 +6,44 @@
 // and update wormhole overlays, and ensure wormholes are visible
 // or hidden based on user toggles. All SVG overlays for wormholes
 // are managed here.
+//
+// Wormhole Handling Pattern (2024 Refactor):
+//
+// Each hex now has:
+//   - inherentWormholes: wormholes from system/tile/realId (never exported/imported)
+//   - customWormholes: user-placed wormholes (only these are exported/imported)
+//   - wormholes: union of inherentWormholes and customWormholes (for overlays, UI, etc)
+//
+// All logic (import, export, overlays, undo, UI, distance calculations) must distinguish
+// between inherent and custom wormholes. Only customWormholes are exported/imported.
+//
+// When mutating wormholes, always update customWormholes and call updateHexWormholes(hex)
+// to refresh the union. This makes the codebase easier to maintain and debug.
 // ───────────────────────────────────────────────────────────────
 
 
 import { createWormholeOverlay } from './baseOverlays.js';
 
 /**
+ * Updates hex.wormholes to be the union of inherentWormholes and customWormholes.
+ * Call this after any mutation to customWormholes or inherentWormholes.
+ */
+export function updateHexWormholes(hex) {
+  hex.wormholes = new Set([
+    ...(hex.inherentWormholes ? Array.from(hex.inherentWormholes) : []),
+    ...(hex.customWormholes ? Array.from(hex.customWormholes) : [])
+  ]);
+  // Debug: log wormhole state after update
+  // console.log('updateHexWormholes', {
+  //   inherentWormholes: Array.from(hex.inherentWormholes || []),
+  //   customWormholes: Array.from(hex.customWormholes || []),
+  //   wormholes: Array.from(hex.wormholes || [])
+  // });
+}
+
+/**
  * Toggle a wormhole token on a specific hex tile.
- * Adds or removes the wormhole, updates the hex state,
- * saves history, and re-renders wormhole overlays (SVG)
- * so they appear in reverse order for icon separation.
+ * Only mutates customWormholes, then updates the union.
  *
  * @param {HexEditor} editor - The map editor instance.
  * @param {string} hexId     - The hex's unique label/id.
@@ -25,26 +53,40 @@ import { createWormholeOverlay } from './baseOverlays.js';
 export function toggleWormhole(editor, hexId, type) {
   const hex = editor.hexes[hexId];
   if (!hex) return;
-
-  // Ensure wormholes and overlays exist
-  if (!hex.wormholes) hex.wormholes = new Set();
+  // Ensure customWormholes and overlays exist
+  if (!hex.customWormholes || !(hex.customWormholes instanceof Set)) {
+    hex.customWormholes = new Set(hex.customWormholes ? Array.from(hex.customWormholes) : []);
+  }
   if (!hex.wormholeOverlays) hex.wormholeOverlays = [];
-
+  // Debug: log before mutation
+  // console.log('toggleWormhole BEFORE', hexId, {
+  //   customWormholes: Array.from(hex.customWormholes),
+  //   type
+  // });
   // Save editor state for undo/redo/history
   editor.saveState(hexId);
-
-  // Add or remove wormhole type in set
-  if (hex.wormholes.has(type)) {
-    hex.wormholes.delete(type);
+  // Add or remove wormhole type in customWormholes
+  if (hex.customWormholes.has(type)) {
+    hex.customWormholes.delete(type);
   } else {
-    hex.wormholes.add(type);
+    hex.customWormholes.add(type);
   }
-
+  // Always update the union
+  updateHexWormholes(hex);
+  // Debug: log after mutation
+  // console.log('toggleWormhole AFTER', hexId, {
+  //   customWormholes: Array.from(hex.customWormholes),
+  //   wormholes: Array.from(hex.wormholes)
+  // });
   // Remove all existing wormhole overlay SVGs from map
-  hex.wormholeOverlays.forEach(o => editor.svg.removeChild(o));
+  hex.wormholeOverlays.forEach(o => {
+    if (o.parentNode) {
+      o.parentNode.removeChild(o);
+    }
+  });
   hex.wormholeOverlays = [];
 
-  // Render each wormhole in reverse icon position order for better stacking
+  // Render overlays for ALL wormholes (inherent + custom)
   Array.from(hex.wormholes).forEach((w, i) => {
     const positions = editor.effectIconPositions;
     const len = positions.length;
@@ -118,9 +160,12 @@ export function createWormholeOverlay(x, y, type) {
  * Shows or hides all wormhole overlays depending on
  * the value of editor.showWormholes.
  *
+ * Overlays always reflect the union (hex.wormholes),
+ * which is kept up to date by the new wormhole pattern.
+ * All mutations must update customWormholes and call updateHexWormholes(hex).
+ *
  * @param {HexEditor} editor - The map editor instance.
  */
-/*
 export function updateWormholeVisibility(editor) {
   const visible = editor.showWormholes;
   Object.values(editor.hexes).forEach(hex => {
@@ -129,4 +174,3 @@ export function updateWormholeVisibility(editor) {
     });
   });
 }
-*/

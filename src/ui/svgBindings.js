@@ -74,12 +74,14 @@ export function bindSvgHandlers(editor) {
 
   // Shift+R over a hovered hex: clear all content from that hex
   document.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'r' && e.shiftKey && editor.hoveredHexLabel) {
+    if ((e.key.toLowerCase() === 'r' && e.shiftKey && editor.hoveredHexLabel) || (e.key === 'Delete' && editor.hoveredHexLabel)) {
       editor.clearAll(editor.hoveredHexLabel);
       editor.clearCustomAdjacenciesBothSides(editor.hoveredHexLabel);
       // Optionally, redraw overlays if needed:
       if (typeof editor.redrawCustomAdjacencyOverlay === 'function') editor.redrawCustomAdjacencyOverlay();
       if (typeof editor.redrawBorderAnomaliesOverlay === 'function') editor.redrawBorderAnomaliesOverlay();
+      // Redraw wormhole overlays to clear custom wormholes
+      if (typeof editor.redrawWormholeOverlay === 'function') editor.redrawWormholeOverlay(editor.hoveredHexLabel);
     }
     // Escape always clears any distance overlays
     if (e.key === 'Escape') {

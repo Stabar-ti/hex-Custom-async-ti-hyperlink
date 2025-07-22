@@ -26,9 +26,10 @@
 
       <!-- Copy/Cut Wizard button -->
       <button id="tileCopySingleBtn" class="mode-button">Copy/Cut Wizard</button>
-      
+
       <!-- Test button for new popup system -->
-      <button id="testSystemLookupBtn" class="mode-button" style="background: #2a5a2a; color: #cfc;">🧪 Test System Lookup</button>
+      <button id="testSystemLookupBtn" class="mode-button" style="background: #2a5a2a; color: #cfc;">🧪 Test System
+        Lookup</button>
     </div>
 
     <div id="rightControls">
@@ -97,7 +98,8 @@
 
 
   <!-- Main Controls Panel -->
-  <div id="controlsPanel">
+  <div id="controlsPanel" class="size-large">
+    <button id="controlsPanelCloseBtn" title="Hide controls">&raquo;</button>
     <div id="exportBtns">
       <button id="exportTypes" class="mode-button">Export Map String</button>
       <button id="exportHL" class="mode-button">Export HL</button>
@@ -124,6 +126,8 @@
     <label for="cornerToggle">Limit to async map bounderies</label>
     <button id="genMapBtn" class="primary-button">Generate Map</button>
   </div>
+
+  <button id="controlsPanelOpenBtn" title="Show controls">&laquo;</button>
 
   <div id="sectorControlsContainer" class="pos-left"></div>
 

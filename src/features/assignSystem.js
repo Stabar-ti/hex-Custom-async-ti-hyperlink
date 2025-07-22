@@ -3,6 +3,7 @@ import { toggleWormhole } from '../features/wormholes.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
+import { createWormholeOverlay } from '../features/baseOverlays.js';
 
 /**
  * Assigns a system object to a hex tile, updating all overlays, type, and state.
@@ -78,14 +79,51 @@ export function assignSystem(editor, sys, hexID) {
   if (sys.isAsteroidField) editor.applyEffect(hexID, 'asteroid');
 
   // 7. Inherent wormholes (always lowercase for key)
-  // Make sure sys.wormholes is always an array for the rest of the function
+  // Only set inherentWormholes from system data. Clear customWormholes to prevent carry-over.
   const wormholes = Array.isArray(sys.wormholes) ? sys.wormholes : [];
   hex.inherentWormholes = new Set(
     wormholes.filter(w => typeof w === "string").map(w => w.toLowerCase())
   );
-  wormholes.forEach(wh => {
-    if (typeof wh === "string") {
-      toggleWormhole(editor, hexID, wh.toLowerCase());
+  // Always clear customWormholes when assigning a RealID system
+  hex.customWormholes = new Set();
+  // Always update the union
+  if (typeof updateHexWormholes === 'function') {
+    updateHexWormholes(hex);
+    console.log('assignSystem: after updateHexWormholes', hexID, {
+      inherentWormholes: Array.from(hex.inherentWormholes),
+      customWormholes: Array.from(hex.customWormholes),
+      wormholes: Array.from(hex.wormholes)
+    });
+  } else {
+    hex.wormholes = new Set([...hex.inherentWormholes, ...(hex.customWormholes || [])]);
+    console.log('assignSystem: after manual union', hexID, {
+      inherentWormholes: Array.from(hex.inherentWormholes),
+      customWormholes: Array.from(hex.customWormholes),
+      wormholes: Array.from(hex.wormholes)
+    });
+  }
+  // Draw overlays for all wormholes (inherent + custom)
+  hex.wormholeOverlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
+  hex.wormholeOverlays = [];
+  Array.from(hex.wormholes).forEach((w, i) => {
+    const positions = editor.effectIconPositions;
+    const len = positions.length;
+    const reversedIndex = len - 1 - (i % len);
+    const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
+    const overlay = (typeof createWormholeOverlay === 'function')
+      ? createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase())
+      : null;
+    if (overlay) {
+      const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
+      if (wormholeIconLayer) {
+        wormholeIconLayer.appendChild(overlay);
+      } else {
+        editor.svg.appendChild(overlay);
+      }
+      hex.wormholeOverlays.push(overlay);
+      console.log('assignSystem: drew overlay', hexID, w);
+    } else {
+      console.warn('assignSystem: failed to create overlay', hexID, w);
     }
   });
 

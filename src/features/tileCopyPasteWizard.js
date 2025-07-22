@@ -481,15 +481,19 @@ export function startCopyPasteWizard(editor, cut = false) {
             if (h.borderAnomalies !== undefined) hex.borderAnomalies = JSON.parse(JSON.stringify(h.borderAnomalies));
             else delete hex.borderAnomalies;
 
-            // ---- WORMHOLES: robust restoration
+            // ---- WORMHOLES: robust restoration (new pattern)
             hex.wormholeOverlays = [];
-            hex.wormholes = new Set();
-
-            const inherentWormholes = (info.wormholes || []).filter(Boolean).map(w => w.toLowerCase());
-            const userWormholes = (h.wormholes || []).filter(Boolean).map(w => w.toLowerCase());
-            const allWormholes = new Set([...inherentWormholes, ...userWormholes]);
-
-            for (const w of allWormholes) {
+            // Set inherent and custom wormholes separately
+            hex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
+            hex.customWormholes = new Set(Array.from(h.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
+            // Always update hex.wormholes as the union
+            if (typeof updateHexWormholes === 'function') {
+                updateHexWormholes(hex);
+            } else {
+                hex.wormholes = new Set([...hex.inherentWormholes, ...hex.customWormholes]);
+            }
+            // Only call toggleWormhole for custom wormholes (for overlays)
+            for (const w of hex.customWormholes) {
                 toggleWormhole(editor, id, w);
             }
 
