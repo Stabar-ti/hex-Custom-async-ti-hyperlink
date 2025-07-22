@@ -59,29 +59,7 @@ export default async function initSystemLookup(editor) {
         content.style.padding = '8px';
         content.style.boxSizing = 'border-box';
 
-        // Add debug info at the top (removable later)
-        const debugInfo = document.createElement('div');
-        debugInfo.style.background = '#2a4a2a';
-        debugInfo.style.border = '1px solid #4a6a4a';
-        debugInfo.style.borderRadius = '4px';
-        debugInfo.style.padding = '8px';
-        debugInfo.style.marginBottom = '8px';
-        debugInfo.style.fontSize = '12px';
-        debugInfo.style.color = '#afa';
-        debugInfo.innerHTML = `
-            <strong>🧪 Debug Info:</strong> 
-            Systems loaded: ${systems.length} | 
-            Editor: ${editor ? '✅' : '❌'} | 
-            Filters: ${FILTERS.length} | 
-            PopupUI: ${typeof showPopup === 'function' ? '✅' : '❌'}
-            <button id="removeDebugInfo" style="float: right; font-size: 10px; padding: 2px 6px;">Remove</button>
-        `;
-        content.appendChild(debugInfo);
-
-        // Remove debug info button handler
-        debugInfo.querySelector('#removeDebugInfo').addEventListener('click', () => {
-            debugInfo.remove();
-        });
+        // Debug info bar removed for async tile popup
 
         // Create filters section (collapsible)
         const filtersSection = document.createElement('details');
@@ -150,11 +128,11 @@ export default async function initSystemLookup(editor) {
 
         // Create results container
         const resultsContainer = document.createElement('div');
-        resultsContainer.style.flex = '1 1 0'; // Take remaining space but allow shrinking to 0
+        resultsContainer.style.flex = '0.9 1 0'; // Take remaining space but allow shrinking to 0
         resultsContainer.style.overflow = 'auto';
         resultsContainer.style.border = '1px solid #555';
         resultsContainer.style.borderRadius = '4px';
-        resultsContainer.style.minHeight = '150px'; // Reduced minimum height
+        resultsContainer.style.minHeight = '120px'; // Reduced minimum height
         resultsContainer.style.display = 'flex';
         resultsContainer.style.flexDirection = 'column';
 
@@ -190,7 +168,7 @@ export default async function initSystemLookup(editor) {
                 maxHeight: '90vh',
                 zIndex: 10003,
                 resize: 'both', // Allow manual resizing
-                overflow: 'hidden' // Prevent content from spilling out
+                overflow: 'auto' // Allow scrolling and pointer events
             },
             onClose: () => {
                 currentPopup = null;
@@ -346,14 +324,14 @@ export default async function initSystemLookup(editor) {
         table.style.tableLayout = 'auto'; // Allow columns to resize based on content
         table.innerHTML = `<thead>
         <tr style="background: #444; position: sticky; top: 0;">
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 60px; min-width: 50px;">Tile</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 70px; min-width: 60px;">ID</th>
+            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 60px; min-width: 40px;">Tile</th>
+            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 70px; min-width: 40px;">ID</th>
             <th style="padding: 8px; border: 1px solid #555; text-align: left; min-width: 120px;">Name</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 100px; min-width: 80px;">Planets</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 80px; min-width: 60px;">Techs</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 80px; min-width: 60px;">Worms</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 80px; min-width: 60px;">Eff</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 40px; min-width: 30px;">L</th>
+            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 100px; min-width: 40px;">Planets</th>
+            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 80px; min-width: 40px;">Techs</th>
+            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 80px; min-width: 40px;">Worms</th>
+            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 80px; min-width: 40px;">Eff</th>
+            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 40px; min-width: 20px;">L</th>
         </tr>
     </thead>`;
 
@@ -411,13 +389,13 @@ export default async function initSystemLookup(editor) {
             <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 60px; min-width: 50px;">
                 ${hasImage && !imageAlreadyFailed ? `<img src="${smallImgSrc}" class="tile-thumb" loading="lazy" style="width:32px; height:28px;" />` : ''}
             </td>
-            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 70px; min-width: 60px;"><b>${s.id}</b></td>
+            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 70px; min-width: 40px;"><b>${s.id}</b></td>
             <td style="padding: 4px; border: 1px solid #555; text-align: left; min-width: 120px; word-wrap: break-word;">${s.name || ''}</td>
-            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 100px; min-width: 80px; font-size: 11px;">${planetSummaries}</td>
-            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 80px; min-width: 60px;">${techHtml}</td>
-            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 80px; min-width: 60px;">${wormHtml}</td>
-            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 80px; min-width: 60px;">${effectsSummary}</td>
-            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 40px; min-width: 30px;">${legend}</td>
+            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 100px; min-width: 40px; font-size: 11px;">${planetSummaries}</td>
+            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 80px; min-width: 40px;">${techHtml}</td>
+            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 80px; min-width: 40px;">${wormHtml}</td>
+            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 80px; min-width: 40px;">${effectsSummary}</td>
+            <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 40px; min-width: 20px;">${legend}</td>
         `;
 
             // Handle image loading errors for the thumbnail in the table
@@ -442,8 +420,8 @@ export default async function initSystemLookup(editor) {
                         // Try loading the image, only show if successful
                         const previewImg = new window.Image();
                         previewImg.src = smallImgSrc;
-                        previewImg.style.maxWidth = '120px';
-                        previewImg.style.maxHeight = '120px';
+                        previewImg.style.maxWidth = '220px';
+                        previewImg.style.maxHeight = '220px';
                         previewImg.onload = () => {
                             tilePreview.innerHTML = '';
                             tilePreview.appendChild(previewImg);
@@ -614,58 +592,171 @@ window.addEventListener('DOMContentLoaded', () => {
 
 function showRandomTilePopup(sys, editor, onAssign) {
     hidePopup('random-tile-popup');
+    // Gather info for effects, wormholes, techs, legendary
+    const planetSummaries = (sys.planets || []).map(p => `${p.name || ''} (${p.resources}/${p.influence})`).join('<br>');
+    const techsArr = Array.from(new Set((sys.planets || []).flatMap(p => p.techSpecialties || [])));
+    const techHtml = techsArr.map(t => {
+        switch ((t || '').toUpperCase()) {
+            case 'CYBERNETIC': return `<span style="color:#FFD700;font-weight:bold;">Y</span>`;
+            case 'BIOTIC': return `<span style="color:green;font-weight:bold;">G</span>`;
+            case 'WARFARE': return `<span style="color:red;font-weight:bold;">R</span>`;
+            case 'PROPULSION': return `<span style="color:#00BFFF;font-weight:bold;">B</span>`;
+            default: return '';
+        }
+    }).join(' ');
+    const wormArr = Array.isArray(sys.wormholes) ? sys.wormholes : [];
+    const wormHtml = wormArr.map(w => {
+        const wh = (w || '').toLowerCase();
+        let color = '#888', label = wh.charAt(0).toUpperCase();
+        if (wh === 'alpha') { color = '#2196f3'; label = 'A'; }
+        else if (wh === 'beta') { color = '#e91e63'; label = 'B'; }
+        else if (wh === 'gamma') { color = '#ff9800'; label = 'G'; }
+        else if (wh === 'delta') { color = '#4caf50'; label = 'D'; }
+        return `<span style="color:${color};font-weight:bold;">${label}</span>`;
+    }).join(' ');
+    const effs = [];
+    if (sys.isNebula) effs.push('☁️ Nebula');
+    if (sys.isGravityRift) effs.push('🕳️ Gravity Rift');
+    if (sys.isSupernova) effs.push('☀️ Supernova');
+    if (sys.isAsteroidField) effs.push('🪨 Asteroid Field');
+    const effectsSummary = effs.join(', ');
+    const legend = (sys.planets || []).some(p => p.legendaryAbilityName) ? '⭐ Legendary' : '';
+
+    // Layout: buttons top, image left, info right
     const wrapper = document.createElement('div');
-    wrapper.innerHTML = `
-      <div style="font-size:18px;"><b>Tile:</b> <span style="color:#e4f">${sys.id}</span> – ${sys.name}</div>
-      <div id="randomTileImgContainer"></div>
-      <div style="margin:7px 0;">${(sys.planets || []).map(p => `${p.name || ''} (${p.resources}/${p.influence})`).join('<br>')}</div>
-    `;
-    // Only show the image if it actually loads and handle errors gracefully!
-    const imgContainer = wrapper.querySelector('#randomTileImgContainer');
+    wrapper.style.display = 'flex';
+    wrapper.style.flexDirection = 'column';
+    wrapper.style.gap = '12px';
+
+    // Top button row
+    const btnRow = document.createElement('div');
+    btnRow.style.display = 'flex';
+    btnRow.style.gap = '10px';
+    btnRow.style.justifyContent = 'flex-start';
+    btnRow.style.marginBottom = '2px';
+
+    // Assign button
+    const assignBtn = document.createElement('button');
+    assignBtn.className = 'wizard-btn';
+    assignBtn.textContent = 'Assign to map';
+    assignBtn.onclick = () => {
+        editor.pendingSystemId = sys.id.toString().toUpperCase();
+        if (typeof window.updateSystemSelectionStatus === 'function') {
+            window.updateSystemSelectionStatus(sys.id, sys.name);
+        }
+        // Do NOT close the popup after assigning
+        if (typeof editor.setMode === 'function') editor.setMode('select');
+        document.querySelectorAll('.btn-wormhole.active').forEach(btn => btn.classList.remove('active'));
+        if (onAssign) onAssign();
+    };
+    btnRow.appendChild(assignBtn);
+
+    // Random button
+    const randomBtn = document.createElement('button');
+    randomBtn.className = 'wizard-btn';
+    randomBtn.textContent = 'Random';
+    randomBtn.onclick = () => {
+        // Use the same filter logic as the main random button
+        const uniqueCheck = document.getElementById('randomUnique');
+        const unique = uniqueCheck ? uniqueCheck.checked : true;
+        let candidates;
+
+        if (unique) {
+            candidates = getActiveFilterPass(editor)
+                .filter(s => !isRealIDUsed(s.id));
+        } else {
+            candidates = (Array.isArray(editor.allSystems) ? editor.allSystems : []).filter(sys =>
+                FILTERS.every(({ key, test }) => {
+                    const btn = document.getElementById(`filter-${key}`);
+                    const active = btn?.dataset.active === 'true';
+                    return test(sys, active);
+                })
+            );
+        }
+
+        if (!candidates.length) {
+            alert('No tiles match the current filters!');
+            return;
+        }
+
+        // Prevent immediate repeat
+        let filtered = candidates;
+        if (candidates.length > 1 && sys && sys.id) {
+            filtered = candidates.filter(s => s.id !== sys.id);
+            if (!filtered.length) filtered = candidates;
+        }
+        const newSys = filtered[Math.floor(Math.random() * filtered.length)];
+        showRandomTilePopup(newSys, editor, onAssign);
+    };
+    btnRow.appendChild(randomBtn);
+
+    // Close button
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'wizard-btn';
+    closeBtn.textContent = 'Close';
+    closeBtn.onclick = () => hidePopup('random-tile-popup');
+    btnRow.appendChild(closeBtn);
+
+    wrapper.appendChild(btnRow);
+
+    // Main content row: image left, info right, flush alignment
+    const mainRow = document.createElement('div');
+    mainRow.style.display = 'grid';
+    mainRow.style.gridTemplateColumns = 'auto 1fr';
+    mainRow.style.alignItems = 'start';
+    mainRow.style.gap = '0px';
+    mainRow.style.marginTop = '8px';
+
+    // Image column
+    const imgCol = document.createElement('div');
+    imgCol.style.display = 'flex';
+    imgCol.style.flexDirection = 'column';
+    imgCol.style.alignItems = 'flex-start';
+    imgCol.style.justifyContent = 'flex-start';
+    imgCol.style.paddingRight = '18px';
+    imgCol.id = 'randomTileImgContainer';
     if (sys.imagePath && sys.imagePath.trim()) {
         const img = new window.Image();
         img.src = `public/data/tiles/${sys.imagePath}`;
-        img.style.width = '92px';
-        img.style.margin = '12px 0';
+        img.style.width = '220px';
+        img.style.maxWidth = '220px';
+        img.style.maxHeight = '220px';
+        img.style.margin = '0';
         img.style.borderRadius = '8px';
         img.onload = function () {
-            imgContainer.appendChild(img);
+            imgCol.appendChild(img);
         };
         img.onerror = function () {
             // Don't show anything if image fails to load
             console.warn(`⚠️ Random tile image not found: ${img.src}`);
         };
     }
-    const actions = [
-        {
-            label: 'Assign to map',
-            action: () => {
-                editor.pendingSystemId = sys.id.toString().toUpperCase();
 
-                // Update status in main popup if it's open
-                if (typeof window.updateSystemSelectionStatus === 'function') {
-                    window.updateSystemSelectionStatus(sys.id, sys.name);
-                }
+    // Info column
+    const infoCol = document.createElement('div');
+    infoCol.style.display = 'flex';
+    infoCol.style.flexDirection = 'column';
+    infoCol.style.justifyContent = 'flex-start';
+    infoCol.style.gap = '8px';
+    infoCol.style.alignItems = 'flex-start';
+    infoCol.innerHTML = `
+      <div style="font-size:18px;"><b>Tile:</b> <span style="color:#e4f">${sys.id}</span> – ${sys.name}</div>
+      <div style="margin:7px 0;">${planetSummaries}</div>
+      <div><b>Techs:</b> ${techHtml || '<span style="color:#888">None</span>'}</div>
+      <div><b>Wormholes:</b> ${wormHtml || '<span style="color:#888">None</span>'}</div>
+      <div><b>Effects:</b> ${effectsSummary || '<span style="color:#888">None</span>'}</div>
+      <div>${legend}</div>
+    `;
 
-                hidePopup('random-tile-popup');
-                // Don't close the main lookup popup - let it stay open for more selections
-                // hidePopup('system-lookup-popup');
-                // --- Fix: Reset mode to prevent spurious wormhole overlays ---
-                if (typeof editor.setMode === 'function') editor.setMode('select');
-                document.querySelectorAll('.btn-wormhole.active').forEach(btn => btn.classList.remove('active'));
-                if (onAssign) onAssign();
-            }
-        },
-        {
-            label: 'Close',
-            action: () => hidePopup('random-tile-popup')
-        }
-    ];
+    mainRow.appendChild(imgCol);
+    mainRow.appendChild(infoCol);
+    wrapper.appendChild(mainRow);
+
     showPopup({
         id: 'random-tile-popup',
         className: 'random-tile-popup',
         content: wrapper,
-        actions,
+        actions: [], // No footer actions, all buttons are at the top
         draggable: true,
         dragHandleSelector: '.popup-ui-titlebar',
         scalable: true,
@@ -673,7 +764,7 @@ function showRandomTilePopup(sys, editor, onAssign) {
         modal: false,
         title: '🎲 Random Tile',
         style: {
-            minWidth: '280px',
+            minWidth: '380px',
             borderRadius: '12px',
             zIndex: 10004
         },

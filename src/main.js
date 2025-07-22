@@ -320,12 +320,12 @@ svg.addEventListener('click', e => {
   if (!hexID) return;
 
   // --- Prevent ANY action (including hyperlane mode) if system lookup popup is open ---
-  const lookupPopupOpen = document.getElementById('system-lookup-popup') !== null;
-  const lookupModalOpen = document.getElementById('systemLookupModal')?.classList.contains('open');
-  if (lookupPopupOpen || lookupModalOpen) {
-    // Optionally, flash or shake modal/popup here to show user it's still open
-    return;
-  }
+  //const lookupPopupOpen = document.getElementById('system-lookup-popup') !== null;
+  //const lookupModalOpen = document.getElementById('systemLookupModal')?.classList.contains('open');
+  //if (lookupPopupOpen || lookupModalOpen) {
+  // Optionally, flash or shake modal/popup here to show user it's still open
+  //  return;
+  //}
 
   // --- System assignment from Async Tiles ---
   if (editor.pendingSystemId) {

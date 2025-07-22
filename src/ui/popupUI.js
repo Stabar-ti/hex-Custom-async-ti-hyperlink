@@ -45,22 +45,28 @@ export function showPopup({
     popup.className = 'popup-ui' + (className ? ' ' + className : '');
     if (id) popup.id = id;
 
-    // Prevent style.width from accumulating (fixes horizontal growth)
-    if (style && style.width) {
-        popup.style.width = style.width;
-    }
-
+    // Prevent style.width/height from accumulating (fixes popup growth)
+    popup.style.width = '';
+    popup.style.height = '';
+    popup.style.padding = '';
+    // Remove all min/max width/height from popup container and do NOT set them from style object
+    popup.style.minWidth = '';
+    popup.style.maxWidth = '';
+    popup.style.minHeight = '';
+    popup.style.maxHeight = '';
+    // Do NOT set min/max width/height from style object at all
     // Only apply style properties that are not background or color
     if (style) {
         for (const [key, value] of Object.entries(style)) {
-            if (key !== 'background' && key !== 'backgroundColor' && key !== 'color') {
+            if (key !== 'background' && key !== 'backgroundColor' && key !== 'color' && key !== 'minWidth' && key !== 'maxWidth' && key !== 'minHeight' && key !== 'maxHeight' && key !== 'padding') {
                 popup.style[key] = value;
             }
         }
     }
-
     // Always apply rounded corners to all popups
     popup.style.borderRadius = style.borderRadius || '16px';
+    // Debug: log popup style before DOM append
+    console.log('Popup style before append:', popup.style.cssText);
 
     // --- Restore position/size from localStorage if enabled ---
     let hasStoredPos = false;
@@ -81,15 +87,19 @@ export function showPopup({
 
     // Content
     if (typeof content === 'string') {
+        console.log('Popup content (string):', content);
         const contentDiv = document.createElement('div');
         contentDiv.className = 'popup-ui-content';
         contentDiv.innerHTML = content;
         contentDiv.style.paddingLeft = '24px'; // Indent content further to the right
         contentDiv.style.width = 'auto'; // Prevent width accumulation
+        contentDiv.style.padding = '';
         popup.appendChild(contentDiv);
     } else if (content instanceof HTMLElement) {
+        console.log('Popup content (HTMLElement):', content.outerHTML || content.textContent);
         content.style.paddingLeft = '24px'; // Indent content further to the right
         content.style.width = 'auto'; // Prevent width accumulation
+        content.style.padding = '';
         popup.appendChild(content);
     }
 
@@ -100,6 +110,8 @@ export function showPopup({
         btnRow.style.marginTop = '18px'; // Add more space above the buttons
         btnRow.style.paddingLeft = '24px'; // Align left edge with text content
         btnRow.style.width = 'auto'; // Prevent width accumulation
+        btnRow.style.padding = '';
+        btnRow.style.marginBottom = '';
         actions.forEach(({ label, action, toggled }) => {
             const btn = document.createElement('button');
             btn.className = 'wizard-btn';
@@ -313,11 +325,12 @@ export function showPopup({
 
     // Add to DOM
     (parent || document.body).appendChild(popup);
-
-    // Remove any minWidth/maxWidth set by previous popups to prevent growth
-    popup.style.minWidth = style.minWidth || '';
-    popup.style.maxWidth = style.maxWidth || '';
-    popup.style.width = style.width || '';
+    // Debug: log popup bounding rect and child count after append
+    setTimeout(() => {
+        const rect = popup.getBoundingClientRect();
+        console.log('Popup bounding rect after append:', rect);
+        console.log('Popup child node count:', popup.childNodes.length);
+    }, 0);
 
     // Center popup if no stored position and not already positioned
     if (!hasStoredPos) {

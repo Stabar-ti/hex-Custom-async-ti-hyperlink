@@ -1,3 +1,9 @@
+/* Prevent popup grid/button growth */
+.popup-ui {
+  box-sizing: border-box;
+  overflow: auto;
+}
+
 /*──────────────────────────────────────────────────────────────────────────────
   Theme variables
 ──────────────────────────────────────────────────────────────────────────────*/
@@ -1373,7 +1379,6 @@ Layout butoons and other Popup & Buttons
 .popup-ui-info,
 .wizard-main-popup {
   background: rgba(32, 32, 32, 0.89);
-  /* Less transparent */
   color: #f0f0f0;
   border: 2px solid #2196f3;
   box-shadow: 0 0 0 3px #2196f355, 0 4px 24px rgba(0, 0, 0, 0.18);
@@ -1381,10 +1386,16 @@ Layout butoons and other Popup & Buttons
   max-width: 95vw;
   max-height: 90vh;
   overflow: auto;
-  /* Make popup scrollable if content overflows */
   position: fixed;
-  /* Optional: add padding for better appearance */
   padding: 0.5em 1.2em;
+  pointer-events: auto;
+  z-index: 10003;
+}
+
+/* Prevent non-modal popups from blocking pointer events outside the popup */
+.popup-ui-overlay {
+  pointer-events: none !important;
+  background: transparent !important;
 }
 
 .popup-ui-content,
