@@ -37,6 +37,16 @@ export function endBatch(renderFn) {
 // that checks if a system should pass the filter when "active".
 // ──────────────────────────────
 const FILTERS = [
+  // ──────────────────────────────
+  // SOURCE FILTERS (OR-based logic)
+  // These work differently - when any are active, show systems matching ANY active source
+  // ──────────────────────────────
+  { key: 'sourceBase', label: 'Base', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic
+  { key: 'sourcePok', label: 'PoK', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic
+  { key: 'sourceDS', label: 'DS/Uncharted', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic
+  { key: 'sourceEronous', label: 'Eronous', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic
+  { key: 'sourceOthers', label: 'Others', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic
+
   // Wormhole filter: supports both Set and Array for wormholes (union of inherent+custom)
   {
     key: 'hasWormhole', label: 'Has Wormhole', defaultOn: false, test(sys, a) {
@@ -95,8 +105,37 @@ const FILTERS = [
  * @param {Function}    onResults Callback: receives the filtered system list
  */
 export function initFilters(container, editor, onResults) {
-  container.innerHTML = ''; // Clear any old filter buttons
+  container.innerHTML = '';
 
+  // Create a wrapper for source filters (OR)
+  const sourceWrapper = document.createElement('div');
+  sourceWrapper.classList.add('filter-group', 'source-filters');
+  sourceWrapper.style.marginBottom = '8px';
+  sourceWrapper.appendChild(document.createTextNode('Source Filters (OR): '));
+
+  // Create a wrapper for attribute filters (AND/NAND)
+  const attrWrapper = document.createElement('div');
+  attrWrapper.classList.add('filter-group', 'attribute-filters');
+  attrWrapper.style.marginBottom = '8px';
+
+  // AND/NAND toggle button
+  const andNandBtn = document.createElement('button');
+  andNandBtn.id = 'filter-and-nand-toggle';
+  andNandBtn.textContent = 'AND';
+  andNandBtn.classList.add('filter-toggle');
+  andNandBtn.dataset.mode = 'and';
+  andNandBtn.style.marginRight = '8px';
+  andNandBtn.addEventListener('click', () => {
+    const mode = andNandBtn.dataset.mode === 'and' ? 'nand' : 'and';
+    andNandBtn.dataset.mode = mode;
+    andNandBtn.textContent = mode.toUpperCase();
+    applyFilters(editor, onResults);
+  });
+  attrWrapper.appendChild(andNandBtn);
+  attrWrapper.appendChild(document.createTextNode(' Attribute Filters: '));
+
+  // Separate source and attribute filters
+  const sourceFilterKeys = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceOthers'];
   FILTERS.forEach(({ key, label, defaultOn }) => {
     const btn = document.createElement('button');
     btn.id = `filter-${key}`;
@@ -104,19 +143,22 @@ export function initFilters(container, editor, onResults) {
     btn.classList.add('filter-button');
     btn.dataset.active = defaultOn.toString();
     if (defaultOn) btn.classList.add('active');
-
-    // Toggle button state and re-apply filters on click
     btn.addEventListener('click', () => {
       const now = btn.dataset.active === 'true';
       btn.dataset.active = (!now).toString();
       btn.classList.toggle('active', !now);
       applyFilters(editor, onResults);
     });
-
-    container.appendChild(btn);
+    if (sourceFilterKeys.includes(key)) {
+      sourceWrapper.appendChild(btn);
+    } else {
+      attrWrapper.appendChild(btn);
+    }
   });
 
-  // Run filters initially so UI is correct on load
+  container.appendChild(sourceWrapper);
+  container.appendChild(attrWrapper);
+
   applyFilters(editor, onResults);
 }
 
@@ -129,15 +171,54 @@ export function initFilters(container, editor, onResults) {
  */
 export function applyFilters(editor, onResults) {
   const all = Array.isArray(editor.allSystems) ? editor.allSystems : [];
+  const andNandBtn = document.getElementById('filter-and-nand-toggle');
+  const mode = andNandBtn?.dataset.mode === 'nand' ? 'nand' : 'and';
   const matches = all.filter(sys => {
     // Never show a system already placed on the map
     if (editor.hexes[sys.id]?.baseType) return false;
-    // All filters must pass (AND logic)
-    return FILTERS.every(({ key, test }) => {
+
+    // Handle source filters with OR logic
+    const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceOthers'];
+    const activeSourceFilters = sourceFilters.filter(key => {
+      const btn = document.getElementById(`filter-${key}`);
+      return btn?.dataset.active === 'true';
+    });
+
+    // Apply OR logic for sources - if no source filters are active, show nothing
+    if (activeSourceFilters.length === 0) {
+      return false; // No source filters active = show nothing
+    }
+
+    const sourceMatches = activeSourceFilters.some(key => {
+      const source = (sys.source || '').toLowerCase();
+      switch (key) {
+        case 'sourceBase': return source === 'base';
+        case 'sourcePok': return source === 'pok';
+        case 'sourceDS': return source === 'ds' || source === 'uncharted_space';
+        case 'sourceEronous': return source === 'eronous';
+        case 'sourceOthers':
+          // Handle "others" - includes known other sources and any unknown sources
+          return ['other', 'draft', 'dane_leaks'].includes(source) ||
+                 (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
+        default: return false;
+      }
+    });
+    if (!sourceMatches) return false;
+
+    // All other filters must pass (AND/NAND logic) - exclude source filters
+    const otherFilters = FILTERS.filter(({ key }) => !sourceFilters.includes(key));
+    const results = otherFilters.map(({ key, test }) => {
       const btn = document.getElementById(`filter-${key}`);
       const active = btn?.dataset.active === 'true';
       return test(sys, active);
     });
+    if (mode === 'nand') {
+      // NAND: show systems that fail at least one filter
+      return results.some(r => !r);
+    } else {
+      // AND: show systems that pass all filters
+      return results.every(r => r);
+    }
   });
   onResults(matches);
 }
@@ -190,10 +271,41 @@ export function refreshSystemList() {
   const input = document.getElementById('systemSearch');
   const term = input?.value.toLowerCase() || '';
 
-  // 1) Filter out already-placed systems and non-passing filters
+  // 1) Filter out already-placed systems and apply filters
   const filtered = systems.filter(sys => {
     if (editor.hexes[sys.id]?.baseType) return false;
-    return FILTERS.every(({ key, test }) => {
+    
+    // Handle source filters with OR logic
+    const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceOthers'];
+    const activeSourceFilters = sourceFilters.filter(key => {
+      const btn = document.getElementById(`filter-${key}`);
+      return btn?.dataset.active === 'true';
+    });
+    
+    // Apply OR logic for sources - if no source filters are active, show nothing
+    if (activeSourceFilters.length === 0) {
+      return false; // No source filters active = show nothing
+    }
+    
+    const sourceMatches = activeSourceFilters.some(key => {
+      const source = (sys.source || '').toLowerCase();
+      switch (key) {
+        case 'sourceBase': return source === 'base';
+        case 'sourcePok': return source === 'pok';
+        case 'sourceDS': return source === 'ds' || source === 'uncharted_space';
+        case 'sourceEronous': return source === 'eronous';
+        case 'sourceOthers': 
+          // Handle "others" - includes known other sources and any unknown sources
+          return ['other', 'draft', 'dane_leaks'].includes(source) || 
+                 (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
+        default: return false;
+      }
+    });
+    if (!sourceMatches) return false;
+    
+    // All other filters must pass (AND logic) - exclude source filters
+    const otherFilters = FILTERS.filter(({ key }) => !sourceFilters.includes(key));
+    return otherFilters.every(({ key, test }) => {
       const btn = document.getElementById(`filter-${key}`);
       const active = btn?.dataset.active === 'true';
       return test(sys, active);
@@ -224,7 +336,38 @@ export function getActiveFilterPass(editor) {
   const all = Array.isArray(editor.allSystems) ? editor.allSystems : [];
   return all.filter(sys => {
     if (editor.hexes[sys.id]?.baseType) return false;
-    return FILTERS.every(({ key, test }) => {
+    
+    // Handle source filters with OR logic
+    const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceOthers'];
+    const activeSourceFilters = sourceFilters.filter(key => {
+      const btn = document.getElementById(`filter-${key}`);
+      return btn?.dataset.active === 'true';
+    });
+    
+    // Apply OR logic for sources - if no source filters are active, show nothing
+    if (activeSourceFilters.length === 0) {
+      return false; // No source filters active = show nothing
+    }
+    
+    const sourceMatches = activeSourceFilters.some(key => {
+      const source = (sys.source || '').toLowerCase();
+      switch (key) {
+        case 'sourceBase': return source === 'base';
+        case 'sourcePok': return source === 'pok';
+        case 'sourceDS': return source === 'ds' || source === 'uncharted_space';
+        case 'sourceEronous': return source === 'eronous';
+        case 'sourceOthers': 
+          // Handle "others" - includes known other sources and any unknown sources
+          return ['other', 'draft', 'dane_leaks'].includes(source) || 
+                 (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
+        default: return false;
+      }
+    });
+    if (!sourceMatches) return false;
+    
+    // All other filters must pass (AND logic) - exclude source filters
+    const otherFilters = FILTERS.filter(({ key }) => !sourceFilters.includes(key));
+    return otherFilters.every(({ key, test }) => {
       const btn = document.getElementById(`filter-${key}`);
       const active = btn?.dataset.active === 'true';
       return test(sys, active);

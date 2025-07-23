@@ -2,7 +2,7 @@
 // ui/systemLookup.js
 //
 // This module provides the system lookup popup: a searchable and
-// filterable list for choosing TI4 systems by ID or attributes.
+// filterable list for choosing TI4 systems and attributes.
 // Uses the flexible popupUI.js system for better UX with draggable,
 // scalable popups while maintaining all existing functionality.
 // ───────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ export default async function initSystemLookup(editor) {
         content.style.padding = '8px';
         content.style.boxSizing = 'border-box';
 
-        // Debug info bar removed for async tile popup
+        // ...existing code...
 
         // Create filters section (collapsible)
         const filtersSection = document.createElement('details');
@@ -159,6 +159,46 @@ export default async function initSystemLookup(editor) {
             dragHandleSelector: '.popup-ui-titlebar',
             scalable: true,
             rememberPosition: true,
+            showHelp: true,
+            onHelp: () => {
+                showPopup({
+                    id: 'system-lookup-help',
+                    className: 'popup-ui popup-ui-info',
+                    title: 'System Lookup Help',
+                    content:
+                        "<div style='max-width:600px;line-height:1.6;font-size:15px;padding:8px;'>" +
+                        "<h3>System Lookup & Async Tiles</h3>" +
+                        "<ul>" +
+                        "<li><b>Search:</b> Type a system ID or name to filter the list. Numeric search matches any digits in IDs.</li>" +
+                        "<li><b>Source Filters (OR):</b> Select one or more source categories to show systems from those sources. At least one must be active.</li>" +
+                        "<li><b>Attribute Filters (AND/NAND):</b> Use attribute buttons to further filter systems. Toggle AND/NAND to switch between showing systems that match all attributes (AND) or systems that fail at least one (NAND).</li>" +
+                        "<li><b>Random Tile:</b> Use the random button to pick a tile from the current filtered list. 'Unique' ensures only unused tiles are chosen.</li>" +
+                        "<li><b>Selection:</b> Click a row to select a system. Selected systems are highlighted in green until placed on the map.</li>" +
+                        "<li><b>Legend:</b> Techs, wormholes, and effects are shown with icons and color codes.</li>" +
+                        "</ul>" +
+                        "<hr>" +
+                        "<b>Tips:</b> <br>" +
+                        "- You can resize and drag this popup.<br>" +
+                        "- Filters are grouped for clarity.<br>" +
+                        "- If no systems show, check your source filters.<br>" +
+                        "</div>",
+                    actions: [],
+                    draggable: true,
+                    dragHandleSelector: '.popup-ui-titlebar',
+                    scalable: true,
+                    rememberPosition: true,
+                    style: {
+                        minWidth: '340px',
+                        maxWidth: '800px',
+                        minHeight: '200px',
+                        maxHeight: '800px',
+                        border: '2px solid #2ecc40',
+                        borderRadius: '10px',
+                        boxShadow: '0 8px 40px #000a',
+                        padding: '24px'
+                    }
+                });
+            },
             style: {
                 width: '800px',
                 height: '600px',
@@ -283,6 +323,10 @@ export default async function initSystemLookup(editor) {
         return { ch: info.label?.charAt(0) || '?', c: info.color || '#888' };
     }
 
+    // Sorting state
+    let sortColumn = null;
+    let sortDirection = 'asc';
+
     /**
      * Main list rendering function: displays systems in a table
      */
@@ -294,6 +338,9 @@ export default async function initSystemLookup(editor) {
             return;
         }
         systemList.dataset.rendering = 'true';
+
+        // Remember the currently selected system to restore after render
+        const currentlySelectedSystemId = editor.pendingSystemId;
 
         systemList.innerHTML = '';
 
@@ -315,25 +362,174 @@ export default async function initSystemLookup(editor) {
         tilePreview.style.display = 'none';
         let hoverTimeout = null;
 
-        // Build table header
+        // Build table header with sortable columns
         const table = document.createElement('table');
         table.className = 'system-table';
         table.style.width = '100%';
         table.style.borderCollapse = 'collapse';
         table.style.fontSize = '12px';
         table.style.tableLayout = 'auto'; // Allow columns to resize based on content
-        table.innerHTML = `<thead>
-        <tr style="background: #444; position: sticky; top: 0;">
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 60px; min-width: 40px;">Tile</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 70px; min-width: 40px;">ID</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: left; min-width: 120px;">Name</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 100px; min-width: 40px;">Planets</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 80px; min-width: 40px;">Techs</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 80px; min-width: 40px;">Worms</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 80px; min-width: 40px;">Eff</th>
-            <th style="padding: 8px; border: 1px solid #555; text-align: center; width: 40px; min-width: 20px;">L</th>
-        </tr>
-    </thead>`;
+        
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        headerRow.style.background = '#444';
+        headerRow.style.position = 'sticky';
+        headerRow.style.top = '0';
+
+        // Define sortable columns
+        const columns = [
+            { key: null, label: 'Tile', width: '60px', sortable: false },
+            { key: 'id', label: 'ID', width: '70px', sortable: true },
+            { key: 'name', label: 'Name', width: 'auto', sortable: true },
+            { key: 'planets', label: 'Planets', width: '100px', sortable: true },
+            { key: 'techs', label: 'Techs', width: '80px', sortable: true },
+            { key: 'worms', label: 'Worms', width: '80px', sortable: true },
+            { key: 'effects', label: 'Eff', width: '80px', sortable: true },
+            { key: 'legendary', label: 'L', width: '40px', sortable: true }
+        ];
+
+        columns.forEach(col => {
+            const th = document.createElement('th');
+            th.style.padding = '8px';
+            th.style.border = '1px solid #555';
+            th.style.textAlign = col.key === 'name' ? 'left' : 'center';
+            th.style.width = col.width;
+            th.style.minWidth = col.width === 'auto' ? '120px' : '40px';
+            
+            if (col.sortable) {
+                th.style.cursor = 'pointer';
+                th.style.userSelect = 'none';
+                th.title = `Click to sort by ${col.label}`;
+                
+                const sortIndicator = sortColumn === col.key ? 
+                    (sortDirection === 'asc' ? ' ▲' : ' ▼') : ' ▽';
+                th.innerHTML = col.label + sortIndicator;
+                
+                th.addEventListener('click', () => {
+                    if (sortColumn === col.key) {
+                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortColumn = col.key;
+                        sortDirection = 'asc';
+                    }
+                    
+                    // Sort the items
+                    const sortedItems = [...items].sort((a, b) => {
+                        let valueA, valueB;
+                        
+                        switch (col.key) {
+                            case 'id':
+                                valueA = a.id.toString().toLowerCase();
+                                valueB = b.id.toString().toLowerCase();
+                                break;
+                            case 'name':
+                                valueA = (a.name || '').toLowerCase();
+                                valueB = (b.name || '').toLowerCase();
+                                break;
+                            case 'planets':
+                                // Sort by total planet count, then by total resources + influence
+                                const planetsA = a.planets || [];
+                                const planetsB = b.planets || [];
+                                const countA = planetsA.length;
+                                const countB = planetsB.length;
+                                if (countA !== countB) {
+                                    valueA = countA;
+                                    valueB = countB;
+                                } else {
+                                    // Same planet count, sort by total resources + influence
+                                    const totalA = planetsA.reduce((sum, p) => sum + (p.resources || 0) + (p.influence || 0), 0);
+                                    const totalB = planetsB.reduce((sum, p) => sum + (p.resources || 0) + (p.influence || 0), 0);
+                                    valueA = totalA;
+                                    valueB = totalB;
+                                }
+                                break;
+                            case 'techs':
+                                // Sort by number of tech specialties, then by type priority
+                                const techsA = Array.from(new Set((a.planets || []).flatMap(p => p.techSpecialties || [])));
+                                const techsB = Array.from(new Set((b.planets || []).flatMap(p => p.techSpecialties || [])));
+                                const techPriority = { 'WARFARE': 1, 'PROPULSION': 2, 'CYBERNETIC': 3, 'BIOTIC': 4 };
+                                
+                                if (techsA.length !== techsB.length) {
+                                    valueA = techsA.length;
+                                    valueB = techsB.length;
+                                } else {
+                                    // Same count, sort by tech type priority (combined priority score)
+                                    const priorityA = techsA.reduce((sum, tech) => sum + (techPriority[tech?.toUpperCase()] || 5), 0);
+                                    const priorityB = techsB.reduce((sum, tech) => sum + (techPriority[tech?.toUpperCase()] || 5), 0);
+                                    valueA = priorityA;
+                                    valueB = priorityB;
+                                }
+                                break;
+                            case 'worms':
+                                // Sort by number of wormholes, then by type priority
+                                const wormsA = Array.isArray(a.wormholes) ? a.wormholes : [];
+                                const wormsB = Array.isArray(b.wormholes) ? b.wormholes : [];
+                                const wormPriority = { 'alpha': 1, 'beta': 2, 'gamma': 3, 'delta': 4 };
+                                
+                                if (wormsA.length !== wormsB.length) {
+                                    valueA = wormsA.length;
+                                    valueB = wormsB.length;
+                                } else {
+                                    // Same count, sort by wormhole type priority
+                                    const priorityA = wormsA.reduce((sum, worm) => sum + (wormPriority[worm?.toLowerCase()] || 5), 0);
+                                    const priorityB = wormsB.reduce((sum, worm) => sum + (wormPriority[worm?.toLowerCase()] || 5), 0);
+                                    valueA = priorityA;
+                                    valueB = priorityB;
+                                }
+                                break;
+                            case 'effects':
+                                // Sort by number of effects, then by type priority
+                                let effectsA = [];
+                                let effectsB = [];
+                                if (a.isNebula) effectsA.push('nebula');
+                                if (a.isGravityRift) effectsA.push('gravity');
+                                if (a.isSupernova) effectsA.push('supernova');
+                                if (a.isAsteroidField) effectsA.push('asteroid');
+                                if (b.isNebula) effectsB.push('nebula');
+                                if (b.isGravityRift) effectsB.push('gravity');
+                                if (b.isSupernova) effectsB.push('supernova');
+                                if (b.isAsteroidField) effectsB.push('asteroid');
+                                
+                                const effectPriority = { 'supernova': 1, 'gravity': 2, 'nebula': 3, 'asteroid': 4 };
+                                
+                                if (effectsA.length !== effectsB.length) {
+                                    valueA = effectsA.length;
+                                    valueB = effectsB.length;
+                                } else {
+                                    // Same count, sort by effect type priority
+                                    const priorityA = effectsA.reduce((sum, effect) => sum + (effectPriority[effect] || 5), 0);
+                                    const priorityB = effectsB.reduce((sum, effect) => sum + (effectPriority[effect] || 5), 0);
+                                    valueA = priorityA;
+                                    valueB = priorityB;
+                                }
+                                break;
+                            case 'legendary':
+                                valueA = (a.planets || []).some(p => p.legendaryAbilityName) ? 1 : 0;
+                                valueB = (b.planets || []).some(p => p.legendaryAbilityName) ? 1 : 0;
+                                break;
+                            default:
+                                return 0;
+                        }
+                        
+                        let result = 0;
+                        if (valueA < valueB) result = -1;
+                        else if (valueA > valueB) result = 1;
+                        
+                        return sortDirection === 'desc' ? -result : result;
+                    });
+                    
+                    // Re-render with sorted items
+                    renderList(sortedItems);
+                });
+            } else {
+                th.textContent = col.label;
+            }
+            
+            headerRow.appendChild(th);
+        });
+        
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
 
         const tbody = document.createElement('tbody');
 
@@ -377,12 +573,32 @@ export default async function initSystemLookup(editor) {
             const tr = document.createElement('tr');
             tr.style.cursor = 'pointer';
             tr.style.border = '1px solid #555';
+            
+            // Check if this system is currently selected
+            const isCurrentlySelected = currentlySelectedSystemId && s.id.toString().toUpperCase() === currentlySelectedSystemId.toString().toUpperCase();
+            
             if (isRealIDUsed(s.id)) {
                 tr.classList.add('used');
                 tr.style.background = '#522';
+            } else if (isCurrentlySelected) {
+                // Apply selected styling
+                tr.classList.add('selected');
+                tr.style.backgroundColor = '#3a5a3a';
+                // Don't add hover events for selected rows
             } else {
-                tr.addEventListener('mouseenter', () => tr.style.background = '#444');
-                tr.addEventListener('mouseleave', () => tr.style.background = '');
+                // Add hover events only for non-selected, non-used rows
+                const mouseEnterHandler = () => {
+                    if (!tr.classList.contains('selected')) {
+                        tr.style.background = '#444';
+                    }
+                };
+                const mouseLeaveHandler = () => {
+                    if (!tr.classList.contains('selected')) {
+                        tr.style.background = '';
+                    }
+                };
+                tr.addEventListener('mouseenter', mouseEnterHandler);
+                tr.addEventListener('mouseleave', mouseLeaveHandler);
             }
 
             tr.innerHTML = `
@@ -398,6 +614,53 @@ export default async function initSystemLookup(editor) {
             <td style="padding: 4px; border: 1px solid #555; text-align: center; width: 40px; min-width: 20px;">${legend}</td>
         `;
 
+            // Helper function to add image preview handlers
+            function addImagePreviewHandlers(element) {
+                if (hasImage && !imageAlreadyFailed) {
+                    element.addEventListener('mouseenter', e => {
+                        hoverTimeout = setTimeout(() => {
+                            // Skip if we've already determined this image fails
+                            if (failedImages.has(smallImgSrc)) return;
+
+                            // Try loading the image, only show if successful
+                            const previewImg = new window.Image();
+                            previewImg.src = smallImgSrc;
+                            previewImg.style.maxWidth = '220px';
+                            previewImg.style.maxHeight = '220px';
+                            previewImg.onload = () => {
+                                tilePreview.innerHTML = '';
+                                tilePreview.appendChild(previewImg);
+                                tilePreview.style.display = 'block';
+                                // Position 10px to the right of mouse pointer
+                                tilePreview.style.left = (e.clientX + 10) + 'px';
+                                tilePreview.style.top = e.clientY + 'px';
+                            };
+                            previewImg.onerror = () => {
+                                // Mark this image as failed to prevent future attempts
+                                failedImages.add(smallImgSrc);
+                                tilePreview.style.display = 'none';
+                                tilePreview.innerHTML = '';
+                                console.warn(`⚠️ Image not found: ${smallImgSrc}`);
+                            };
+                        }, 500);
+                    });
+
+                    // Update position on mouse move within the row
+                    element.addEventListener('mousemove', e => {
+                        if (tilePreview.style.display === 'block') {
+                            tilePreview.style.left = (e.clientX + 10) + 'px';
+                            tilePreview.style.top = e.clientY + 'px';
+                        }
+                    });
+
+                    element.addEventListener('mouseleave', e => {
+                        clearTimeout(hoverTimeout);
+                        tilePreview.style.display = 'none';
+                        tilePreview.innerHTML = '';
+                    });
+                }
+            }
+
             // Handle image loading errors for the thumbnail in the table
             if (hasImage && !imageAlreadyFailed) {
                 const thumbImg = tr.querySelector('.tile-thumb');
@@ -410,61 +673,69 @@ export default async function initSystemLookup(editor) {
                 }
             }
 
-            // --- Hover preview logic for image (if exists and hasn't failed) ---
-            if (hasImage && !imageAlreadyFailed) {
-                tr.addEventListener('mouseenter', e => {
-                    hoverTimeout = setTimeout(() => {
-                        // Skip if we've already determined this image fails
-                        if (failedImages.has(smallImgSrc)) return;
-
-                        // Try loading the image, only show if successful
-                        const previewImg = new window.Image();
-                        previewImg.src = smallImgSrc;
-                        previewImg.style.maxWidth = '220px';
-                        previewImg.style.maxHeight = '220px';
-                        previewImg.onload = () => {
-                            tilePreview.innerHTML = '';
-                            tilePreview.appendChild(previewImg);
-                            tilePreview.style.display = 'block';
-                            // Position 10px to the right of mouse pointer
-                            tilePreview.style.left = (e.clientX + 10) + 'px';
-                            tilePreview.style.top = e.clientY + 'px';
-                        };
-                        previewImg.onerror = () => {
-                            // Mark this image as failed to prevent future attempts
-                            failedImages.add(smallImgSrc);
-                            tilePreview.style.display = 'none';
-                            tilePreview.innerHTML = '';
-                            console.warn(`⚠️ Image not found: ${smallImgSrc}`);
-                        };
-                    }, 500);
-                });
-
-                // Update position on mouse move within the row
-                tr.addEventListener('mousemove', e => {
-                    if (tilePreview.style.display === 'block') {
-                        tilePreview.style.left = (e.clientX + 10) + 'px';
-                        tilePreview.style.top = e.clientY + 'px';
-                    }
-                });
-
-                tr.addEventListener('mouseleave', e => {
-                    clearTimeout(hoverTimeout);
-                    tilePreview.style.display = 'none';
-                    tilePreview.innerHTML = '';
-                });
-            }
+            // Add image preview handlers
+            addImagePreviewHandlers(tr);
 
             tr.addEventListener('click', () => {
                 editor.pendingSystemId = s.id.toString().toUpperCase();
 
-                // Add visual feedback for the selected system
+                // Clear previous selections and restore hover events
                 document.querySelectorAll('.system-table tr.selected').forEach(row => {
                     row.classList.remove('selected');
                     row.style.backgroundColor = '';
+                    
+                    // Re-add hover events for previously selected rows that aren't used
+                    const systemId = row.querySelector('td:nth-child(2) b')?.textContent;
+                    if (systemId && !isRealIDUsed(systemId)) {
+                        const mouseEnterHandler = () => {
+                            if (!row.classList.contains('selected')) {
+                                row.style.background = '#444';
+                            }
+                        };
+                        const mouseLeaveHandler = () => {
+                            if (!row.classList.contains('selected')) {
+                                row.style.background = '';
+                            }
+                        };
+                        row.addEventListener('mouseenter', mouseEnterHandler);
+                        row.addEventListener('mouseleave', mouseLeaveHandler);
+                    }
                 });
+
+                // Apply selection to current row
                 tr.classList.add('selected');
                 tr.style.backgroundColor = '#3a5a3a';
+                
+                // Remove all event listeners from the selected row to prevent hover effects
+                const newTr = tr.cloneNode(true);
+                tr.parentNode.replaceChild(newTr, tr);
+                
+                // Re-add image preview handlers to the new row
+                addImagePreviewHandlers(newTr);
+                
+                // Re-add image error handling to the new row
+                if (hasImage && !imageAlreadyFailed) {
+                    const thumbImg = newTr.querySelector('.tile-thumb');
+                    if (thumbImg) {
+                        thumbImg.onerror = () => {
+                            failedImages.add(smallImgSrc);
+                            thumbImg.style.display = 'none';
+                            console.warn(`⚠️ Thumbnail image not found: ${smallImgSrc}`);
+                        };
+                    }
+                }
+                
+                // Re-add only the click event to the new row
+                newTr.addEventListener('click', () => {
+                    // Same click logic - allow re-selection
+                    editor.pendingSystemId = s.id.toString().toUpperCase();
+                    if (typeof window.updateSystemSelectionStatus === 'function') {
+                        window.updateSystemSelectionStatus(s.id, s.name);
+                    }
+                    console.log(`📋 System ${s.id} (${s.name}) ready to place. Click on a hex to assign it.`);
+                    if (typeof editor.setMode === 'function') editor.setMode('select');
+                    document.querySelectorAll('.btn-wormhole.active').forEach(btn => btn.classList.remove('active'));
+                });
 
                 // Update status indicator
                 if (typeof window.updateSystemSelectionStatus === 'function') {

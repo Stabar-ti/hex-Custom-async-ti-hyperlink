@@ -66,7 +66,7 @@ export function showPopup({
     // Always apply rounded corners to all popups
     popup.style.borderRadius = style.borderRadius || '16px';
     // Debug: log popup style before DOM append
-    console.log('Popup style before append:', popup.style.cssText);
+    //console.log('Popup style before append:', popup.style.cssText);
 
     // --- Restore position/size from localStorage if enabled ---
     let hasStoredPos = false;
@@ -87,7 +87,7 @@ export function showPopup({
 
     // Content
     if (typeof content === 'string') {
-        console.log('Popup content (string):', content);
+    //    console.log('Popup content (string):', content);
         const contentDiv = document.createElement('div');
         contentDiv.className = 'popup-ui-content';
         contentDiv.innerHTML = content;
@@ -96,7 +96,7 @@ export function showPopup({
         contentDiv.style.padding = '';
         popup.appendChild(contentDiv);
     } else if (content instanceof HTMLElement) {
-        console.log('Popup content (HTMLElement):', content.outerHTML || content.textContent);
+    //    console.log('Popup content (HTMLElement):', content.outerHTML || content.textContent);
         content.style.paddingLeft = '24px'; // Indent content further to the right
         content.style.width = 'auto'; // Prevent width accumulation
         content.style.padding = '';
@@ -182,6 +182,8 @@ export function showPopup({
         closeBtn.style.display = 'flex';
         closeBtn.style.alignItems = 'center';
         closeBtn.style.justifyContent = 'center';
+        closeBtn.style.borderRadius = '0'; // Force square appearance
+        closeBtn.style.border = '1px solid #666'; // Consistent border
         closeBtn.onclick = () => {
             hidePopup(popup);
             if (typeof onClose === 'function') onClose();
@@ -204,6 +206,8 @@ export function showPopup({
             helpBtn.style.display = 'flex';
             helpBtn.style.alignItems = 'center';
             helpBtn.style.justifyContent = 'center';
+            helpBtn.style.borderRadius = '0'; // Force square appearance
+            helpBtn.style.border = '1px solid #2ecc40'; // Consistent border
             helpBtn.onclick = () => {
                 if (typeof onHelp === 'function') onHelp();
             };
