@@ -32,6 +32,7 @@ import { setupTileCopySingleButtonAndPopup } from './ui/tileCopyPasteWizardUI.js
 import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup } from './ui/simplepPopup.js';
 import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
 import { resetAllPopupPositions } from './ui/popupUI.js';
+import './ui/specialModePopup.js';
 
 // ───── Initialize the core HexEditor and set defaults ─────
 const svg = document.getElementById('hexMap');
