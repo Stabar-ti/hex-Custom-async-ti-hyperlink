@@ -114,6 +114,8 @@ export function assignSystem(editor, sys, hexID) {
       ? createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase())
       : null;
     if (overlay) {
+      // Tag overlay group with hex label for easy removal
+      overlay.setAttribute('data-label', hexID);
       const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
       if (wormholeIconLayer) {
         wormholeIconLayer.appendChild(overlay);

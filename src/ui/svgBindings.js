@@ -74,14 +74,35 @@ export function bindSvgHandlers(editor) {
 
   // Shift+R over a hovered hex: clear all content from that hex
   document.addEventListener('keydown', (e) => {
-    if ((e.key.toLowerCase() === 'r' && e.shiftKey && editor.hoveredHexLabel) || (e.key === 'Delete' && editor.hoveredHexLabel)) {
+    if (e.key.toLowerCase() === 'r' && e.shiftKey && editor.hoveredHexLabel) {
       editor.clearAll(editor.hoveredHexLabel);
       editor.clearCustomAdjacenciesBothSides(editor.hoveredHexLabel);
+      // Remove wormhole overlays for this hex
+      // Remove overlays in #wormholeIconLayer with matching data-label
+      const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
+      if (wormholeIconLayer) {
+        const overlays = wormholeIconLayer.querySelectorAll(`[data-label='${editor.hoveredHexLabel}']`);
+        overlays.forEach(el => wormholeIconLayer.removeChild(el));
+      }
+      // Also clear wormhole overlay references and customWormholes for this hex
+      const hex = editor.hexes[editor.hoveredHexLabel];
+      if (hex) {
+        hex.wormholeOverlays = [];
+        hex.customWormholes = new Set();
+        hex.inherentWormholes = new Set();
+        if (typeof editor.updateHexWormholes === 'function') {
+          editor.updateHexWormholes(hex);
+        }
+      }
+      // Also call any legacy removal function if present
+      if (typeof editor.removeWormholeOverlays === 'function') {
+        editor.removeWormholeOverlays(editor, editor.hoveredHexLabel);
+      } else if (typeof window.removeWormholeOverlays === 'function') {
+        window.removeWormholeOverlays(editor, editor.hoveredHexLabel);
+      }
       // Optionally, redraw overlays if needed:
       if (typeof editor.redrawCustomAdjacencyOverlay === 'function') editor.redrawCustomAdjacencyOverlay();
       if (typeof editor.redrawBorderAnomaliesOverlay === 'function') editor.redrawBorderAnomaliesOverlay();
-      // Redraw wormhole overlays to clear custom wormholes
-      if (typeof editor.redrawWormholeOverlay === 'function') editor.redrawWormholeOverlay(editor.hoveredHexLabel);
     }
     // Escape always clears any distance overlays
     if (e.key === 'Escape') {

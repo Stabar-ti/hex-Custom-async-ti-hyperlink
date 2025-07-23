@@ -37,28 +37,6 @@ export function endBatch(renderFn) {
 // that checks if a system should pass the filter when "active".
 // ──────────────────────────────
 const FILTERS = [
-  // Source filters (OR logic, case-insensitive, multi-select)
-  {
-    key: 'sourceMulti', label: 'Source', defaultOn: true, test(sys, a) {
-      // Collect all active source filters
-      const sources = [];
-      if (document.getElementById('filter-sourceBase')?.dataset.active === 'true') sources.push('base');
-      if (document.getElementById('filter-sourcePok')?.dataset.active === 'true') sources.push('pok');
-      if (document.getElementById('filter-sourceDs')?.dataset.active === 'true') {
-        sources.push('ds');
-        sources.push('uncharted_space');
-      }
-      if (document.getElementById('filter-sourceEronous')?.dataset.active === 'true') sources.push('eronous');
-      if (document.getElementById('filter-sourceOther')?.dataset.active === 'true') sources.push('other');
-      if (sources.length === 0) return true;
-      if (typeof sys.source !== 'string') return false;
-      const src = sys.source.toLowerCase().trim();
-      // If 'other' is selected, match any not in the listed set
-      if (sources.includes('other') && !['base','pok','ds','eronous'].includes(src)) return true;
-      // Otherwise, match any selected source (allow partial match)
-      return sources.some(s => s !== 'other' && src.includes(s));
-    }
-  },
   // Wormhole filter: supports both Set and Array for wormholes (union of inherent+custom)
   {
     key: 'hasWormhole', label: 'Has Wormhole', defaultOn: false, test(sys, a) {
@@ -117,119 +95,29 @@ const FILTERS = [
  * @param {Function}    onResults Callback: receives the filtered system list
  */
 export function initFilters(container, editor, onResults) {
+  container.innerHTML = ''; // Clear any old filter buttons
 
-  container.innerHTML = '';
-
-  // Add section header for Source (OR logic)
-  const sourceHeader = document.createElement('div');
-  sourceHeader.textContent = 'Source (OR: any selected)';
-  sourceHeader.className = 'filter-section-header';
-  container.appendChild(sourceHeader);
-
-  // Render Source filter buttons
-  const sources = [
-    { subKey: 'sourceBase', label: 'Base', defaultOn: true },
-    { subKey: 'sourcePok', label: 'PoK', defaultOn: true },
-    { subKey: 'sourceDs', label: 'DS', defaultOn: true },
-    { subKey: 'sourceEronous', label: 'Eronous', defaultOn: true },
-    { subKey: 'sourceOther', label: 'Other', defaultOn: true }
-  ];
-  sources.forEach(({ subKey, label, defaultOn }) => {
-    const btn = document.createElement('button');
-    btn.id = `filter-${subKey}`;
-    btn.textContent = label;
-    btn.classList.add('filter-button');
-    btn.dataset.active = defaultOn.toString();
-    if (defaultOn) btn.classList.add('active');
-    btn.addEventListener('click', () => {
-      const now = btn.dataset.active === 'true';
-      btn.dataset.active = (!now).toString();
-      btn.classList.toggle('active', !now);
-      applyFilters(editor, onResults);
-      updateFilterSummary(editor);
-    });
-    container.appendChild(btn);
-  });
-
-
-  // Attribute logic toggle (AND/NAND)
-  let attrLogic = window.localStorage.getItem('attributeLogic') || 'AND';
-  const attrHeader = document.createElement('div');
-  attrHeader.className = 'filter-section-header';
-  const attrLabel = document.createElement('span');
-  attrLabel.textContent = `Attributes (`;
-  const logicToggle = document.createElement('button');
-  logicToggle.textContent = attrLogic;
-  logicToggle.className = 'attr-logic-toggle';
-  logicToggle.addEventListener('click', () => {
-    attrLogic = attrLogic === 'AND' ? 'NAND' : 'AND';
-    window.localStorage.setItem('attributeLogic', attrLogic);
-    logicToggle.textContent = attrLogic;
-    applyFilters(editor, onResults, attrLogic);
-    updateFilterSummary(editor, attrLogic);
-  });
-  attrHeader.appendChild(attrLabel);
-  attrHeader.appendChild(logicToggle);
-  attrHeader.appendChild(document.createTextNode(': all selected)'));
-  container.appendChild(attrHeader);
-
-  // Render Attribute filter buttons
   FILTERS.forEach(({ key, label, defaultOn }) => {
-    if (key === 'sourceMulti') return;
     const btn = document.createElement('button');
     btn.id = `filter-${key}`;
     btn.textContent = label;
     btn.classList.add('filter-button');
     btn.dataset.active = defaultOn.toString();
     if (defaultOn) btn.classList.add('active');
+
+    // Toggle button state and re-apply filters on click
     btn.addEventListener('click', () => {
       const now = btn.dataset.active === 'true';
       btn.dataset.active = (!now).toString();
       btn.classList.toggle('active', !now);
-      applyFilters(editor, onResults, attrLogic);
-      updateFilterSummary(editor, attrLogic);
+      applyFilters(editor, onResults);
     });
+
     container.appendChild(btn);
   });
 
-  // Add filter summary bar
-  let summaryBar = document.getElementById('filter-summary-bar');
-  if (!summaryBar) {
-    summaryBar = document.createElement('div');
-    summaryBar.id = 'filter-summary-bar';
-    summaryBar.className = 'filter-summary-bar';
-    container.prepend(summaryBar);
-  }
-  updateFilterSummary(editor, attrLogic);
-
   // Run filters initially so UI is correct on load
-  applyFilters(editor, onResults, attrLogic);
-}
-
-// Helper to update the filter summary bar
-function updateFilterSummary(editor, attrLogic = 'AND') {
-  const summaryBar = document.getElementById('filter-summary-bar');
-  if (!summaryBar) return;
-  // Collect active sources
-  const sourceLabels = [];
-  if (document.getElementById('filter-sourceBase')?.dataset.active === 'true') sourceLabels.push('Base');
-  if (document.getElementById('filter-sourcePok')?.dataset.active === 'true') sourceLabels.push('PoK');
-  if (document.getElementById('filter-sourceDs')?.dataset.active === 'true') sourceLabels.push('DS');
-  if (document.getElementById('filter-sourceEronous')?.dataset.active === 'true') sourceLabels.push('Eronous');
-  if (document.getElementById('filter-sourceOther')?.dataset.active === 'true') sourceLabels.push('Other');
-  // Collect active attributes
-  const attrLabels = [];
-  FILTERS.forEach(({ key, label }) => {
-    if (key === 'sourceMulti') return;
-    const btn = document.getElementById(`filter-${key}`);
-    if (btn?.dataset.active === 'true') attrLabels.push(label);
-  });
-  // Build summary text
-  let summary = '';
-  if (sourceLabels.length > 0) summary += `Source: [${sourceLabels.join(', ')}]`;
-  if (attrLabels.length > 0) summary += `  ${attrLogic}  Attributes: [${attrLabels.join(', ')}]`;
-  if (!summary) summary = 'No filters active';
-  summaryBar.textContent = summary;
+  applyFilters(editor, onResults);
 }
 
 // ──────────────────────────────
@@ -239,28 +127,17 @@ function updateFilterSummary(editor, attrLogic = 'AND') {
  * Applies every filter's .test to editor.allSystems, then calls onResults.
  * This function is called whenever a filter button is toggled.
  */
-export function applyFilters(editor, onResults, attrLogic = 'AND') {
+export function applyFilters(editor, onResults) {
   const all = Array.isArray(editor.allSystems) ? editor.allSystems : [];
   const matches = all.filter(sys => {
     // Never show a system already placed on the map
     if (editor.hexes[sys.id]?.baseType) return false;
-    // Source filter always ANDed in, but attribute filters can be AND or NAND
-    // 1. Source filter
-    const sourcePass = FILTERS.find(f => f.key === 'sourceMulti').test(sys, true);
-    if (!sourcePass) return false;
-    // 2. Attribute filters
-    const attrFilters = FILTERS.filter(f => f.key !== 'sourceMulti');
-    const activeAttrs = attrFilters.filter(f => {
-      const btn = document.getElementById(`filter-${f.key}`);
-      return btn?.dataset.active === 'true';
+    // All filters must pass (AND logic)
+    return FILTERS.every(({ key, test }) => {
+      const btn = document.getElementById(`filter-${key}`);
+      const active = btn?.dataset.active === 'true';
+      return test(sys, active);
     });
-    if (activeAttrs.length === 0) return true;
-    if (attrLogic === 'AND') {
-      return activeAttrs.every(f => f.test(sys, true));
-    } else {
-      // NAND: show systems that do NOT match all selected attributes
-      return !activeAttrs.every(f => f.test(sys, true));
-    }
   });
   onResults(matches);
 }

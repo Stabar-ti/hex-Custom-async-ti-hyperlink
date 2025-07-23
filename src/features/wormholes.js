@@ -100,6 +100,8 @@ export function toggleWormhole(editor, hexId, type) {
       hex.center.y + pos.dy,
       w.toLowerCase()
     );
+    // Always tag overlay group with hex label for easy removal (inherited and custom)
+    overlay.setAttribute('data-label', hexId);
 
     const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
     if (wormholeIconLayer) {
