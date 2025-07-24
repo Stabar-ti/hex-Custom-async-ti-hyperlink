@@ -1,6 +1,7 @@
 import { showPopup, hidePopup, resetAllPopupPositions } from './popupUI.js';
 import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 import { toggleTheme } from './uiTheme.js';
+import { checkRealIdUniqueness, generateSanityCheckSummary } from '../features/sanityCheck.js';
 
 export function showOptionsPopup(editor) {
     // Build content dynamically, reflecting current editor options
@@ -323,6 +324,104 @@ export function showLayoutOptionsPopup() {
             resetBtn.onclick = () => {
                 resetAllPopupPositions();
                 alert('All popup positions have been reset. Please reopen your popups.');
+            };
+        }
+    }, 0);
+}
+
+export function showSanityCheckPopup() {
+    // Build content for sanity check
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
+        <div style="margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: #ffe066;">RealID Uniqueness Check</h3>
+            <p style="margin-bottom: 15px; color: #ccc; font-size: 0.9em;">
+                Check for duplicate realID numbers on the map according to different rules.
+            </p>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 8px; color: #fff;">
+                    <input type="checkbox" id="uniquePlanets" style="margin-right: 8px;">
+                    <strong>Unique Planets</strong> - Only check hexes that contain planets
+                </label>
+                <label style="display: block; margin-bottom: 8px; color: #fff;">
+                    <input type="checkbox" id="uniqueOther" style="margin-right: 8px;">
+                    <strong>Unique All</strong> - Check all hexes with realIDs regardless of content
+                </label>
+            </div>
+            
+            <button id="runSanityCheck" class="mode-button" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                Run Check
+            </button>
+        </div>
+        
+        <div id="sanityCheckResults" style="border-top: 1px solid #444; padding-top: 15px; min-height: 50px;">
+            <p style="color: #888; font-style: italic;">Select check options above and click "Run Check" to analyze the map.</p>
+        </div>
+    `;
+
+    showPopup({
+        id: 'sanity-check-popup',
+        className: 'sanity-check-popup',
+        title: 'Sanity Check',
+        content: wrapper,
+        draggable: true,
+        dragHandleSelector: '.popup-ui-titlebar',
+        scalable: true,
+        rememberPosition: true,
+        actions: [
+            { label: 'Close', action: () => hidePopup('sanity-check-popup') }
+        ],
+        style: {
+            minWidth: '500px',
+            maxWidth: '700px',
+            borderRadius: '12px',
+            zIndex: 10010
+        },
+        showHelp: false
+    });
+
+    // Set up event handlers after popup is shown
+    setTimeout(() => {
+        const runCheckBtn = document.getElementById('runSanityCheck');
+        const uniquePlanetsCheckbox = document.getElementById('uniquePlanets');
+        const uniqueOtherCheckbox = document.getElementById('uniqueOther');
+        const resultsDiv = document.getElementById('sanityCheckResults');
+
+        if (runCheckBtn && uniquePlanetsCheckbox && uniqueOtherCheckbox && resultsDiv) {
+            // Make checkboxes mutually exclusive
+            uniquePlanetsCheckbox.addEventListener('change', () => {
+                if (uniquePlanetsCheckbox.checked) {
+                    uniqueOtherCheckbox.checked = false;
+                }
+            });
+
+            uniqueOtherCheckbox.addEventListener('change', () => {
+                if (uniqueOtherCheckbox.checked) {
+                    uniquePlanetsCheckbox.checked = false;
+                }
+            });
+            runCheckBtn.onclick = () => {
+                const planetsOnly = uniquePlanetsCheckbox.checked;
+                const checkAll = uniqueOtherCheckbox.checked;
+
+                // Validate that exactly one option is selected
+                if (!planetsOnly && !checkAll) {
+                    resultsDiv.innerHTML = '<p style="color: #dc3545;">Please select one check option.</p>';
+                    return;
+                }
+
+                // Run the sanity check
+                resultsDiv.innerHTML = '<p style="color: #fff;">Running check...</p>';
+
+                try {
+                    const results = checkRealIdUniqueness(planetsOnly, checkAll);
+                    const summary = generateSanityCheckSummary(results, planetsOnly, checkAll);
+                    resultsDiv.innerHTML = summary;
+                } catch (error) {
+                    resultsDiv.innerHTML = `<p style="color: #dc3545;">Error running sanity check: ${error.message}</p>`;
+                    console.error('Sanity check error:', error);
+                }
             };
         }
     }, 0);

@@ -77,29 +77,6 @@ export function bindSvgHandlers(editor) {
     if (e.key.toLowerCase() === 'r' && e.shiftKey && editor.hoveredHexLabel) {
       editor.clearAll(editor.hoveredHexLabel);
       editor.clearCustomAdjacenciesBothSides(editor.hoveredHexLabel);
-      // Remove wormhole overlays for this hex
-      // Remove overlays in #wormholeIconLayer with matching data-label
-      const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
-      if (wormholeIconLayer) {
-        const overlays = wormholeIconLayer.querySelectorAll(`[data-label='${editor.hoveredHexLabel}']`);
-        overlays.forEach(el => wormholeIconLayer.removeChild(el));
-      }
-      // Also clear wormhole overlay references and customWormholes for this hex
-      const hex = editor.hexes[editor.hoveredHexLabel];
-      if (hex) {
-        hex.wormholeOverlays = [];
-        hex.customWormholes = new Set();
-        hex.inherentWormholes = new Set();
-        if (typeof editor.updateHexWormholes === 'function') {
-          editor.updateHexWormholes(hex);
-        }
-      }
-      // Also call any legacy removal function if present
-      if (typeof editor.removeWormholeOverlays === 'function') {
-        editor.removeWormholeOverlays(editor, editor.hoveredHexLabel);
-      } else if (typeof window.removeWormholeOverlays === 'function') {
-        window.removeWormholeOverlays(editor, editor.hoveredHexLabel);
-      }
       // Optionally, redraw overlays if needed:
       if (typeof editor.redrawCustomAdjacencyOverlay === 'function') editor.redrawCustomAdjacencyOverlay();
       if (typeof editor.redrawBorderAnomaliesOverlay === 'function') editor.redrawBorderAnomaliesOverlay();

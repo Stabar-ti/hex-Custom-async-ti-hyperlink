@@ -1,7 +1,7 @@
 // src/features/miltyBuilder.js
 // Milty Slice Designer core logic and UI hooks
 
-import { assignSystem} from './assignSystem.js';
+import { assignSystem } from './assignSystem.js';
 import { removeWormholeOverlay } from './wormholes.js';
 import { showPopup, hidePopup } from '../ui/popupUI.js';
 import { wormholeTypes, planetTypeColors, techSpecialtyColors } from '../constants/constants.js';
@@ -43,7 +43,7 @@ export function drawSlicePositionOverlays(editor) {
         text.textContent = (i + 1).toString();
         layer.appendChild(text);
     }
-    
+
     // Green A-F letters for slice positions
     const sliceLetters = [636, 504, 306, 311, 523, 632];
     const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -77,16 +77,16 @@ export function drawSliceBordersOverlay(editor) {
         console.log('drawSliceBordersOverlay: editor, hexes, or svg not available');
         return;
     }
-    
+
     // Remove old borders if any
     const oldLayer = editor.svg.querySelector('#sliceBordersOverlayLayer');
     if (oldLayer) oldLayer.remove();
-    
+
     // Create overlay layer
     const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     layer.setAttribute('id', 'sliceBordersOverlayLayer');
     editor.svg.appendChild(layer);
-    
+
     // Default slice definitions
     const defaultSlices = {
         A: [530, 401, 424, 529, 301, 318],
@@ -96,7 +96,7 @@ export function drawSliceBordersOverlay(editor) {
         E: [419, 420, 315, 314, 316, 211],
         F: [527, 528, 422, 421, 423, 317]
     };
-    
+
     const sliceColors = {
         A: '#ff0000', // Red
         B: '#00ff00', // Green  
@@ -105,17 +105,17 @@ export function drawSliceBordersOverlay(editor) {
         E: '#ff00ff', // Magenta
         F: '#00ffff'  // Cyan
     };
-    
+
     // First, draw colored overlays for each slice
     Object.entries(defaultSlices).forEach(([sliceName, hexIds]) => {
         hexIds.forEach(hexId => {
             const hex = editor.hexes[hexId];
             if (!hex || !hex.center) return;
-            
+
             // Create a hexagon polygon for the overlay
             const verts = getHexVertices(hex.center, editor.hexRadius);
             const points = verts.map(v => `${v.x},${v.y}`).join(' ');
-            
+
             const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
             polygon.setAttribute('points', points);
             polygon.setAttribute('fill', sliceColors[sliceName]);
@@ -123,43 +123,43 @@ export function drawSliceBordersOverlay(editor) {
             polygon.setAttribute('stroke', 'none');
             polygon.setAttribute('class', `slice-overlay slice-overlay-${sliceName}`);
             polygon.setAttribute('pointer-events', 'none'); // Don't interfere with hex interactions
-            
+
             layer.appendChild(polygon);
         });
     });
-    
+
     // Then draw borders on top of overlays
     Object.entries(defaultSlices).forEach(([sliceName, hexIds]) => {
         const sliceHexSet = new Set(hexIds.map(id => id.toString()));
         const drawnEdges = new Set();
         const INSET = 1; // px to move inward from each edge endpoint
-        
+
         hexIds.forEach(hexId => {
             const hex = editor.hexes[hexId];
             if (!hex || !hex.center) return;
-            
+
             // Check each side of this hex
             for (let side = 0; side < 6; side++) {
                 const neighbor = getNeighborHex(editor, hexId.toString(), side);
                 const neighborInSlice = neighbor && sliceHexSet.has(neighbor.label);
-                
+
                 // If neighbor is not in the same slice, this is an external edge
                 if (!neighborInSlice) {
                     const edgeKey = `${hexId}-${side}`;
                     if (drawnEdges.has(edgeKey)) return;
                     drawnEdges.add(edgeKey);
-                    
+
                     // Get the hex vertices and draw the edge
                     const verts = getHexVertices(hex.center, editor.hexRadius);
                     const p1 = insetPoint(verts[side], hex.center, INSET);
                     const p2 = insetPoint(verts[(side + 1) % 6], hex.center, INSET);
-                    
+
                     drawSliceEdgeLine(layer, p1, p2, sliceColors[sliceName], 3);
                 }
             }
         });
     });
-    
+
     console.log('Slice borders and overlays drawn');
 }
 
@@ -227,12 +227,12 @@ export function showMiltyBuilderUI(container) {
         1: [836, 941, 837, 732, 942, 838],
         2: [624, 625, 521, 520, 626, 522],
         3: [724, 725, 621, 620, 622, 518],
-        4: [617, 515,514, 616, 412, 411],
-        5: [510, 408, 509, 611, 407 , 508],
+        4: [617, 515, 514, 616, 412, 411],
+        5: [510, 408, 509, 611, 407, 508],
         6: [813, 711, 812, 914, 710, 811],
         7: [936, 937, 833, 832, 938, 834],
         8: [1036, 1037, 933, 932, 934, 830],
-        9: [1032, 1033, 929,928, 930, 826],
+        9: [1032, 1033, 929, 928, 930, 826],
         10: [1028, 926, 925, 1027, 823, 822],
         11: [1025, 923, 922, 1024, 820, 819],
         12: [817, 715, 826, 918, 714, 815]
@@ -280,7 +280,7 @@ export function showMiltyBuilderUI(container) {
                     <span style="font-weight: bold; color: #4CAF50;">Standard Map Slices</span>
                 </div>
                 <div id="miltyMapRow" style="display:flex;gap:8px;justify-content:center;">
-                    ${['A','B','C','D','E','F'].map(l => `<button class="milty-map-btn" id="sliceMapBtn_${l}" style="width:42px;height:42px;font-size:16px;font-weight:bold;">${l}</button>`).join('')}
+                    ${['A', 'B', 'C', 'D', 'E', 'F'].map(l => `<button class="milty-map-btn" id="sliceMapBtn_${l}" style="width:42px;height:42px;font-size:16px;font-weight:bold;">${l}</button>`).join('')}
                 </div>
             </div>
             
@@ -291,10 +291,10 @@ export function showMiltyBuilderUI(container) {
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
                     <div id="miltySlotRow1" style="display:flex;gap:6px;">
-                        ${Array.from({length:6},(_,i)=>`<button class="milty-slot-btn" id="sliceSlotBtn_${i+1}" style="width:38px;height:38px;font-size:14px;font-weight:bold;">${i+1}</button>`).join('')}
+                        ${Array.from({ length: 6 }, (_, i) => `<button class="milty-slot-btn" id="sliceSlotBtn_${i + 1}" style="width:38px;height:38px;font-size:14px;font-weight:bold;">${i + 1}</button>`).join('')}
                     </div>
                     <div id="miltySlotRow2" style="display:flex;gap:6px;">
-                        ${Array.from({length:6},(_,i)=>`<button class="milty-slot-btn" id="sliceSlotBtn_${i+7}" style="width:38px;height:38px;font-size:14px;font-weight:bold;">${i+7}</button>`).join('')}
+                        ${Array.from({ length: 6 }, (_, i) => `<button class="milty-slot-btn" id="sliceSlotBtn_${i + 7}" style="width:38px;height:38px;font-size:14px;font-weight:bold;">${i + 7}</button>`).join('')}
                     </div>
                 </div>
             </div>
@@ -315,7 +315,7 @@ export function showMiltyBuilderUI(container) {
         const { updateHexWormholes } = await import('./wormholes.js');
         let sliceBordersVisible = false;
         let sliceNumbersVisible = false;
-        
+
         const btn = document.getElementById('loadMiltyJsonBtn');
         if (btn) {
             btn.onclick = async () => {
@@ -325,7 +325,7 @@ export function showMiltyBuilderUI(container) {
                     if (!res.ok) throw new Error('HTTP ' + res.status);
                     const jsonText = await res.text();
                     importFullState(window.editor, jsonText);
-                    
+
                     // Draw slice overlays after map is loaded
                     setTimeout(() => {
                         drawSlicePositionOverlays(window.editor);
@@ -339,7 +339,7 @@ export function showMiltyBuilderUI(container) {
                         updateSliceButtonColors(); // Update button colors based on current map state
                         console.log('Slice overlays drawn after MiltyBuilder.json load');
                     }, 500);
-                    
+
                     alert('MiltyBuilder.json loaded!');
                 } catch (err) {
                     alert('Failed to load MiltyBuilder.json: ' + err);
@@ -438,15 +438,15 @@ export function showMiltyBuilderUI(container) {
         function generateOutputString() {
             const fullyOccupiedSlices = [];
             const sliceDetails = [];
-            
+
             for (let slotNum = 1; slotNum <= 12; slotNum++) {
                 const slotHexes = slotPositions[slotNum];
                 if (!slotHexes) continue;
-                
+
                 // Check if this slot is fully occupied with realId systems
                 const realIds = [];
                 let isFullyOccupied = true;
-                
+
                 // Skip position 0 (homesystem), check positions 1-5
                 for (let i = 1; i < slotHexes.length; i++) {
                     const hexId = slotHexes[i];
@@ -458,7 +458,7 @@ export function showMiltyBuilderUI(container) {
                         break;
                     }
                 }
-                
+
                 // If all 5 positions have realId systems, include in output
                 if (isFullyOccupied && realIds.length === 5) {
                     fullyOccupiedSlices.push(realIds.join(','));
@@ -468,7 +468,7 @@ export function showMiltyBuilderUI(container) {
                     });
                 }
             }
-            
+
             return {
                 outputString: fullyOccupiedSlices.join(';'),
                 sliceDetails: sliceDetails
@@ -478,13 +478,13 @@ export function showMiltyBuilderUI(container) {
         // ...existing code...
 
         // Map slice buttons (A-F)
-        ['A','B','C','D','E','F'].forEach(l => {
+        ['A', 'B', 'C', 'D', 'E', 'F'].forEach(l => {
             const b = document.getElementById(`sliceMapBtn_${l}`);
             if (b) {
                 b.onclick = () => {
                     // Always refresh occupancy when clicking slice buttons
                     updateSliceButtonColors();
-                    
+
                     if (selectedSource && selectedSourceType) {
                         // Move from source to this map slice
                         moveSlice(selectedSource, selectedSourceType, l, 'map');
@@ -505,81 +505,81 @@ export function showMiltyBuilderUI(container) {
         // Update slice button colors based on occupancy
         function updateSliceButtonColors() {
             // Update standard map slices (A-F)
-            ['A','B','C','D','E','F'].forEach(sliceLetter => {
+            ['A', 'B', 'C', 'D', 'E', 'F'].forEach(sliceLetter => {
                 const btn = document.getElementById(`sliceMapBtn_${sliceLetter}`);
                 if (!btn) return;
-                
+
                 const sliceHexes = defaultSlices[sliceLetter];
                 if (!sliceHexes) return;
-                
+
                 const colors = analyzeSliceOccupancy(sliceHexes, sliceLetter);
-                
+
                 // Clear any old selection styling first, then apply new colors
                 if (selectedSource !== sliceLetter || selectedSourceType !== 'map') {
                     btn.style.border = '';
                     btn.style.boxShadow = '';
                 }
-                
+
                 // Apply the occupancy-based colors
                 btn.style.backgroundColor = colors.backgroundColor;
                 btn.style.color = colors.textColor;
                 btn.title = colors.title;
             });
-            
+
             // Update draft slot buttons (1-12)
             for (let slotNum = 1; slotNum <= 12; slotNum++) {
                 const btn = document.getElementById(`sliceSlotBtn_${slotNum}`);
                 if (!btn) continue;
-                
+
                 const slotHexes = slotPositions[slotNum];
                 if (!slotHexes) continue;
-                
+
                 const colors = analyzeSliceOccupancy(slotHexes, `Slot ${slotNum}`);
-                
+
                 // Clear any old selection styling first, then apply new colors
                 if (selectedSource !== slotNum || selectedSourceType !== 'slot') {
                     btn.style.border = '';
                     btn.style.boxShadow = '';
                 }
-                
+
                 // Apply the occupancy-based colors, but preserve slot number display
                 btn.style.backgroundColor = colors.backgroundColor;
                 btn.style.color = colors.textColor;
                 btn.title = colors.title;
-                
+
                 // Keep the slot number visible, but add occupancy indicator
-                const occupancyIndicator = colors.backgroundColor === '#28a745' ? ' ✓' : 
-                                         colors.backgroundColor === '#fd7e14' ? ' ◐' :
-                                         colors.backgroundColor === '#dc3545' ? ' ◑' : '';
+                const occupancyIndicator = colors.backgroundColor === '#28a745' ? ' ✓' :
+                    colors.backgroundColor === '#fd7e14' ? ' ◐' :
+                        colors.backgroundColor === '#dc3545' ? ' ◑' : '';
                 btn.textContent = slotNum + occupancyIndicator;
             }
         }
-        
+
         // Helper function to analyze slice occupancy and return color scheme
         function analyzeSliceOccupancy(sliceHexes, sliceName) {
             // Analyze slice contents (skip position 0 - homesystem)
             let totalSlots = sliceHexes.length - 1; // 5 slots (positions 1-5)
             let filledWithRealId = 0;
             let filledWithOther = 0;
-            
+
             for (let i = 1; i < sliceHexes.length; i++) {
                 const hexId = sliceHexes[i];
                 const hex = window.editor?.hexes?.[hexId];
                 if (hex) {
                     if (hex.realId) {
                         filledWithRealId++;
-                    } else if (hex.baseType || hex.isHyperlane || hex.isNebula || hex.isGravityRift || 
-                              hex.isSupernova || hex.isAsteroidField || (hex.wormholes && hex.wormholes.length > 0)) {
+                    } else if (hex.baseType || hex.isHyperlane || hex.isNebula || hex.isGravityRift ||
+                        hex.isSupernova || hex.isAsteroidField || (hex.wormholes && hex.wormholes.length > 0)) {
                         filledWithOther++;
                     }
                 }
             }
-            
+
             // Determine colors based on occupancy
             let backgroundColor = '';
             let textColor = '';
             let title = '';
-            
+
             if (filledWithRealId === totalSlots) {
                 // All 5 slots filled with realId systems (async tiles)
                 backgroundColor = '#28a745'; // Green
@@ -601,18 +601,18 @@ export function showMiltyBuilderUI(container) {
                 textColor = '#212529';
                 title = `${sliceName}: Empty`;
             }
-            
+
             return { backgroundColor, textColor, title };
         }
 
         // Slot buttons (1-12)
-        for (let i=1; i<=12; ++i) {
+        for (let i = 1; i <= 12; ++i) {
             const b = document.getElementById(`sliceSlotBtn_${i}`);
             if (b) {
                 b.onclick = () => {
                     // Always refresh occupancy when clicking slot buttons
                     updateSliceButtonColors();
-                    
+
                     if (selectedSource && selectedSourceType) {
                         // Move from source to this slot
                         moveSlice(selectedSource, selectedSourceType, i, 'slot');
@@ -623,20 +623,20 @@ export function showMiltyBuilderUI(container) {
                         selectedMapSlice = null;
                         selectedSlot = null;
                         updateStatusMsg(`Selected slot ${i}. Now select a destination to move to.`);
-                        const slotData = sliceSlots[i-1];
+                        const slotData = sliceSlots[i - 1];
                         if (slotData) highlightSliceOnMap(slotData);
                         updateSliceButtonStyles();
                     }
                 };
             }
         }
-        
+
         // Move slice between any positions (A-F, 1-12, intermixed)
         function moveSlice(sourceId, sourceType, targetId, targetType) {
             // Get source hex positions first
             let sourceHexes = [];
             if (sourceType === 'map') {
-                const sliceKeys = ['A','B','C','D','E','F'];
+                const sliceKeys = ['A', 'B', 'C', 'D', 'E', 'F'];
                 const sliceIndex = sliceKeys.indexOf(sourceId);
                 if (sliceIndex >= 0) {
                     sourceHexes = Object.values(defaultSlices)[sliceIndex] || [];
@@ -644,12 +644,12 @@ export function showMiltyBuilderUI(container) {
             } else if (sourceType === 'slot') {
                 sourceHexes = slotPositions[sourceId] || [];
             }
-            
+
             if (!sourceHexes.length) {
                 updateStatusMsg(`Invalid source ${sourceType} ${sourceId}.`);
                 return;
             }
-            
+
             // Build sourceData from actual current hex states (not stored arrays)
             let sourceData = [];
             for (let i = 0; i < sourceHexes.length; i++) {
@@ -675,12 +675,12 @@ export function showMiltyBuilderUI(container) {
                     sourceData.push(null);
                 }
             }
-            
+
             // Get target hex positions
             let targetHexes = [];
             if (targetType === 'map') {
                 // Moving to map slice A-F, use default slice positions
-                const sliceKeys = ['A','B','C','D','E','F'];
+                const sliceKeys = ['A', 'B', 'C', 'D', 'E', 'F'];
                 const sliceIndex = sliceKeys.indexOf(targetId);
                 if (sliceIndex >= 0) {
                     targetHexes = Object.values(defaultSlices)[sliceIndex] || [];
@@ -689,16 +689,16 @@ export function showMiltyBuilderUI(container) {
                 // Moving to draft slot 1-12
                 targetHexes = slotPositions[targetId] || [];
             }
-            
+
             if (!targetHexes.length) {
                 updateStatusMsg(`Invalid target ${targetType} ${targetId}.`);
                 return;
             }
-            
+
             // First paste slice data to new positions and mark as used
             const minLen = Math.min(sourceData.length, targetHexes.length);
             const placedSystems = []; // Track which systems we place for marking
-            
+
             for (let j = 1; j < minLen; ++j) {
                 const srcData = sourceData[j];
                 const tgtHexId = targetHexes[j];
@@ -709,33 +709,33 @@ export function showMiltyBuilderUI(container) {
                             // For systems with realId, follow importFullState pattern
                             // Direct assignment like importFullState does
                             tgtHex.realId = srcData.realId;
-                            
+
                             // Mark as used immediately like importFullState does
                             import('../ui/uiFilters.js').then(({ markRealIDUsed }) => {
                                 markRealIDUsed(srcData.realId);
                             }).catch(err => {
                                 console.warn('Could not mark realId as used:', err);
                             });
-                            
+
                             tgtHex.planets = Array.isArray(srcData.planets) ? JSON.parse(JSON.stringify(srcData.planets)) : [];
-                            
+
                             // Handle wormholes properly like importFullState does
                             // First, get system info to find inherent wormholes
                             const realIdKey = srcData.realId.toString().toUpperCase();
                             const info = window.editor?.sectorIDLookup?.[realIdKey] || {};
-                            
+
                             // Set inherent and custom wormholes separately
                             tgtHex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
                             tgtHex.customWormholes = new Set(Array.from(srcData.customWormholes || []).filter(Boolean).map(w => w.toLowerCase()));
                             // Always update hex.wormholes as the union
                             tgtHex.wormholes = new Set([...tgtHex.inherentWormholes, ...tgtHex.customWormholes]);
-                            
+
                             tgtHex.isHyperlane = srcData.isHyperlane;
                             tgtHex.isNebula = srcData.isNebula;
                             tgtHex.isGravityRift = srcData.isGravityRift;
                             tgtHex.isSupernova = srcData.isSupernova;
                             tgtHex.isAsteroidField = srcData.isAsteroidField;
-                            
+
                             // Apply effects using editor.applyEffect like importFullState does
                             if (srcData.effects && srcData.effects.length > 0) {
                                 srcData.effects.forEach(eff => {
@@ -744,7 +744,7 @@ export function showMiltyBuilderUI(container) {
                                     }
                                 });
                             }
-                            
+
                             // Use the same classification logic as importFullState
                             if (srcData.baseType === "void") {
                                 window.editor.setSectorType(tgtHexId, 'void', { skipSave: true });
@@ -766,13 +766,13 @@ export function showMiltyBuilderUI(container) {
                                     window.editor.setSectorType(tgtHexId, 'empty', { skipSave: true });
                                 }
                             }
-                            
+
                             // Apply effects from SystemInfo like importFullState does
                             if (info.isNebula) window.editor.applyEffect(tgtHexId, 'nebula');
                             if (info.isGravityRift) window.editor.applyEffect(tgtHexId, 'rift');
                             if (info.isSupernova) window.editor.applyEffect(tgtHexId, 'supernova');
                             if (info.isAsteroidField) window.editor.applyEffect(tgtHexId, 'asteroid');
-                            
+
                             // Create wormhole overlays like importFullState does
                             tgtHex.wormholeOverlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
                             tgtHex.wormholeOverlays = [];
@@ -796,24 +796,24 @@ export function showMiltyBuilderUI(container) {
                                     console.warn('Could not create wormhole overlay:', err);
                                 });
                             });
-                            
+
                             placedSystems.push(srcData.realId);
                         } else if (srcData.baseType || srcData.isHyperlane || srcData.isNebula || srcData.isGravityRift || srcData.isSupernova || srcData.isAsteroidField) {
                             // For special hexes without realId, directly set properties
                             tgtHex.baseType = srcData.baseType;
                             tgtHex.planets = Array.isArray(srcData.planets) ? JSON.parse(JSON.stringify(srcData.planets)) : [];
-                            
+
                             // Handle wormholes for special hexes (these are usually custom only)
                             tgtHex.inherentWormholes = new Set(); // Special hexes usually don't have inherent wormholes
                             tgtHex.customWormholes = new Set(Array.from(srcData.customWormholes || []).filter(Boolean).map(w => w.toLowerCase()));
                             tgtHex.wormholes = new Set([...tgtHex.inherentWormholes, ...tgtHex.customWormholes]);
-                            
+
                             tgtHex.isHyperlane = srcData.isHyperlane;
                             tgtHex.isNebula = srcData.isNebula;
                             tgtHex.isGravityRift = srcData.isGravityRift;
                             tgtHex.isSupernova = srcData.isSupernova;
                             tgtHex.isAsteroidField = srcData.isAsteroidField;
-                            
+
                             // Apply effects using the proper editor method (like copy-paste wizard)
                             if (srcData.effects && srcData.effects.length > 0) {
                                 srcData.effects.forEach(eff => {
@@ -822,12 +822,12 @@ export function showMiltyBuilderUI(container) {
                                     }
                                 });
                             }
-                            
+
                             // Update visual appearance for baseType hexes
                             if (srcData.baseType && typeof window.editor.setSectorType === 'function') {
                                 window.editor.setSectorType(tgtHexId, srcData.baseType, { skipSave: true });
                             }
-                            
+
                             // Create wormhole overlays for special hexes too
                             if (tgtHex.wormholes && tgtHex.wormholes.size > 0) {
                                 tgtHex.wormholeOverlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
@@ -854,7 +854,7 @@ export function showMiltyBuilderUI(container) {
                                 });
                             }
                         }
-                        
+
                         // Move custom wormholes (this is separate from inherent/system wormholes)
                         if (srcData.customWormholes && srcData.customWormholes.size > 0) {
                             // For realId systems, we already handled wormholes above
@@ -879,7 +879,7 @@ export function showMiltyBuilderUI(container) {
                     }
                 }
             }
-            
+
             // Now clear source hexes (only positions 1-5, not homesystem at 0)
             // This will call unmarkRealIDUsed for each system
             for (let j = 1; j < sourceData.length; ++j) {
@@ -895,88 +895,88 @@ export function showMiltyBuilderUI(container) {
                             console.warn('Could not update hex wormholes:', err);
                         });
                     }
-                    
+
                     // Clear the hex using clearAll (this calls unmarkRealIDUsed)
                     if (typeof window.editor.clearAll === 'function') {
                         window.editor.clearAll(srcData.hexId);
                     }
                 }
             }
-            
+
             // Update data structures (store hex IDs for tracking)
             if (targetType === 'map') {
                 sliceMap[targetId] = targetHexes.slice(); // Store hex IDs
             } else if (targetType === 'slot') {
-                sliceSlots[targetId-1] = targetHexes.slice(); // Store hex IDs
+                sliceSlots[targetId - 1] = targetHexes.slice(); // Store hex IDs
             }
-            
+
             // Clear source data structures
             if (sourceType === 'map') {
                 // Keep only homesystem (position 0), clear everything else  
                 sliceMap[sourceId] = [sourceHexes[0], null, null, null, null, null];
             } else if (sourceType === 'slot') {
-                sliceSlots[sourceId-1] = null; // Clear slot completely
+                sliceSlots[sourceId - 1] = null; // Clear slot completely
             }
-            
+
             // Update UI
             if (typeof window.editor?.redrawAllRealIDOverlays === 'function') window.editor.redrawAllRealIDOverlays(window.editor);
             if (typeof window.renderSystemList === 'function') window.renderSystemList();
-            
+
             // Update visual overlays for effects and wormholes
             import('../features/baseOverlays.js').then(({ updateWormholeVisibility }) => {
                 updateWormholeVisibility(window.editor);
             }).catch(err => {
                 console.warn('Could not update wormhole visibility:', err);
             });
-            
+
             // Update tile image layer for visual consistency
             import('../features/imageSystemsOverlay.js').then(({ updateTileImageLayer }) => {
                 updateTileImageLayer(window.editor);
             }).catch(err => {
                 console.warn('Could not update tile image layer:', err);
             });
-            
+
             // Update border anomalies overlay if active
             if (typeof window.editor?.redrawBorderAnomaliesOverlay === 'function') {
                 window.editor.redrawBorderAnomaliesOverlay();
             }
-            
+
             // Import and call the refreshSystemList function to update filter states
             import('../ui/uiFilters.js').then(({ refreshSystemList }) => {
                 refreshSystemList();
             }).catch(err => {
                 console.warn('Could not refresh system list filters:', err);
             });
-            
+
             updateSlotIndicators();
-            
+
             // Update slice button colors after move - this will show the new occupancy state
             // Source slice should now show as white/red (emptied), destination should show new state
             updateSliceButtonColors();
-            
+
             // Clear selection after move - program forgets what was moved
             selectedSource = null;
             selectedSourceType = null;
             clearSliceHighlights();
             updateSliceButtonStyles(); // This will apply selection styling on top of the new colors
-            
+
             updateStatusMsg(`Moved slice from ${sourceType} ${sourceId} to ${targetType} ${targetId}. Selection cleared.`);
         }
-        
+
         // Update button styles to show selection
         function updateSliceButtonStyles() {
             // First update colors based on occupancy (this sets the base colors)
             updateSliceButtonColors();
-            
+
             // Clear slot selection styles only
-            for (let i=1; i<=12; ++i) {
+            for (let i = 1; i <= 12; ++i) {
                 const b = document.getElementById(`sliceSlotBtn_${i}`);
                 if (b) {
                     b.style.border = '';
                     b.style.boxShadow = '';
                 }
             }
-            
+
             // Apply selection styling on top of occupancy colors (don't clear backgrounds)
             if (selectedSource && selectedSourceType) {
                 let btn = null;
@@ -1045,20 +1045,20 @@ export function showMiltyBuilderUI(container) {
         }
 
         updateSlotIndicators();
-        
+
         // Initialize slice button colors
         setTimeout(() => {
             updateSliceButtonColors();
         }, 100);
-        
+
         // Note: Slice overlays are only drawn when MiltyBuilder.json is loaded
     }, 0);
 }
 
 // Function to show output copy popup (top-level, and also assign to window for global reference)
 export function showOutputCopyPopup() {
-// Make available globally for popupUI.js event context
-window.showOutputCopyPopup = showOutputCopyPopup;
+    // Make available globally for popupUI.js event context
+    window.showOutputCopyPopup = showOutputCopyPopup;
     // Helper to generate output string for fully occupied draft slices
     function generateOutputString() {
         const slotPositions = {
@@ -1264,7 +1264,7 @@ export function showDraftValuesPopup() {
 // Function to render draft values analysis
 function renderDraftValuesAnalysis(container) {
     container.innerHTML = '';
-    
+
     // Draft slot target positions (same as in showMiltyBuilderUI)
     const slotPositions = {
         1: [836, 941, 837, 732, 942, 838],
@@ -1286,7 +1286,7 @@ function renderDraftValuesAnalysis(container) {
     for (let slotNum = 1; slotNum <= 12; slotNum++) {
         const slotHexes = slotPositions[slotNum];
         if (!slotHexes) continue;
-        
+
         // Check positions 1-5 (skip homesystem at position 0)
         for (let i = 1; i < slotHexes.length; i++) {
             const hexId = slotHexes[i];
@@ -1353,7 +1353,7 @@ function renderDraftValuesAnalysis(container) {
         sliceHexes.forEach(hex => {
             if (hex.realId) realIdCount++;
             if (!hex.planets || !Array.isArray(hex.planets)) return;
-            
+
             planetCount += hex.planets.length;
             hex.planets.forEach(p => {
                 res += p.resources || 0;
@@ -1366,7 +1366,7 @@ function renderDraftValuesAnalysis(container) {
                 else if (p.resources > p.influence) a += p.resources;
                 else if (p.influence > p.resources) b += p.influence;
             });
-            
+
             // Collect wormholes (no hopping between draft slices)
             if (hex.wormholes && hex.wormholes.size > 0) {
                 hex.wormholes.forEach(w => wormholes.add(w));
@@ -1459,7 +1459,7 @@ function capitalizeTech(tech) {
     if (!tech) return '';
     const map = {
         CYBERNETIC: "Cybernetic",
-        BIOTIC: "Biotic", 
+        BIOTIC: "Biotic",
         WARFARE: "Warfare",
         PROPULSION: "Propulsion"
     };

@@ -30,9 +30,10 @@ import { updateTileImageLayer } from './features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from './draw/enforceSvgLayerOrder.js';
 import { startCopyPasteWizard } from './features/tileCopyPasteWizard.js';
 import { setupTileCopySingleButtonAndPopup } from './ui/tileCopyPasteWizardUI.js';
-import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup } from './ui/simplepPopup.js';
+import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup, showSanityCheckPopup } from './ui/simplepPopup.js';
 import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
 import { resetAllPopupPositions } from './ui/popupUI.js';
+import { checkRealIdUniqueness } from './features/sanityCheck.js';
 import './ui/specialModePopup.js';
 
 // ───── Initialize the core HexEditor and set defaults ─────
@@ -60,6 +61,7 @@ window.showModal = showModal;
 window.closeModal = closeModal;
 window.editor = editor;
 window.assignSystem = assignSystem;
+window.checkRealIdUniqueness = checkRealIdUniqueness;
 
 // Enable undo/redo history tracking
 initHistory(editor);
@@ -445,5 +447,10 @@ if (overlayToggleBtn) {
 const layoutToggleBtn = document.getElementById('layoutToggleBtn');
 if (layoutToggleBtn) {
   layoutToggleBtn.onclick = () => showLayoutOptionsPopup();
+}
+
+const sanityCheckBtn = document.getElementById('sanityCheckBtn');
+if (sanityCheckBtn) {
+  sanityCheckBtn.onclick = () => showSanityCheckPopup();
 }
 

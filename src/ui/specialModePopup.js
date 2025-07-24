@@ -68,47 +68,71 @@ export function showSpecialModePopup() {
                 designerContent.style.flexDirection = 'column';
                 designerContent.style.padding = '16px';
                 designerContent.style.boxSizing = 'border-box';
-                // Use miltyBuilder.js for the UI
-                import('../features/miltyBuilder.js').then(mod => {
-                    mod.showMiltyBuilderUI(designerContent);
-                });
-                showPopup({
-                    id: 'milty-slice-designer-popup',
-                    title: '🎲 Milty Slice Designer',
-                    content: designerContent,
-                    draggable: true,
-                    dragHandleSelector: '.popup-ui-titlebar',
-                    scalable: true,
-                    rememberPosition: true,
-                    modal: false,
-                    showHelp: true,
-                    onHelp: () => {
-                        // Import and call the help function
-                        import('../features/miltyBuilder.js').then(({ showMiltyHelp }) => {
-                            showMiltyHelp();
-                        }).catch(err => {
-                            console.warn('Could not load help function:', err);
-                            alert('Help system temporarily unavailable.');
-                        });
-                    },
-                    actions: [
-                        {
-                            label: 'Close',
-                            onClick: () => hidePopup('milty-slice-designer-popup'),
-                            style: { borderRadius: '0', border: '1px solid #888', padding: '6px 18px', background: '#222', color: '#eee' }
-                        }
-                    ],
-                    style: {
-                        minWidth: '340px',
-                        maxWidth: '700px',
-                        minHeight: '200px',
-                        maxHeight: '800px',
-                        border: '2px solid #2ecc40',
-                        borderRadius: '10px',
-                        boxShadow: '0 8px 40px #000a',
-                        padding: '24px',
-                        zIndex: 10011
+                // Use miltyBuilder.js for the UI, with added debugging and error handling
+                import('../modules/Milty/miltyBuilder.js').then(mod => {
+                    console.log('Milty Builder module loaded:', mod); // Debug: See the loaded module
+                    const showUI = mod.showMiltyBuilderUI || (mod.default && mod.default.showMiltyBuilderUI);
+                    
+                    if (typeof showUI === 'function') {
+                        showUI(designerContent);
+                    } else {
+                        console.error('showMiltyBuilderUI is not a function in the loaded module.');
+                        designerContent.innerHTML = '<p style="color: red;">Error: Could not initialize Milty Slice Designer UI.</p>';
                     }
+                    
+                    showPopup({
+                        id: 'milty-slice-designer-popup',
+                        title: '🎲 Milty Slice Designer',
+                        content: designerContent,
+                        draggable: true,
+                        dragHandleSelector: '.popup-ui-titlebar',
+                        scalable: true,
+                        rememberPosition: true,
+                        modal: false,
+                        showHelp: true,
+                        onHelp: () => {
+                            // Import and call the help function
+                            import('../modules/Milty/miltyBuilder.js').then(helpMod => {
+                                const showHelp = helpMod.showMiltyHelp || (helpMod.default && helpMod.default.showMiltyHelp);
+                                if (typeof showHelp === 'function') {
+                                    showHelp();
+                                } else {
+                                    console.warn('Could not find showMiltyHelp function.');
+                                    alert('Help system temporarily unavailable.');
+                                }
+                            }).catch(err => {
+                                console.warn('Could not load help function:', err);
+                                alert('Help system temporarily unavailable.');
+                            });
+                        },
+                        actions: [
+                            {
+                                label: 'Close',
+                                onClick: () => hidePopup('milty-slice-designer-popup'),
+                                style: { borderRadius: '0', border: '1px solid #888', padding: '6px 18px', background: '#222', color: '#eee' }
+                            }
+                        ],
+                        style: {
+                            minWidth: '340px',
+                            maxWidth: '700px',
+                            minHeight: '200px',
+                            maxHeight: '800px',
+                            border: '2px solid #2ecc40',
+                            borderRadius: '10px',
+                            boxShadow: '0 8px 40px #000a',
+                            padding: '24px',
+                            zIndex: 10011
+                        }
+                    });
+                }).catch(err => {
+                    console.error('Failed to load miltyBuilder.js module:', err);
+                    designerContent.innerHTML = `<p style="color: red;">Failed to load module. See console for details.</p>`;
+                    showPopup({
+                        id: 'milty-slice-designer-popup',
+                        title: '🎲 Milty Slice Designer - Error',
+                        content: designerContent,
+                        actions: [{ label: 'Close', onClick: () => hidePopup('milty-slice-designer-popup') }]
+                    });
                 });
             };
         }
