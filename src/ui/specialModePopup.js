@@ -82,6 +82,15 @@ export function showSpecialModePopup() {
                     rememberPosition: true,
                     modal: false,
                     showHelp: true,
+                    onHelp: () => {
+                        // Import and call the help function
+                        import('../features/miltyBuilder.js').then(({ showMiltyHelp }) => {
+                            showMiltyHelp();
+                        }).catch(err => {
+                            console.warn('Could not load help function:', err);
+                            alert('Help system temporarily unavailable.');
+                        });
+                    },
                     actions: [
                         {
                             label: 'Close',

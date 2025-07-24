@@ -11,7 +11,7 @@ import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { markRealIDUsed } from '../ui/uiFilters.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { isMatrixEmpty } from '../utils/matrix.js';
-import { toggleWormhole } from '../features/wormholes.js';
+import { toggleWormhole, updateHexWormholes, removeWormholeOverlay } from '../features/wormholes.js';
 import { assignSystem } from '../features/assignSystem.js';
 import { showWizardPopup, hideWizardPopup, showWizardInfoPopup, hideWizardInfoPopup, setupTileCopySingleButtonAndPopup } from '../ui/tileCopyPasteWizardUI.js';
 
@@ -125,7 +125,8 @@ export function startCopyPasteWizard(editor, cut = false) {
                 return {
                     type: 'realID',
                     realId: hex.realId,
-                    wormholes: opts.wormholes ? Array.from(hex.wormholes || []) : [],
+                    // Only store custom wormholes - inherent ones will be restored from system data
+                    customWormholes: opts.wormholes ? Array.from(hex.customWormholes || []) : [],
                     links,
                     matrix,
                     effects: hex.effects ? Array.from(hex.effects) : [],
@@ -157,7 +158,8 @@ export function startCopyPasteWizard(editor, cut = false) {
                 return {
                     type: 'baseType',
                     baseType: hex.baseType,
-                    wormholes: opts.wormholes ? Array.from(hex.wormholes || []) : [],
+                    // For baseType tiles, store all wormholes as custom (since they don't have inherent ones)
+                    customWormholes: opts.wormholes ? Array.from(hex.customWormholes || []) : [],
                     links: hex.matrix ? JSON.parse(JSON.stringify(hex.matrix)) : undefined,
                     matrix: hex.matrix ? JSON.parse(JSON.stringify(hex.matrix)) : undefined,
                     effects: hex.effects ? Array.from(hex.effects) : [],
@@ -481,20 +483,53 @@ export function startCopyPasteWizard(editor, cut = false) {
             if (h.borderAnomalies !== undefined) hex.borderAnomalies = JSON.parse(JSON.stringify(h.borderAnomalies));
             else delete hex.borderAnomalies;
 
-            // ---- WORMHOLES: robust restoration (new pattern)
-            hex.wormholeOverlays = [];
-            // Set inherent and custom wormholes separately
-            hex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
-            hex.customWormholes = new Set(Array.from(h.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
-            // Always update hex.wormholes as the union
-            if (typeof updateHexWormholes === 'function') {
-                updateHexWormholes(hex);
-            } else {
-                hex.wormholes = new Set([...hex.inherentWormholes, ...hex.customWormholes]);
+            // ---- WORMHOLES: Use new pattern with proper cleanup and restoration ----
+            // First, clear any existing wormhole overlays
+            removeWormholeOverlay(editor, id);
+            
+            // Initialize wormhole sets
+            hex.inherentWormholes = new Set();
+            hex.customWormholes = new Set();
+            hex.wormholes = new Set();
+            
+            if (h.type === 'realID' && info && info.wormholes) {
+                // For realID tiles, inherent wormholes come from system info
+                hex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
             }
-            // Only call toggleWormhole for custom wormholes (for overlays)
-            for (const w of hex.customWormholes) {
-                toggleWormhole(editor, id, w);
+            
+            // Custom wormholes come from the copied data
+            if (h.customWormholes) {
+                hex.customWormholes = new Set(Array.from(h.customWormholes).filter(Boolean).map(w => w.toLowerCase()));
+            }
+            
+            // Update the union and create overlays
+            updateHexWormholes(hex);
+            
+            // Create wormhole overlays for all wormholes (inherent + custom)
+            if (hex.wormholes && hex.wormholes.size > 0) {
+                Array.from(hex.wormholes).forEach((w, i) => {
+                    const positions = editor.effectIconPositions;
+                    const len = positions.length;
+                    const reversedIndex = len - 1 - (i % len);
+                    const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
+                    
+                    import('../features/baseOverlays.js').then(({ createWormholeOverlay }) => {
+                        const overlay = createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase());
+                        if (overlay) {
+                            overlay.setAttribute('data-label', id);
+                            const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
+                            if (wormholeIconLayer) {
+                                wormholeIconLayer.appendChild(overlay);
+                            } else {
+                                editor.svg.appendChild(overlay);
+                            }
+                            if (!hex.wormholeOverlays) hex.wormholeOverlays = [];
+                            hex.wormholeOverlays.push(overlay);
+                        }
+                    }).catch(err => {
+                        console.warn('Could not create wormhole overlay:', err);
+                    });
+                });
             }
 
             // ---- Effects from JSON (always restore)
@@ -533,11 +568,21 @@ export function startCopyPasteWizard(editor, cut = false) {
         editor.commitUndoGroup?.();
         clearPasteGhost(editor);
 
+        // Update all visual overlays and layers
+        updateEffectsVisibility(editor);
+        updateWormholeVisibility(editor);
+        updateTileImageLayer(editor);
+        enforceSvgLayerOrder(editor.svg);
+        redrawAllRealIDOverlays(editor);
+
         // ---- CUT FUNCTIONALITY: Clear original tiles if this was a cut operation ----
         if (wizardState.cut) {
             console.log('Cut operation: clearing original tiles', wizardState.selectedLabels);
             for (const label of wizardState.selectedLabels) {
                 if (editor.hexes[label]) {
+                    // Explicitly clear wormhole overlays first to ensure proper cleanup
+                    removeWormholeOverlay(editor, label);
+                    // Then clear everything else
                     editor.clearAll(label);
                 }
             }

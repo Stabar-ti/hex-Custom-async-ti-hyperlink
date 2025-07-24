@@ -4,6 +4,7 @@ import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { createWormholeOverlay } from '../features/baseOverlays.js';
+import { markRealIDUsed } from '../ui/uiFilters.js';
 
 /**
  * Assigns a system object to a hex tile, updating all overlays, type, and state.
@@ -48,11 +49,16 @@ export function assignSystem(editor, sys, hexID) {
   hex.planets = sys.planets || [];
   //   console.log('assignSystem: after assigning realId and planets', {...hex});
 
-  // 4. Update DOM for overlays if needed
+  // 4. Mark realID as used in filter system
+  if (sys.id) {
+    markRealIDUsed(sys.id);
+  }
+
+  // 5. Update DOM for overlays if needed
   const el = document.getElementById(hexID);
   if (el) el.dataset.realId = sys.id.toString();
 
-  // 5. Classify sector type for color and overlays
+  // 6. Classify sector type for color and overlays
   let baseType;
   const planets = Array.isArray(sys.planets) ? sys.planets : [];
   if (planets.some(p => p.legendaryAbilityName && p.legendaryAbilityText)) {
@@ -72,13 +78,13 @@ export function assignSystem(editor, sys, hexID) {
   }
   editor.setSectorType(hexID, baseType, { skipSave: true });
 
-  // 6. Effects overlays
+  // 7. Effects overlays
   if (sys.isNebula) editor.applyEffect(hexID, 'nebula');
   if (sys.isGravityRift) editor.applyEffect(hexID, 'rift');
   if (sys.isSupernova) editor.applyEffect(hexID, 'supernova');
   if (sys.isAsteroidField) editor.applyEffect(hexID, 'asteroid');
 
-  // 7. Inherent wormholes (always lowercase for key)
+  // 8. Inherent wormholes (always lowercase for key)
   // Only set inherentWormholes from system data. Clear customWormholes to prevent carry-over.
   const wormholes = Array.isArray(sys.wormholes) ? sys.wormholes : [];
   hex.inherentWormholes = new Set(

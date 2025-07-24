@@ -55,3 +55,42 @@ export function clearAllEffects(editor, hexId, { skipSave = false } = {}) {
   hex.overlays = [];
 }
 
+/**
+ * Recreates effects overlays for a specific hex.
+ * This is useful when effects data has been moved/updated and the overlays need to be redrawn.
+ *
+ * @param {HexEditor} editor
+ * @param {string} hexId
+ */
+export function refreshEffectsOverlays(editor, hexId) {
+  const hex = editor.hexes[hexId];
+  if (!hex) return;
+
+  // Remove existing overlays
+  hex.overlays.forEach(o => editor.svg?.removeChild(o));
+  hex.overlays = [];
+
+  // Recreate overlays for all effects in the set
+  if (hex.effects && hex.effects.size > 0) {
+    Array.from(hex.effects).forEach((eff, i) => {
+      const overlay = createEffectsOverlay(eff, hex.center, i, editor);
+      editor.svg.appendChild(overlay);
+      hex.overlays.push(overlay);
+    });
+  }
+}
+
+/**
+ * Refreshes effects overlays for all hexes that have effects.
+ * This is useful after bulk operations like slice moves.
+ *
+ * @param {HexEditor} editor
+ */
+export function refreshAllEffectsOverlays(editor) {
+  Object.entries(editor.hexes).forEach(([hexId, hex]) => {
+    if (hex.effects && hex.effects.size > 0) {
+      refreshEffectsOverlays(editor, hexId);
+    }
+  });
+}
+

@@ -339,7 +339,6 @@ svg.addEventListener('click', e => {
       editor._historyLocked = true;
       editor.saveState(hexID);
       assignSystem(editor, sys, hexID);
-      markRealIDUsed(sys.id)
       editor._historyLocked = false;
       editor.commitUndoGroup();
       redrawAllRealIDOverlays(editor);
@@ -365,7 +364,6 @@ svg.addEventListener('click', e => {
       editor._historyLocked = true;
       editor.saveState(hexID);
       assignSystem(editor, sys, hexID);
-      markRealIDUsed(sys.id)
       editor._historyLocked = false;
 
       editor.commitUndoGroup();

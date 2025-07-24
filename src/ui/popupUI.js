@@ -209,7 +209,11 @@ export function showPopup({
             helpBtn.style.borderRadius = '0'; // Force square appearance
             helpBtn.style.border = '1px solid #2ecc40'; // Consistent border
             helpBtn.onclick = () => {
-                if (typeof onHelp === 'function') onHelp();
+                if (typeof onHelp === 'function') {
+                    onHelp();
+                } else {
+                    console.warn('Help button clicked but onHelp is not a function:', typeof onHelp, onHelp);
+                }
             };
             titleBar.appendChild(helpBtn);
         }
