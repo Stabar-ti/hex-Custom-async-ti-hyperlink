@@ -1,3 +1,4 @@
+
 // ───────────────────────────────────────────────────────────────
 // main.js — Entry point that initializes the editor, UI bindings,
 // import/export handlers, and map interaction logic
@@ -58,6 +59,7 @@ editor.maxDistance = 3; // Used for BFS calculations
 window.showModal = showModal;
 window.closeModal = closeModal;
 window.editor = editor;
+window.assignSystem = assignSystem;
 
 // Enable undo/redo history tracking
 initHistory(editor);

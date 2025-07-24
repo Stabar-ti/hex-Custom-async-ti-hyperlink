@@ -1,6 +1,10 @@
 // src/features/miltyBuilder.js
 // Milty Slice Designer core logic and UI hooks
 
+import { assignSystem} from './assignSystem.js';
+import { removeWormholeOverlay } from './wormholes.js';
+
+
 export function showMiltyBuilderUI(container) {
     // Draft slot target positions (hex IDs for each slot, from annotated image)
     const slotPositions = {
@@ -136,18 +140,27 @@ export function showMiltyBuilderUI(container) {
                             // Now clear the source slice hexes (true MOVE, only positions 1+)
                             for (let j = 1; j < sliceData.length; ++j) {
                                 const srcHexId = sliceData[j];
-                                if (srcHexId && typeof assignSystem === 'function') {
-                                    assignSystem(window.editor, {
-                                        id: null,
-                                        planets: [],
-                                        wormholes: [],
-                                        effects: [],
-                                        isHyperlane: false,
-                                        isNebula: false,
-                                        isGravityRift: false,
-                                        isSupernova: false,
-                                        isAsteroidField: false
-                                    }, srcHexId);
+                                if (srcHexId && window.editor) {
+                                    // First remove wormhole overlays from wormholeIconLayer
+                                    removeWormholeOverlay(window.editor, srcHexId);
+                                    
+                                    // Then use clearAll to completely clear the hex
+                                    if (typeof window.editor.clearAll === 'function') {
+                                        window.editor.clearAll(srcHexId);
+                                    } else if (typeof assignSystem === 'function') {
+                                        // Fallback: use assignSystem to clear
+                                        assignSystem(window.editor, {
+                                            id: null,
+                                            planets: [],
+                                            wormholes: [],
+                                            effects: [],
+                                            isHyperlane: false,
+                                            isNebula: false,
+                                            isGravityRift: false,
+                                            isSupernova: false,
+                                            isAsteroidField: false
+                                        }, srcHexId);
+                                    }
                                 }
                             }
                             // Force full map redraw for immediate visual update

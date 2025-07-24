@@ -1,3 +1,69 @@
+/**
+ * Redraws all wormhole overlays for a hex (inherent + custom).
+ * Use after system assignment or wormhole mutation.
+ *
+ * @param {HexEditor} editor - The map editor instance.
+ * @param {string} hexId     - The hex's unique label/id.
+ */
+export function redrawWormholeOverlays(editor, hexId) {
+  const hex = editor.hexes[hexId];
+  if (!hex) return;
+  // Remove all overlays
+  if (hex.wormholeOverlays) {
+    hex.wormholeOverlays.forEach(o => {
+      if (o.parentNode) o.parentNode.removeChild(o);
+    });
+    hex.wormholeOverlays = [];
+  }
+  // Render overlays for all wormholes
+  Array.from(hex.wormholes || []).forEach((type, i) => {
+    const positions = editor.effectIconPositions;
+    const len = positions.length;
+    const reversedIndex = len - 1 - (i % len);
+    const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
+    const overlay = createWormholeOverlay(
+      hex.center.x + pos.dx,
+      hex.center.y + pos.dy,
+      type.toLowerCase()
+    );
+    overlay.setAttribute('data-label', hexId);
+    const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
+    if (wormholeIconLayer) {
+      wormholeIconLayer.appendChild(overlay);
+    } else {
+      editor.svg.appendChild(overlay);
+    }
+    if (!hex.wormholeOverlays) hex.wormholeOverlays = [];
+    hex.wormholeOverlays.push(overlay);
+  });
+}
+/**
+ * Removes all wormhole overlays for a given hex.
+ * Use when clearing or moving tiles to ensure no icons remain.
+ *
+ * @param {HexEditor} editor - The map editor instance.
+ * @param {string} hexId     - The hex's unique label/id.
+ */
+export function removeWormholeOverlay(editor, hexId) {
+  const hex = editor.hexes[hexId];
+  if (hex && hex.wormholeOverlays) {
+    hex.wormholeOverlays.forEach(o => {
+      if (o.parentNode) o.parentNode.removeChild(o);
+    });
+    hex.wormholeOverlays = [];
+  }
+  
+  // Also remove any overlays with matching data-label from wormholeIconLayer
+  const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
+  if (wormholeIconLayer) {
+    const overlays = wormholeIconLayer.querySelectorAll(`[data-label='${hexId}']`);
+    overlays.forEach(el => {
+      if (wormholeIconLayer.contains(el)) {
+        wormholeIconLayer.removeChild(el);
+      }
+    });
+  }
+}
 // ───────────────────────────────────────────────────────────────
 // features/wormholes.js
 //
