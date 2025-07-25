@@ -388,6 +388,10 @@ export function showSanityCheckPopup() {
         const uniqueOtherCheckbox = document.getElementById('uniqueOther');
         const resultsDiv = document.getElementById('sanityCheckResults');
 
+        // Set default: Unique Planets checked, Unique All unchecked
+        if (uniquePlanetsCheckbox) uniquePlanetsCheckbox.checked = true;
+        if (uniqueOtherCheckbox) uniqueOtherCheckbox.checked = false;
+
         if (runCheckBtn && uniquePlanetsCheckbox && uniqueOtherCheckbox && resultsDiv) {
             // Make checkboxes mutually exclusive
             uniquePlanetsCheckbox.addEventListener('change', () => {

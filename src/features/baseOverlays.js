@@ -17,6 +17,9 @@ export function createWormholeOverlay(x, y, type) {
 
   const svgns = 'http://www.w3.org/2000/svg';
   const group = document.createElementNS(svgns, 'g');
+  
+  // Set initial visibility to visible
+  group.setAttribute('visibility', 'visible');
 
   // Draw the colored circle
   const circle = document.createElementNS(svgns, 'circle');
@@ -51,10 +54,20 @@ export function createWormholeOverlay(x, y, type) {
  */
 export function updateWormholeVisibility(editor) {
   const visible = editor.showWormholes;
+  
+  // Ensure the wormholeIconLayer itself is visible/hidden
+  const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
+  if (wormholeIconLayer) {
+    wormholeIconLayer.setAttribute('visibility', visible ? 'visible' : 'hidden');
+  }
+  
+  // Update individual overlay visibility
   Object.values(editor.hexes).forEach(hex => {
-    hex.wormholeOverlays?.forEach(o => {
-      o.setAttribute('visibility', visible ? 'visible' : 'hidden');
-    });
+    if (hex.wormholeOverlays && hex.wormholeOverlays.length > 0) {
+      hex.wormholeOverlays.forEach((o) => {
+        o.setAttribute('visibility', visible ? 'visible' : 'hidden');
+      });
+    }
   });
 }
 

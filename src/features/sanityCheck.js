@@ -7,7 +7,7 @@
  * @param {boolean} checkAll - If true, check all realIDs regardless of content
  * @returns {Object} - Analysis results with duplicates and summary
  */
-export function checkRealIdUniqueness(planetsOnly = false, checkAll = false) {
+export function checkRealIdUniqueness(planetsOnly = true, checkAll = false) {
     if (!window.editor?.hexes) {
         return {
             success: false,

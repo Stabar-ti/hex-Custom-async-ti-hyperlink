@@ -22,13 +22,13 @@ import { exportMap, exportHyperlaneTilePositions, exportWormholePositions } from
 // Importers for map string (hyperlanes) and sector types
 import { importMap, importSectorTypes } from '../data/import.js';
 // Logic for toggling wormhole overlays and visibility
-import { toggleWormhole } from '../features/wormholes.js';
+import { toggleWormhole, removeWormholeOverlay, redrawWormholeOverlays, updateHexWormholes } from '../features/wormholes.js';
 // Hex-grid geometry math utilities (distance, neighbors)
 import { hexDistance, getNeighbors } from '../utils/geometry.js';
 // Common constants: directions, colors, icon offsets, etc.
 import { edgeDirections, ringDirections, effectIconPositions, sectorColors, controlPositions, MAX_MAP_RINGS, wormholeTypes } from '../constants/constants.js';
 // Logic to add/remove overlays (nebula, asteroid, etc.)
-import { applyEffectToHex, clearAllEffects } from '../features/effects.js';
+import { applyEffectToHex, clearAllEffects, refreshEffectsOverlays } from '../features/effects.js';
 // Change sector fill and type (e.g., planet, void, etc.)
 import { setSectorType } from '../features/sectorTypes.js';
 // Draw links between hexes (for hyperlanes)
@@ -47,7 +47,7 @@ import { unmarkRealIDUsed, clearRealIDUsage } from '../ui/uiFilters.js';
 import { initRealIDFeatures, updateLayerVisibility, redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 // Loads system data for all tiles (names, IDs, etc.)
 import { loadSystemInfo } from '../data/import.js';
-import { updateEffectsVisibility, updateWormholeVisibility } from '../features/baseOverlays.js'
+import { updateEffectsVisibility, updateWormholeVisibility, createWormholeOverlay } from '../features/baseOverlays.js'
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 
@@ -334,6 +334,7 @@ export default class HexEditor {
     if (!wormholeIconLayer) {
       wormholeIconLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       wormholeIconLayer.setAttribute('id', 'wormholeIconLayer');
+      wormholeIconLayer.setAttribute('visibility', 'visible'); // Ensure layer is visible by default
       this.svg.appendChild(wormholeIconLayer);
     }
     enforceSvgLayerOrder(this.svg);
@@ -402,14 +403,122 @@ export default class HexEditor {
       }
     }
 
-    // --- ALWAYS clear, then redraw special corners ---
+    // --- Preserve corner hex data, then redraw special corners ---
+    // Save corner hex data before clearing
+    const cornerData = {};
+    ['TL', 'TR', 'BL', 'BR'].forEach(label => {
+      if (this.hexes[label]) {
+        cornerData[label] = {
+          baseType: this.hexes[label].baseType,
+          effects: new Set(this.hexes[label].effects),
+          wormholes: new Set(this.hexes[label].wormholes),
+          customWormholes: new Set(this.hexes[label].customWormholes || []),
+          inherentWormholes: new Set(this.hexes[label].inherentWormholes || []),
+          planets: [...(this.hexes[label].planets || [])],
+          realId: this.hexes[label].realId,
+          matrix: this.hexes[label].matrix ? this.hexes[label].matrix.map(row => [...row]) : null,
+          customAdjacents: this.hexes[label].customAdjacents ? [...this.hexes[label].customAdjacents] : undefined,
+          adjacencyOverrides: this.hexes[label].adjacencyOverrides ? {...this.hexes[label].adjacencyOverrides} : undefined,
+          borderAnomalies: this.hexes[label].borderAnomalies ? {...this.hexes[label].borderAnomalies} : undefined
+        };
+      }
+    });
+    
     clearSpecialCorners(this);
     drawSpecialHexes(this);
+    
+    // Restore corner hex data
+    ['TL', 'TR', 'BL', 'BR'].forEach(label => {
+      if (cornerData[label] && this.hexes[label]) {
+        const hex = this.hexes[label];
+        const data = cornerData[label];
+        hex.baseType = data.baseType || '';
+        hex.effects = data.effects || new Set();
+        hex.wormholes = data.wormholes || new Set();
+        hex.customWormholes = data.customWormholes || new Set();
+        hex.inherentWormholes = data.inherentWormholes || new Set();
+        hex.planets = data.planets || [];
+        hex.realId = data.realId || null;
+        if (data.matrix) hex.matrix = data.matrix;
+        if (data.customAdjacents) hex.customAdjacents = data.customAdjacents;
+        if (data.adjacencyOverrides) hex.adjacencyOverrides = data.adjacencyOverrides;
+        if (data.borderAnomalies) hex.borderAnomalies = data.borderAnomalies;
+        
+        // Update hex.wormholes to be the union of inherentWormholes and customWormholes
+        updateHexWormholes(hex);
+        
+        // Update the polygon fill color to match the restored baseType
+        if (hex.polygon) {
+          hex.polygon.setAttribute('fill', this.sectorColors[hex.baseType] || this.sectorColors['']);
+        }
+        
+        // Clear any old overlay arrays since hexes were redrawn
+        hex.overlays = [];
+        hex.wormholeOverlays = [];
+      }
+    });
 
     updateEffectsVisibility(this);
     redrawAllRealIDOverlays(this);
-    updateWormholeVisibility(this);
+    
+    // Redraw overlays for corner hexes at their new positions
+    ['TL', 'TR', 'BL', 'BR'].forEach(label => {
+      if (cornerData[label] && this.hexes[label]) {
+        
+        // Refresh effects overlays at new position
+        if (cornerData[label].effects && cornerData[label].effects.size > 0) {
+          // Effects data was already restored above, just refresh the overlays
+          refreshEffectsOverlays(this, label);
+        }
+        
+        // Create wormhole overlays using the same approach as tileCopyPasteWizard
+        const hex = this.hexes[label];
+        if (hex.wormholes && hex.wormholes.size > 0) {
+          
+          // Clear any existing overlays first
+          if (hex.wormholeOverlays) {
+            hex.wormholeOverlays.forEach(o => {
+              if (o.parentNode) o.parentNode.removeChild(o);
+            });
+            hex.wormholeOverlays = [];
+          }
+          
+          // Create new overlays for all wormholes
+          Array.from(hex.wormholes).forEach((w, i) => {
+            const positions = this.effectIconPositions;
+            const len = positions.length;
+            const reversedIndex = len - 1 - (i % len);
+            const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
+            
+            const overlay = createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase());
+            if (overlay) {
+              overlay.setAttribute('data-label', label);
+              const wormholeIconLayer = this.svg.querySelector('#wormholeIconLayer');
+              if (wormholeIconLayer) {
+                wormholeIconLayer.appendChild(overlay);
+              } else {
+                this.svg.appendChild(overlay);
+              }
+              if (!hex.wormholeOverlays) hex.wormholeOverlays = [];
+              hex.wormholeOverlays.push(overlay);
+            }
+          });
+        }
+        
+        // Redraw realID overlays at new position if hex has realId
+        if (cornerData[label].realId !== null && cornerData[label].realId !== undefined) {
+          // The redrawAllRealIDOverlays call above should handle this, but let's be explicit
+          redrawAllRealIDOverlays(this);
+        }
+      }
+    });
+    
     autoscaleView(this);
+    
+    // Force SVG layer order update before setting wormhole visibility
+    enforceSvgLayerOrder(this.svg);
+    // Update wormhole visibility AFTER all redrawing operations are complete
+    updateWormholeVisibility(this);
   }
 
 
@@ -533,6 +642,11 @@ export default class HexEditor {
       // remove any existing wormhole overlays
       hex.wormholeOverlays.forEach(o => {
         if (o.parentNode === this.svg) this.svg.removeChild(o);
+        // Also remove from wormholeIconLayer if present
+        const wormholeIconLayer = this.svg.querySelector('#wormholeIconLayer');
+        if (wormholeIconLayer && wormholeIconLayer.contains(o)) {
+          wormholeIconLayer.removeChild(o);
+        }
       });
       hex.wormholeOverlays = [];
       hex.wormholes.clear();

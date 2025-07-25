@@ -1,3 +1,5 @@
+
+//import { wormholeTypes } from '../constants/constants.js';
 /**
  * Redraws all wormhole overlays for a hex (inherent + custom).
  * Use after system assignment or wormhole mutation.
@@ -52,7 +54,7 @@ export function removeWormholeOverlay(editor, hexId) {
     });
     hex.wormholeOverlays = [];
   }
-  
+
   // Also remove any overlays with matching data-label from wormholeIconLayer
   const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
   if (wormholeIconLayer) {

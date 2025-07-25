@@ -6,7 +6,7 @@ import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 import { redrawBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay.js';
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
-import { updateEffectsVisibility, updateWormholeVisibility } from '../features/baseOverlays.js';
+import { updateEffectsVisibility, updateWormholeVisibility, createWormholeOverlay } from '../features/baseOverlays.js';
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { markRealIDUsed } from '../ui/uiFilters.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
@@ -513,22 +513,18 @@ export function startCopyPasteWizard(editor, cut = false) {
                     const reversedIndex = len - 1 - (i % len);
                     const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
                     
-                    import('../features/baseOverlays.js').then(({ createWormholeOverlay }) => {
-                        const overlay = createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase());
-                        if (overlay) {
-                            overlay.setAttribute('data-label', id);
-                            const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
-                            if (wormholeIconLayer) {
-                                wormholeIconLayer.appendChild(overlay);
-                            } else {
-                                editor.svg.appendChild(overlay);
-                            }
-                            if (!hex.wormholeOverlays) hex.wormholeOverlays = [];
-                            hex.wormholeOverlays.push(overlay);
+                    const overlay = createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase());
+                    if (overlay) {
+                        overlay.setAttribute('data-label', id);
+                        const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
+                        if (wormholeIconLayer) {
+                            wormholeIconLayer.appendChild(overlay);
+                        } else {
+                            editor.svg.appendChild(overlay);
                         }
-                    }).catch(err => {
-                        console.warn('Could not create wormhole overlay:', err);
-                    });
+                        if (!hex.wormholeOverlays) hex.wormholeOverlays = [];
+                        hex.wormholeOverlays.push(overlay);
+                    }
                 });
             }
 

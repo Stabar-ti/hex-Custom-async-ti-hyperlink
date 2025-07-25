@@ -84,7 +84,7 @@ export function drawHex(editor, q, r, label) {
 
   // Track the hex object in editor.hexes for later reference
   editor.hexes[label] = {
-    q, r, center, polygon: poly, baseType: '',
+    label, q, r, center, polygon: poly, baseType: '',
     effects: new Set(), overlays: [],
     matrix: Array.from({ length: 6 }, () => Array(6).fill(0)),
     wormholes: new Set(), wormholeOverlays: []
@@ -238,16 +238,45 @@ export function autoscaleView(editor) {
 export function clearSpecialCorners(editor) {
   const svg = document.getElementById('hexMap');
   ['TL', 'TR', 'BL', 'BR'].forEach(label => {
-    // Remove polygon
     const hex = editor.hexes[label];
-    if (hex && hex.polygon && hex.polygon.parentNode) {
-      hex.polygon.parentNode.removeChild(hex.polygon);
+    if (hex) {
+      // Remove all effect overlays first
+      if (hex.overlays) {
+        hex.overlays.forEach(o => {
+          if (o.parentNode) o.parentNode.removeChild(o);
+        });
+      }
+      
+      // Remove all wormhole overlays
+      if (hex.wormholeOverlays) {
+        hex.wormholeOverlays.forEach(o => {
+          if (o.parentNode) o.parentNode.removeChild(o);
+        });
+      }
+      
+      // Also remove any wormhole overlays from wormholeIconLayer by data-label
+      const wormholeIconLayer = svg.querySelector('#wormholeIconLayer');
+      if (wormholeIconLayer) {
+        const overlays = wormholeIconLayer.querySelectorAll(`[data-label='${label}']`);
+        overlays.forEach(el => {
+          if (wormholeIconLayer.contains(el)) {
+            wormholeIconLayer.removeChild(el);
+          }
+        });
+      }
+      
+      // Remove polygon
+      if (hex.polygon && hex.polygon.parentNode) {
+        hex.polygon.parentNode.removeChild(hex.polygon);
+      }
     }
+    
     // Remove label
     const labelEl = document.getElementById(`label-${label}`);
     if (labelEl && labelEl.parentNode) {
       labelEl.parentNode.removeChild(labelEl);
     }
+    
     // Remove from editor.hexes
     delete editor.hexes[label];
   });
