@@ -52,8 +52,19 @@ const FILTERS = [
     key: 'hasWormhole', label: 'Has Wormhole', defaultOn: false, test(sys, a) {
       if (!a) return true;
       // New pattern: wormholes is always a Set (union), but support Array for legacy/test data
-      if (sys.wormholes instanceof Set) return sys.wormholes.size > 0;
-      if (Array.isArray(sys.wormholes)) return sys.wormholes.length > 0;
+      if (sys.wormholes instanceof Set) {
+        // Check if Set has any wormholes that are not "null"
+        for (const wormhole of sys.wormholes) {
+          if (wormhole !== "null" && wormhole !== null) {
+            return true;
+          }
+        }
+        return false;
+      }
+      if (Array.isArray(sys.wormholes)) {
+        // Check if Array has any wormholes that are not "null"
+        return sys.wormholes.length > 0 && sys.wormholes.some(w => w !== "null" && w !== null);
+      }
       return false;
     }
   },

@@ -87,7 +87,7 @@ export function showPopup({
 
     // Content
     if (typeof content === 'string') {
-    //    console.log('Popup content (string):', content);
+        //    console.log('Popup content (string):', content);
         const contentDiv = document.createElement('div');
         contentDiv.className = 'popup-ui-content';
         contentDiv.innerHTML = content;
@@ -96,7 +96,7 @@ export function showPopup({
         contentDiv.style.padding = '';
         popup.appendChild(contentDiv);
     } else if (content instanceof HTMLElement) {
-    //    console.log('Popup content (HTMLElement):', content.outerHTML || content.textContent);
+        //    console.log('Popup content (HTMLElement):', content.outerHTML || content.textContent);
         content.style.paddingLeft = '24px'; // Indent content further to the right
         content.style.width = 'auto'; // Prevent width accumulation
         content.style.padding = '';
@@ -336,8 +336,8 @@ export function showPopup({
     // Debug: log popup bounding rect and child count after append
     setTimeout(() => {
         const rect = popup.getBoundingClientRect();
-        console.log('Popup bounding rect after append:', rect);
-        console.log('Popup child node count:', popup.childNodes.length);
+        //   console.log('Popup bounding rect after append:', rect);
+        //   console.log('Popup child node count:', popup.childNodes.length);
     }, 0);
 
     // Center popup if no stored position and not already positioned
