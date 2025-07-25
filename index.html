@@ -131,6 +131,28 @@
     <input id="cornerToggle" type="checkbox" checked>
     <label for="cornerToggle">Limit to async map bounderies</label>
     <button id="genMapBtn" class="primary-button">Generate Map</button>
+    <script type="module">
+      import Editor from './src/core/HexEditor.js';
+      window.addEventListener('DOMContentLoaded', () => {
+        const genMapBtn = document.getElementById('genMapBtn');
+        if (genMapBtn) {
+          // Remove any previous click handlers
+          genMapBtn.onclick = null;
+          // Remove any previous event listeners
+          const newBtn = genMapBtn.cloneNode(true);
+          genMapBtn.parentNode.replaceChild(newBtn, genMapBtn);
+          newBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const confirmReset = window.confirm('Are you sure you want to generate a new map? This will erase the current map.');
+            if (confirmReset) {
+              if (window.editor && typeof window.editor.generateMap === 'function') {
+                window.editor.generateMap();
+              }
+            }
+          });
+        }
+      });
+    </script>
   </div>
 
   <button id="controlsPanelOpenBtn" title="Show controls">&laquo;</button>
