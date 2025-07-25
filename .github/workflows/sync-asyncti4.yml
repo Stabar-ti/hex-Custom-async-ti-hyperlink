@@ -26,10 +26,12 @@ jobs:
 
       - name: Copy systems, planets, and hyperlanes.properties
         run: |
+          # Clean sync - remove existing and copy fresh
+          rm -rf public/data/systems public/data/planets public/data/tiles public/data/hyperlanes.properties
           mkdir -p public/data/systems public/data/planets public/data public/data/tiles
-          cp -r temp-bot-repo/src/main/resources/systems/*.json public/data/systems/
-          cp -r temp-bot-repo/src/main/resources/planets/*.json public/data/planets/
-          cp -r temp-bot-repo/src/main/resources/tiles/*.png public/data/tiles/
+          cp temp-bot-repo/src/main/resources/systems/*.json public/data/systems/
+          cp temp-bot-repo/src/main/resources/planets/*.json public/data/planets/
+          cp temp-bot-repo/src/main/resources/tiles/*.png public/data/tiles/
           cp temp-bot-repo/src/main/resources/data/hyperlanes.properties public/data/hyperlanes.properties
 
       - name: Combine into a single bundle
