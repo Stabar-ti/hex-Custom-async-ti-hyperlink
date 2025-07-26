@@ -486,25 +486,25 @@ export function startCopyPasteWizard(editor, cut = false) {
             // ---- WORMHOLES: Use new pattern with proper cleanup and restoration ----
             // First, clear any existing wormhole overlays
             removeWormholeOverlay(editor, id);
-            
+
             // Initialize wormhole sets
             hex.inherentWormholes = new Set();
             hex.customWormholes = new Set();
             hex.wormholes = new Set();
-            
+
             if (h.type === 'realID' && info && info.wormholes) {
                 // For realID tiles, inherent wormholes come from system info
                 hex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
             }
-            
+
             // Custom wormholes come from the copied data
             if (h.customWormholes) {
                 hex.customWormholes = new Set(Array.from(h.customWormholes).filter(Boolean).map(w => w.toLowerCase()));
             }
-            
+
             // Update the union and create overlays
             updateHexWormholes(hex);
-            
+
             // Create wormhole overlays for all wormholes (inherent + custom)
             if (hex.wormholes && hex.wormholes.size > 0) {
                 Array.from(hex.wormholes).forEach((w, i) => {
@@ -512,7 +512,7 @@ export function startCopyPasteWizard(editor, cut = false) {
                     const len = positions.length;
                     const reversedIndex = len - 1 - (i % len);
                     const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
-                    
+
                     const overlay = createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase());
                     if (overlay) {
                         overlay.setAttribute('data-label', id);

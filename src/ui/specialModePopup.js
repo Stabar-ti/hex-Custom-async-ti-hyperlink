@@ -72,14 +72,14 @@ export function showSpecialModePopup() {
                 import('../modules/Milty/miltyBuilder.js').then(mod => {
                     console.log('Milty Builder module loaded:', mod); // Debug: See the loaded module
                     const showUI = mod.showMiltyBuilderUI || (mod.default && mod.default.showMiltyBuilderUI);
-                    
+
                     if (typeof showUI === 'function') {
                         showUI(designerContent);
                     } else {
                         console.error('showMiltyBuilderUI is not a function in the loaded module.');
                         designerContent.innerHTML = '<p style="color: red;">Error: Could not initialize Milty Slice Designer UI.</p>';
                     }
-                    
+
                     showPopup({
                         id: 'milty-slice-designer-popup',
                         title: '🎲 Milty Slice Designer',

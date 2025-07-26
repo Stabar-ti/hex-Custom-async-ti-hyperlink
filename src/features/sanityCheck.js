@@ -112,22 +112,22 @@ export function generateSanityCheckSummary(results, planetsOnly, checkAll) {
         summary += `<div style="color: #dc3545;">
             <p style="font-weight: bold;">⚠ Found ${results.duplicates.length} duplicate realID(s):</p>
             <div style="max-height: 300px; overflow-y: auto; border: 1px solid #444; border-radius: 4px; padding: 10px; background: #2a2a2a;">`;
-        
+
         results.duplicates.forEach((duplicate, index) => {
             summary += `<div style="margin-bottom: 15px; ${index > 0 ? 'border-top: 1px solid #555; padding-top: 10px;' : ''}">
                 <p style="font-weight: bold; color: #ffe066;">RealID: ${duplicate.realId} (appears ${duplicate.count} times)</p>
                 <ul style="margin: 5px 0; padding-left: 20px;">`;
-            
+
             duplicate.hexDetails.forEach(hex => {
-                const planetInfo = hex.hasPlanets ? 
-                    ` - ${hex.planetCount} planet(s): ${hex.planetNames}` : 
+                const planetInfo = hex.hasPlanets ?
+                    ` - ${hex.planetCount} planet(s): ${hex.planetNames}` :
                     ' - No planets';
                 summary += `<li style="margin: 2px 0;">Hex ${hex.label}${planetInfo}</li>`;
             });
-            
+
             summary += `</ul></div>`;
         });
-        
+
         summary += `</div></div>`;
     }
 

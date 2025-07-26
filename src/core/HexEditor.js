@@ -418,15 +418,15 @@ export default class HexEditor {
           realId: this.hexes[label].realId,
           matrix: this.hexes[label].matrix ? this.hexes[label].matrix.map(row => [...row]) : null,
           customAdjacents: this.hexes[label].customAdjacents ? [...this.hexes[label].customAdjacents] : undefined,
-          adjacencyOverrides: this.hexes[label].adjacencyOverrides ? {...this.hexes[label].adjacencyOverrides} : undefined,
-          borderAnomalies: this.hexes[label].borderAnomalies ? {...this.hexes[label].borderAnomalies} : undefined
+          adjacencyOverrides: this.hexes[label].adjacencyOverrides ? { ...this.hexes[label].adjacencyOverrides } : undefined,
+          borderAnomalies: this.hexes[label].borderAnomalies ? { ...this.hexes[label].borderAnomalies } : undefined
         };
       }
     });
-    
+
     clearSpecialCorners(this);
     drawSpecialHexes(this);
-    
+
     // Restore corner hex data
     ['TL', 'TR', 'BL', 'BR'].forEach(label => {
       if (cornerData[label] && this.hexes[label]) {
@@ -443,15 +443,15 @@ export default class HexEditor {
         if (data.customAdjacents) hex.customAdjacents = data.customAdjacents;
         if (data.adjacencyOverrides) hex.adjacencyOverrides = data.adjacencyOverrides;
         if (data.borderAnomalies) hex.borderAnomalies = data.borderAnomalies;
-        
+
         // Update hex.wormholes to be the union of inherentWormholes and customWormholes
         updateHexWormholes(hex);
-        
+
         // Update the polygon fill color to match the restored baseType
         if (hex.polygon) {
           hex.polygon.setAttribute('fill', this.sectorColors[hex.baseType] || this.sectorColors['']);
         }
-        
+
         // Clear any old overlay arrays since hexes were redrawn
         hex.overlays = [];
         hex.wormholeOverlays = [];
@@ -460,21 +460,21 @@ export default class HexEditor {
 
     updateEffectsVisibility(this);
     redrawAllRealIDOverlays(this);
-    
+
     // Redraw overlays for corner hexes at their new positions
     ['TL', 'TR', 'BL', 'BR'].forEach(label => {
       if (cornerData[label] && this.hexes[label]) {
-        
+
         // Refresh effects overlays at new position
         if (cornerData[label].effects && cornerData[label].effects.size > 0) {
           // Effects data was already restored above, just refresh the overlays
           refreshEffectsOverlays(this, label);
         }
-        
+
         // Create wormhole overlays using the same approach as tileCopyPasteWizard
         const hex = this.hexes[label];
         if (hex.wormholes && hex.wormholes.size > 0) {
-          
+
           // Clear any existing overlays first
           if (hex.wormholeOverlays) {
             hex.wormholeOverlays.forEach(o => {
@@ -482,14 +482,14 @@ export default class HexEditor {
             });
             hex.wormholeOverlays = [];
           }
-          
+
           // Create new overlays for all wormholes
           Array.from(hex.wormholes).forEach((w, i) => {
             const positions = this.effectIconPositions;
             const len = positions.length;
             const reversedIndex = len - 1 - (i % len);
             const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
-            
+
             const overlay = createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase());
             if (overlay) {
               overlay.setAttribute('data-label', label);
@@ -504,7 +504,7 @@ export default class HexEditor {
             }
           });
         }
-        
+
         // Redraw realID overlays at new position if hex has realId
         if (cornerData[label].realId !== null && cornerData[label].realId !== undefined) {
           // The redrawAllRealIDOverlays call above should handle this, but let's be explicit
@@ -512,9 +512,9 @@ export default class HexEditor {
         }
       }
     });
-    
+
     autoscaleView(this);
-    
+
     // Force SVG layer order update before setting wormhole visibility
     enforceSvgLayerOrder(this.svg);
     // Update wormhole visibility AFTER all redrawing operations are complete

@@ -246,14 +246,14 @@ export function clearSpecialCorners(editor) {
           if (o.parentNode) o.parentNode.removeChild(o);
         });
       }
-      
+
       // Remove all wormhole overlays
       if (hex.wormholeOverlays) {
         hex.wormholeOverlays.forEach(o => {
           if (o.parentNode) o.parentNode.removeChild(o);
         });
       }
-      
+
       // Also remove any wormhole overlays from wormholeIconLayer by data-label
       const wormholeIconLayer = svg.querySelector('#wormholeIconLayer');
       if (wormholeIconLayer) {
@@ -264,19 +264,19 @@ export function clearSpecialCorners(editor) {
           }
         });
       }
-      
+
       // Remove polygon
       if (hex.polygon && hex.polygon.parentNode) {
         hex.polygon.parentNode.removeChild(hex.polygon);
       }
     }
-    
+
     // Remove label
     const labelEl = document.getElementById(`label-${label}`);
     if (labelEl && labelEl.parentNode) {
       labelEl.parentNode.removeChild(labelEl);
     }
-    
+
     // Remove from editor.hexes
     delete editor.hexes[label];
   });

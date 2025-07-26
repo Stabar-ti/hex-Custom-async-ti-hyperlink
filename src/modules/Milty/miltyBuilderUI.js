@@ -34,6 +34,9 @@ export function showMiltyBuilderUI(container) {
                     <button id="calcDraftValuesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Analysis</button>
                     <button id="outputCopyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Output</button>
                     <button id="sanityCheckBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Sanity Check</button>
+                    <label style="display:inline-flex;align-items:center;font-size:13px;margin-left:10px;cursor:pointer;gap:4px;">
+                        <input type="checkbox" id="liveSliceAnalysisToggle" style="margin-right:4px;"> Live Slice Analysis
+                    </label>
                 </div>
             </div>
             
@@ -74,6 +77,37 @@ export function showMiltyBuilderUI(container) {
 
     // Initialize functionality after DOM is ready
     setTimeout(async () => {
+        // Live Slice Analysis toggle logic
+        let liveAnalysisEnabled = false;
+        let observer = null;
+        const liveToggle = container.querySelector('#liveSliceAnalysisToggle');
+        if (liveToggle) {
+            liveToggle.addEventListener('change', function() {
+                liveAnalysisEnabled = this.checked;
+                if (liveAnalysisEnabled) {
+                    import('./miltyBuilderPopups.js').then(mod => {
+                        mod.showDraftValuesPopup();
+                        setupObserver();
+                    });
+                } else {
+                    if (observer) observer.disconnect();
+                }
+            });
+        }
+
+        function setupObserver() {
+            if (observer) observer.disconnect();
+            if (window.editor && window.editor.svg) {
+                observer = new MutationObserver(() => {
+                    if (liveAnalysisEnabled) {
+                        import('./miltyBuilderPopups.js').then(mod => {
+                            mod.showDraftValuesPopup(true); // force refresh
+                        });
+                    }
+                });
+                observer.observe(window.editor.svg, { childList: true, subtree: true });
+            }
+        }
         // Import wormholes for custom wormhole transfer
         const { updateHexWormholes } = await import('../../features/wormholes.js');
         let sliceBordersVisible = false;
@@ -178,18 +212,24 @@ export function showMiltyBuilderUI(container) {
             };
         }
 
+
         // Analysis and Output buttons
         const calcDraftBtn = container.querySelector('#calcDraftValuesBtn');
         if (calcDraftBtn) {
             calcDraftBtn.onclick = () => {
-                showDraftValuesPopup();
+                import('./miltyBuilderPopups.js').then(mod => {
+                    mod.showDraftValuesPopup();
+                });
             };
         }
 
         const outputBtn = container.querySelector('#outputCopyBtn');
+
         if (outputBtn) {
             outputBtn.onclick = () => {
-                showOutputCopyPopup();
+                import('./miltyBuilderPopups.js').then(mod => {
+                    mod.showOutputCopyPopup();
+                });
             };
         }
 
@@ -197,7 +237,9 @@ export function showMiltyBuilderUI(container) {
         const sanityCheckBtn = container.querySelector('#sanityCheckBtn');
         if (sanityCheckBtn) {
             sanityCheckBtn.onclick = () => {
-                showSanityCheckPopup();
+                import('../../features/sanityCheck.js').then(mod => {
+                    if (mod.showSanityCheckPopup) mod.showSanityCheckPopup();
+                });
             };
         }
 

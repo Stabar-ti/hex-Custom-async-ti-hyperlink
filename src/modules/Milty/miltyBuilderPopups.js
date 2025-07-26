@@ -47,7 +47,7 @@ function generateOutputString() {
         for (let i = 1; i < slotHexes.length; i++) {
             const hexId = slotHexes[i];
             const hex = window.editor?.hexes?.[hexId];
-            
+
             if (hex && hex.realId) {
                 sliceIds.push(hex.realId);
             } else {
@@ -114,7 +114,7 @@ export function showOutputCopyPopup() {
         const sliceDetails = completedSlots.map(slotNum => {
             const slotHexes = slotPositions[slotNum];
             const realIds = [];
-            
+
             // Get realIds from positions 1-5
             for (let i = 1; i < slotHexes.length; i++) {
                 const hexId = slotHexes[i];
@@ -123,7 +123,7 @@ export function showOutputCopyPopup() {
                     realIds.push(hex.realId);
                 }
             }
-            
+
             return `<strong>Slot ${slotNum}:</strong> ${realIds.join(', ')}`;
         }).join('<br>');
 
@@ -214,8 +214,19 @@ export function showOutputCopyPopup() {
 }
 
 // Show draft values analysis popup
-export function showDraftValuesPopup() {
+export function showDraftValuesPopup(forceRefresh = false) {
     window.showDraftValuesPopup = showDraftValuesPopup;
+
+    // If popup already exists and not forceRefresh, just bring to front
+    let popup = document.getElementById('milty-draft-values-popup');
+    if (popup && !forceRefresh) {
+        popup.style.zIndex = 10001;
+        return popup;
+    }
+    // Remove old popup if forceRefresh
+    if (popup && forceRefresh) {
+        popup.remove();
+    }
 
     // Create a container for the analysis
     const container = document.createElement('div');
@@ -227,7 +238,7 @@ export function showDraftValuesPopup() {
     }
 
     // Show the popup using PopupUI
-    const popup = showPopup({
+    const popupObj = showPopup({
         content: container,
         actions: [],
         title: 'Calculate Draft Values',
@@ -244,6 +255,7 @@ export function showDraftValuesPopup() {
             maxHeight: '80vh'
         }
     });
+    return popupObj;
 }
 
 // Function to render draft values analysis

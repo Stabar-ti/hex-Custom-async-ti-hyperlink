@@ -210,7 +210,7 @@ export function applyFilters(editor, onResults) {
         case 'sourceOthers':
           // Handle "others" - includes known other sources and any unknown sources
           return ['other', 'draft', 'dane_leaks'].includes(source) ||
-                 (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
+            (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
         default: return false;
       }
     });
@@ -285,19 +285,19 @@ export function refreshSystemList() {
   // 1) Filter out already-placed systems and apply filters
   const filtered = systems.filter(sys => {
     if (editor.hexes[sys.id]?.baseType) return false;
-    
+
     // Handle source filters with OR logic
     const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceOthers'];
     const activeSourceFilters = sourceFilters.filter(key => {
       const btn = document.getElementById(`filter-${key}`);
       return btn?.dataset.active === 'true';
     });
-    
+
     // Apply OR logic for sources - if no source filters are active, show nothing
     if (activeSourceFilters.length === 0) {
       return false; // No source filters active = show nothing
     }
-    
+
     const sourceMatches = activeSourceFilters.some(key => {
       const source = (sys.source || '').toLowerCase();
       switch (key) {
@@ -305,15 +305,15 @@ export function refreshSystemList() {
         case 'sourcePok': return source === 'pok';
         case 'sourceDS': return source === 'ds' || source === 'uncharted_space';
         case 'sourceEronous': return source === 'eronous';
-        case 'sourceOthers': 
+        case 'sourceOthers':
           // Handle "others" - includes known other sources and any unknown sources
-          return ['other', 'draft', 'dane_leaks'].includes(source) || 
-                 (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
+          return ['other', 'draft', 'dane_leaks'].includes(source) ||
+            (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
         default: return false;
       }
     });
     if (!sourceMatches) return false;
-    
+
     // All other filters must pass (AND logic) - exclude source filters
     const otherFilters = FILTERS.filter(({ key }) => !sourceFilters.includes(key));
     return otherFilters.every(({ key, test }) => {
@@ -347,19 +347,19 @@ export function getActiveFilterPass(editor) {
   const all = Array.isArray(editor.allSystems) ? editor.allSystems : [];
   return all.filter(sys => {
     if (editor.hexes[sys.id]?.baseType) return false;
-    
+
     // Handle source filters with OR logic
     const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceOthers'];
     const activeSourceFilters = sourceFilters.filter(key => {
       const btn = document.getElementById(`filter-${key}`);
       return btn?.dataset.active === 'true';
     });
-    
+
     // Apply OR logic for sources - if no source filters are active, show nothing
     if (activeSourceFilters.length === 0) {
       return false; // No source filters active = show nothing
     }
-    
+
     const sourceMatches = activeSourceFilters.some(key => {
       const source = (sys.source || '').toLowerCase();
       switch (key) {
@@ -367,15 +367,15 @@ export function getActiveFilterPass(editor) {
         case 'sourcePok': return source === 'pok';
         case 'sourceDS': return source === 'ds' || source === 'uncharted_space';
         case 'sourceEronous': return source === 'eronous';
-        case 'sourceOthers': 
+        case 'sourceOthers':
           // Handle "others" - includes known other sources and any unknown sources
-          return ['other', 'draft', 'dane_leaks'].includes(source) || 
-                 (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
+          return ['other', 'draft', 'dane_leaks'].includes(source) ||
+            (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
         default: return false;
       }
     });
     if (!sourceMatches) return false;
-    
+
     // All other filters must pass (AND logic) - exclude source filters
     const otherFilters = FILTERS.filter(({ key }) => !sourceFilters.includes(key));
     return otherFilters.every(({ key, test }) => {

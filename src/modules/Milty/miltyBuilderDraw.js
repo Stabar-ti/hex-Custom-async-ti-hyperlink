@@ -7,17 +7,17 @@ export function drawSlicePositionOverlays(editor, show = true) {
         console.log('drawSlicePositionOverlays: editor, hexes, or svg not available');
         return;
     }
-    
+
     // Remove old overlays if any
     const oldLayer = editor.svg.querySelector('#sliceNumbersOverlayLayer');
     if (oldLayer) oldLayer.remove();
-    
+
     // If show is false, just remove and return
     if (!show) {
         console.log('Slice position overlays hidden');
         return;
     }
-    
+
     console.log('Drawing slice position overlays...');
     // Create overlay layer
     const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -84,7 +84,7 @@ export function drawSliceBordersOverlay(editor, show = true) {
     // Remove old borders if any
     const oldLayer = editor.svg.querySelector('#sliceBordersOverlayLayer');
     if (oldLayer) oldLayer.remove();
-    
+
     // If show is false, just remove and return
     if (!show) {
         console.log('Slice borders overlay hidden');
