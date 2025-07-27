@@ -455,6 +455,254 @@ function renderDraftValuesAnalysis(container) {
     container.appendChild(table);
 }
 
+// Show import slices popup
+export function showImportSlicesPopup() {
+    window.showImportSlicesPopup = showImportSlicesPopup;
+
+    // Create container for the popup content
+    const container = document.createElement('div');
+    container.style.padding = '15px';
+
+    container.innerHTML = `
+        <h3 style="margin-top: 0; color: #ffe066;">Import Draft Slices</h3>
+        <p style="margin-bottom: 15px; color: #ccc; font-size: 14px;">
+            Paste slice data in either format:<br>
+            • Semicolon-separated: <code>28,48,50,60,34;30,20,49,78,72;...</code><br>
+            • Line-separated (one slice per line)
+        </p>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #ddd;">Slice Data:</label>
+            <textarea id="importSlicesTextarea" style="width: 100%; height: 200px; font-family: monospace; font-size: 13px; padding: 8px; border: 1px solid #555; background: #2a2a2a; color: #fff; border-radius: 4px; resize: vertical;" placeholder="Paste your slice data here...
+
+Example:
+28,48,50,60,34
+30,20,49,78,72
+35,27,46,21,40"></textarea>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="display: inline-flex; align-items: center; color: #ccc; cursor: pointer;">
+                <input type="checkbox" id="clearExistingSlices" style="margin-right: 8px;" checked>
+                Clear existing draft slices before import
+            </label>
+        </div>
+        
+        <div style="text-align: center; margin-bottom: 15px;">
+            <button id="importSlicesButton" style="
+                background: #28a745; 
+                color: white; 
+                border: none; 
+                padding: 12px 24px; 
+                font-size: 16px; 
+                font-weight: bold; 
+                border-radius: 6px; 
+                cursor: pointer;
+                min-width: 150px;
+            ">Import Slices</button>
+        </div>
+        
+        <div id="importPreview" style="margin-bottom: 15px; padding: 10px; background: #1a1a1a; border-radius: 4px; font-family: monospace; font-size: 12px; color: #aaa; max-height: 150px; overflow-y: auto; display: none;">
+        </div>
+    `;
+
+    // Parse and preview function
+    function updatePreview() {
+        const textarea = container.querySelector('#importSlicesTextarea');
+        const preview = container.querySelector('#importPreview');
+        const input = textarea.value.trim();
+        
+        if (!input) {
+            preview.style.display = 'none';
+            return;
+        }
+
+        try {
+            // Parse the input same way as import function
+            let sliceLines = [];
+            if (input.includes(';')) {
+                sliceLines = input.split(';').map(line => line.trim()).filter(line => line.length > 0);
+            } else {
+                sliceLines = input.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+            }
+
+            if (sliceLines.length === 0) {
+                preview.innerHTML = '<span style="color: #ff6b6b;">No valid slice data found</span>';
+                preview.style.display = 'block';
+                return;
+            }
+
+            let previewHTML = `<strong>Preview (${sliceLines.length} slice${sliceLines.length === 1 ? '' : 's'}):</strong><br>`;
+            
+            for (let i = 0; i < sliceLines.length && i < 12; i++) {
+                const realIds = sliceLines[i].split(',').map(id => id.trim()).filter(id => id.length > 0);
+                const isValid = realIds.length === 5 && realIds.every(id => /^\d+$/.test(id));
+                const color = isValid ? '#4CAF50' : '#ff6b6b';
+                const status = isValid ? '✓' : '✗';
+                
+                previewHTML += `<span style="color: ${color};">${status} Slot ${i + 1}: ${realIds.join(', ')}</span><br>`;
+            }
+
+            if (sliceLines.length > 12) {
+                previewHTML += `<span style="color: #ff9800;">⚠ Only first 12 slices will be imported</span>`;
+            }
+
+            preview.innerHTML = previewHTML;
+            preview.style.display = 'block';
+        } catch (error) {
+            preview.innerHTML = `<span style="color: #ff6b6b;">Parse error: ${error.message}</span>`;
+            preview.style.display = 'block';
+        }
+    }
+
+    // Add real-time preview
+    const textarea = container.querySelector('#importSlicesTextarea');
+    textarea.addEventListener('input', updatePreview);
+
+    // Add import button event listener
+    const importButton = container.querySelector('#importSlicesButton');
+    importButton.addEventListener('click', () => {
+        const slicesData = textarea.value.trim();
+        const clearExisting = container.querySelector('#clearExistingSlices').checked;
+
+        if (!slicesData) {
+            alert('Please enter slice data to import.');
+            return;
+        }
+
+        // Disable button during import
+        importButton.disabled = true;
+        importButton.textContent = 'Importing...';
+        importButton.style.background = '#6c757d';
+
+        // Clear existing slices if requested
+        if (clearExisting) {
+            for (let slotNum = 1; slotNum <= 12; slotNum++) {
+                const slotHexes = window.miltyBuilderCore?.slotPositions?.[slotNum] || [];
+                for (let j = 1; j < slotHexes.length; j++) {
+                    const hexId = slotHexes[j];
+                    if (window.editor?.clearAll) {
+                        window.editor.clearAll(hexId);
+                    }
+                }
+            }
+        }
+
+        // Import the slices
+        import('./miltyBuilderCore.js').then(({ importSlices }) => {
+            const success = importSlices(slicesData, (msg) => {
+                console.log('Import status:', msg);
+            });
+            
+            if (success) {
+                // Close the popup and refresh UI
+                document.getElementById('milty-import-popup')?.remove();
+                
+                // Refresh the MiltyBuilder UI if it's open
+                const miltyUI = document.getElementById('milty-builder-popup');
+                if (miltyUI) {
+                    // Trigger a refresh of slice button colors
+                    setTimeout(() => {
+                        const refreshBtn = miltyUI.querySelector('#refreshOccupancyBtn');
+                        if (refreshBtn) refreshBtn.click();
+                    }, 100);
+                }
+            } else {
+                alert('Import failed. Check console for details.');
+                // Re-enable button
+                importButton.disabled = false;
+                importButton.textContent = 'Import Slices';
+                importButton.style.background = '#28a745';
+            }
+        }).catch(error => {
+            console.error('Import error:', error);
+            alert('Import failed: ' + error.message);
+            // Re-enable button
+            importButton.disabled = false;
+            importButton.textContent = 'Import Slices';
+            importButton.style.background = '#28a745';
+        });
+    });
+
+    // Import action (kept for compatibility, but now just triggers the button)
+    const importAction = {
+        text: 'Import Slices',
+        handler: () => {
+            importButton.click();
+        }
+    };
+
+    // Help function for the popup
+    function importHelpFunction() {
+        const helpHTML = `
+            <div style="max-height: 60vh; overflow-y: auto; padding: 10px;">
+                <h2 style="color: #ffe066; margin-top: 0;">Import Draft Slices Help</h2>
+                
+                <h3 style="color: #4CAF50;">Supported Formats</h3>
+                <p><strong>Format 1 - Semicolon Separated:</strong></p>
+                <code style="background: #2a2a2a; padding: 8px; display: block; margin: 8px 0;">28,48,50,60,34;30,20,49,78,72;35,27,46,21,40</code>
+                
+                <p><strong>Format 2 - Line Separated:</strong></p>
+                <code style="background: #2a2a2a; padding: 8px; display: block; margin: 8px 0;">28,48,50,60,34<br>30,20,49,78,72<br>35,27,46,21,40</code>
+                
+                <h3 style="color: #4CAF50;">Requirements</h3>
+                <ul>
+                    <li>Each slice must contain exactly 5 realID numbers</li>
+                    <li>Numbers must be comma-separated</li>
+                    <li>Maximum 12 slices (draft slots 1-12)</li>
+                    <li>realIDs must be valid system tile numbers</li>
+                </ul>
+                
+                <h3 style="color: #4CAF50;">Import Process</h3>
+                <ul>
+                    <li>Slices are imported to draft slots 1, 2, 3, etc. in order</li>
+                    <li>Each slice replaces systems in positions 1-5 of the draft slot</li>
+                    <li>Position 0 (home system) is not affected</li>
+                    <li>Existing systems are cleared before import (if option selected)</li>
+                </ul>
+            </div>
+        `;
+        
+        showPopup({
+            content: helpHTML,
+            actions: [],
+            title: 'Import Draft Slices Help',
+            id: 'milty-import-help-popup',
+            draggable: true,
+            dragHandleSelector: '.popup-ui-titlebar',
+            scalable: true,
+            rememberPosition: true,
+            showHelp: false,
+            style: {
+                width: '600px',
+                maxWidth: '90vw',
+                maxHeight: '80vh'
+            }
+        });
+    }
+
+    // Show the popup using PopupUI
+    const popup = showPopup({
+        content: container,
+        actions: [importAction],
+        title: 'Import Draft Slices',
+        id: 'milty-import-popup',
+        draggable: true,
+        dragHandleSelector: '.popup-ui-titlebar',
+        scalable: true,
+        rememberPosition: true,
+        showHelp: true,
+        onHelp: importHelpFunction,
+        style: {
+            width: '500px',
+            maxWidth: '90vw',
+            maxHeight: '85vh'
+        }
+    });
+
+    return popup;
+}
+
 // Help popup function - shows comprehensive help for Milty Slice Designer
 export function showMiltyHelp() {
     const helpContent = `

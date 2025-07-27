@@ -33,6 +33,7 @@ export function showMiltyBuilderUI(container) {
                     <button id="refreshOccupancyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Refresh</button>
                     <button id="calcDraftValuesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Analysis</button>
                     <button id="outputCopyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Output</button>
+                    <button id="importSlicesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Import</button>
                     <button id="sanityCheckBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Sanity Check</button>
                     <label style="display:inline-flex;align-items:center;font-size:13px;margin-left:10px;cursor:pointer;gap:4px;">
                         <input type="checkbox" id="liveSliceAnalysisToggle" style="margin-right:4px;"> Live Slice Analysis
@@ -229,6 +230,16 @@ export function showMiltyBuilderUI(container) {
             outputBtn.onclick = () => {
                 import('./miltyBuilderPopups.js').then(mod => {
                     mod.showOutputCopyPopup();
+                });
+            };
+        }
+
+        // Import button
+        const importBtn = container.querySelector('#importSlicesBtn');
+        if (importBtn) {
+            importBtn.onclick = () => {
+                import('./miltyBuilderPopups.js').then(mod => {
+                    mod.showImportSlicesPopup();
                 });
             };
         }

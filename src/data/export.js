@@ -148,44 +148,22 @@ export function exportHyperlaneTilePositions(editor) {
  *   ln: links (matrix)
  */
 export function exportFullState(editor) {
-  // Async, batched version to prevent UI freeze. Returns a Promise.
-  return new Promise((resolve) => {
-    const hexes = [];
-    const allHexEntries = Object.entries(editor.hexes);
-    const batchSize = 100;
-
-    function processNextBatch(startIndex) {
-      const endIndex = Math.min(startIndex + batchSize, allHexEntries.length);
-      for (let i = startIndex; i < endIndex; i++) {
-        const [label, hex] = allHexEntries[i];
-        const h = { id: label };
-        if (hex.realId != null && hex.realId !== '') h.rid = hex.realId.toString();
-        if (typeof hex.q === 'number') h.q = hex.q;
-        if (typeof hex.r === 'number') h.r = hex.r;
-        if (hex.planets && hex.planets.length) h.pl = [...hex.planets];
-        if (hex.baseType && hex.baseType !== '') h.bt = hex.baseType;
-        if (hex.effects && hex.effects.size) h.fx = [...hex.effects];
-        if (hex.customWormholes && hex.customWormholes.size) h.wh = [...hex.customWormholes];
-        if (hex.customAdjacents && Object.keys(hex.customAdjacents).length) {
-          h.ca = typeof structuredClone === 'function' ? structuredClone(hex.customAdjacents) : JSON.parse(JSON.stringify(hex.customAdjacents));
-        }
-        if (hex.adjacencyOverrides && Object.keys(hex.adjacencyOverrides).length) {
-          h.ao = typeof structuredClone === 'function' ? structuredClone(hex.adjacencyOverrides) : JSON.parse(JSON.stringify(hex.adjacencyOverrides));
-        }
-        if (hex.borderAnomalies && Object.keys(hex.borderAnomalies).length) {
-          h.ba = typeof structuredClone === 'function' ? structuredClone(hex.borderAnomalies) : JSON.parse(JSON.stringify(hex.borderAnomalies));
-        }
-        if (hex.matrix && hex.matrix.some(row => row.some(x => x !== 0))) h.ln = hex.matrix;
-        hexes.push(h);
-      }
-      if (endIndex < allHexEntries.length) {
-        window.requestAnimationFrame(() => processNextBatch(endIndex));
-      } else {
-        resolve(JSON.stringify({ hexes }, null, 1));
-      }
-    }
-    processNextBatch(0);
+  const hexes = Object.entries(editor.hexes).map(([label, hex]) => {
+    const h = { id: label };
+    if (hex.realId != null && hex.realId !== '') h.rid = hex.realId.toString();
+    if (typeof hex.q === 'number') h.q = hex.q;
+    if (typeof hex.r === 'number') h.r = hex.r;
+    if (hex.planets && hex.planets.length) h.pl = Array.from(hex.planets);
+    if (hex.baseType && hex.baseType !== '') h.bt = hex.baseType;
+    if (hex.effects && hex.effects.size) h.fx = Array.from(hex.effects);
+    if (hex.customWormholes && hex.customWormholes.size) h.wh = Array.from(hex.customWormholes);
+    if (hex.customAdjacents && Object.keys(hex.customAdjacents).length) h.ca = JSON.parse(JSON.stringify(hex.customAdjacents));
+    if (hex.adjacencyOverrides && Object.keys(hex.adjacencyOverrides).length) h.ao = JSON.parse(JSON.stringify(hex.adjacencyOverrides));
+    if (hex.borderAnomalies && Object.keys(hex.borderAnomalies).length) h.ba = JSON.parse(JSON.stringify(hex.borderAnomalies));
+    if (hex.matrix && hex.matrix.flat().some(x => x !== 0)) h.ln = hex.matrix;
+    return h;
   });
+  return JSON.stringify({ hexes }, null, 1);
 }
 
 /**

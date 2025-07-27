@@ -320,6 +320,15 @@ function updateVisualElements() {
     }).catch(err => {
         console.warn('Could not refresh system list filters:', err);
     });
+
+    // Enforce SVG layer order to ensure planets and overlays appear correctly
+    import('../../draw/enforceSvgLayerOrder.js').then(({ enforceSvgLayerOrder }) => {
+        if (window.editor?.svg) {
+            enforceSvgLayerOrder(window.editor.svg);
+        }
+    }).catch(err => {
+        console.warn('Could not enforce SVG layer order:', err);
+    });
 }
 
 // Analyze slice occupancy and return color scheme
@@ -400,6 +409,149 @@ export function generateOutputString() {
         outputString: fullyOccupiedSlices.join(';'),
         sliceDetails: sliceDetails
     };
+}
+
+// Import slices from external source string
+export function importSlices(slicesString, updateStatusMsg) {
+    if (!slicesString || typeof slicesString !== 'string') {
+        updateStatusMsg('Invalid input: Please provide a valid slices string.');
+        return false;
+    }
+
+    try {
+        // Clean and normalize the input
+        let cleanInput = slicesString.trim();
+        
+        // Handle both formats: semicolon-separated or newline-separated
+        let sliceLines = [];
+        if (cleanInput.includes(';')) {
+            // Format: "28,48,50,60,34;30,20,49,78,72;..."
+            sliceLines = cleanInput.split(';').map(line => line.trim()).filter(line => line.length > 0);
+        } else {
+            // Format: multi-line with each slice on a new line
+            sliceLines = cleanInput.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+        }
+
+        if (sliceLines.length === 0) {
+            updateStatusMsg('No valid slice data found in input.');
+            return false;
+        }
+
+        let importedCount = 0;
+        const errors = [];
+
+        // Import each slice to consecutive draft slots starting from slot 1
+        for (let i = 0; i < sliceLines.length && i < 12; i++) {
+            const sliceLine = sliceLines[i];
+            const realIds = sliceLine.split(',').map(id => id.trim()).filter(id => id.length > 0);
+
+            if (realIds.length !== 5) {
+                errors.push(`Slice ${i + 1}: Expected 5 realIds, got ${realIds.length}`);
+                continue;
+            }
+
+            // Validate that all realIds are numeric
+            const invalidIds = realIds.filter(id => !/^\d+$/.test(id));
+            if (invalidIds.length > 0) {
+                errors.push(`Slice ${i + 1}: Invalid realIds: ${invalidIds.join(', ')}`);
+                continue;
+            }
+
+            // Import this slice to draft slot (i + 1)
+            const slotNum = i + 1;
+            const slotHexes = slotPositions[slotNum];
+            if (!slotHexes) {
+                errors.push(`Slice ${i + 1}: Invalid slot position`);
+                continue;
+            }
+
+            // Apply realIds to slot positions 1-5 (skip position 0 - homesystem)
+            let applied = 0;
+            for (let j = 1; j < slotHexes.length && j - 1 < realIds.length; j++) {
+                const hexId = slotHexes[j];
+                const realId = realIds[j - 1];
+                
+                if (window.editor?.hexes?.[hexId]) {
+                    // Clear the hex first
+                    if (typeof window.editor.clearAll === 'function') {
+                        window.editor.clearAll(hexId);
+                    }
+
+                    // Get system info first
+                    const realIdKey = realId.toString().toUpperCase();
+                    const info = window.editor?.sectorIDLookup?.[realIdKey] || {};
+
+                    // Build complete source data structure like moveSlice does
+                    const srcData = {
+                        realId: realId,
+                        hexId: hexId,
+                        planets: info.planets ? JSON.parse(JSON.stringify(info.planets)) : [],
+                        customWormholes: new Set(),
+                        effects: new Set(),
+                        isHyperlane: false,
+                        isNebula: info.isNebula || false,
+                        isGravityRift: info.isGravityRift || false,
+                        isSupernova: info.isSupernova || false,
+                        isAsteroidField: info.isAsteroidField || false,
+                        baseType: info.planets && info.planets.length > 0 ? 
+                            (info.planets.length >= 3 ? '3 planet' : 
+                             info.planets.length >= 2 ? '2 planet' : '1 planet') :
+                            (info.isNebula || info.isGravityRift || info.isSupernova || info.isAsteroidField ? 'special' : 'empty')
+                    };
+                    
+                    // Apply the hex data using the same function as moveSlice
+                    const hex = window.editor.hexes[hexId];
+                    applyHexData(srcData, hex, hexId);
+                    applied++;
+                }
+            }
+
+            if (applied === 5) {
+                importedCount++;
+            } else {
+                errors.push(`Slice ${i + 1}: Only applied ${applied}/5 systems`);
+            }
+        }
+
+        // Update visual elements (same as moveSlice)
+        updateVisualElements();
+
+        // Force redraw realID overlays specifically after a delay to ensure everything is loaded
+        setTimeout(() => {
+            if (typeof window.editor?.redrawAllRealIDOverlays === 'function') {
+                window.editor.redrawAllRealIDOverlays(window.editor);
+            }
+            // Also force update the tile image layer which shows system tiles
+            import('../../features/imageSystemsOverlay.js').then(({ updateTileImageLayer }) => {
+                updateTileImageLayer(window.editor);
+            }).catch(err => {
+                console.warn('Could not update tile image layer:', err);
+            });
+            // Enforce SVG layer order to ensure planets and overlays appear correctly
+            import('../../draw/enforceSvgLayerOrder.js').then(({ enforceSvgLayerOrder }) => {
+                if (window.editor?.svg) {
+                    enforceSvgLayerOrder(window.editor.svg);
+                }
+            }).catch(err => {
+                console.warn('Could not enforce SVG layer order:', err);
+            });
+        }, 100);
+
+        // Report results
+        let statusMessage = `Import completed: ${importedCount} slice${importedCount === 1 ? '' : 's'} imported.`;
+        if (errors.length > 0) {
+            statusMessage += ` Errors: ${errors.length}`;
+            console.warn('Import errors:', errors);
+        }
+        updateStatusMsg(statusMessage);
+
+        return importedCount > 0;
+
+    } catch (error) {
+        console.error('Import error:', error);
+        updateStatusMsg(`Import failed: ${error.message}`);
+        return false;
+    }
 }
 
 // Helper function for tech display
