@@ -148,22 +148,44 @@ export function exportHyperlaneTilePositions(editor) {
  *   ln: links (matrix)
  */
 export function exportFullState(editor) {
-  const hexes = Object.entries(editor.hexes).map(([label, hex]) => {
-    const h = { id: label };
-    if (hex.realId != null && hex.realId !== '') h.rid = hex.realId.toString();
-    if (typeof hex.q === 'number') h.q = hex.q;
-    if (typeof hex.r === 'number') h.r = hex.r;
-    if (hex.planets && hex.planets.length) h.pl = Array.from(hex.planets);
-    if (hex.baseType && hex.baseType !== '') h.bt = hex.baseType;
-    if (hex.effects && hex.effects.size) h.fx = Array.from(hex.effects);
-    if (hex.customWormholes && hex.customWormholes.size) h.wh = Array.from(hex.customWormholes);
-    if (hex.customAdjacents && Object.keys(hex.customAdjacents).length) h.ca = JSON.parse(JSON.stringify(hex.customAdjacents));
-    if (hex.adjacencyOverrides && Object.keys(hex.adjacencyOverrides).length) h.ao = JSON.parse(JSON.stringify(hex.adjacencyOverrides));
-    if (hex.borderAnomalies && Object.keys(hex.borderAnomalies).length) h.ba = JSON.parse(JSON.stringify(hex.borderAnomalies));
-    if (hex.matrix && hex.matrix.flat().some(x => x !== 0)) h.ln = hex.matrix;
-    return h;
+  // Async, batched version to prevent UI freeze. Returns a Promise.
+  return new Promise((resolve) => {
+    const hexes = [];
+    const allHexEntries = Object.entries(editor.hexes);
+    const batchSize = 100;
+
+    function processNextBatch(startIndex) {
+      const endIndex = Math.min(startIndex + batchSize, allHexEntries.length);
+      for (let i = startIndex; i < endIndex; i++) {
+        const [label, hex] = allHexEntries[i];
+        const h = { id: label };
+        if (hex.realId != null && hex.realId !== '') h.rid = hex.realId.toString();
+        if (typeof hex.q === 'number') h.q = hex.q;
+        if (typeof hex.r === 'number') h.r = hex.r;
+        if (hex.planets && hex.planets.length) h.pl = [...hex.planets];
+        if (hex.baseType && hex.baseType !== '') h.bt = hex.baseType;
+        if (hex.effects && hex.effects.size) h.fx = [...hex.effects];
+        if (hex.customWormholes && hex.customWormholes.size) h.wh = [...hex.customWormholes];
+        if (hex.customAdjacents && Object.keys(hex.customAdjacents).length) {
+          h.ca = typeof structuredClone === 'function' ? structuredClone(hex.customAdjacents) : JSON.parse(JSON.stringify(hex.customAdjacents));
+        }
+        if (hex.adjacencyOverrides && Object.keys(hex.adjacencyOverrides).length) {
+          h.ao = typeof structuredClone === 'function' ? structuredClone(hex.adjacencyOverrides) : JSON.parse(JSON.stringify(hex.adjacencyOverrides));
+        }
+        if (hex.borderAnomalies && Object.keys(hex.borderAnomalies).length) {
+          h.ba = typeof structuredClone === 'function' ? structuredClone(hex.borderAnomalies) : JSON.parse(JSON.stringify(hex.borderAnomalies));
+        }
+        if (hex.matrix && hex.matrix.some(row => row.some(x => x !== 0))) h.ln = hex.matrix;
+        hexes.push(h);
+      }
+      if (endIndex < allHexEntries.length) {
+        window.requestAnimationFrame(() => processNextBatch(endIndex));
+      } else {
+        resolve(JSON.stringify({ hexes }, null, 1));
+      }
+    }
+    processNextBatch(0);
   });
-  return JSON.stringify({ hexes }, null, 1);
 }
 
 /**
@@ -284,22 +306,35 @@ export function exportAdjacencyOverrides(editor) {
 export function exportCustomAdjacents(editor) {
   const lines = [];
   const handled = new Set();
+  const oneWayMap = {};
+  const twoWayMap = {};
 
   Object.entries(editor.hexes).forEach(([label, hex]) => {
     if (!hex.customAdjacents) return;
     Object.entries(hex.customAdjacents).forEach(([target, info]) => {
-      // Only output if:
-      // - One-way (always output from "from" tile)
-      // - Two-way and label < target (to avoid double-listing)
       const tileA = Number(label), tileB = Number(target);
       const key = [Math.min(tileA, tileB), Math.max(tileA, tileB)].join('-');
       if (info.twoWay) {
         if (tileA > tileB || handled.has(key)) return; // Only emit from lower label
         handled.add(key);
+        // Group two-way by label
+        if (!twoWayMap[label]) twoWayMap[label] = new Set();
+        twoWayMap[label].add(target);
+      } else {
+        // One-way: group by label
+        if (!oneWayMap[label]) oneWayMap[label] = new Set();
+        oneWayMap[label].add(target);
       }
-      // Output this custom adjacency
-      lines.push(`/map add_custom_adjacent_tiles primary_tile: ${label} adjacent_tiles: ${target} two_way: ${info.twoWay}`);
     });
+  });
+
+  // Emit two-way grouped lines
+  Object.entries(twoWayMap).forEach(([label, targets]) => {
+    lines.push(`/map add_custom_adjacent_tiles primary_tile: ${label} adjacent_tiles: ${Array.from(targets).join(',')} two_way: true`);
+  });
+  // Emit one-way grouped lines
+  Object.entries(oneWayMap).forEach(([label, targets]) => {
+    lines.push(`/map add_custom_adjacent_tiles primary_tile: ${label} adjacent_tiles: ${Array.from(targets).join(',')} two_way: false`);
   });
 
   return lines.join('\n');
