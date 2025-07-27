@@ -83,7 +83,7 @@ export function showMiltyBuilderUI(container) {
         let observer = null;
         const liveToggle = container.querySelector('#liveSliceAnalysisToggle');
         if (liveToggle) {
-            liveToggle.addEventListener('change', function() {
+            liveToggle.addEventListener('change', function () {
                 liveAnalysisEnabled = this.checked;
                 if (liveAnalysisEnabled) {
                     import('./miltyBuilderPopups.js').then(mod => {
