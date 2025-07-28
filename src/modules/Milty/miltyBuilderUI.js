@@ -28,6 +28,7 @@ export function showMiltyBuilderUI(container) {
                     <button id="loadMiltyJsonBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Load Map</button>
                     <button id="toggleSliceBordersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Slice Borders</button>
                     <button id="toggleSliceNumbersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Slice Numbers</button>
+                    <button id="miltyDraftGeneratorBtn" class="mode-button" style="font-size:13px;padding:6px 12px; background: #FF6B35; border: 1px solid #D14A24; color: #fff;">🎯 Generator</button>
                 </div>
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
                     <button id="refreshOccupancyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Refresh</button>
@@ -149,6 +150,25 @@ export function showMiltyBuilderUI(container) {
                 } catch (err) {
                     alert('Failed to load MiltyBuilder.json: ' + err);
                 }
+            };
+        }
+
+        // Milty Draft Generator button
+        const generatorBtn = container.querySelector('#miltyDraftGeneratorBtn');
+        if (generatorBtn) {
+            generatorBtn.onclick = () => {
+                import('./miltyBuilderRandomTool.js').then(mod => {
+                    const showGenerator = mod.showMiltyDraftGeneratorPopup;
+                    if (typeof showGenerator === 'function') {
+                        showGenerator();
+                    } else {
+                        console.error('showMiltyDraftGeneratorPopup is not a function in the loaded module.');
+                        alert('Error: Could not initialize Milty Draft Generator.');
+                    }
+                }).catch(err => {
+                    console.error('Failed to load miltyBuilderRandomTool.js module:', err);
+                    alert('Failed to load generator. See console for details.');
+                });
             };
         }
 
