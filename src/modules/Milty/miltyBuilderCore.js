@@ -114,7 +114,7 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
                 if (srcHex.customWormholes) srcHex.customWormholes.clear();
                 if (srcHex.inherentWormholes) srcHex.inherentWormholes.clear();
                 if (srcHex.wormholes) srcHex.wormholes.clear();
-                
+
                 // Clear all effects data
                 if (srcHex.effects) {
                     if (Array.isArray(srcHex.effects)) {
@@ -123,14 +123,14 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
                         srcHex.effects.clear();
                     }
                 }
-                
+
                 // Clear anomaly flags
                 srcHex.isNebula = false;
                 srcHex.isGravityRift = false;
                 srcHex.isSupernova = false;
                 srcHex.isAsteroidField = false;
                 srcHex.isHyperlane = false;
-                
+
                 // Remove wormhole overlays
                 removeWormholeOverlay(window.editor, srcData.hexId);
                 if (srcHex.wormholeOverlays) {
@@ -140,7 +140,7 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
                     srcHex.wormholeOverlays = [];
                 }
             }
-            
+
             // Now clear the hex completely
             clearHex(srcData.hexId);
         }
@@ -322,7 +322,7 @@ function clearHex(hexId) {
 
     // Clear wormhole overlays first
     removeWormholeOverlay(window.editor, hexId);
-    
+
     // Clear all wormhole data thoroughly
     if (srcHex.customWormholes) {
         srcHex.customWormholes.clear();
@@ -333,7 +333,7 @@ function clearHex(hexId) {
     if (srcHex.wormholes) {
         srcHex.wormholes.clear();
     }
-    
+
     // Clear all effects data thoroughly
     if (srcHex.effects) {
         if (Array.isArray(srcHex.effects)) {
@@ -342,14 +342,14 @@ function clearHex(hexId) {
             srcHex.effects.clear();
         }
     }
-    
+
     // Clear anomaly flags that might be set by effects
     srcHex.isNebula = false;
     srcHex.isGravityRift = false;
     srcHex.isSupernova = false;
     srcHex.isAsteroidField = false;
     srcHex.isHyperlane = false;
-    
+
     // Remove any remaining wormhole overlays
     if (srcHex.wormholeOverlays) {
         srcHex.wormholeOverlays.forEach(overlay => {
@@ -371,7 +371,7 @@ function clearHex(hexId) {
     if (typeof window.editor.clearAll === 'function') {
         window.editor.clearAll(hexId);
     }
-    
+
     // Update effects visibility to remove any lingering effect overlays
     import('../../features/baseOverlays.js').then(({ updateEffectsVisibility }) => {
         updateEffectsVisibility(window.editor);

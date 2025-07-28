@@ -5,6 +5,7 @@
 import { defaultSlices, slotPositions, moveSlice, analyzeSliceOccupancy, generateOutputString, capitalizeTech } from './miltyBuilderCore.js';
 import { drawSlicePositionOverlays, drawSliceBordersOverlay } from './miltyBuilderDraw.js';
 import { showOutputCopyPopup, showDraftValuesPopup } from './miltyBuilderPopups.js';
+import { showMiltyDraftGeneratorPopup } from './miltyBuilderRandomTool.js';
 import { showSanityCheckPopup } from '../../ui/simplepPopup.js';
 
 // Main UI function to create and display the Milty Builder popup
@@ -21,22 +22,27 @@ export function showMiltyBuilderUI(container) {
         <div style="padding: 15px;">
             <h2 style="margin: 0 0 8px 0; color: #ffe066;">Milty Slice Designer</h2>
             <p style="margin: 0 0 15px 0; color: #ccc; font-size: 14px;">Design and copy slices between the standard map (A–F) and draft slots (1–12).</p>
-            
             <!-- Control Buttons Section -->
             <div style="margin-bottom: 20px;">
+                <!-- Row 1: Load Map, Import, Output -->
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 10px;">
-                    <button id="loadMiltyJsonBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Load Map</button>
-                    <button id="toggleSliceBordersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Slice Borders</button>
-                    <button id="toggleSliceNumbersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Slice Numbers</button>
+                    <button id="loadMiltyJsonBtn" class="mode-button" style="font-size:15px;padding:6px 12px;">Load Map</button>
+                    <button id="importSlicesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Import slices</button>
+                    <button id="outputCopyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Output slices</button>
                 </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
-                    <button id="refreshOccupancyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Refresh</button>
-                    <button id="calcDraftValuesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Analysis</button>
-                    <button id="outputCopyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Output</button>
-                    <button id="importSlicesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Import</button>
+                <!-- Row 2: Generate, Analysis, Sanity Check -->
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 10px;">
+                    <button id="generateSlicesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Generate Slices</button>
+                    <button id="calcDraftValuesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Analyse Slices</button>
                     <button id="sanityCheckBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Sanity Check</button>
+                </div>
+                <!-- Row 3: Refresh, Slice Borders, Slice Numbers, Live Slice Analysis -->
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
+                    <button id="refreshOccupancyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Refresh button slice indicators</button>
+                    <button id="toggleSliceBordersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Toggle Slice Borders</button>
+                    <button id="toggleSliceNumbersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Toggle Slice Numbers</button>
                     <label style="display:inline-flex;align-items:center;font-size:13px;margin-left:10px;cursor:pointer;gap:4px;">
-                        <input type="checkbox" id="liveSliceAnalysisToggle" style="margin-right:4px;"> Live Slice Analysis
+                        <input type="checkbox" id="liveSliceAnalysisToggle" style="margin-right:4px;" checked> Live Slice Analysis
                     </label>
                 </div>
             </div>
@@ -241,6 +247,14 @@ export function showMiltyBuilderUI(container) {
                 import('./miltyBuilderPopups.js').then(mod => {
                     mod.showImportSlicesPopup();
                 });
+            };
+        }
+
+        // Generate Slices button
+        const generateBtn = container.querySelector('#generateSlicesBtn');
+        if (generateBtn) {
+            generateBtn.onclick = () => {
+                showMiltyDraftGeneratorPopup();
             };
         }
 

@@ -54,9 +54,11 @@ export function showSpecialModePopup() {
         }
     });
 
-    // Add click handler for Milty Slice Designer button
+    // Add click handlers for buttons
     setTimeout(() => {
         const miltyBtn = document.getElementById('miltySliceDesignerBtn');
+        const generatorBtn = document.getElementById('miltyRandomGeneratorBtn');
+        
         if (miltyBtn) {
             miltyBtn.onclick = () => {
                 hidePopup('milty-slice-designer-popup');
@@ -133,6 +135,24 @@ export function showSpecialModePopup() {
                         content: designerContent,
                         actions: [{ label: 'Close', onClick: () => hidePopup('milty-slice-designer-popup') }]
                     });
+                });
+            };
+        }
+        
+        // Add click handler for Milty Random Generator button
+        if (generatorBtn) {
+            generatorBtn.onclick = () => {
+                import('../modules/Milty/miltyBuilderRandomTool.js').then(mod => {
+                    const showGenerator = mod.showMiltyDraftGeneratorPopup;
+                    if (typeof showGenerator === 'function') {
+                        showGenerator();
+                    } else {
+                        console.error('showMiltyDraftGeneratorPopup is not a function in the loaded module.');
+                        alert('Error: Could not initialize Milty Draft Generator.');
+                    }
+                }).catch(err => {
+                    console.error('Failed to load miltyBuilderRandomTool.js module:', err);
+                    alert('Failed to load generator. See console for details.');
                 });
             };
         }
