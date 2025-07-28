@@ -1,3 +1,15 @@
+// List of tile IDs to always exclude from possible tiles (e.g., all hyperlanes)
+const EXCLUDED_TILE_IDS = [
+    // Add all known hyperlane tile IDs here (string or number as in SystemInfo.json)
+    '83a', '83a60', '83a120', '83a180', '83a240', '83a300',
+    '83b', '83b60', '83b120', '83b180', '83b240', '83b300',
+    '84a', '84a60', '84a120', '84a180', '84a240', '84a300',
+    '84b', '84b60', '84b120', '84b180', '84b240', '84b300',
+    '85a', '85a60', '85a120', '85a180', '85a240', '85a300',
+    '85b', '82', '82a', '18', '82ah', '82h', 'c41', '81', 'rexmex',
+    'd35a', 'd35b', 'd36', 'm28'
+    // Add more as needed
+];
 // src/modules/Milty/miltyBuilderRandomTool.js
 // Milty Draft Slice Generation Tool with advanced settings and weighting
 
@@ -14,7 +26,8 @@ const DEFAULT_SETTINGS = {
         maxPerSlice: 1
     },
     legendaries: {
-        minimum: 0
+        minimum: 0,
+        maximum: 2 // Default max, adjust as needed
     },
     draftOrder: {
         useSpecifiedOrder: false
@@ -28,39 +41,39 @@ const DEFAULT_SETTINGS = {
         maxPlanetSystems: 4
     },
     scoreBalancing: {
-        enabled: false,
+        enabled: true,
         targetRatio: 0.75
     },
     sources: {
-        baseGame: true,
-        prophecyOfKings: true,
-        codex: false,
-        uncharted: false
+        base: true, // Base Game
+        pokCodex: true, // Prophecy of Kings + Codex
+        dsUncharted: false, // Discordant Stars / Uncharted Space
+        eronous: false // Eronous / Lost_star_charts_of_Ixth / somno
     }
 };
 
 // Default feature weights for slice evaluation
 const DEFAULT_WEIGHTS = {
     // Anomalies
-    supernova: -5,
+    supernova: -3,
     asteroidField: -1,
     nebula: 0,
     gravityRift: -2,
-    
+
     // Resources/Influence
     resourceValue: 1,
     influenceValue: 1,
-    
+
     // Special features
     techSpecialty: 2,
     legendaryPlanet: 5,
     wormhole: 1,
-    
+
     // Planet types
     industrial: 0.5,
     cultural: 0.5,
     hazardous: 0.5,
-    
+
     // Balance penalties
     resourceInfluenceImbalance: -0.5,
     lowPlanetCount: -3,
@@ -70,12 +83,22 @@ const DEFAULT_WEIGHTS = {
 let currentSettings = { ...DEFAULT_SETTINGS };
 let currentWeights = { ...DEFAULT_WEIGHTS };
 
+// Debug settings
+let debugMode = false;
+let debugDetails = {
+    swapAttempts: 0,
+    successfulSwaps: 0,
+    swapTypes: { direct: 0, broader: 0, unused: 0, random: 0 },
+    constraintFailures: 0,
+    scoreImprovements: []
+};
+
 /**
  * Shows the main Milty Draft Generation popup
  */
 export function showMiltyDraftGeneratorPopup() {
     const content = createGeneratorPopupContent();
-    
+
     showPopup({
         content: content,
         actions: [
@@ -86,6 +109,10 @@ export function showMiltyDraftGeneratorPopup() {
             {
                 label: 'Weighting Settings',
                 action: () => showWeightingSettingsPopup()
+            },
+            {
+                label: 'Debug Info',
+                action: () => showDebugInfo()
             }
         ],
         title: 'Milty Draft Slice Generator',
@@ -102,6 +129,10 @@ export function showMiltyDraftGeneratorPopup() {
             maxHeight: '85vh'
         }
     });
+    // Ensure event handlers are attached after popup is rendered
+    setTimeout(() => {
+        initializeGeneratorPopup();
+    }, 0);
 }
 
 /**
@@ -149,10 +180,13 @@ function createGeneratorPopupContent() {
             <!-- Legendaries Settings -->
             <div style="margin-bottom: 25px; padding: 15px; background: #3a3a3a; border-radius: 6px; border: 1px solid #555;">
                 <h4 style="color: #FF9800; margin: 0 0 12px 0;">Legendaries</h4>
-                
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <label style="font-weight: bold;">Minimum amount of legendary planets:</label>
+                    <label style="font-weight: bold;">Minimum legendary planets:</label>
                     <input type="number" id="minLegendaries" value="${currentSettings.legendaries.minimum}" 
+                           min="0" max="6" step="1"
+                           style="width: 60px; padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
+                    <label style="font-weight: bold; margin-left: 20px;">Maximum legendary planets:</label>
+                    <input type="number" id="maxLegendaries" value="${currentSettings.legendaries.maximum}" 
                            min="0" max="6" step="1"
                            style="width: 60px; padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
                 </div>
@@ -168,46 +202,53 @@ function createGeneratorPopupContent() {
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="sourceBaseGame" ${currentSettings.sources.baseGame ? 'checked' : ''}
+                        <input type="checkbox" id="sourceBase" ${currentSettings.sources.base ? 'checked' : ''}
                                style="margin-right: 8px;">
                         <span>Base Game</span>
                     </label>
                     <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="sourcePok" ${currentSettings.sources.prophecyOfKings ? 'checked' : ''}
+                        <input type="checkbox" id="sourcePokCodex" ${currentSettings.sources.pokCodex ? 'checked' : ''}
                                style="margin-right: 8px;">
-                        <span>Prophecy of Kings</span>
+                        <span>PoK + Codex</span>
                     </label>
                     <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="sourceCodex" ${currentSettings.sources.codex ? 'checked' : ''}
+                        <input type="checkbox" id="sourceDSUncharted" ${currentSettings.sources.dsUncharted ? 'checked' : ''}
                                style="margin-right: 8px;">
-                        <span>Codex</span>
+                        <span>Discordant Stars / Uncharted Space</span>
                     </label>
                     <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="sourceUncharted" ${currentSettings.sources.uncharted ? 'checked' : ''}
+                        <input type="checkbox" id="sourceEronous" ${currentSettings.sources.eronous ? 'checked' : ''}
                                style="margin-right: 8px;">
-                        <span>Uncharted</span>
+                        <span>Eronous / Lost Star Charts of Ixth / Somno</span>
                     </label>
                 </div>
             </div>
             
-            <!-- Advanced Settings -->
+            <!-- Score Balancing (moved out of Advanced Settings) -->
+            <div style="margin-bottom: 25px; padding: 15px; background: #3a3a3a; border-radius: 6px; border: 1px solid #555;">
+                <h4 style="color: #607D8B; margin: 0 0 12px 0;">Score Balancing</h4>
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="enableScoreBalancing" ${currentSettings.scoreBalancing.enabled ? 'checked' : ''}
+                           style="margin-right: 8px;">
+                    <span>Enable score balancing</span>
+                </label>
+                <div style="display: flex; align-items: center; gap: 10px; margin-left: 26px; margin-top: 8px;">
+                    <label for="targetRatioPercent" style="font-size: 13px; color: #ccc;">Target % (weakest/strongest):</label>
+                    <input type="number" id="targetRatioPercent" min="50" max="100" step="1" value="${Math.round((currentSettings.scoreBalancing.targetRatio || 0.75) * 100)}" style="width: 60px; padding: 4px; border: 1px solid #666; border-radius: 3px; background: #222; color: #fff;">
+                    <span style="font-size: 13px; color: #aaa;">%</span>
+                </div>
+                <p style="margin: 5px 0 0 26px; font-size: 12px; color: #aaa; font-style: italic;">
+                    Attempts to balance slice scores by swapping systems between slices to reduce score variance. The target percentage sets how close the weakest slice must be to the strongest (e.g., 80% means weakest slice must be at least 80% of the strongest slice's score).
+                </p>
+            </div>
+            <!-- Advanced Settings (now only debug and slice generation) -->
             <div style="margin-bottom: 20px;">
                 <button id="toggleAdvanced" 
                         style="background: #555; color: #fff; border: 1px solid #777; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
                     Advanced Settings
                 </button>
             </div>
-            
             <div id="advancedSettings" style="display: none; padding: 15px; background: #3a3a3a; border-radius: 6px; border: 1px solid #555;">
-                <h4 style="color: #607D8B; margin: 0 0 15px 0;">Draft Order</h4>
-                <div style="margin-bottom: 15px;">
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="useSpecifiedOrder" ${currentSettings.draftOrder.useSpecifiedOrder ? 'checked' : ''}
-                               style="margin-right: 8px;">
-                        <span>Use specified player order (don't randomise)</span>
-                    </label>
-                </div>
-                
                 <h4 style="color: #607D8B; margin: 15px 0 12px 0;">Slice Generation</h4>
                 <p style="margin: 0 0 15px 0; font-size: 13px; color: #ccc;">
                     The "Optimal Value" of a planet is calculated by using the higher of its resource value and influence value
@@ -215,52 +256,44 @@ function createGeneratorPopupContent() {
                     equal, half that value is used for both of its optimal values. For example, Starpoint, a 3/1, is treated as 3/0.
                     Coorneeq, a 1/2, is treated as 0/2, and Rigel III, a 1/1, is treated as 1/2/1/2.
                 </p>
-                
                 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px; align-items: center;">
                     <label style="font-weight: bold;">Minimum Planet Systems per Slice</label>
                     <input type="number" id="minPlanetSystems" value="${currentSettings.sliceGeneration.minPlanetSystems}" 
                            min="1" max="5" step="1"
                            style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    
                     <label style="font-weight: bold;">Maximum Planet Systems per Slice</label>
                     <input type="number" id="maxPlanetSystems" value="${currentSettings.sliceGeneration.maxPlanetSystems}" 
                            min="1" max="5" step="1"
                            style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    
                     <label style="font-weight: bold;">Minimum Optimal Influence</label>
                     <input type="number" id="minOptimalInfluence" value="${currentSettings.sliceGeneration.minOptimalInfluence}" 
                            min="0" max="10" step="0.5"
                            style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    
                     <label style="font-weight: bold;">Minimum Optimal Resources</label>
                     <input type="number" id="minOptimalResources" value="${currentSettings.sliceGeneration.minOptimalResources}" 
                            min="0" max="10" step="0.5"
                            style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    
                     <label style="font-weight: bold;">Minimum Optimal Total</label>
                     <input type="number" id="minOptimalTotal" value="${currentSettings.sliceGeneration.minOptimalTotal}" 
                            min="0" max="20" step="0.5"
                            style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    
                     <label style="font-weight: bold;">Maximum Optimal Total</label>
                     <input type="number" id="maxOptimalTotal" value="${currentSettings.sliceGeneration.maxOptimalTotal}" 
                            min="0" max="30" step="0.5"
                            style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
                 </div>
-                
                 <p style="margin: 15px 0 0 0; font-size: 12px; color: #aaa; font-style: italic;">
                     Planet systems contain planets with resources/influence. Non-planet systems include anomalies, empty space, and wormhole-only systems.
                 </p>
-                
-                <h4 style="color: #607D8B; margin: 15px 0 12px 0;">Score Balancing</h4>
+                <h4 style="color: #607D8B; margin: 15px 0 12px 0;">Debug</h4>
                 <div style="margin-bottom: 15px;">
                     <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="enableScoreBalancing" ${currentSettings.scoreBalancing.enabled ? 'checked' : ''}
+                        <input type="checkbox" id="enableDebugMode" ${debugMode ? 'checked' : ''}
                                style="margin-right: 8px;">
-                        <span>Enable score balancing (weakest slice ≥ 75% of strongest)</span>
+                        <span>Enable detailed balancing debug output</span>
                     </label>
                     <p style="margin: 5px 0 0 26px; font-size: 12px; color: #aaa; font-style: italic;">
-                        Attempts to balance slice scores by swapping systems between slices to reduce score variance.
+                        Shows verbose console logging for balancing attempts, swap details, and constraint failures.
                     </p>
                 </div>
             </div>
@@ -291,7 +324,7 @@ function createGeneratorPopupContent() {
  */
 function showWeightingSettingsPopup() {
     const content = createWeightingPopupContent();
-    
+
     showPopup({
         content: content,
         actions: [
@@ -430,7 +463,7 @@ export function initializeGeneratorPopup() {
     // Advanced settings toggle
     const toggleBtn = document.getElementById('toggleAdvanced');
     const advancedDiv = document.getElementById('advancedSettings');
-    
+
     if (toggleBtn && advancedDiv) {
         toggleBtn.onclick = () => {
             const isHidden = advancedDiv.style.display === 'none';
@@ -447,56 +480,59 @@ async function generateMiltySlices() {
     try {
         // Update settings from UI
         updateSettingsFromUI();
-        
+
         // Hide previous scores and show progress
         hideSliceScores();
         showGenerationProgress('Initializing generation...', 0);
-        
+
         // Get available systems
         const availableSystems = getAvailableSystems();
         console.log('Available systems:', availableSystems.length);
         console.log('First 10 systems:', availableSystems.slice(0, 10).map(s => `${s.id}:${s.name || 'Unknown'}`));
-        
+
         showGenerationProgress('Loading available systems...', 10);
-        
+
         if (availableSystems.length === 0) {
             throw new Error('No systems available with current source settings');
         }
-        
+
         // Generate slices
         const slices = await generateSlicesWithConstraints(availableSystems);
         console.log('Generated slices:', slices);
         console.log('Number of slices generated:', slices.length);
-        
+
         // Apply score balancing if enabled
         if (currentSettings.scoreBalancing.enabled) {
             showGenerationProgress('Balancing slice scores...', 70);
             await balanceSliceScores(slices);
         }
-        
+
+        // Show unused tile statistics
+        showUnusedTileStatistics(slices, availableSystems);
+
         // Log detailed slice information
         slices.forEach((slice, i) => {
             const planetSystems = slice.systems.filter(s => s.planets && s.planets.length > 0);
             const emptySystems = slice.systems.filter(s => !s.planets || s.planets.length === 0);
-            
+
             console.log(`Slice ${i}: ${slice.systems.length} systems (${planetSystems.length} planet + ${emptySystems.length} empty/anomaly) - ${slice.totalResources}R/${slice.totalInfluence}I, ${slice.optimalResources}/${slice.optimalInfluence} optimal`);
             console.log(`  Systems:`, slice.systems.map(s => `${s.id}:${s.name || 'Unknown'}`));
         });
-        
+
         showGenerationProgress('Placing slices on map...', currentSettings.scoreBalancing.enabled ? 85 : 80);
-        
+
         // Place slices on the map
         await placeSlicesOnMap(slices);
         showGenerationProgress('Generation complete!', 100);
-        
+
         // Show slice scores
         showSliceScores(slices);
-        
+
         // Hide progress after a moment
         setTimeout(() => {
             hideGenerationProgress();
         }, 2000);
-        
+
     } catch (error) {
         console.error('Slice generation failed:', error);
         showGenerationProgress(`Error: ${error.message}`, 0);
@@ -514,24 +550,33 @@ function updateSettingsFromUI() {
     currentSettings.wormholes.includeAlphaBeta = document.getElementById('includeAlphaBeta')?.checked || false;
     currentSettings.wormholes.maxPerSlice = document.getElementById('maxOneWormhole')?.checked ? 1 : 2;
     currentSettings.legendaries.minimum = parseInt(document.getElementById('minLegendaries')?.value) || 0;
-    
-    currentSettings.sources.baseGame = document.getElementById('sourceBaseGame')?.checked || false;
-    currentSettings.sources.prophecyOfKings = document.getElementById('sourcePok')?.checked || false;
-    currentSettings.sources.codex = document.getElementById('sourceCodex')?.checked || false;
-    currentSettings.sources.uncharted = document.getElementById('sourceUncharted')?.checked || false;
-    
-    currentSettings.draftOrder.useSpecifiedOrder = document.getElementById('useSpecifiedOrder')?.checked || false;
-    
+    currentSettings.legendaries.maximum = parseInt(document.getElementById('maxLegendaries')?.value) || 6;
+
+    currentSettings.sources.base = document.getElementById('sourceBase')?.checked || false;
+    currentSettings.sources.pokCodex = document.getElementById('sourcePokCodex')?.checked || false;
+    currentSettings.sources.dsUncharted = document.getElementById('sourceDSUncharted')?.checked || false;
+    currentSettings.sources.eronous = document.getElementById('sourceEronous')?.checked || false;
+
+
+
     currentSettings.sliceGeneration.minOptimalInfluence = parseFloat(document.getElementById('minOptimalInfluence')?.value) || 4;
     currentSettings.sliceGeneration.minOptimalResources = parseFloat(document.getElementById('minOptimalResources')?.value) || 2.5;
     currentSettings.sliceGeneration.minOptimalTotal = parseFloat(document.getElementById('minOptimalTotal')?.value) || 9;
     currentSettings.sliceGeneration.maxOptimalTotal = parseFloat(document.getElementById('maxOptimalTotal')?.value) || 13;
     currentSettings.sliceGeneration.minPlanetSystems = parseInt(document.getElementById('minPlanetSystems')?.value) || 3;
     currentSettings.sliceGeneration.maxPlanetSystems = parseInt(document.getElementById('maxPlanetSystems')?.value) || 4;
-    
+
     currentSettings.scoreBalancing.enabled = document.getElementById('enableScoreBalancing')?.checked || false;
-    
+    // Read target ratio percent and convert to decimal
+    const ratioInput = document.getElementById('targetRatioPercent');
+    let ratioValue = parseFloat(ratioInput?.value);
+    if (isNaN(ratioValue) || ratioValue < 50 || ratioValue > 100) ratioValue = 75;
+    currentSettings.scoreBalancing.targetRatio = ratioValue / 100;
+
+    debugMode = document.getElementById('enableDebugMode')?.checked || false;
+
     console.log('Updated settings:', currentSettings);
+    console.log('Debug mode:', debugMode ? 'ENABLED' : 'DISABLED');
 }
 
 /**
@@ -543,10 +588,14 @@ function getAvailableSystems() {
         console.warn('Editor not available');
         return [];
     }
-    
+
     // Use allSystems if available, otherwise fallback to sectorIDLookup values
     let systems = [];
-    if (editor.allSystems && Array.isArray(editor.allSystems)) {
+    // Try to use SystemInfo.systems if available (from SystemInfo.json)
+    if (window.SystemInfo && Array.isArray(window.SystemInfo.systems)) {
+        systems = window.SystemInfo.systems;
+        console.log('Using SystemInfo.systems:', systems.length, 'systems');
+    } else if (editor.allSystems && Array.isArray(editor.allSystems)) {
         systems = editor.allSystems;
         console.log('Using editor.allSystems:', systems.length, 'systems');
     } else if (editor.sectorIDLookup) {
@@ -562,57 +611,57 @@ function getAvailableSystems() {
         console.error('No system data available');
         return [];
     }
-    
+
     // Check if any sources are selected, if not, default to base game and PoK
-    const hasAnySource = currentSettings.sources.baseGame || 
-                        currentSettings.sources.prophecyOfKings || 
-                        currentSettings.sources.codex || 
-                        currentSettings.sources.uncharted;
-    
+    const hasAnySource = currentSettings.sources.base ||
+        currentSettings.sources.pokCodex ||
+        currentSettings.sources.dsUncharted ||
+        currentSettings.sources.eronous;
+
     if (!hasAnySource) {
-        console.warn('No sources selected, defaulting to base game and PoK');
-        currentSettings.sources.baseGame = true;
-        currentSettings.sources.prophecyOfKings = true;
+        console.warn('No sources selected, defaulting to base and PoK+Codex');
+        currentSettings.sources.base = true;
+        currentSettings.sources.pokCodex = true;
     }
-    
+
     const filtered = systems.filter(system => {
-        if (!system.id) {
-            return false;
-        }
-        
-        // Filter by source
+        if (!system.id) return false;
+        // Exclude by tile ID (e.g., all hyperlanes)
+        if (EXCLUDED_TILE_IDS.includes(system.id)) return false;
+        // Exclude by isHyperlane property (robust for all hyperlane systems)
+        if (system.isHyperlane === true) return false;
+        // Strict source filtering: only include if the system's source matches a selected source
         const source = getSystemSource(system);
-        if (source === 'base' && !currentSettings.sources.baseGame) return false;
-        if (source === 'pok' && !currentSettings.sources.prophecyOfKings) return false;
-        if (source === 'codex' && !currentSettings.sources.codex) return false;
-        if (source === 'uncharted' && !currentSettings.sources.uncharted) return false;
-        
-        // Exclude home systems and special tiles that shouldn't be in slices
-        const numId = parseInt(system.id);
-        if (numId <= 18 || numId === 51) return false; // Exclude home systems (1-18) and Mecatol Rex (51)
-        
-        // Exclude systems with baseType === "homesystem"
-        if (system.baseType === "homesystem") return false;
-        
-        // Exclude systems that are already placed on the map (have baseType set)
-        if (editor && editor.hexes && editor.hexes[system.id] && editor.hexes[system.id].baseType) return false;
-        
-        // If system has planets, check for faction restrictions
-        if (system.planets && Array.isArray(system.planets) && system.planets.length > 0) {
-            // Exclude systems with faction homeworld planets
-            if (system.planets.some(p => p && p.factionHomeworld)) return false;
-            
-            // Exclude systems with faction planets (planetType === 'FACTION')
-            if (system.planets.some(p => p && p.planetType === 'FACTION')) return false;
+        if (
+            (source === 'base' && currentSettings.sources.base) ||
+            (source === 'pokCodex' && currentSettings.sources.pokCodex) ||
+            (source === 'dsUncharted' && currentSettings.sources.dsUncharted) ||
+            (source === 'eronous' && currentSettings.sources.eronous)
+        ) {
+            // Exclude home systems and special tiles that shouldn't be in slices
+            const numId = parseInt(system.id);
+            if (numId <= 18 || numId === 51) return false; // Exclude home systems (1-18) and Mecatol Rex (51)
+            // Exclude systems with baseType === "homesystem"
+            if (system.baseType === "homesystem") return false;
+            // Exclude systems that are already placed on the map (have baseType set)
+            if (editor && editor.hexes && editor.hexes[system.id] && editor.hexes[system.id].baseType) return false;
+            // If system has planets, check for faction restrictions
+            if (system.planets && Array.isArray(system.planets) && system.planets.length > 0) {
+                // Exclude systems with faction homeworld planets
+                if (system.planets.some(p => p && p.factionHomeworld)) return false;
+                // Exclude systems with faction planets (planetType === 'FACTION')
+                if (system.planets.some(p => p && p.planetType === 'FACTION')) return false;
+            }
+            // Allow systems with or without planets (anomalies, empty systems, etc.)
+            return true;
         }
-        
-        // Allow systems with or without planets (anomalies, empty systems, etc.)
-        return true;
+        // If not a selected source, exclude
+        return false;
     });
-    
+
     console.log('Filtered systems:', filtered.length);
     console.log('Sources enabled:', currentSettings.sources);
-    
+
     if (filtered.length < 50) {
         console.log('Sample of filtered systems:', filtered.slice(0, 15).map(s => ({
             id: s.id,
@@ -626,12 +675,12 @@ function getAvailableSystems() {
             wormholes: s.wormholes || []
         })));
     }
-    
+
     // Also show breakdown by type
     const withPlanets = filtered.filter(s => s.planets && s.planets.length > 0).length;
     const withoutPlanets = filtered.filter(s => !s.planets || s.planets.length === 0).length;
     console.log(`System breakdown: ${withPlanets} with planets, ${withoutPlanets} without planets`);
-    
+
     return filtered;
 }
 
@@ -639,10 +688,14 @@ function getAvailableSystems() {
  * Determine the source of a system
  */
 function getSystemSource(system) {
-    if (system.id <= 50) return 'base';
-    if (system.id <= 82) return 'pok';
-    if (system.id <= 90) return 'codex';
-    return 'uncharted';
+    // Match SystemInfo.json source values to internal categories
+    const src = (system.source || '').toLowerCase();
+    if (src === 'base') return 'base';
+    if (src === 'pok' || src === 'codex') return 'pokCodex';
+    if (src === 'ds' || src === 'uncharted_space' || src === 'discordant stars/uncharted space') return 'dsUncharted';
+    if (src === 'eronous' || src === 'lost_star_charts_of_ixth' || src === 'somno' || src === 'eronous/lost_star_charts_of_ixth/somno') return 'eronous';
+    // Dane leaks, draft, or other unknowns can be handled as needed
+    return src;
 }
 
 /**
@@ -651,15 +704,41 @@ function getSystemSource(system) {
 async function generateSlicesWithConstraints(availableSystems) {
     const maxAttempts = 1000;
     let attempts = 0;
-    
+
+    // --- Wormhole logic: find two types with at least 2 tiles each ---
+    let requiredWormholeTypes = null;
+    if (currentSettings.wormholes.includeAlphaBeta) {
+        // Find all wormhole systems and count types
+        const wormholeCounts = {};
+        availableSystems.forEach(sys => {
+            if (Array.isArray(sys.wormholes)) {
+                sys.wormholes.forEach(wh => {
+                    if (!wormholeCounts[wh]) wormholeCounts[wh] = 0;
+                    wormholeCounts[wh]++;
+                });
+            }
+        });
+        // Find all types with at least 2 tiles
+        const eligibleTypes = Object.entries(wormholeCounts).filter(([type, count]) => count >= 2).map(([type]) => type);
+        if (eligibleTypes.length < 2) {
+            throw new Error('Not enough wormhole tiles of at least 2 types (need 2+ of each).');
+        }
+        // Pick two types at random
+        const shuffled = eligibleTypes.sort(() => Math.random() - 0.5);
+        requiredWormholeTypes = [shuffled[0], shuffled[1]];
+        // Store for validation
+        currentSettings.wormholes._requiredTypes = requiredWormholeTypes;
+        console.log('Wormhole constraint: requiring at least 2 of each:', requiredWormholeTypes);
+    } else {
+        currentSettings.wormholes._requiredTypes = null;
+    }
+
     while (attempts < maxAttempts) {
         attempts++;
-        
         if (attempts % 50 === 0) {
             showGenerationProgress(`Attempting generation... (${attempts}/${maxAttempts})`, 20 + (attempts / maxAttempts) * 60);
-            await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI update
+            await new Promise(resolve => setTimeout(resolve, 10));
         }
-        
         try {
             const slices = generateSliceSet(availableSystems);
             if (validateSliceSet(slices)) {
@@ -669,7 +748,6 @@ async function generateSlicesWithConstraints(availableSystems) {
             // Continue trying
         }
     }
-    
     throw new Error(`Could not generate valid slice set after ${maxAttempts} attempts. Try relaxing constraints.`);
 }
 
@@ -681,14 +759,14 @@ function generateSliceSet(availableSystems) {
     const usedSystems = new Set();
     const wormholeTracker = { alpha: 0, beta: 0, gamma: 0, delta: 0 };
     let legendaryCount = 0;
-    
+
     for (let i = 0; i < currentSettings.sliceCount; i++) {
         const slice = generateSingleSlice(availableSystems, usedSystems, wormholeTracker, legendaryCount);
         if (!slice) throw new Error('Could not generate slice');
-        
+
         slices.push(slice);
         slice.systems.forEach(sys => usedSystems.add(sys.id));
-        
+
         // Update trackers
         slice.systems.forEach(sys => {
             if (sys.wormholes) {
@@ -707,7 +785,7 @@ function generateSliceSet(availableSystems) {
             }
         });
     }
-    
+
     return slices;
 }
 
@@ -716,7 +794,7 @@ function generateSliceSet(availableSystems) {
  */
 function generateSingleSlice(availableSystems, usedSystems, wormholeTracker, currentLegendaryCount) {
     const maxSliceAttempts = 100;
-    
+
     for (let attempt = 0; attempt < maxSliceAttempts; attempt++) {
         const slice = {
             systems: [],
@@ -730,54 +808,54 @@ function generateSingleSlice(availableSystems, usedSystems, wormholeTracker, cur
             anomalies: [],
             score: 0
         };
-        
+
         // Each slice should have exactly 5 systems for Milty Draft
         const systemCount = 5;
         const candidateSystems = availableSystems.filter(sys => !usedSystems.has(sys.id));
-        
+
         if (candidateSystems.length < systemCount) continue;
-        
+
         // Separate systems with and without planets for better balancing
         const systemsWithPlanets = candidateSystems.filter(sys => sys.planets && sys.planets.length > 0);
         const systemsWithoutPlanets = candidateSystems.filter(sys => !sys.planets || sys.planets.length === 0);
-        
+
         // Use the configured min/max planet systems settings
         const minPlanetSystems = Math.min(
-            currentSettings.sliceGeneration.minPlanetSystems, 
-            systemsWithPlanets.length, 
+            currentSettings.sliceGeneration.minPlanetSystems,
+            systemsWithPlanets.length,
             systemCount
         );
         const maxPlanetSystems = Math.min(
-            currentSettings.sliceGeneration.maxPlanetSystems, 
-            systemsWithPlanets.length, 
+            currentSettings.sliceGeneration.maxPlanetSystems,
+            systemsWithPlanets.length,
             systemCount
         );
-        
+
         // Ensure min doesn't exceed max
         const actualMinPlanetSystems = Math.min(minPlanetSystems, maxPlanetSystems);
         const actualMaxPlanetSystems = maxPlanetSystems;
-        
+
         // Randomly choose how many planet systems to include within the range
-        const targetPlanetSystems = actualMinPlanetSystems + 
+        const targetPlanetSystems = actualMinPlanetSystems +
             Math.floor(Math.random() * (actualMaxPlanetSystems - actualMinPlanetSystems + 1));
-        
+
         const maxEmptySystems = systemCount - targetPlanetSystems;
-        
+
         let selectedSystems = [];
-        
+
         // Pick required planet systems first
         if (systemsWithPlanets.length >= targetPlanetSystems) {
             const shuffledPlanetSystems = systemsWithPlanets.sort(() => Math.random() - 0.5);
             selectedSystems = shuffledPlanetSystems.slice(0, targetPlanetSystems);
         }
-        
+
         // Fill remaining slots with empty/anomaly systems
         const remainingSlots = systemCount - selectedSystems.length;
         if (remainingSlots > 0 && systemsWithoutPlanets.length > 0) {
             const shuffledEmptySystems = systemsWithoutPlanets.sort(() => Math.random() - 0.5);
             selectedSystems.push(...shuffledEmptySystems.slice(0, Math.min(remainingSlots, systemsWithoutPlanets.length)));
         }
-        
+
         // If we still need more systems and couldn't fill with empty systems, 
         // fill remaining with any available systems
         const stillRemainingSlots = systemCount - selectedSystems.length;
@@ -786,11 +864,14 @@ function generateSingleSlice(availableSystems, usedSystems, wormholeTracker, cur
             const shuffledRemaining = remainingCandidates.sort(() => Math.random() - 0.5);
             selectedSystems.push(...shuffledRemaining.slice(0, stillRemainingSlots));
         }
-        
+
+        // Shuffle the final selected systems to randomize their positions in the slice
+        selectedSystems = selectedSystems.sort(() => Math.random() - 0.5);
+
         // Calculate slice properties
         slice.systems = selectedSystems;
         calculateSliceProperties(slice);
-        
+
         // Check constraints
         if (validateSliceConstraints(slice, wormholeTracker, currentLegendaryCount)) {
             slice.score = calculateSliceScore(slice);
@@ -800,7 +881,7 @@ function generateSingleSlice(availableSystems, usedSystems, wormholeTracker, cur
             return slice;
         }
     }
-    
+
     return null;
 }
 
@@ -816,18 +897,18 @@ function calculateSliceProperties(slice) {
     slice.legendaries = 0;
     slice.techSpecialties = [];
     slice.anomalies = [];
-    
+
     slice.systems.forEach(system => {
         // Only process planets if they exist
         if (system.planets && Array.isArray(system.planets)) {
             system.planets.forEach(planet => {
                 slice.totalResources += planet.resources || 0;
                 slice.totalInfluence += planet.influence || 0;
-                
+
                 // Calculate optimal values
                 const res = planet.resources || 0;
                 const inf = planet.influence || 0;
-                
+
                 if (res === inf && res > 0) {
                     slice.optimalResources += res / 2;
                     slice.optimalInfluence += inf / 2;
@@ -836,24 +917,24 @@ function calculateSliceProperties(slice) {
                 } else if (inf > res) {
                     slice.optimalInfluence += inf;
                 }
-                
+
                 // Count legendaries
                 if (planet.legendaryAbilityName) {
                     slice.legendaries++;
                 }
-                
+
                 // Collect tech specialties
                 if (planet.techSpecialty) {
                     slice.techSpecialties.push(planet.techSpecialty);
                 }
             });
         }
-        
+
         // Collect wormholes (can exist on systems without planets)
         if (system.wormholes && Array.isArray(system.wormholes)) {
             slice.wormholes.push(...system.wormholes);
         }
-        
+
         // Collect anomalies (can exist on systems without planets)
         if (system.isSupernova) slice.anomalies.push('supernova');
         if (system.isAsteroidField) slice.anomalies.push('asteroidField');
@@ -868,19 +949,19 @@ function calculateSliceProperties(slice) {
 function validateSliceConstraints(slice, wormholeTracker, currentLegendaryCount) {
     // Check that slice has the right number of planet systems
     const planetSystemCount = slice.systems.filter(sys => sys.planets && sys.planets.length > 0).length;
-    if (planetSystemCount < currentSettings.sliceGeneration.minPlanetSystems || 
+    if (planetSystemCount < currentSettings.sliceGeneration.minPlanetSystems ||
         planetSystemCount > currentSettings.sliceGeneration.maxPlanetSystems) {
         return false;
     }
-    
+
     // Only check optimal values if the slice has planets that can provide them
     const hasPlanets = slice.systems.some(sys => sys.planets && sys.planets.length > 0);
-    
+
     if (hasPlanets) {
         // Check optimal values only if there are planets in the slice
         if (slice.optimalResources < currentSettings.sliceGeneration.minOptimalResources) return false;
         if (slice.optimalInfluence < currentSettings.sliceGeneration.minOptimalInfluence) return false;
-        
+
         const optimalTotal = slice.optimalResources + slice.optimalInfluence;
         if (optimalTotal < currentSettings.sliceGeneration.minOptimalTotal) return false;
         if (optimalTotal > currentSettings.sliceGeneration.maxOptimalTotal) return false;
@@ -888,14 +969,14 @@ function validateSliceConstraints(slice, wormholeTracker, currentLegendaryCount)
         // For slices with no planets (all anomalies/empty systems), allow them but log it
         console.log('Generated slice with no planets (all anomalies/empty systems):', slice.systems.map(s => s.id));
     }
-    
+
     // Check wormhole constraints
     if (currentSettings.wormholes.maxPerSlice === 1 && slice.wormholes.length > 1) return false;
-    
+
     // Check for duplicate wormholes in slice
     const wormholeSet = new Set(slice.wormholes);
     if (wormholeSet.size !== slice.wormholes.length) return false;
-    
+
     return true;
 }
 
@@ -903,18 +984,18 @@ function validateSliceConstraints(slice, wormholeTracker, currentLegendaryCount)
  * Validate the entire slice set
  */
 function validateSliceSet(slices) {
-    // Check legendary minimum
+    // Check legendary minimum and maximum
     const totalLegendaries = slices.reduce((sum, slice) => sum + slice.legendaries, 0);
     if (totalLegendaries < currentSettings.legendaries.minimum) return false;
-    
-    // Check alpha/beta wormhole requirement
-    if (currentSettings.wormholes.includeAlphaBeta) {
-        const alphaCount = slices.reduce((sum, slice) => sum + slice.wormholes.filter(wh => wh === 'alpha').length, 0);
-        const betaCount = slices.reduce((sum, slice) => sum + slice.wormholes.filter(wh => wh === 'beta').length, 0);
-        
-        if (alphaCount < 2 || betaCount < 2) return false;
+    if (totalLegendaries > currentSettings.legendaries.maximum) return false;
+
+    // Check wormhole requirement for any 2 types
+    if (currentSettings.wormholes.includeAlphaBeta && Array.isArray(currentSettings.wormholes._requiredTypes)) {
+        const [typeA, typeB] = currentSettings.wormholes._requiredTypes;
+        const countA = slices.reduce((sum, slice) => sum + slice.wormholes.filter(wh => wh === typeA).length, 0);
+        const countB = slices.reduce((sum, slice) => sum + slice.wormholes.filter(wh => wh === typeB).length, 0);
+        if (countA < 2 || countB < 2) return false;
     }
-    
     return true;
 }
 
@@ -923,32 +1004,51 @@ function validateSliceSet(slices) {
  */
 function calculateSliceScore(slice) {
     let score = 0;
-    
+
     // Resource/influence values
     score += slice.totalResources * currentWeights.resourceValue;
     score += slice.totalInfluence * currentWeights.influenceValue;
-    
+
     // Resource/influence imbalance penalty
     const imbalance = Math.abs(slice.totalResources - slice.totalInfluence);
     score += imbalance * currentWeights.resourceInfluenceImbalance;
-    
+
     // Special features
     score += slice.legendaries * currentWeights.legendaryPlanet;
     score += slice.techSpecialties.length * currentWeights.techSpecialty;
     score += slice.wormholes.length * currentWeights.wormhole;
-    
+
+    // Planet type bonuses
+    let industrialCount = 0;
+    let culturalCount = 0;
+    let hazardousCount = 0;
+
+    slice.systems.forEach(system => {
+        if (system.planets && Array.isArray(system.planets)) {
+            system.planets.forEach(planet => {
+                if (planet.planetType === 'INDUSTRIAL') industrialCount++;
+                else if (planet.planetType === 'CULTURAL') culturalCount++;
+                else if (planet.planetType === 'HAZARDOUS') hazardousCount++;
+            });
+        }
+    });
+
+    score += industrialCount * currentWeights.industrial;
+    score += culturalCount * currentWeights.cultural;
+    score += hazardousCount * currentWeights.hazardous;
+
     // Anomalies
     slice.anomalies.forEach(anomaly => {
         score += currentWeights[anomaly] || 0;
     });
-    
+
     // Planet count penalties
     const planetCount = slice.systems.reduce((sum, sys) => {
         return sum + (sys.planets && Array.isArray(sys.planets) ? sys.planets.length : 0);
     }, 0);
     if (planetCount < 3) score += currentWeights.lowPlanetCount;
     if (planetCount > 5) score += currentWeights.highPlanetCount;
-    
+
     return score;
 }
 
@@ -957,331 +1057,479 @@ function calculateSliceScore(slice) {
  */
 async function balanceSliceScores(slices) {
     if (slices.length < 2) return; // Can't balance with less than 2 slices
-    
-    const maxBalancingAttempts = 1000;
+
+    const maxBalancingAttempts = 500; // Reduced for better performance
     const targetRatio = currentSettings.scoreBalancing.targetRatio;
-    
+
+    // Reset debug tracking
+    if (debugMode) {
+        debugDetails = {
+            swapAttempts: 0,
+            successfulSwaps: 0,
+            swapTypes: { direct: 0, broader: 0, unused: 0, random: 0 },
+            constraintFailures: 0,
+            scoreImprovements: []
+        };
+    }
+
     console.log('Starting score balancing...');
-    
+    if (debugMode) console.log('🔍 DEBUG MODE ENABLED - Verbose logging active');
+
     // Calculate initial scores and show the starting state
     slices.forEach(slice => {
         slice.score = calculateSliceScore(slice);
     });
-    
+
     let initialScores = slices.map(s => s.score);
     let initialMinScore = Math.min(...initialScores);
     let initialMaxScore = Math.max(...initialScores);
     let initialRatio = initialMinScore / initialMaxScore;
-    
+
     console.log(`Initial balance ratio: ${initialRatio.toFixed(3)} (target: ${targetRatio})`);
     console.log(`Initial score range: ${initialMinScore.toFixed(1)} - ${initialMaxScore.toFixed(1)}`);
-    
+
+    if (debugMode) {
+        console.log('📊 Initial slice breakdown:');
+        slices.forEach((slice, i) => {
+            console.log(`  Slice ${i}: Score ${slice.score.toFixed(1)} (${slice.totalResources}R/${slice.totalInfluence}I, ${slice.systems.length} systems)`);
+        });
+    }
+
     let improvementsMade = 0;
-    let lastRatio = initialRatio;
-    
+    let consecutiveFailures = 0;
+
     for (let attempt = 0; attempt < maxBalancingAttempts; attempt++) {
         // Calculate current scores
         slices.forEach(slice => {
             slice.score = calculateSliceScore(slice);
         });
-        
+
         // Find min and max scores
         const scores = slices.map(s => s.score);
         const minScore = Math.min(...scores);
         const maxScore = Math.max(...scores);
         const currentRatio = minScore / maxScore;
-        
+
         if (currentRatio >= targetRatio) {
             console.log(`Score balancing complete after ${attempt} attempts. Ratio: ${currentRatio.toFixed(3)}`);
             break;
         }
-        
-        // Find weakest and strongest slices
+
+        // Find slices that need balancing
         const weakestSliceIndex = scores.indexOf(minScore);
         const strongestSliceIndex = scores.indexOf(maxScore);
-        
+
         const weakestSlice = slices[weakestSliceIndex];
         const strongestSlice = slices[strongestSliceIndex];
-        
-        // Try to find a beneficial swap between weakest and strongest
+
         let swapMade = false;
-        
+
+        // Try direct swaps between weakest and strongest slices
         for (let i = 0; i < weakestSlice.systems.length && !swapMade; i++) {
             for (let j = 0; j < strongestSlice.systems.length && !swapMade; j++) {
                 const weakSystem = weakestSlice.systems[i];
                 const strongSystem = strongestSlice.systems[j];
-                
-                // Skip if systems are the same
+
                 if (weakSystem.id === strongSystem.id) continue;
-                
-                // Calculate scores if we swap these systems
-                const weakSliceCopy = JSON.parse(JSON.stringify(weakestSlice));
-                const strongSliceCopy = JSON.parse(JSON.stringify(strongestSlice));
-                
-                // Perform the swap on copies
-                weakSliceCopy.systems[i] = strongSystem;
-                strongSliceCopy.systems[j] = weakSystem;
-                
-                // Recalculate properties
-                calculateSliceProperties(weakSliceCopy);
-                calculateSliceProperties(strongSliceCopy);
-                
-                // Check if both slices still meet constraints
-                if (validateSliceConstraints(weakSliceCopy, {}, 0) && 
-                    validateSliceConstraints(strongSliceCopy, {}, 0)) {
-                    
-                    const newWeakScore = calculateSliceScore(weakSliceCopy);
-                    const newStrongScore = calculateSliceScore(strongSliceCopy);
-                    
-                    // Check if this swap improves the balance
-                    const newMinScore = Math.min(newWeakScore, newStrongScore);
-                    const newMaxScore = Math.max(newWeakScore, newStrongScore);
-                    const newRatio = newMinScore / newMaxScore;
-                    
-                    // Accept swaps that improve balance OR reduce overall variance
-                    const oldVariance = Math.abs(weakestSlice.score - strongestSlice.score);
-                    const newVariance = Math.abs(newWeakScore - newStrongScore);
-                    
-                    if (newRatio > currentRatio || (newRatio >= currentRatio * 0.99 && newVariance < oldVariance)) {
-                        // Make the swap
-                        weakestSlice.systems[i] = strongSystem;
-                        strongestSlice.systems[j] = weakSystem;
-                        
-                        // Recalculate properties for real slices
-                        calculateSliceProperties(weakestSlice);
-                        calculateSliceProperties(strongestSlice);
-                        
-                        swapMade = true;
-                        improvementsMade++;
-                        
-                        // Calculate actual improvement
-                        weakestSlice.score = calculateSliceScore(weakestSlice);
-                        strongestSlice.score = calculateSliceScore(strongestSlice);
-                        
-                        console.log(`Targeted swap ${improvementsMade}: System ${weakSystem.id} <-> ${strongSystem.id}`);
-                        console.log(`  Weak slice: ${weakestSlice.score.toFixed(1)} -> ${newWeakScore.toFixed(1)}`);
-                        console.log(`  Strong slice: ${strongestSlice.score.toFixed(1)} -> ${newStrongScore.toFixed(1)}`);
-                        console.log(`  New ratio: ${newRatio.toFixed(3)}`);
+
+                // Test the swap
+                if (testSystemSwap(weakestSlice, strongestSlice, i, j, scores)) {
+                    // Make the swap
+                    weakestSlice.systems[i] = strongSystem;
+                    strongestSlice.systems[j] = weakSystem;
+
+                    calculateSliceProperties(weakestSlice);
+                    calculateSliceProperties(strongestSlice);
+
+                    swapMade = true;
+                    improvementsMade++;
+                    consecutiveFailures = 0;
+
+                    if (debugMode) {
+                        debugDetails.successfulSwaps++;
+                        debugDetails.swapTypes.direct++;
+                    }
+
+                    const newWeakScore = calculateSliceScore(weakestSlice);
+                    const newStrongScore = calculateSliceScore(strongestSlice);
+
+                    console.log(`Swap ${improvementsMade}: ${weakSystem.id} <-> ${strongSystem.id}`);
+                    console.log(`  Scores: ${minScore.toFixed(1)} -> ${newWeakScore.toFixed(1)}, ${maxScore.toFixed(1)} -> ${newStrongScore.toFixed(1)}`);
+
+                    if (debugMode) {
+                        debugDetails.scoreImprovements.push({
+                            type: 'direct',
+                            improvement: (newWeakScore - minScore) + (newStrongScore - maxScore),
+                            systems: [weakSystem.id, strongSystem.id]
+                        });
                     }
                 }
             }
         }
-        
-        // If no beneficial swap found, try more aggressive approaches
-        if (!swapMade && attempt % 25 === 0) {
-            // Strategy 1: Focus on improving bottom 3 slices
-            if (attempt % 50 === 0) {
-                const sortedSlices = slices.map((slice, index) => ({ slice, index, score: slice.score }))
-                                          .sort((a, b) => a.score - b.score);
-                
-                const bottomSlices = sortedSlices.slice(0, Math.min(3, sortedSlices.length));
-                const otherSlices = sortedSlices.slice(3);
-                
-                for (let bottomSlice of bottomSlices) {
-                    if (swapMade) break;
-                    
-                    for (let otherSlice of otherSlices) {
-                        if (swapMade) break;
-                        
-                        // Only try if there's a significant score difference
-                        if (otherSlice.score - bottomSlice.score < 2.0) continue;
-                        
-                        for (let i = 0; i < bottomSlice.slice.systems.length && !swapMade; i++) {
-                            for (let j = 0; j < otherSlice.slice.systems.length && !swapMade; j++) {
-                                const bottomSystem = bottomSlice.slice.systems[i];
-                                const otherSystem = otherSlice.slice.systems[j];
-                                
-                                if (bottomSystem.id === otherSystem.id) continue;
-                                
-                                // Test the swap
-                                const bottomCopy = JSON.parse(JSON.stringify(bottomSlice.slice));
-                                const otherCopy = JSON.parse(JSON.stringify(otherSlice.slice));
-                                
-                                bottomCopy.systems[i] = otherSystem;
-                                otherCopy.systems[j] = bottomSystem;
-                                
-                                calculateSliceProperties(bottomCopy);
-                                calculateSliceProperties(otherCopy);
-                                
-                                if (validateSliceConstraints(bottomCopy, {}, 0) && 
-                                    validateSliceConstraints(otherCopy, {}, 0)) {
-                                    
-                                    const newBottomScore = calculateSliceScore(bottomCopy);
-                                    const newOtherScore = calculateSliceScore(otherCopy);
-                                    
-                                    // Accept if bottom slice improves significantly
-                                    if (newBottomScore > bottomSlice.score + 1.0) {
-                                        // Make the swap
-                                        bottomSlice.slice.systems[i] = otherSystem;
-                                        otherSlice.slice.systems[j] = bottomSystem;
-                                        
-                                        calculateSliceProperties(bottomSlice.slice);
-                                        calculateSliceProperties(otherSlice.slice);
-                                        
-                                        swapMade = true;
-                                        improvementsMade++;
-                                        
-                                        console.log(`Bottom-focused swap ${improvementsMade}: Improved slice ${bottomSlice.index} from ${bottomSlice.score.toFixed(1)} to ${newBottomScore.toFixed(1)}`);
-                                    }
-                                }
-                            }
-                        }
+
+        if (!swapMade) {
+            consecutiveFailures++;
+
+            // Try broader swaps if direct approach isn't working
+            if (consecutiveFailures > 20) {
+                if (debugMode) console.log('🔄 Trying broader swaps...');
+                swapMade = tryBroaderSwaps(slices, scores);
+                if (swapMade) {
+                    improvementsMade++;
+                    consecutiveFailures = 0;
+                    if (debugMode) {
+                        debugDetails.successfulSwaps++;
+                        debugDetails.swapTypes.broader++;
                     }
                 }
             }
-            
-            // Strategy 2: Adjacent pair optimization
-            if (!swapMade && attempt % 75 === 0) {
-                const sortedSlices = slices.map((slice, index) => ({ slice, index, score: slice.score }))
-                                          .sort((a, b) => a.score - b.score);
-                
-                for (let i = 0; i < sortedSlices.length - 1 && !swapMade; i++) {
-                    const lowerSlice = sortedSlices[i];
-                    const higherSlice = sortedSlices[i + 1];
-                    
-                    // Skip if gap is too small
-                    if (higherSlice.score - lowerSlice.score < 1.5) continue;
-                    
-                    for (let sysIdx1 = 0; sysIdx1 < lowerSlice.slice.systems.length && !swapMade; sysIdx1++) {
-                        for (let sysIdx2 = 0; sysIdx2 < higherSlice.slice.systems.length && !swapMade; sysIdx2++) {
-                            const system1 = lowerSlice.slice.systems[sysIdx1];
-                            const system2 = higherSlice.slice.systems[sysIdx2];
-                            
-                            if (system1.id === system2.id) continue;
-                            
-                            // Test the swap
-                            const lowerCopy = JSON.parse(JSON.stringify(lowerSlice.slice));
-                            const higherCopy = JSON.parse(JSON.stringify(higherSlice.slice));
-                            
-                            lowerCopy.systems[sysIdx1] = system2;
-                            higherCopy.systems[sysIdx2] = system1;
-                            
-                            calculateSliceProperties(lowerCopy);
-                            calculateSliceProperties(higherCopy);
-                            
-                            if (validateSliceConstraints(lowerCopy, {}, 0) && 
-                                validateSliceConstraints(higherCopy, {}, 0)) {
-                                
-                                const newScore1 = calculateSliceScore(lowerCopy);
-                                const newScore2 = calculateSliceScore(higherCopy);
-                                
-                                const oldGap = Math.abs(lowerSlice.score - higherSlice.score);
-                                const newGap = Math.abs(newScore1 - newScore2);
-                                
-                                if (newGap < oldGap * 0.9) {
-                                    // Make the swap
-                                    lowerSlice.slice.systems[sysIdx1] = system2;
-                                    higherSlice.slice.systems[sysIdx2] = system1;
-                                    
-                                    calculateSliceProperties(lowerSlice.slice);
-                                    calculateSliceProperties(higherSlice.slice);
-                                    
-                                    swapMade = true;
-                                    improvementsMade++;
-                                    
-                                    console.log(`Adjacent swap ${improvementsMade}: Gap reduced from ${oldGap.toFixed(1)} to ${newGap.toFixed(1)}`);
-                                }
-                            }
-                        }
+
+            // Try using unused tiles for better balancing
+            if (consecutiveFailures > 30) {
+                if (debugMode) console.log('🎲 Trying unused tile swaps...');
+                swapMade = await tryUnusedTileSwaps(slices, scores);
+                if (swapMade) {
+                    improvementsMade++;
+                    consecutiveFailures = 0;
+                    if (debugMode) {
+                        debugDetails.successfulSwaps++;
+                        debugDetails.swapTypes.unused++;
+                    }
+                }
+            }
+
+            // If still stuck, try random swaps occasionally
+            if (consecutiveFailures > 50 && attempt % 25 === 0) {
+                if (debugMode) console.log('🎯 Trying random swaps...');
+                swapMade = tryRandomSwap(slices);
+                if (swapMade) {
+                    improvementsMade++;
+                    consecutiveFailures = 0;
+                    if (debugMode) {
+                        debugDetails.successfulSwaps++;
+                        debugDetails.swapTypes.random++;
                     }
                 }
             }
         }
-        
-        // Progress tracking and aggressive random swaps when stuck
-        if (attempt % 100 === 0 && attempt > 0) {
+
+        // Progress updates
+        if (attempt % 50 === 0 && attempt > 0) {
             const currentScores = slices.map(s => calculateSliceScore(s));
             const currentMin = Math.min(...currentScores);
             const currentMax = Math.max(...currentScores);
             const currentRatioCheck = currentMin / currentMax;
-            
+
             console.log(`Balancing progress: attempt ${attempt}, ratio: ${currentRatioCheck.toFixed(3)}, improvements: ${improvementsMade}`);
-            
-            // If stuck, try aggressive random swaps
-            if (Math.abs(currentRatioCheck - lastRatio) < 0.001 && attempt % 200 === 0) {
-                console.log('Trying aggressive random swaps...');
-                
-                for (let randomAttempt = 0; randomAttempt < 10; randomAttempt++) {
-                    const slice1Index = Math.floor(Math.random() * slices.length);
-                    let slice2Index = Math.floor(Math.random() * slices.length);
-                    while (slice2Index === slice1Index) {
-                        slice2Index = Math.floor(Math.random() * slices.length);
-                    }
-                    
-                    const slice1 = slices[slice1Index];
-                    const slice2 = slices[slice2Index];
-                    
-                    const sys1Index = Math.floor(Math.random() * slice1.systems.length);
-                    const sys2Index = Math.floor(Math.random() * slice2.systems.length);
-                    
-                    const system1 = slice1.systems[sys1Index];
-                    const system2 = slice2.systems[sys2Index];
-                    
-                    if (system1.id === system2.id) continue;
-                    
-                    // Test the swap
-                    const slice1Copy = JSON.parse(JSON.stringify(slice1));
-                    const slice2Copy = JSON.parse(JSON.stringify(slice2));
-                    
-                    slice1Copy.systems[sys1Index] = system2;
-                    slice2Copy.systems[sys2Index] = system1;
-                    
-                    calculateSliceProperties(slice1Copy);
-                    calculateSliceProperties(slice2Copy);
-                    
-                    if (validateSliceConstraints(slice1Copy, {}, 0) && 
-                        validateSliceConstraints(slice2Copy, {}, 0)) {
-                        
-                        // Calculate new overall balance
-                        const testSlices = [...slices];
-                        testSlices[slice1Index] = slice1Copy;
-                        testSlices[slice2Index] = slice2Copy;
-                        
-                        const newScores = testSlices.map(s => calculateSliceScore(s));
-                        const newMinScore = Math.min(...newScores);
-                        const newMaxScore = Math.max(...newScores);
-                        const newRatio = newMinScore / newMaxScore;
-                        
-                        if (newRatio > currentRatioCheck * 1.001) {
-                            // Make the swap
-                            slice1.systems[sys1Index] = system2;
-                            slice2.systems[sys2Index] = system1;
-                            
-                            calculateSliceProperties(slice1);
-                            calculateSliceProperties(slice2);
-                            
-                            improvementsMade++;
-                            console.log(`Random aggressive swap ${improvementsMade}: improved ratio to ${newRatio.toFixed(3)}`);
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            lastRatio = currentRatioCheck;
-        }
-        
-        // Allow UI updates every 50 attempts
-        if (attempt % 50 === 0) {
+
+            // Allow UI updates
             await new Promise(resolve => setTimeout(resolve, 10));
         }
+
+        // Break if we're not making progress
+        if (consecutiveFailures > 100) {
+            console.log('Breaking due to lack of progress');
+            break;
+        }
     }
-    
+
     // Final score calculation and summary
     slices.forEach(slice => {
         slice.score = calculateSliceScore(slice);
     });
-    
+
     const finalScores = slices.map(s => s.score);
     const finalMinScore = Math.min(...finalScores);
     const finalMaxScore = Math.max(...finalScores);
     const finalRatio = finalMinScore / finalMaxScore;
-    
+
     console.log(`\n=== Score Balancing Summary ===`);
     console.log(`Initial ratio: ${initialRatio.toFixed(3)} -> Final ratio: ${finalRatio.toFixed(3)} (target: ${targetRatio})`);
     console.log(`Initial range: ${initialMinScore.toFixed(1)}-${initialMaxScore.toFixed(1)} -> Final range: ${finalMinScore.toFixed(1)}-${finalMaxScore.toFixed(1)}`);
     console.log(`Total improvements made: ${improvementsMade}`);
     console.log(`Balancing ${finalRatio >= targetRatio ? 'SUCCESS' : 'PARTIAL'} - ${finalRatio >= targetRatio ? 'Target achieved!' : 'Target not fully achieved but improved'}`);
+
+    if (debugMode) {
+        console.log(`\n🔍 === Debug Statistics ===`);
+        console.log(`Total swap attempts: ${debugDetails.swapAttempts}`);
+        console.log(`Successful swaps: ${debugDetails.successfulSwaps}`);
+        console.log(`Constraint failures: ${debugDetails.constraintFailures}`);
+        console.log(`Success rate: ${debugDetails.swapAttempts > 0 ? ((debugDetails.successfulSwaps / debugDetails.swapAttempts) * 100).toFixed(1) : 0}%`);
+        console.log(`Swap types breakdown:`);
+        console.log(`  - Direct swaps: ${debugDetails.swapTypes.direct}`);
+        console.log(`  - Broader swaps: ${debugDetails.swapTypes.broader}`);
+        console.log(`  - Unused tile swaps: ${debugDetails.swapTypes.unused}`);
+        console.log(`  - Random swaps: ${debugDetails.swapTypes.random}`);
+
+        if (debugDetails.scoreImprovements.length > 0) {
+            const totalImprovement = debugDetails.scoreImprovements.reduce((sum, imp) => sum + imp.improvement, 0);
+            console.log(`Total score improvement: ${totalImprovement.toFixed(1)}`);
+            console.log(`Average improvement per swap: ${(totalImprovement / debugDetails.scoreImprovements.length).toFixed(1)}`);
+        }
+
+        console.log(`Final slice scores:`);
+        finalScores.forEach((score, i) => {
+            const slice = slices[i];
+            console.log(`  Slice ${i}: ${score.toFixed(1)} (${slice.totalResources}R/${slice.totalInfluence}I, ${slice.anomalies.length} anomalies)`);
+        });
+    }
+}
+
+/**
+ * Test if swapping two systems would improve balance
+ */
+function testSystemSwap(slice1, slice2, sys1Index, sys2Index, allScores) {
+    const system1 = slice1.systems[sys1Index];
+    const system2 = slice2.systems[sys2Index];
+
+    if (debugMode) {
+        debugDetails.swapAttempts++;
+    }
+
+    // Create test copies
+    const slice1Copy = JSON.parse(JSON.stringify(slice1));
+    const slice2Copy = JSON.parse(JSON.stringify(slice2));
+
+    // Perform swap on copies
+    slice1Copy.systems[sys1Index] = system2;
+    slice2Copy.systems[sys2Index] = system1;
+
+    // Recalculate properties
+    calculateSliceProperties(slice1Copy);
+    calculateSliceProperties(slice2Copy);
+
+    // Check constraints - use relaxed validation for balancing
+    if (!validateSliceConstraintsRelaxed(slice1Copy) || !validateSliceConstraintsRelaxed(slice2Copy)) {
+        if (debugMode) {
+            debugDetails.constraintFailures++;
+            console.log(`❌ Constraint failure: ${system1.id} <-> ${system2.id}`);
+        }
+        return false;
+    }
+
+    // Calculate new scores
+    const newScore1 = calculateSliceScore(slice1Copy);
+    const newScore2 = calculateSliceScore(slice2Copy);
+
+    // Check if this improves balance
+    const oldMin = Math.min(slice1.score, slice2.score);
+    const oldMax = Math.max(slice1.score, slice2.score);
+    const newMin = Math.min(newScore1, newScore2);
+    const newMax = Math.max(newScore1, newScore2);
+
+    const oldGap = oldMax - oldMin;
+    const newGap = newMax - newMin;
+
+    const wouldImprove = newGap < oldGap || (newMin > oldMin + 0.5);
+
+    if (debugMode && wouldImprove) {
+        console.log(`✅ Beneficial swap found: ${system1.id} <-> ${system2.id}`);
+        console.log(`   Gap: ${oldGap.toFixed(1)} -> ${newGap.toFixed(1)} (${newGap < oldGap ? 'REDUCED' : 'WEAK IMPROVED'})`);
+        console.log(`   Scores: ${slice1.score.toFixed(1)} -> ${newScore1.toFixed(1)}, ${slice2.score.toFixed(1)} -> ${newScore2.toFixed(1)}`);
+    }
+
+    // Accept if gap is reduced or if the weaker slice improves significantly
+    return wouldImprove;
+}
+
+/**
+ * Try swaps between any slices, not just weakest/strongest
+ */
+function tryBroaderSwaps(slices, scores) {
+    const sortedIndices = scores.map((score, index) => ({ score, index }))
+        .sort((a, b) => a.score - b.score)
+        .map(item => item.index);
+
+    // Try swaps between bottom half and top half
+    const bottomHalf = sortedIndices.slice(0, Math.ceil(slices.length / 2));
+    const topHalf = sortedIndices.slice(Math.floor(slices.length / 2));
+
+    for (let bottomIndex of bottomHalf) {
+        for (let topIndex of topHalf) {
+            const bottomSlice = slices[bottomIndex];
+            const topSlice = slices[topIndex];
+
+            for (let i = 0; i < bottomSlice.systems.length; i++) {
+                for (let j = 0; j < topSlice.systems.length; j++) {
+                    if (testSystemSwap(bottomSlice, topSlice, i, j, scores)) {
+                        const system1 = bottomSlice.systems[i];
+                        const system2 = topSlice.systems[j];
+
+                        bottomSlice.systems[i] = system2;
+                        topSlice.systems[j] = system1;
+
+                        calculateSliceProperties(bottomSlice);
+                        calculateSliceProperties(topSlice);
+
+                        console.log(`Broader swap: ${system1.id} <-> ${system2.id} between slices ${bottomIndex} and ${topIndex}`);
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Try a random swap as a last resort
+ */
+function tryRandomSwap(slices) {
+    const slice1Index = Math.floor(Math.random() * slices.length);
+    let slice2Index = Math.floor(Math.random() * slices.length);
+    while (slice2Index === slice1Index) {
+        slice2Index = Math.floor(Math.random() * slices.length);
+    }
+
+    const slice1 = slices[slice1Index];
+    const slice2 = slices[slice2Index];
+
+    const sys1Index = Math.floor(Math.random() * slice1.systems.length);
+    const sys2Index = Math.floor(Math.random() * slice2.systems.length);
+
+    if (testSystemSwap(slice1, slice2, sys1Index, sys2Index, [])) {
+        const system1 = slice1.systems[sys1Index];
+        const system2 = slice2.systems[sys2Index];
+
+        slice1.systems[sys1Index] = system2;
+        slice2.systems[sys2Index] = system1;
+
+        calculateSliceProperties(slice1);
+        calculateSliceProperties(slice2);
+
+        console.log(`Random swap: ${system1.id} <-> ${system2.id}`);
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Relaxed constraint validation for balancing (allows temporary constraint violations)
+ */
+function validateSliceConstraintsRelaxed(slice) {
+    // Only enforce the most critical constraints during balancing
+
+    // Must have at least some systems
+    if (!slice.systems || slice.systems.length === 0) return false;
+
+    // Basic planet system count (allow some flexibility)
+    const planetSystemCount = slice.systems.filter(sys => sys.planets && sys.planets.length > 0).length;
+    if (planetSystemCount < Math.max(1, currentSettings.sliceGeneration.minPlanetSystems - 1) ||
+        planetSystemCount > currentSettings.sliceGeneration.maxPlanetSystems + 1) {
+        return false;
+    }
+
+    // Allow wormhole violations during balancing
+    // Allow optimal value violations during balancing - they'll be checked at the end
+
+    return true;
+}
+
+/**
+ * Try swapping systems in slices with unused tiles for better balance
+ */
+async function tryUnusedTileSwaps(slices, scores) {
+    console.log('Trying unused tile swaps for better balance...');
+
+    // Get available unused systems
+    const editor = window.editor;
+    if (!editor) return false;
+
+    const availableSystems = getAvailableSystems();
+    const usedSystemIds = new Set();
+
+    // Collect all currently used system IDs
+    slices.forEach(slice => {
+        slice.systems.forEach(sys => usedSystemIds.add(sys.id));
+    });
+
+    // Find unused systems
+    const unusedSystems = availableSystems.filter(sys => !usedSystemIds.has(sys.id));
+
+    if (unusedSystems.length === 0) {
+        console.log('No unused systems available for swapping');
+        return false;
+    }
+
+    console.log(`Found ${unusedSystems.length} unused systems for potential swaps`);
+
+    // Sort slices by score to focus on improving the weakest ones
+    const sortedSlices = scores.map((score, index) => ({ score, index, slice: slices[index] }))
+        .sort((a, b) => a.score - b.score);
+
+    // Focus on the bottom 50% of slices
+    const slicesToImprove = sortedSlices.slice(0, Math.ceil(slices.length / 2));
+
+    for (let sliceInfo of slicesToImprove) {
+        const slice = sliceInfo.slice;
+        const sliceIndex = sliceInfo.index;
+
+        // Try swapping each system in this slice with unused systems
+        for (let systemIndex = 0; systemIndex < slice.systems.length; systemIndex++) {
+            const currentSystem = slice.systems[systemIndex];
+
+            // Test swapping with unused systems
+            for (let unusedSystem of unusedSystems) {
+                if (currentSystem.id === unusedSystem.id) continue;
+
+                // Create a test slice with the swap
+                const testSlice = JSON.parse(JSON.stringify(slice));
+                testSlice.systems[systemIndex] = unusedSystem;
+
+                // Recalculate properties
+                calculateSliceProperties(testSlice);
+
+                // Check constraints
+                if (!validateSliceConstraintsRelaxed(testSlice)) continue;
+
+                // Calculate new score
+                const newScore = calculateSliceScore(testSlice);
+                const improvement = newScore - slice.score;
+
+                // Accept if this significantly improves the slice
+                if (improvement > 1.0) {
+                    console.log(`Unused tile swap: Replacing ${currentSystem.id} with ${unusedSystem.id} in slice ${sliceIndex}`);
+                    console.log(`  Score improvement: ${slice.score.toFixed(1)} -> ${newScore.toFixed(1)} (+${improvement.toFixed(1)})`);
+
+                    // Make the swap
+                    slice.systems[systemIndex] = unusedSystem;
+                    calculateSliceProperties(slice);
+                    slice.score = calculateSliceScore(slice);
+
+                    // Remove the unused system from the pool and add the replaced system
+                    const unusedIndex = unusedSystems.indexOf(unusedSystem);
+                    unusedSystems.splice(unusedIndex, 1);
+                    unusedSystems.push(currentSystem);
+
+                    return true; // Made one swap, return to allow other strategies
+                }
+
+                // Also accept smaller improvements for very weak slices
+                const minSliceScore = Math.min(...scores);
+                if (slice.score <= minSliceScore * 1.1 && improvement > 0.5) {
+                    console.log(`Small unused tile swap for weak slice: Replacing ${currentSystem.id} with ${unusedSystem.id} in slice ${sliceIndex}`);
+                    console.log(`  Score improvement: ${slice.score.toFixed(1)} -> ${newScore.toFixed(1)} (+${improvement.toFixed(1)})`);
+
+                    // Make the swap
+                    slice.systems[systemIndex] = unusedSystem;
+                    calculateSliceProperties(slice);
+                    slice.score = calculateSliceScore(slice);
+
+                    // Remove the unused system from the pool and add the replaced system
+                    const unusedIndex = unusedSystems.indexOf(unusedSystem);
+                    unusedSystems.splice(unusedIndex, 1);
+                    unusedSystems.push(currentSystem);
+
+                    return true;
+                }
+            }
+        }
+    }
+
+    console.log('No beneficial unused tile swaps found');
+    return false;
 }
 
 /**
@@ -1293,15 +1541,15 @@ async function balanceSliceScores(slices) {
 async function placeSlicesOnMap(slices) {
     const editor = window.editor;
     if (!editor) throw new Error('Editor not available');
-    
+
     console.log('Placing slices on map:', slices.length, 'slices');
     console.log('Available slotPositions:', slotPositions);
-    
+
     // Get the first N slot positions for the slices
     const slotKeys = Object.keys(slotPositions).slice(0, slices.length);
-    
+
     console.log('Using slot keys:', slotKeys);
-    
+
     // Clear existing slices in the slots we'll use (positions 1-5 only, never touch position 0)
     slotKeys.forEach(slotNum => {
         const positions = slotPositions[slotNum];
@@ -1317,37 +1565,48 @@ async function placeSlicesOnMap(slices) {
             }
         }
     });
-    
+
     // Place new slices in draft slots
     for (let i = 0; i < slices.length; i++) {
         const slice = slices[i];
         const slotNum = slotKeys[i];
         const positions = slotPositions[slotNum];
-        
+
         console.log(`Placing slice ${i} in slot ${slotNum}:`, slice);
         console.log(`Positions for slot ${slotNum}:`, positions);
-        
+
         if (positions && slice.systems.length > 0) {
             // Place systems in positions 1-5 only (position 0 is reserved for home system)
             const maxSystemsToPlace = Math.min(slice.systems.length, 5);
             console.log(`Placing ${maxSystemsToPlace} systems in slot ${slotNum} positions 1-5`);
-            
+
             for (let j = 0; j < maxSystemsToPlace; j++) {
                 const system = slice.systems[j];
                 const hexId = positions[j + 1].toString().padStart(3, '0'); // Use positions 1-5 (skip position 0)
-                
+
                 console.log(`Placing system ${system.id} at hex ${hexId} (position ${j + 1} in slot ${slotNum})`);
-                
+
                 const hex = editor.hexes[hexId];
                 if (!hex) {
                     console.warn(`Hex ${hexId} not found in editor.hexes`);
                     continue;
                 }
-                
+
                 if (hex && system) {
                     try {
+                        // Clear the hex first (same as MiltyBuilderCore)
+                        if (typeof editor.clearAll === 'function') {
+                            editor.clearAll(hexId);
+                        }
+
+                        // Use assignSystem to place the system
                         await assignSystem(editor, system, hexId);
-                        markRealIDUsed(system.id);
+
+                        // Mark realID as used (same as MiltyBuilderCore pattern)
+                        if (system.id) {
+                            markRealIDUsed(system.id.toString());
+                        }
+
                         console.log(`Successfully placed system ${system.id} at ${hexId}`);
                     } catch (error) {
                         console.error(`Failed to assign system ${system.id} to ${hexId}:`, error);
@@ -1356,19 +1615,74 @@ async function placeSlicesOnMap(slices) {
             }
         }
     }
-    
-    // Update all overlays
+
+    // Update all overlays using the same pattern as MiltyBuilderCore
+    console.log('Updating overlays after slice placement');
+
+    // Set overlay visibility flags properly for generated data
+    if (window.editor.showPlanetTypes === undefined) window.editor.showPlanetTypes = true;
+    if (window.editor.showResInf === undefined) window.editor.showResInf = false;
+    if (window.editor.showIdealRI === undefined) window.editor.showIdealRI = true;
+    if (window.editor.showRealID === undefined) window.editor.showRealID = true;
+
+    // Update visual elements first (same as MiltyBuilderCore updateVisualElements)
     if (typeof window.editor?.redrawAllRealIDOverlays === 'function') {
-        console.log('Redrawing realID overlays');
         window.editor.redrawAllRealIDOverlays(window.editor);
     }
-    
-    // Update system list
     if (typeof window.renderSystemList === 'function') {
-        console.log('Rendering system list');
         window.renderSystemList();
     }
-    
+
+    // Import all the required modules first, then execute in sequence (same as importSlices)
+    Promise.all([
+        import('../../features/realIDsOverlays.js'),
+        import('../../draw/customLinksDraw.js'),
+        import('../../draw/borderAnomaliesDraw.js'),
+        import('../../features/baseOverlays.js'),
+        import('../../features/imageSystemsOverlay.js'),
+        import('../../draw/enforceSvgLayerOrder.js'),
+        import('../../ui/uiFilters.js')
+    ]).then(([
+        { redrawAllRealIDOverlays },
+        { drawCustomAdjacencyLayer },
+        { drawBorderAnomaliesLayer },
+        { updateEffectsVisibility, updateWormholeVisibility },
+        { updateTileImageLayer },
+        { enforceSvgLayerOrder },
+        { refreshSystemList }
+    ]) => {
+        console.log('Executing comprehensive overlay redraw sequence');
+
+        // Execute in the exact same order as importFullState/importSlices
+        redrawAllRealIDOverlays(window.editor);
+        drawCustomAdjacencyLayer(window.editor);
+        drawBorderAnomaliesLayer(window.editor);
+        updateEffectsVisibility(window.editor);
+        updateWormholeVisibility(window.editor);
+        updateTileImageLayer(window.editor);
+
+        // Refresh system list to update filter states
+        refreshSystemList();
+
+        // Enforce SVG layer order to ensure planets and overlays appear correctly
+        if (window.editor?.svg) {
+            enforceSvgLayerOrder(window.editor.svg);
+        }
+
+        console.log('Overlay redraw sequence complete');
+    }).catch(err => {
+        console.error('Could not load overlay modules:', err);
+        // Fallback: try direct calls
+        if (typeof window.editor?.redrawAllRealIDOverlays === 'function') {
+            window.editor.redrawAllRealIDOverlays(window.editor);
+        }
+    });
+
+    // Update border anomalies overlay if active
+    if (typeof window.editor?.redrawBorderAnomaliesOverlay === 'function') {
+        window.editor.redrawBorderAnomaliesOverlay();
+    }
+
     console.log('Slice placement complete');
 }
 
@@ -1383,13 +1697,13 @@ function saveWeightingSettings() {
             currentWeights[key] = parseFloat(input.value) || 0;
         }
     });
-    
+
     // Close popup
     const popup = document.getElementById('milty-weighting-popup');
     if (popup) {
         popup.remove();
     }
-    
+
     alert('Weighting settings saved!');
 }
 
@@ -1398,7 +1712,7 @@ function saveWeightingSettings() {
  */
 function resetWeightingSettings() {
     currentWeights = { ...DEFAULT_WEIGHTS };
-    
+
     // Update UI
     Object.keys(currentWeights).forEach(key => {
         const input = document.getElementById(`weight_${key}`);
@@ -1414,29 +1728,29 @@ function resetWeightingSettings() {
 function showSliceScores(slices) {
     const scoresDiv = document.getElementById('sliceScores');
     const contentDiv = document.getElementById('scoresContent');
-    
+
     if (!scoresDiv || !contentDiv) return;
-    
+
     // Calculate scores and sort slices by score (best to worst)
     const scoredSlices = slices.map((slice, index) => ({
         index,
         slice,
         score: calculateSliceScore(slice)
     })).sort((a, b) => b.score - a.score);
-    
+
     // Create content
     let content = '';
     content += '<div style="color: #ccc; margin-bottom: 10px; font-size: 12px;">Higher scores indicate better slice quality based on current weighting settings.</div>';
-    
+
     scoredSlices.forEach(({ index, slice, score }, rank) => {
         const planetSystems = slice.systems.filter(s => s.planets && s.planets.length > 0);
         const emptySystems = slice.systems.filter(s => !s.planets || s.planets.length === 0);
-        
+
         // Color coding based on rank
         let color = '#4CAF50'; // Green for top slices
         if (rank >= slices.length * 0.67) color = '#f44336'; // Red for bottom third
         else if (rank >= slices.length * 0.33) color = '#FF9800'; // Orange for middle third
-        
+
         content += `<div style="color: ${color}; margin-bottom: 8px;">`;
         content += `<strong>Slice ${index}</strong>: `;
         content += `Score <strong>${score.toFixed(1)}</strong> `;
@@ -1449,7 +1763,7 @@ function showSliceScores(slices) {
         if (slice.anomalies.length > 0) content += `, ${slice.anomalies.length} anomaly`;
         content += `</span></div>`;
     });
-    
+
     contentDiv.innerHTML = content;
     scoresDiv.style.display = 'block';
 }
@@ -1469,7 +1783,7 @@ function showGenerationProgress(message, progress) {
     const statusDiv = document.getElementById('generationStatus');
     const statusText = document.getElementById('statusText');
     const progressBar = document.getElementById('progressBar');
-    
+
     if (statusDiv) statusDiv.style.display = 'block';
     if (statusText) statusText.textContent = message;
     if (progressBar) progressBar.style.width = `${progress}%`;
@@ -1510,7 +1824,7 @@ function showMiltyGeneratorHelp() {
             <p>The weighting system evaluates slice quality by assigning point values to different features. Higher weights are better, negative weights are penalties.</p>
         </div>
     `;
-    
+
     showPopup({
         content: helpContent,
         actions: [],
@@ -1549,7 +1863,7 @@ function showWeightingHelp() {
             <p>Adjust weights based on your tournament's meta and player preferences.</p>
         </div>
     `;
-    
+
     showPopup({
         content: helpContent,
         actions: [],
@@ -1559,7 +1873,186 @@ function showWeightingHelp() {
     });
 }
 
-// Initialize popup event handlers when content is loaded
-setTimeout(() => {
-    initializeGeneratorPopup();
-}, 100);
+/**
+ * Show statistics about unused tiles
+ */
+function showUnusedTileStatistics(slices, availableSystems) {
+    const usedSystemIds = new Set();
+
+    // Collect all used system IDs
+    slices.forEach(slice => {
+        slice.systems.forEach(sys => usedSystemIds.add(sys.id));
+    });
+
+    // Find unused systems
+    const unusedSystems = availableSystems.filter(sys => !usedSystemIds.has(sys.id));
+
+    console.log(`\n=== Unused Tile Statistics ===`);
+    console.log(`Total available systems: ${availableSystems.length}`);
+    console.log(`Used in slices: ${usedSystemIds.size}`);
+    console.log(`Unused systems: ${unusedSystems.length}`);
+
+    if (unusedSystems.length > 0) {
+        // Analyze unused systems
+        const unusedWithPlanets = unusedSystems.filter(s => s.planets && s.planets.length > 0);
+        const unusedAnomalies = unusedSystems.filter(s => !s.planets || s.planets.length === 0);
+
+        console.log(`  - With planets: ${unusedWithPlanets.length}`);
+        console.log(`  - Anomalies/Empty: ${unusedAnomalies.length}`);
+
+        // Show top 5 unused systems with planets (by total resources + influence)
+        if (unusedWithPlanets.length > 0) {
+            const scoredUnused = unusedWithPlanets.map(sys => {
+                let totalRes = 0;
+                let totalInf = 0;
+                if (sys.planets) {
+                    sys.planets.forEach(p => {
+                        totalRes += p.resources || 0;
+                        totalInf += p.influence || 0;
+                    });
+                }
+                return { system: sys, total: totalRes + totalInf, res: totalRes, inf: totalInf };
+            }).sort((a, b) => b.total - a.total);
+
+            console.log(`Top 5 unused planet systems:`);
+            scoredUnused.slice(0, 5).forEach((item, i) => {
+                console.log(`  ${i + 1}. ${item.system.id}: ${item.system.name || 'Unknown'} (${item.res}R/${item.inf}I)`);
+            });
+        }
+
+        // Show unused legendary systems
+        const unusedLegendaries = unusedSystems.filter(sys =>
+            sys.planets && sys.planets.some(p => p.legendaryAbilityName)
+        );
+        if (unusedLegendaries.length > 0) {
+            console.log(`Unused legendary systems: ${unusedLegendaries.map(s => `${s.id}:${s.name || 'Unknown'}`).join(', ')}`);
+        }
+
+        // Show unused tech specialties
+        const unusedTechSpecs = new Set();
+        unusedSystems.forEach(sys => {
+            if (sys.planets) {
+                sys.planets.forEach(p => {
+                    if (p.techSpecialty) unusedTechSpecs.add(p.techSpecialty);
+                });
+            }
+        });
+        if (unusedTechSpecs.size > 0) {
+            console.log(`Unused tech specialties: ${Array.from(unusedTechSpecs).join(', ')}`);
+        }
+    }
+
+    console.log(`===============================\n`);
+}
+
+/**
+ * Show debug information popup
+ */
+function showDebugInfo() {
+    let content = `
+        <div style="padding: 20px; line-height: 1.5; max-height: 60vh; overflow-y: auto; font-family: monospace;">
+            <h3 style="color: #ffe066; margin-top: 0;">Debug Information</h3>
+    `;
+
+    if (debugDetails.swapAttempts === 0) {
+        content += `
+            <p style="color: #aaa;">No balancing data available yet. Enable debug mode and generate slices with balancing enabled to see detailed statistics.</p>
+        `;
+    } else {
+        content += `
+            <div style="margin-bottom: 20px; padding: 10px; background: #3a3a3a; border-radius: 4px;">
+                <h4 style="color: #4CAF50; margin: 0 0 10px 0;">Balancing Statistics</h4>
+                <div style="color: #ccc;">
+                    Total swap attempts: <strong>${debugDetails.swapAttempts}</strong><br>
+                    Successful swaps: <strong>${debugDetails.successfulSwaps}</strong><br>
+                    Constraint failures: <strong>${debugDetails.constraintFailures}</strong><br>
+                    Success rate: <strong>${debugDetails.swapAttempts > 0 ? ((debugDetails.successfulSwaps / debugDetails.swapAttempts) * 100).toFixed(1) : 0}%</strong>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 20px; padding: 10px; background: #3a3a3a; border-radius: 4px;">
+                <h4 style="color: #2196F3; margin: 0 0 10px 0;">Swap Types</h4>
+                <div style="color: #ccc;">
+                    Direct swaps: <strong>${debugDetails.swapTypes.direct}</strong><br>
+                    Broader swaps: <strong>${debugDetails.swapTypes.broader}</strong><br>
+                    Unused tile swaps: <strong>${debugDetails.swapTypes.unused}</strong><br>
+                    Random swaps: <strong>${debugDetails.swapTypes.random}</strong>
+                </div>
+            </div>
+        `;
+
+        if (debugDetails.scoreImprovements.length > 0) {
+            const totalImprovement = debugDetails.scoreImprovements.reduce((sum, imp) => sum + imp.improvement, 0);
+            content += `
+                <div style="margin-bottom: 20px; padding: 10px; background: #3a3a3a; border-radius: 4px;">
+                    <h4 style="color: #FF9800; margin: 0 0 10px 0;">Score Improvements</h4>
+                    <div style="color: #ccc;">
+                        Total improvement: <strong>${totalImprovement.toFixed(1)}</strong><br>
+                        Average per swap: <strong>${(totalImprovement / debugDetails.scoreImprovements.length).toFixed(1)}</strong><br>
+                        Number of improvements: <strong>${debugDetails.scoreImprovements.length}</strong>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    content += `
+            <div style="margin-top: 20px; padding: 10px; background: #444; border-radius: 4px;">
+                <h4 style="color: #9C27B0; margin: 0 0 10px 0;">Debug Tips</h4>
+                <ul style="color: #ccc; margin: 0; padding-left: 20px;">
+                    <li>Enable "Debug Mode" in Advanced Settings for verbose console output</li>
+                    <li>Check browser console (F12) for detailed balancing logs</li>
+                    <li>High constraint failures suggest tight generation settings</li>
+                    <li>Low success rates may indicate limited improvement opportunities</li>
+                    <li>Unused tile swaps help when regular swaps aren't enough</li>
+                </ul>
+            </div>
+        </div>
+    `;
+
+    showPopup({
+        content: content,
+        actions: [],
+        title: 'Debug Information',
+        id: 'milty-debug-info',
+        draggable: true,
+        dragHandleSelector: '.popup-ui-titlebar',
+        scalable: true,
+        rememberPosition: true,
+        showHelp: true,
+        onHelp: () => {
+            showPopup({
+                content: `
+                    <div style="padding: 20px; line-height: 1.5; max-width: 500px;">
+                        <h3 style="color: #ffe066; margin-top: 0;">Debug Info Help</h3>
+                        <p style="color: #ccc;">This popup displays detailed statistics about the slice balancing process, including swap attempts, success rates, constraint failures, and improvement tracking. Use this information to diagnose balancing issues and tune your settings for better results.</p>
+                        <ul style="color: #aaa; font-size: 13px;">
+                            <li><b>Swap Attempts:</b> Number of swap tests performed during balancing.</li>
+                            <li><b>Successful Swaps:</b> Swaps that improved balance and were applied.</li>
+                            <li><b>Constraint Failures:</b> Swaps that were rejected due to slice constraints.</li>
+                            <li><b>Swap Types:</b> Direct, broader, unused tile, and random swaps.</li>
+                            <li><b>Score Improvements:</b> Total and average improvement from swaps.</li>
+                        </ul>
+                    </div>
+                `,
+                actions: [],
+                title: 'Debug Info Help',
+                id: 'milty-debug-info-help',
+                draggable: true,
+                dragHandleSelector: '.popup-ui-titlebar',
+                scalable: true,
+                rememberPosition: true,
+                style: {
+                    width: '500px',
+                    maxWidth: '95vw',
+                    maxHeight: '85vh'
+                }
+            });
+        },
+        style: {
+            width: '500px',
+            maxWidth: '95vw',
+            maxHeight: '85vh'
+        }
+    });
+}

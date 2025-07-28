@@ -511,7 +511,7 @@ Example:
         const textarea = container.querySelector('#importSlicesTextarea');
         const preview = container.querySelector('#importPreview');
         const input = textarea.value.trim();
-        
+
         if (!input) {
             preview.style.display = 'none';
             return;
@@ -533,13 +533,13 @@ Example:
             }
 
             let previewHTML = `<strong>Preview (${sliceLines.length} slice${sliceLines.length === 1 ? '' : 's'}):</strong><br>`;
-            
+
             for (let i = 0; i < sliceLines.length && i < 12; i++) {
                 const realIds = sliceLines[i].split(',').map(id => id.trim()).filter(id => id.length > 0);
                 const isValid = realIds.length === 5 && realIds.every(id => /^\d+$/.test(id));
                 const color = isValid ? '#4CAF50' : '#ff6b6b';
                 const status = isValid ? '✓' : '✗';
-                
+
                 previewHTML += `<span style="color: ${color};">${status} Slot ${i + 1}: ${realIds.join(', ')}</span><br>`;
             }
 
@@ -593,11 +593,11 @@ Example:
             const success = importSlices(slicesData, (msg) => {
                 console.log('Import status:', msg);
             });
-            
+
             if (success) {
                 // Close the popup and refresh UI
                 document.getElementById('milty-import-popup')?.remove();
-                
+
                 // Refresh the MiltyBuilder UI if it's open
                 const miltyUI = document.getElementById('milty-builder-popup');
                 if (miltyUI) {
@@ -662,7 +662,7 @@ Example:
                 </ul>
             </div>
         `;
-        
+
         showPopup({
             content: helpHTML,
             actions: [],
