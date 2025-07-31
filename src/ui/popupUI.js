@@ -45,6 +45,11 @@ export function showPopup({
     popup.className = 'popup-ui' + (className ? ' ' + className : '');
     if (id) popup.id = id;
 
+    // Set initial z-index and make focusable
+    popup.style.zIndex = '1000';
+    popup.tabIndex = -1; // Make focusable but not in tab order
+    popup.style.outline = 'none'; // Remove focus outline for cleaner appearance
+
     // Prevent style.width/height from accumulating (fixes popup growth)
     popup.style.width = '';
     popup.style.height = '';
@@ -271,7 +276,14 @@ export function showPopup({
                 popup.style.position = 'fixed';
                 popup.style.left = left + 'px';
                 popup.style.top = top + 'px';
+                // Ensure popup is confined to window bounds after positioning
+                confinePopupToRect();
             }
+        }, 0);
+    } else {
+        // If we have a stored position, still ensure it's confined to current window bounds
+        setTimeout(() => {
+            confinePopupToRect();
         }, 0);
     }
 
@@ -333,28 +345,28 @@ export function showPopup({
 
     // Add to DOM
     (parent || document.body).appendChild(popup);
+    
+    // Click to focus - bring popup to front when clicked
+    popup.addEventListener('mousedown', function(e) {
+        // Bring this popup to the front by setting a high z-index
+        const allPopups = document.querySelectorAll('.popup-ui');
+        let maxZ = 1000;
+        allPopups.forEach(p => {
+            const z = parseInt(window.getComputedStyle(p).zIndex) || 1000;
+            if (z > maxZ) maxZ = z;
+        });
+        popup.style.zIndex = maxZ + 1;
+        
+        // Focus the popup for keyboard accessibility
+        popup.focus();
+    });
+    
     // Debug: log popup bounding rect and child count after append
     setTimeout(() => {
         const rect = popup.getBoundingClientRect();
         //   console.log('Popup bounding rect after append:', rect);
         //   console.log('Popup child node count:', popup.childNodes.length);
     }, 0);
-
-    // Center popup if no stored position and not already positioned
-    if (!hasStoredPos) {
-        // Wait for DOM to render and size to be set
-        setTimeout(() => {
-            // Only center if not already positioned
-            if (!popup.style.left && !popup.style.top) {
-                const winW = window.innerWidth;
-                const winH = window.innerHeight;
-                const rect = popup.getBoundingClientRect();
-                popup.style.position = 'fixed';
-                popup.style.left = Math.max(0, Math.round((winW - rect.width) / 2)) + 'px';
-                popup.style.top = Math.max(0, Math.round((winH - rect.height) / 2)) + 'px';
-            }
-        }, 0);
-    }
 
     // Focus for accessibility
     setTimeout(() => popup.focus?.(), 0);

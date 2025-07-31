@@ -1,11 +1,16 @@
 // src/modules/Milty/miltyBuilderUI.js
 // User interface generation and event handling for Milty Slice Designer
 // Restored from original miltyBuilderOLD.js
+// 
+// This module contains:
+// - Main UI generation and layout (showMiltyBuilderUI)
+// - UI helper functions for form creation and DOM manipulation
+// - Reusable UI components moved from miltyBuilderPopups.js for better separation of concerns
 
 import { defaultSlices, slotPositions, moveSlice, analyzeSliceOccupancy, generateOutputString, capitalizeTech } from './miltyBuilderCore.js';
 import { drawSlicePositionOverlays, drawSliceBordersOverlay } from './miltyBuilderDraw.js';
 import { showOutputCopyPopup, showDraftValuesPopup } from './miltyBuilderPopups.js';
-import { showMiltyDraftGeneratorPopup } from './miltyBuilderRandomTool.js';
+import { showMiltyDraftGeneratorPopup } from './miltyRandomToolUI.js';
 import { showSanityCheckPopup } from '../../ui/simplepPopup.js';
 
 // Main UI function to create and display the Milty Builder popup
@@ -262,9 +267,7 @@ export function showMiltyBuilderUI(container) {
         const sanityCheckBtn = container.querySelector('#sanityCheckBtn');
         if (sanityCheckBtn) {
             sanityCheckBtn.onclick = () => {
-                import('../../features/sanityCheck.js').then(mod => {
-                    if (mod.showSanityCheckPopup) mod.showSanityCheckPopup();
-                });
+                showSanityCheckPopup();
             };
         }
 
@@ -455,4 +458,466 @@ export function showMiltyBuilderUI(container) {
         }, 100);
 
     }, 0);
+}
+
+// UI Helper Functions for Form Creation and Management
+// These functions were moved from miltyBuilderPopups.js for better separation of concerns
+
+/**
+ * Creates a textarea element with consistent styling
+ */
+export function createStyledTextarea(id, placeholder, height = '200px') {
+    const textarea = document.createElement('textarea');
+    textarea.id = id;
+    textarea.style.cssText = `
+        width: 100%; 
+        height: ${height}; 
+        font-family: monospace; 
+        font-size: 13px; 
+        padding: 8px; 
+        border: 1px solid #555; 
+        background: #2a2a2a; 
+        color: #fff; 
+        border-radius: 4px; 
+        resize: vertical;
+    `;
+    textarea.placeholder = placeholder;
+    return textarea;
+}
+
+/**
+ * Creates a styled button with consistent appearance
+ */
+export function createStyledButton(text, style = {}) {
+    const button = document.createElement('button');
+    button.textContent = text;
+    const defaultStyle = {
+        background: '#28a745',
+        color: 'white',
+        border: 'none',
+        padding: '12px 24px',
+        fontSize: '16px',
+        fontWeight: 'bold',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        minWidth: '150px',
+        ...style
+    };
+    
+    Object.assign(button.style, defaultStyle);
+    return button;
+}
+
+/**
+ * Creates a checkbox with label in a consistent style
+ */
+export function createStyledCheckbox(id, labelText, checked = false) {
+    const label = document.createElement('label');
+    label.style.cssText = `
+        display: inline-flex; 
+        align-items: center; 
+        color: #ccc; 
+        cursor: pointer;
+    `;
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = id;
+    checkbox.checked = checked;
+    checkbox.style.marginRight = '8px';
+    
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(labelText));
+    
+    return { label, checkbox };
+}
+
+/**
+ * Creates a preview container for import data validation
+ */
+export function createPreviewContainer(id) {
+    const preview = document.createElement('div');
+    preview.id = id;
+    preview.style.cssText = `
+        margin-bottom: 15px; 
+        padding: 10px; 
+        background: #1a1a1a; 
+        border-radius: 4px; 
+        font-family: monospace; 
+        font-size: 12px; 
+        color: #aaa; 
+        max-height: 150px; 
+        overflow-y: auto; 
+        display: none;
+    `;
+    return preview;
+}
+
+/**
+ * Updates preview display for slice import validation
+ */
+export function updateSliceImportPreview(textarea, preview) {
+    const input = textarea.value.trim();
+
+    if (!input) {
+        preview.style.display = 'none';
+        return;
+    }
+
+    try {
+        // Parse the input same way as import function
+        let sliceLines = [];
+        if (input.includes(';')) {
+            sliceLines = input.split(';').map(line => line.trim()).filter(line => line.length > 0);
+        } else {
+            sliceLines = input.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+        }
+
+        if (sliceLines.length === 0) {
+            preview.innerHTML = '<span style="color: #ff6b6b;">No valid slice data found</span>';
+            preview.style.display = 'block';
+            return;
+        }
+
+        let previewHTML = `<strong>Preview (${sliceLines.length} slice${sliceLines.length === 1 ? '' : 's'}):</strong><br>`;
+
+        for (let i = 0; i < sliceLines.length && i < 12; i++) {
+            const realIds = sliceLines[i].split(',').map(id => id.trim()).filter(id => id.length > 0);
+            const isValid = realIds.length === 5 && realIds.every(id => /^\d+$/.test(id));
+            const color = isValid ? '#4CAF50' : '#ff6b6b';
+            const status = isValid ? '✓' : '✗';
+
+            previewHTML += `<span style="color: ${color};">${status} Slot ${i + 1}: ${realIds.join(', ')}</span><br>`;
+        }
+
+        if (sliceLines.length > 12) {
+            previewHTML += `<span style="color: #ff9800;">⚠ Only first 12 slices will be imported</span>`;
+        }
+
+        preview.innerHTML = previewHTML;
+        preview.style.display = 'block';
+    } catch (error) {
+        preview.innerHTML = `<span style="color: #ff6b6b;">Parse error: ${error.message}</span>`;
+        preview.style.display = 'block';
+    }
+}
+
+/**
+ * Handles the import process for slice data
+ */
+export function handleSliceImport(slicesData, clearExisting, onProgress, onComplete) {
+    if (!slicesData) {
+        alert('Please enter slice data to import.');
+        return false;
+    }
+
+    // Clear existing slices if requested
+    if (clearExisting) {
+        for (let slotNum = 1; slotNum <= 12; slotNum++) {
+            const slotHexes = window.miltyBuilderCore?.slotPositions?.[slotNum] || [];
+            for (let j = 1; j < slotHexes.length; j++) {
+                const hexId = slotHexes[j];
+                if (window.editor?.clearAll) {
+                    window.editor.clearAll(hexId);
+                }
+            }
+        }
+    }
+
+    // Import the slices
+    import('./miltyBuilderCore.js').then(({ importSlices }) => {
+        const success = importSlices(slicesData, onProgress);
+
+        if (success) {
+            // Close the popup and refresh UI
+            document.getElementById('milty-import-popup')?.remove();
+
+            // Refresh the MiltyBuilder UI if it's open
+            const miltyUI = document.getElementById('milty-builder-popup');
+            if (miltyUI) {
+                // Trigger a refresh of slice button colors
+                setTimeout(() => {
+                    const refreshBtn = miltyUI.querySelector('#refreshOccupancyBtn');
+                    if (refreshBtn) refreshBtn.click();
+                }, 100);
+            }
+            
+            if (onComplete) onComplete(true);
+        } else {
+            alert('Import failed. Check console for details.');
+            if (onComplete) onComplete(false);
+        }
+    }).catch(error => {
+        console.error('Import error:', error);
+        alert('Import failed: ' + error.message);
+        if (onComplete) onComplete(false);
+    });
+
+    return true;
+}
+
+/**
+ * Creates an output display container for draft slice data
+ */
+export function createOutputDisplayContainer(outputData) {
+    const { outputString, completedSlots, totalSlices } = outputData;
+    
+    const container = document.createElement('div');
+    container.style.padding = '10px';
+
+    if (totalSlices === 0) {
+        const noDataMsg = document.createElement('p');
+        noDataMsg.textContent = "No completed draft slices found. Each slice needs 5 systems with realId values.";
+        noDataMsg.style.color = '#888';
+        noDataMsg.style.fontStyle = 'italic';
+        container.appendChild(noDataMsg);
+        return container;
+    }
+
+    // Header
+    const header = document.createElement('h3');
+    header.textContent = `Draft Output (${totalSlices} slice${totalSlices === 1 ? '' : 's'})`;
+    header.style.marginTop = '0';
+    header.style.color = '#ffe066';
+    container.appendChild(header);
+
+    // Slot positions for lookup
+    const slotPositions = {
+        1: [836, 941, 837, 732, 942, 838],
+        2: [624, 625, 521, 520, 626, 522],
+        3: [724, 725, 621, 620, 622, 518],
+        4: [617, 515, 514, 616, 412, 411],
+        5: [510, 408, 509, 611, 407, 508],
+        6: [813, 711, 812, 914, 710, 811],
+        7: [936, 937, 833, 832, 938, 834],
+        8: [1036, 1037, 933, 932, 934, 830],
+        9: [1032, 1033, 929, 928, 930, 826],
+        10: [1028, 926, 925, 1027, 823, 822],
+        11: [1025, 923, 922, 1024, 820, 819],
+        12: [817, 715, 826, 918, 714, 815]
+    };
+
+    // Details section
+    const detailsDiv = document.createElement('div');
+    detailsDiv.style.marginBottom = '15px';
+    detailsDiv.style.fontSize = '0.9em';
+    detailsDiv.style.color = '#ccc';
+
+    const sliceDetails = completedSlots.map(slotNum => {
+        const slotHexes = slotPositions[slotNum];
+        const realIds = [];
+
+        // Get realIds from positions 1-5
+        for (let i = 1; i < slotHexes.length; i++) {
+            const hexId = slotHexes[i];
+            const hex = window.editor?.hexes?.[hexId];
+            if (hex && hex.realId) {
+                realIds.push(hex.realId);
+            }
+        }
+
+        return `<strong>Slot ${slotNum}:</strong> ${realIds.join(', ')}`;
+    }).join('<br>');
+
+    detailsDiv.innerHTML = sliceDetails;
+    container.appendChild(detailsDiv);
+
+    // Output string textarea
+    const outputLabel = document.createElement('label');
+    outputLabel.textContent = 'Copy this string for draft:';
+    outputLabel.style.display = 'block';
+    outputLabel.style.marginBottom = '5px';
+    outputLabel.style.fontWeight = 'bold';
+    container.appendChild(outputLabel);
+
+    const outputTextarea = createStyledTextarea('outputStringTextarea', '', '80px');
+    outputTextarea.value = outputString;
+    outputTextarea.readOnly = true;
+    outputTextarea.style.backgroundColor = '#2a2a2a';
+    outputTextarea.style.border = '1px solid #444';
+    container.appendChild(outputTextarea);
+
+    // Auto-select text when focused
+    outputTextarea.addEventListener('focus', () => {
+        outputTextarea.select();
+    });
+
+    // Instructions
+    const instructions = document.createElement('p');
+    instructions.innerHTML = '<strong>Instructions:</strong> Click the textarea above to select all text, then Ctrl+C to copy.';
+    instructions.style.fontSize = '0.85em';
+    instructions.style.color = '#999';
+    instructions.style.marginTop = '10px';
+    instructions.style.marginBottom = '0';
+    container.appendChild(instructions);
+
+    // Auto-focus and select the textarea
+    setTimeout(() => {
+        outputTextarea.focus();
+        outputTextarea.select();
+    }, 100);
+
+    return container;
+}
+
+/**
+ * Creates a copy-to-clipboard action for output strings
+ */
+export function createCopyToClipboardAction(outputString) {
+    return {
+        text: 'Copy to Clipboard',
+        handler: () => {
+            if (outputString && outputString.length > 0) {
+                navigator.clipboard.writeText(outputString).then(() => {
+                    console.log('Output copied to clipboard');
+                }).catch(err => {
+                    console.error('Failed to copy: ', err);
+                });
+            }
+        }
+    };
+}
+
+/**
+ * Creates a styled table element for data display
+ */
+export function createStyledTable(headers) {
+    const table = document.createElement('table');
+    table.style.cssText = `
+        width: 100%; 
+        font-size: 0.98em; 
+        border-collapse: collapse; 
+        border: 1px solid #444; 
+        border-radius: 4px;
+    `;
+
+    if (headers && headers.length > 0) {
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        headerRow.style.cssText = 'background: #2196F3; color: white;';
+
+        headers.forEach(headerText => {
+            const th = document.createElement('th');
+            th.style.cssText = 'padding: 8px; border: 1px solid #444; text-align: left;';
+            th.innerHTML = headerText;
+            headerRow.appendChild(th);
+        });
+
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+    }
+
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    return { table, tbody };
+}
+
+/**
+ * Creates a styled table row with specified background
+ */
+export function createStyledTableRow(cells, isEvenRow = false) {
+    const row = document.createElement('tr');
+    row.style.background = isEvenRow ? '#2a2a2a' : '#333';
+
+    cells.forEach(cellContent => {
+        const td = document.createElement('td');
+        td.style.cssText = 'padding: 6px 8px; border: 1px solid #444;';
+        if (typeof cellContent === 'string') {
+            td.innerHTML = cellContent;
+        } else {
+            td.appendChild(cellContent);
+        }
+        row.appendChild(td);
+    });
+
+    return row;
+}
+
+/**
+ * Creates a message container for empty states
+ */
+export function createEmptyStateMessage(message) {
+    const p = document.createElement('p');
+    p.textContent = message;
+    p.style.cssText = 'color: #888; font-style: italic;';
+    return p;
+}
+
+/**
+ * Creates the draft values analysis table structure
+ */
+export function createDraftValuesAnalysisContainer() {
+    const container = document.createElement('div');
+    
+    // Check if we have any draft slices with systems
+    const slotPositions = {
+        1: [836, 941, 837, 732, 942, 838],
+        2: [624, 625, 521, 520, 626, 522],
+        3: [724, 725, 621, 620, 622, 518],
+        4: [617, 515, 514, 616, 412, 411],
+        5: [510, 408, 509, 611, 407, 508],
+        6: [813, 711, 812, 914, 710, 811],
+        7: [936, 937, 833, 832, 938, 834],
+        8: [1036, 1037, 933, 932, 934, 830],
+        9: [1032, 1033, 929, 928, 930, 826],
+        10: [1028, 926, 925, 1027, 823, 822],
+        11: [1025, 923, 922, 1024, 820, 819],
+        12: [817, 715, 826, 918, 714, 815]
+    };
+
+    let hasData = false;
+    for (let slotNum = 1; slotNum <= 12; slotNum++) {
+        const slotHexes = slotPositions[slotNum];
+        if (!slotHexes) continue;
+
+        // Check positions 1-5 (skip homesystem at position 0)
+        for (let i = 1; i < slotHexes.length; i++) {
+            const hexId = slotHexes[i];
+            const hex = window.editor?.hexes?.[hexId];
+            if (hex && (hex.realId || hex.planets?.length > 0)) {
+                hasData = true;
+                break;
+            }
+        }
+        if (hasData) break;
+    }
+
+    if (!hasData) {
+        const message = createEmptyStateMessage(
+            "No draft slices with systems found. Load MiltyBuilder.json and populate some draft slots first."
+        );
+        container.appendChild(message);
+        return { container, hasData: false };
+    }
+
+    // Create table with headers
+    const headers = [
+        'Draft Slot',
+        'Planets', 
+        'Techs', 
+        'R/I<br><span style="font-weight:400;">Ideal</span>',
+        'Wormholes',
+        'Status'
+    ];
+    
+    const { table, tbody } = createStyledTable(headers);
+    container.appendChild(table);
+
+    return { container, tbody, hasData: true, slotPositions };
+}
+
+/**
+ * Formats tile labels for compact display in analysis table
+ */
+export function formatTileLabelsForDisplay(sliceHexLabels) {
+    const tilesPerRow = Math.ceil(sliceHexLabels.length / 2);
+    const tileRow1 = sliceHexLabels.slice(0, tilesPerRow).join(', ');
+    const tileRow2 = sliceHexLabels.slice(tilesPerRow).join(', ');
+    
+    return sliceHexLabels.length > 0 ? `
+        <div style="font-size:0.85em;color:#888;line-height:1.1;margin-top:3px;">
+            ${tileRow1 || ''}<br>${tileRow2 || ''}
+        </div>
+    ` : '';
 }

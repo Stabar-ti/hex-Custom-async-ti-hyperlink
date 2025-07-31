@@ -11,12 +11,18 @@ const EXCLUDED_TILE_IDS = [
     // Add more as needed
 ];
 // src/modules/Milty/miltyBuilderRandomTool.js
-// Milty Draft Slice Generation Tool with advanced settings and weighting
+// Milty Draft Slice Generation Tool - Core Logic
+// UI functions have been moved to miltyRandomToolUI.js for better separation of concerns
 
-import { showPopup } from '../../ui/popupUI.js';
+console.log('🚀 miltyBuilderRandomTool.js module is loading...');
+
 import { assignSystem } from '../../features/assignSystem.js';
 import { markRealIDUsed, unmarkRealIDUsed } from '../../ui/uiFilters.js';
 import { slotPositions } from './miltyBuilderCore.js';
+
+console.log('✅ All imports loaded successfully in miltyBuilderRandomTool.js');
+
+// No UI imports needed - the UI module will handle all UI calls
 
 // Default generation settings
 const DEFAULT_SETTINGS = {
@@ -83,275 +89,84 @@ const DEFAULT_WEIGHTS = {
 let currentSettings = { ...DEFAULT_SETTINGS };
 let currentWeights = { ...DEFAULT_WEIGHTS };
 
-// Debug settings
+// Debug settings - store in global scope to persist across module reloads
 let debugMode = false;
-let debugDetails = {
-    swapAttempts: 0,
-    successfulSwaps: 0,
-    swapTypes: { direct: 0, broader: 0, unused: 0, random: 0 },
-    constraintFailures: 0,
-    scoreImprovements: []
-};
 
-/**
- * Shows the main Milty Draft Generation popup
- */
-export function showMiltyDraftGeneratorPopup() {
-    const content = createGeneratorPopupContent();
-
-    showPopup({
-        content: content,
-        actions: [
-            {
-                label: 'Generate Slices',
-                action: () => generateMiltySlices()
-            },
-            {
-                label: 'Weighting Settings',
-                action: () => showWeightingSettingsPopup()
-            },
-            {
-                label: 'Debug Info',
-                action: () => showDebugInfo()
-            }
-        ],
-        title: 'Milty Draft Slice Generator',
-        id: 'milty-draft-generator-popup',
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        showHelp: true,
-        onHelp: () => showMiltyGeneratorHelp(),
-        style: {
-            width: '650px',
-            maxWidth: '95vw',
-            maxHeight: '85vh'
-        }
-    });
-    // Ensure event handlers are attached after popup is rendered
-    setTimeout(() => {
-        initializeGeneratorPopup();
-    }, 0);
+// Store debug details in global scope so they persist across module instances
+if (!window.miltyDebugState) {
+    window.miltyDebugState = {
+        debugDetails: {
+            swapAttempts: 0,
+            successfulSwaps: 0,
+            swapTypes: { direct: 0, broader: 0, unused: 0, random: 0 },
+            constraintFailures: 0,
+            scoreImprovements: []
+        },
+        debugMode: false
+    };
 }
 
-/**
- * Creates the main generator popup content
- */
-function createGeneratorPopupContent() {
-    return `
-        <div style="padding: 20px; line-height: 1.5;">
-            <h3 style="color: #ffe066; margin-top: 0;">Slice Generation</h3>
-            
-            <!-- Basic Settings -->
-            <div style="margin-bottom: 25px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #4CAF50;">
-                    Number of Slices to Generate:
-                </label>
-                <input type="number" id="sliceCount" value="${currentSettings.sliceCount}" 
-                       min="3" max="12" step="1"
-                       style="width: 80px; padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-            </div>
-            
-            <!-- Wormhole Settings -->
-            <div style="margin-bottom: 25px; padding: 15px; background: #3a3a3a; border-radius: 6px; border: 1px solid #555;">
-                <h4 style="color: #2196F3; margin: 0 0 12px 0;">Wormholes</h4>
-                
-                <div style="margin-bottom: 10px;">
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="includeAlphaBeta" ${currentSettings.wormholes.includeAlphaBeta ? 'checked' : ''}
-                               style="margin-right: 8px;">
-                        <span>Include at least 2 alpha and beta wormholes</span>
-                    </label>
-                    <p style="margin: 5px 0 0 26px; font-size: 12px; color: #aaa; font-style: italic;">
-                        So at least 4 in total, divided over the slices. A slice will never have two of the same wormholes.
-                    </p>
-                </div>
-                
-                <div style="margin-bottom: 10px;">
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="maxOneWormhole" ${currentSettings.wormholes.maxPerSlice === 1 ? 'checked' : ''}
-                               style="margin-right: 8px;">
-                        <span>Max. 1 wormhole per slice</span>
-                    </label>
-                </div>
-            </div>
-            
-            <!-- Legendaries Settings -->
-            <div style="margin-bottom: 25px; padding: 15px; background: #3a3a3a; border-radius: 6px; border: 1px solid #555;">
-                <h4 style="color: #FF9800; margin: 0 0 12px 0;">Legendaries</h4>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <label style="font-weight: bold;">Minimum legendary planets:</label>
-                    <input type="number" id="minLegendaries" value="${currentSettings.legendaries.minimum}" 
-                           min="0" max="6" step="1"
-                           style="width: 60px; padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    <label style="font-weight: bold; margin-left: 20px;">Maximum legendary planets:</label>
-                    <input type="number" id="maxLegendaries" value="${currentSettings.legendaries.maximum}" 
-                           min="0" max="6" step="1"
-                           style="width: 60px; padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                </div>
-                <p style="margin: 8px 0 0 0; font-size: 12px; color: #aaa; font-style: italic;">
-                    PoK includes 2 draftable legendary planets (and 2 more that are spawned by player action).
-                    Discordant Stars has 6 more.
-                </p>
-            </div>
-            
-            <!-- Source Settings -->
-            <div style="margin-bottom: 25px; padding: 15px; background: #3a3a3a; border-radius: 6px; border: 1px solid #555;">
-                <h4 style="color: #9C27B0; margin: 0 0 12px 0;">Tile Sources</h4>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="sourceBase" ${currentSettings.sources.base ? 'checked' : ''}
-                               style="margin-right: 8px;">
-                        <span>Base Game</span>
-                    </label>
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="sourcePokCodex" ${currentSettings.sources.pokCodex ? 'checked' : ''}
-                               style="margin-right: 8px;">
-                        <span>PoK + Codex</span>
-                    </label>
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="sourceDSUncharted" ${currentSettings.sources.dsUncharted ? 'checked' : ''}
-                               style="margin-right: 8px;">
-                        <span>Discordant Stars / Uncharted Space</span>
-                    </label>
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="sourceEronous" ${currentSettings.sources.eronous ? 'checked' : ''}
-                               style="margin-right: 8px;">
-                        <span>Eronous / Lost Star Charts of Ixth / Somno</span>
-                    </label>
-                </div>
-            </div>
-            
-            <!-- Score Balancing (moved out of Advanced Settings) -->
-            <div style="margin-bottom: 25px; padding: 15px; background: #3a3a3a; border-radius: 6px; border: 1px solid #555;">
-                <h4 style="color: #607D8B; margin: 0 0 12px 0;">Score Balancing</h4>
-                <label style="display: flex; align-items: center; cursor: pointer;">
-                    <input type="checkbox" id="enableScoreBalancing" ${currentSettings.scoreBalancing.enabled ? 'checked' : ''}
-                           style="margin-right: 8px;">
-                    <span>Enable score balancing</span>
-                </label>
-                <div style="display: flex; align-items: center; gap: 10px; margin-left: 26px; margin-top: 8px;">
-                    <label for="targetRatioPercent" style="font-size: 13px; color: #ccc;">Target % (weakest/strongest):</label>
-                    <input type="number" id="targetRatioPercent" min="50" max="100" step="1" value="${Math.round((currentSettings.scoreBalancing.targetRatio || 0.75) * 100)}" style="width: 60px; padding: 4px; border: 1px solid #666; border-radius: 3px; background: #222; color: #fff;">
-                    <span style="font-size: 13px; color: #aaa;">%</span>
-                </div>
-                <p style="margin: 5px 0 0 26px; font-size: 12px; color: #aaa; font-style: italic;">
-                    Attempts to balance slice scores by swapping systems between slices to reduce score variance. The target percentage sets how close the weakest slice must be to the strongest (e.g., 80% means weakest slice must be at least 80% of the strongest slice's score).
-                </p>
-            </div>
-            <!-- Advanced Settings (now only debug and slice generation) -->
-            <div style="margin-bottom: 20px;">
-                <button id="toggleAdvanced" 
-                        style="background: #555; color: #fff; border: 1px solid #777; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
-                    Advanced Settings
-                </button>
-            </div>
-            <div id="advancedSettings" style="display: none; padding: 15px; background: #3a3a3a; border-radius: 6px; border: 1px solid #555;">
-                <h4 style="color: #607D8B; margin: 15px 0 12px 0;">Slice Generation</h4>
-                <p style="margin: 0 0 15px 0; font-size: 13px; color: #ccc;">
-                    The "Optimal Value" of a planet is calculated by using the higher of its resource value and influence value
-                    as that value, and the other value as zero. If both the planet's resource value and influence value are
-                    equal, half that value is used for both of its optimal values. For example, Starpoint, a 3/1, is treated as 3/0.
-                    Coorneeq, a 1/2, is treated as 0/2, and Rigel III, a 1/1, is treated as 1/2/1/2.
-                </p>
-                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px; align-items: center;">
-                    <label style="font-weight: bold;">Minimum Planet Systems per Slice</label>
-                    <input type="number" id="minPlanetSystems" value="${currentSettings.sliceGeneration.minPlanetSystems}" 
-                           min="1" max="5" step="1"
-                           style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    <label style="font-weight: bold;">Maximum Planet Systems per Slice</label>
-                    <input type="number" id="maxPlanetSystems" value="${currentSettings.sliceGeneration.maxPlanetSystems}" 
-                           min="1" max="5" step="1"
-                           style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    <label style="font-weight: bold;">Minimum Optimal Influence</label>
-                    <input type="number" id="minOptimalInfluence" value="${currentSettings.sliceGeneration.minOptimalInfluence}" 
-                           min="0" max="10" step="0.5"
-                           style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    <label style="font-weight: bold;">Minimum Optimal Resources</label>
-                    <input type="number" id="minOptimalResources" value="${currentSettings.sliceGeneration.minOptimalResources}" 
-                           min="0" max="10" step="0.5"
-                           style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    <label style="font-weight: bold;">Minimum Optimal Total</label>
-                    <input type="number" id="minOptimalTotal" value="${currentSettings.sliceGeneration.minOptimalTotal}" 
-                           min="0" max="20" step="0.5"
-                           style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    <label style="font-weight: bold;">Maximum Optimal Total</label>
-                    <input type="number" id="maxOptimalTotal" value="${currentSettings.sliceGeneration.maxOptimalTotal}" 
-                           min="0" max="30" step="0.5"
-                           style="padding: 5px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                </div>
-                <p style="margin: 15px 0 0 0; font-size: 12px; color: #aaa; font-style: italic;">
-                    Planet systems contain planets with resources/influence. Non-planet systems include anomalies, empty space, and wormhole-only systems.
-                </p>
-                <h4 style="color: #607D8B; margin: 15px 0 12px 0;">Debug</h4>
-                <div style="margin-bottom: 15px;">
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="enableDebugMode" ${debugMode ? 'checked' : ''}
-                               style="margin-right: 8px;">
-                        <span>Enable detailed balancing debug output</span>
-                    </label>
-                    <p style="margin: 5px 0 0 26px; font-size: 12px; color: #aaa; font-style: italic;">
-                        Shows verbose console logging for balancing attempts, swap details, and constraint failures.
-                    </p>
-                </div>
-            </div>
-            
-            <!-- Generation Status -->
-            <div id="generationStatus" style="margin-top: 20px; padding: 10px; background: rgba(76,175,80,0.1); border-radius: 4px; border: 1px solid rgba(76,175,80,0.3); display: none;">
-                <div style="color: #4CAF50; font-weight: bold;" id="statusText">Ready to generate slices...</div>
-                <div style="margin-top: 5px;">
-                    <div style="background: #555; height: 6px; border-radius: 3px; overflow: hidden;">
-                        <div id="progressBar" style="background: #4CAF50; height: 100%; width: 0%; transition: width 0.3s;"></div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Slice Scores -->
-            <div id="sliceScores" style="margin-top: 20px; padding: 15px; background: rgba(33,150,243,0.1); border-radius: 4px; border: 1px solid rgba(33,150,243,0.3); display: none;">
-                <h4 style="color: #2196F3; margin: 0 0 12px 0;">Generated Slice Scores</h4>
-                <div id="scoresContent" style="font-family: monospace; font-size: 13px; line-height: 1.4;">
-                    <!-- Scores will be populated here -->
-                </div>
-            </div>
-        </div>
-    `;
+// Use global debug state
+let debugDetails = window.miltyDebugState.debugDetails;
+
+// Helper function to keep global debug state in sync
+function syncDebugState() {
+    if (debugMode) {
+        window.miltyDebugState.debugDetails = debugDetails;
+        window.miltyDebugState.debugMode = debugMode;
+    }
 }
 
-/**
- * Shows the weighting settings popup
- */
-function showWeightingSettingsPopup() {
-    const content = createWeightingPopupContent();
-
-    showPopup({
-        content: content,
-        actions: [
-            {
-                label: 'Save Weights',
-                action: () => saveWeightingSettings()
-            },
-            {
-                label: 'Reset to Defaults',
-                action: () => resetWeightingSettings()
-            }
-        ],
-        title: 'Slice Evaluation Weights',
-        id: 'milty-weighting-popup',
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        showHelp: true,
-        onHelp: () => showWeightingHelp(),
-        style: {
-            width: '600px',
-            maxWidth: '95vw',
-            maxHeight: '85vh'
-        }
-    });
+// Export accessor functions for UI module
+export function getCurrentWeights() {
+    return { ...currentWeights };
 }
+
+export function setCurrentSettings(settings) {
+    currentSettings = { ...settings };
+    debugMode = settings.debugMode;
+    // Also store in global state to persist across module reloads
+    window.miltyDebugState.debugMode = settings.debugMode;
+    console.log('🔧 Settings updated:', currentSettings);
+    console.log('🔧 Debug mode specifically set to:', debugMode);
+    console.log('🔧 Global debug mode set to:', window.miltyDebugState.debugMode);
+    console.log('🔧 Settings.debugMode was:', settings.debugMode);
+}
+
+export function getCurrentSettings() {
+    return { ...currentSettings };
+}
+
+export function setCurrentWeights(weights) {
+    currentWeights = { ...weights };
+    console.log('🎛️ Weights updated:', currentWeights);
+}
+
+export function resetWeightsToDefault() {
+    currentWeights = { ...DEFAULT_WEIGHTS };
+    console.log('🔄 Weights reset to default');
+}
+
+export function getDebugDetails() {
+    console.log('🔍 getDebugDetails called');
+    
+    // Sync debug mode from global state
+    debugMode = window.miltyDebugState.debugMode;
+    debugDetails = window.miltyDebugState.debugDetails;
+    
+    console.log('🔍 Current debugMode variable:', debugMode);
+    console.log('🔍 Global debugMode state:', window.miltyDebugState.debugMode);
+    console.log('🔍 Current debugDetails:', debugDetails);
+    console.log('🔍 debugDetails.swapAttempts:', debugDetails.swapAttempts);
+    return debugDetails;
+}
+
+export { calculateSliceScore };
+
+// Simple test export to verify module loading
+export const moduleTest = 'Module loaded successfully!';
+
+console.log('📦 All functions exported from miltyBuilderRandomTool.js');
 
 /**
  * Creates the weighting settings popup content
@@ -475,71 +290,44 @@ export function initializeGeneratorPopup() {
 
 /**
  * Generate Milty slices based on current settings
+ * This is the core generation function without UI calls
  */
-async function generateMiltySlices() {
-    try {
-        // Update settings from UI
-        updateSettingsFromUI();
+export async function generateMiltySlices() {
+    console.log('🔥 generateMiltySlices function called!');
+    // Settings should be updated by UI before calling this function
 
-        // Hide previous scores and show progress
-        hideSliceScores();
-        showGenerationProgress('Initializing generation...', 0);
+    // Get available systems
+    const availableSystems = getAvailableSystems();
+    console.log('Available systems:', availableSystems.length);
+    console.log('First 10 systems:', availableSystems.slice(0, 10).map(s => `${s.id}:${s.name || 'Unknown'}`));
 
-        // Get available systems
-        const availableSystems = getAvailableSystems();
-        console.log('Available systems:', availableSystems.length);
-        console.log('First 10 systems:', availableSystems.slice(0, 10).map(s => `${s.id}:${s.name || 'Unknown'}`));
-
-        showGenerationProgress('Loading available systems...', 10);
-
-        if (availableSystems.length === 0) {
-            throw new Error('No systems available with current source settings');
-        }
-
-        // Generate slices
-        const slices = await generateSlicesWithConstraints(availableSystems);
-        console.log('Generated slices:', slices);
-        console.log('Number of slices generated:', slices.length);
-
-        // Apply score balancing if enabled
-        if (currentSettings.scoreBalancing.enabled) {
-            showGenerationProgress('Balancing slice scores...', 70);
-            await balanceSliceScores(slices);
-        }
-
-        // Show unused tile statistics
-        showUnusedTileStatistics(slices, availableSystems);
-
-        // Log detailed slice information
-        slices.forEach((slice, i) => {
-            const planetSystems = slice.systems.filter(s => s.planets && s.planets.length > 0);
-            const emptySystems = slice.systems.filter(s => !s.planets || s.planets.length === 0);
-
-            console.log(`Slice ${i}: ${slice.systems.length} systems (${planetSystems.length} planet + ${emptySystems.length} empty/anomaly) - ${slice.totalResources}R/${slice.totalInfluence}I, ${slice.optimalResources}/${slice.optimalInfluence} optimal`);
-            console.log(`  Systems:`, slice.systems.map(s => `${s.id}:${s.name || 'Unknown'}`));
-        });
-
-        showGenerationProgress('Placing slices on map...', currentSettings.scoreBalancing.enabled ? 85 : 80);
-
-        // Place slices on the map
-        await placeSlicesOnMap(slices);
-        showGenerationProgress('Generation complete!', 100);
-
-        // Show slice scores
-        showSliceScores(slices);
-
-        // Hide progress after a moment
-        setTimeout(() => {
-            hideGenerationProgress();
-        }, 2000);
-
-    } catch (error) {
-        console.error('Slice generation failed:', error);
-        showGenerationProgress(`Error: ${error.message}`, 0);
-        setTimeout(() => {
-            hideGenerationProgress();
-        }, 3000);
+    if (availableSystems.length === 0) {
+        throw new Error('No systems available with current source settings');
     }
+
+    // Generate slices
+    const slices = await generateSlicesWithConstraints(availableSystems);
+    console.log('Generated slices:', slices);
+    console.log('Number of slices generated:', slices.length);
+
+    // Apply score balancing if enabled
+    if (currentSettings.scoreBalancing.enabled) {
+        await balanceSliceScores(slices);
+    }
+
+    // Log detailed slice information
+    slices.forEach((slice, i) => {
+        const planetSystems = slice.systems.filter(s => s.planets && s.planets.length > 0);
+        const emptySystems = slice.systems.filter(s => !s.planets || s.planets.length === 0);
+
+        console.log(`Slice ${i}: ${slice.systems.length} systems (${planetSystems.length} planet + ${emptySystems.length} empty/anomaly) - ${slice.totalResources}R/${slice.totalInfluence}I, ${slice.optimalResources}/${slice.optimalInfluence} optimal`);
+        console.log(`  Systems:`, slice.systems.map(s => `${s.id}:${s.name || 'Unknown'}`));
+    });
+
+    // Place slices on the map
+    await placeSlicesOnMap(slices);
+
+    return slices; // Return the slices for UI to handle
 }
 
 /**
@@ -736,7 +524,7 @@ async function generateSlicesWithConstraints(availableSystems) {
     while (attempts < maxAttempts) {
         attempts++;
         if (attempts % 50 === 0) {
-            showGenerationProgress(`Attempting generation... (${attempts}/${maxAttempts})`, 20 + (attempts / maxAttempts) * 60);
+            // Progress updates handled by UI layer
             await new Promise(resolve => setTimeout(resolve, 10));
         }
         try {
@@ -1061,7 +849,7 @@ async function balanceSliceScores(slices) {
     const maxBalancingAttempts = 500; // Reduced for better performance
     const targetRatio = currentSettings.scoreBalancing.targetRatio;
 
-    // Reset debug tracking
+    // Reset debug tracking - use global state
     if (debugMode) {
         debugDetails = {
             swapAttempts: 0,
@@ -1070,6 +858,8 @@ async function balanceSliceScores(slices) {
             constraintFailures: 0,
             scoreImprovements: []
         };
+        // Store in global state
+        window.miltyDebugState.debugDetails = debugDetails;
     }
 
     console.log('Starting score balancing...');
@@ -1148,6 +938,7 @@ async function balanceSliceScores(slices) {
                     if (debugMode) {
                         debugDetails.successfulSwaps++;
                         debugDetails.swapTypes.direct++;
+                        syncDebugState(); // Keep global state in sync
                     }
 
                     const newWeakScore = calculateSliceScore(weakestSlice);
@@ -1162,6 +953,7 @@ async function balanceSliceScores(slices) {
                             improvement: (newWeakScore - minScore) + (newStrongScore - maxScore),
                             systems: [weakSystem.id, strongSystem.id]
                         });
+                        syncDebugState(); // Keep global state in sync
                     }
                 }
             }
@@ -1284,6 +1076,7 @@ function testSystemSwap(slice1, slice2, sys1Index, sys2Index, allScores) {
 
     if (debugMode) {
         debugDetails.swapAttempts++;
+        window.miltyDebugState.debugDetails = debugDetails; // Keep global state in sync
     }
 
     // Create test copies
@@ -1302,6 +1095,7 @@ function testSystemSwap(slice1, slice2, sys1Index, sys2Index, allScores) {
     if (!validateSliceConstraintsRelaxed(slice1Copy) || !validateSliceConstraintsRelaxed(slice2Copy)) {
         if (debugMode) {
             debugDetails.constraintFailures++;
+            syncDebugState(); // Keep global state in sync
             console.log(`❌ Constraint failure: ${system1.id} <-> ${system2.id}`);
         }
         return false;
@@ -1686,373 +1480,4 @@ async function placeSlicesOnMap(slices) {
     console.log('Slice placement complete');
 }
 
-/**
- * Save weighting settings
- */
-function saveWeightingSettings() {
-    // Update weights from UI
-    Object.keys(currentWeights).forEach(key => {
-        const input = document.getElementById(`weight_${key}`);
-        if (input) {
-            currentWeights[key] = parseFloat(input.value) || 0;
-        }
-    });
 
-    // Close popup
-    const popup = document.getElementById('milty-weighting-popup');
-    if (popup) {
-        popup.remove();
-    }
-
-    alert('Weighting settings saved!');
-}
-
-/**
- * Reset weighting settings to defaults
- */
-function resetWeightingSettings() {
-    currentWeights = { ...DEFAULT_WEIGHTS };
-
-    // Update UI
-    Object.keys(currentWeights).forEach(key => {
-        const input = document.getElementById(`weight_${key}`);
-        if (input) {
-            input.value = currentWeights[key];
-        }
-    });
-}
-
-/**
- * Show slice scores
- */
-function showSliceScores(slices) {
-    const scoresDiv = document.getElementById('sliceScores');
-    const contentDiv = document.getElementById('scoresContent');
-
-    if (!scoresDiv || !contentDiv) return;
-
-    // Calculate scores and sort slices by score (best to worst)
-    const scoredSlices = slices.map((slice, index) => ({
-        index,
-        slice,
-        score: calculateSliceScore(slice)
-    })).sort((a, b) => b.score - a.score);
-
-    // Create content
-    let content = '';
-    content += '<div style="color: #ccc; margin-bottom: 10px; font-size: 12px;">Higher scores indicate better slice quality based on current weighting settings.</div>';
-
-    scoredSlices.forEach(({ index, slice, score }, rank) => {
-        const planetSystems = slice.systems.filter(s => s.planets && s.planets.length > 0);
-        const emptySystems = slice.systems.filter(s => !s.planets || s.planets.length === 0);
-
-        // Color coding based on rank
-        let color = '#4CAF50'; // Green for top slices
-        if (rank >= slices.length * 0.67) color = '#f44336'; // Red for bottom third
-        else if (rank >= slices.length * 0.33) color = '#FF9800'; // Orange for middle third
-
-        content += `<div style="color: ${color}; margin-bottom: 8px;">`;
-        content += `<strong>Slice ${index}</strong>: `;
-        content += `Score <strong>${score.toFixed(1)}</strong> `;
-        content += `(${slice.systems.length} systems: ${planetSystems.length} planet + ${emptySystems.length} empty/anomaly)`;
-        content += `<br><span style="color: #aaa; font-size: 11px; margin-left: 10px;">`;
-        content += `${slice.totalResources}R/${slice.totalInfluence}I, `;
-        content += `${slice.optimalResources.toFixed(1)}/${slice.optimalInfluence.toFixed(1)} optimal`;
-        if (slice.legendaries > 0) content += `, ${slice.legendaries} legendary`;
-        if (slice.wormholes.length > 0) content += `, ${slice.wormholes.length} wormhole`;
-        if (slice.anomalies.length > 0) content += `, ${slice.anomalies.length} anomaly`;
-        content += `</span></div>`;
-    });
-
-    contentDiv.innerHTML = content;
-    scoresDiv.style.display = 'block';
-}
-
-/**
- * Hide slice scores
- */
-function hideSliceScores() {
-    const scoresDiv = document.getElementById('sliceScores');
-    if (scoresDiv) scoresDiv.style.display = 'none';
-}
-
-/**
- * Show generation progress
- */
-function showGenerationProgress(message, progress) {
-    const statusDiv = document.getElementById('generationStatus');
-    const statusText = document.getElementById('statusText');
-    const progressBar = document.getElementById('progressBar');
-
-    if (statusDiv) statusDiv.style.display = 'block';
-    if (statusText) statusText.textContent = message;
-    if (progressBar) progressBar.style.width = `${progress}%`;
-}
-
-/**
- * Hide generation progress
- */
-function hideGenerationProgress() {
-    const statusDiv = document.getElementById('generationStatus');
-    if (statusDiv) statusDiv.style.display = 'none';
-}
-
-/**
- * Show generator help
- */
-function showMiltyGeneratorHelp() {
-    const helpContent = `
-        <div style="max-height: 60vh; overflow-y: auto; padding: 15px; line-height: 1.6;">
-            <h3 style="color: #ffe066; margin-top: 0;">Milty Draft Generator Help</h3>
-            
-            <h4 style="color: #4CAF50;">Overview</h4>
-            <p>This tool generates balanced slice sets for Milty Draft format tournaments. It uses configurable constraints and weighting to create fair, competitive slices.</p>
-            
-            <h4 style="color: #4CAF50;">Settings</h4>
-            <ul>
-                <li><strong>Slice Count:</strong> Number of slices to generate (3-12)</li>
-                <li><strong>Wormholes:</strong> Control wormhole distribution across slices</li>
-                <li><strong>Legendaries:</strong> Minimum legendary planets in the entire set</li>
-                <li><strong>Sources:</strong> Which tile sets to include</li>
-            </ul>
-            
-            <h4 style="color: #4CAF50;">Advanced Settings</h4>
-            <p><strong>Optimal Values:</strong> Based on Milty's calculation where the higher of resource/influence is used, with equal values split in half.</p>
-            <p><strong>Score Balancing:</strong> When enabled, the generator attempts to balance slice scores by swapping systems between slices to ensure the weakest slice has at least 75% of the strongest slice's score.</p>
-            
-            <h4 style="color: #4CAF50;">Weighting System</h4>
-            <p>The weighting system evaluates slice quality by assigning point values to different features. Higher weights are better, negative weights are penalties.</p>
-        </div>
-    `;
-
-    showPopup({
-        content: helpContent,
-        actions: [],
-        title: 'Generator Help',
-        id: 'milty-generator-help',
-        style: { width: '500px', maxWidth: '95vw' }
-    });
-}
-
-/**
- * Show weighting help
- */
-function showWeightingHelp() {
-    const helpContent = `
-        <div style="max-height: 60vh; overflow-y: auto; padding: 15px; line-height: 1.6;">
-            <h3 style="color: #ffe066; margin-top: 0;">Weighting System Help</h3>
-            
-            <p>The weighting system assigns numerical values to different slice features to evaluate overall slice quality.</p>
-            
-            <h4 style="color: #4CAF50;">How It Works</h4>
-            <ul>
-                <li><strong>Positive weights:</strong> Add to slice score (better)</li>
-                <li><strong>Negative weights:</strong> Subtract from slice score (penalties)</li>
-                <li><strong>Zero weights:</strong> No effect on score</li>
-            </ul>
-            
-            <h4 style="color: #4CAF50;">Recommended Values</h4>
-            <ul>
-                <li><strong>Supernovas:</strong> -5 (major penalty)</li>
-                <li><strong>Asteroids:</strong> -1 (minor penalty)</li>
-                <li><strong>Nebulas:</strong> 0 (neutral)</li>
-                <li><strong>Tech Specialties:</strong> +2 (valuable)</li>
-                <li><strong>Legendaries:</strong> +5 (very valuable)</li>
-            </ul>
-            
-            <p>Adjust weights based on your tournament's meta and player preferences.</p>
-        </div>
-    `;
-
-    showPopup({
-        content: helpContent,
-        actions: [],
-        title: 'Weighting Help',
-        id: 'milty-weighting-help',
-        style: { width: '500px', maxWidth: '95vw' }
-    });
-}
-
-/**
- * Show statistics about unused tiles
- */
-function showUnusedTileStatistics(slices, availableSystems) {
-    const usedSystemIds = new Set();
-
-    // Collect all used system IDs
-    slices.forEach(slice => {
-        slice.systems.forEach(sys => usedSystemIds.add(sys.id));
-    });
-
-    // Find unused systems
-    const unusedSystems = availableSystems.filter(sys => !usedSystemIds.has(sys.id));
-
-    console.log(`\n=== Unused Tile Statistics ===`);
-    console.log(`Total available systems: ${availableSystems.length}`);
-    console.log(`Used in slices: ${usedSystemIds.size}`);
-    console.log(`Unused systems: ${unusedSystems.length}`);
-
-    if (unusedSystems.length > 0) {
-        // Analyze unused systems
-        const unusedWithPlanets = unusedSystems.filter(s => s.planets && s.planets.length > 0);
-        const unusedAnomalies = unusedSystems.filter(s => !s.planets || s.planets.length === 0);
-
-        console.log(`  - With planets: ${unusedWithPlanets.length}`);
-        console.log(`  - Anomalies/Empty: ${unusedAnomalies.length}`);
-
-        // Show top 5 unused systems with planets (by total resources + influence)
-        if (unusedWithPlanets.length > 0) {
-            const scoredUnused = unusedWithPlanets.map(sys => {
-                let totalRes = 0;
-                let totalInf = 0;
-                if (sys.planets) {
-                    sys.planets.forEach(p => {
-                        totalRes += p.resources || 0;
-                        totalInf += p.influence || 0;
-                    });
-                }
-                return { system: sys, total: totalRes + totalInf, res: totalRes, inf: totalInf };
-            }).sort((a, b) => b.total - a.total);
-
-            console.log(`Top 5 unused planet systems:`);
-            scoredUnused.slice(0, 5).forEach((item, i) => {
-                console.log(`  ${i + 1}. ${item.system.id}: ${item.system.name || 'Unknown'} (${item.res}R/${item.inf}I)`);
-            });
-        }
-
-        // Show unused legendary systems
-        const unusedLegendaries = unusedSystems.filter(sys =>
-            sys.planets && sys.planets.some(p => p.legendaryAbilityName)
-        );
-        if (unusedLegendaries.length > 0) {
-            console.log(`Unused legendary systems: ${unusedLegendaries.map(s => `${s.id}:${s.name || 'Unknown'}`).join(', ')}`);
-        }
-
-        // Show unused tech specialties
-        const unusedTechSpecs = new Set();
-        unusedSystems.forEach(sys => {
-            if (sys.planets) {
-                sys.planets.forEach(p => {
-                    if (p.techSpecialty) unusedTechSpecs.add(p.techSpecialty);
-                });
-            }
-        });
-        if (unusedTechSpecs.size > 0) {
-            console.log(`Unused tech specialties: ${Array.from(unusedTechSpecs).join(', ')}`);
-        }
-    }
-
-    console.log(`===============================\n`);
-}
-
-/**
- * Show debug information popup
- */
-function showDebugInfo() {
-    let content = `
-        <div style="padding: 20px; line-height: 1.5; max-height: 60vh; overflow-y: auto; font-family: monospace;">
-            <h3 style="color: #ffe066; margin-top: 0;">Debug Information</h3>
-    `;
-
-    if (debugDetails.swapAttempts === 0) {
-        content += `
-            <p style="color: #aaa;">No balancing data available yet. Enable debug mode and generate slices with balancing enabled to see detailed statistics.</p>
-        `;
-    } else {
-        content += `
-            <div style="margin-bottom: 20px; padding: 10px; background: #3a3a3a; border-radius: 4px;">
-                <h4 style="color: #4CAF50; margin: 0 0 10px 0;">Balancing Statistics</h4>
-                <div style="color: #ccc;">
-                    Total swap attempts: <strong>${debugDetails.swapAttempts}</strong><br>
-                    Successful swaps: <strong>${debugDetails.successfulSwaps}</strong><br>
-                    Constraint failures: <strong>${debugDetails.constraintFailures}</strong><br>
-                    Success rate: <strong>${debugDetails.swapAttempts > 0 ? ((debugDetails.successfulSwaps / debugDetails.swapAttempts) * 100).toFixed(1) : 0}%</strong>
-                </div>
-            </div>
-            
-            <div style="margin-bottom: 20px; padding: 10px; background: #3a3a3a; border-radius: 4px;">
-                <h4 style="color: #2196F3; margin: 0 0 10px 0;">Swap Types</h4>
-                <div style="color: #ccc;">
-                    Direct swaps: <strong>${debugDetails.swapTypes.direct}</strong><br>
-                    Broader swaps: <strong>${debugDetails.swapTypes.broader}</strong><br>
-                    Unused tile swaps: <strong>${debugDetails.swapTypes.unused}</strong><br>
-                    Random swaps: <strong>${debugDetails.swapTypes.random}</strong>
-                </div>
-            </div>
-        `;
-
-        if (debugDetails.scoreImprovements.length > 0) {
-            const totalImprovement = debugDetails.scoreImprovements.reduce((sum, imp) => sum + imp.improvement, 0);
-            content += `
-                <div style="margin-bottom: 20px; padding: 10px; background: #3a3a3a; border-radius: 4px;">
-                    <h4 style="color: #FF9800; margin: 0 0 10px 0;">Score Improvements</h4>
-                    <div style="color: #ccc;">
-                        Total improvement: <strong>${totalImprovement.toFixed(1)}</strong><br>
-                        Average per swap: <strong>${(totalImprovement / debugDetails.scoreImprovements.length).toFixed(1)}</strong><br>
-                        Number of improvements: <strong>${debugDetails.scoreImprovements.length}</strong>
-                    </div>
-                </div>
-            `;
-        }
-    }
-
-    content += `
-            <div style="margin-top: 20px; padding: 10px; background: #444; border-radius: 4px;">
-                <h4 style="color: #9C27B0; margin: 0 0 10px 0;">Debug Tips</h4>
-                <ul style="color: #ccc; margin: 0; padding-left: 20px;">
-                    <li>Enable "Debug Mode" in Advanced Settings for verbose console output</li>
-                    <li>Check browser console (F12) for detailed balancing logs</li>
-                    <li>High constraint failures suggest tight generation settings</li>
-                    <li>Low success rates may indicate limited improvement opportunities</li>
-                    <li>Unused tile swaps help when regular swaps aren't enough</li>
-                </ul>
-            </div>
-        </div>
-    `;
-
-    showPopup({
-        content: content,
-        actions: [],
-        title: 'Debug Information',
-        id: 'milty-debug-info',
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        showHelp: true,
-        onHelp: () => {
-            showPopup({
-                content: `
-                    <div style="padding: 20px; line-height: 1.5; max-width: 500px;">
-                        <h3 style="color: #ffe066; margin-top: 0;">Debug Info Help</h3>
-                        <p style="color: #ccc;">This popup displays detailed statistics about the slice balancing process, including swap attempts, success rates, constraint failures, and improvement tracking. Use this information to diagnose balancing issues and tune your settings for better results.</p>
-                        <ul style="color: #aaa; font-size: 13px;">
-                            <li><b>Swap Attempts:</b> Number of swap tests performed during balancing.</li>
-                            <li><b>Successful Swaps:</b> Swaps that improved balance and were applied.</li>
-                            <li><b>Constraint Failures:</b> Swaps that were rejected due to slice constraints.</li>
-                            <li><b>Swap Types:</b> Direct, broader, unused tile, and random swaps.</li>
-                            <li><b>Score Improvements:</b> Total and average improvement from swaps.</li>
-                        </ul>
-                    </div>
-                `,
-                actions: [],
-                title: 'Debug Info Help',
-                id: 'milty-debug-info-help',
-                draggable: true,
-                dragHandleSelector: '.popup-ui-titlebar',
-                scalable: true,
-                rememberPosition: true,
-                style: {
-                    width: '500px',
-                    maxWidth: '95vw',
-                    maxHeight: '85vh'
-                }
-            });
-        },
-        style: {
-            width: '500px',
-            maxWidth: '95vw',
-            maxHeight: '85vh'
-        }
-    });
-}
