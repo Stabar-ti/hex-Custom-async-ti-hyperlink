@@ -345,9 +345,9 @@ export function showPopup({
 
     // Add to DOM
     (parent || document.body).appendChild(popup);
-    
+
     // Click to focus - bring popup to front when clicked
-    popup.addEventListener('mousedown', function(e) {
+    popup.addEventListener('mousedown', function (e) {
         // Bring this popup to the front by setting a high z-index
         const allPopups = document.querySelectorAll('.popup-ui');
         let maxZ = 1000;
@@ -356,11 +356,11 @@ export function showPopup({
             if (z > maxZ) maxZ = z;
         });
         popup.style.zIndex = maxZ + 1;
-        
+
         // Focus the popup for keyboard accessibility
         popup.focus();
     });
-    
+
     // Debug: log popup bounding rect and child count after append
     setTimeout(() => {
         const rect = popup.getBoundingClientRect();

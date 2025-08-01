@@ -503,7 +503,7 @@ export function createStyledButton(text, style = {}) {
         minWidth: '150px',
         ...style
     };
-    
+
     Object.assign(button.style, defaultStyle);
     return button;
 }
@@ -519,16 +519,16 @@ export function createStyledCheckbox(id, labelText, checked = false) {
         color: #ccc; 
         cursor: pointer;
     `;
-    
+
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.id = id;
     checkbox.checked = checked;
     checkbox.style.marginRight = '8px';
-    
+
     label.appendChild(checkbox);
     label.appendChild(document.createTextNode(labelText));
-    
+
     return { label, checkbox };
 }
 
@@ -641,7 +641,7 @@ export function handleSliceImport(slicesData, clearExisting, onProgress, onCompl
                     if (refreshBtn) refreshBtn.click();
                 }, 100);
             }
-            
+
             if (onComplete) onComplete(true);
         } else {
             alert('Import failed. Check console for details.');
@@ -661,7 +661,7 @@ export function handleSliceImport(slicesData, clearExisting, onProgress, onCompl
  */
 export function createOutputDisplayContainer(outputData) {
     const { outputString, completedSlots, totalSlices } = outputData;
-    
+
     const container = document.createElement('div');
     container.style.padding = '10px';
 
@@ -849,7 +849,7 @@ export function createEmptyStateMessage(message) {
  */
 export function createDraftValuesAnalysisContainer() {
     const container = document.createElement('div');
-    
+
     // Check if we have any draft slices with systems
     const slotPositions = {
         1: [836, 941, 837, 732, 942, 838],
@@ -894,13 +894,13 @@ export function createDraftValuesAnalysisContainer() {
     // Create table with headers
     const headers = [
         'Draft Slot',
-        'Planets', 
-        'Techs', 
+        'Planets',
+        'Techs',
         'R/I<br><span style="font-weight:400;">Ideal</span>',
         'Wormholes',
         'Status'
     ];
-    
+
     const { table, tbody } = createStyledTable(headers);
     container.appendChild(table);
 
@@ -914,7 +914,7 @@ export function formatTileLabelsForDisplay(sliceHexLabels) {
     const tilesPerRow = Math.ceil(sliceHexLabels.length / 2);
     const tileRow1 = sliceHexLabels.slice(0, tilesPerRow).join(', ');
     const tileRow2 = sliceHexLabels.slice(tilesPerRow).join(', ');
-    
+
     return sliceHexLabels.length > 0 ? `
         <div style="font-size:0.85em;color:#888;line-height:1.1;margin-top:3px;">
             ${tileRow1 || ''}<br>${tileRow2 || ''}

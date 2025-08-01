@@ -6,7 +6,7 @@ const EXCLUDED_TILE_IDS = [
     '84a', '84a60', '84a120', '84a180', '84a240', '84a300',
     '84b', '84b60', '84b120', '84b180', '84b240', '84b300',
     '85a', '85a60', '85a120', '85a180', '85a240', '85a300',
-    '85b', '82', '82a', '18', '82ah', '82h', 'c41', '81', 'rexmex',
+    '85b', '82', '82b', '82a', '18', '82ah', '82h', 'c41', '81', 'rexmex',
     'd35a', 'd35b', 'd36', 'm28'
     // Add more as needed
 ];
@@ -29,7 +29,9 @@ const DEFAULT_SETTINGS = {
     sliceCount: 6,
     wormholes: {
         includeAlphaBeta: true,
-        maxPerSlice: 1
+        maxPerSlice: 1,
+        abundanceWeight: 1.0, // 1.0 = equal probability, >1.0 = favor abundant types, <1.0 = favor rare types
+        forceGamma: false // Force one gamma wormhole in one of the slices
     },
     legendaries: {
         minimum: 0,
@@ -100,7 +102,31 @@ if (!window.miltyDebugState) {
             successfulSwaps: 0,
             swapTypes: { direct: 0, broader: 0, unused: 0, random: 0 },
             constraintFailures: 0,
-            scoreImprovements: []
+            scoreImprovements: [],
+            // Generation failure tracking
+            generationFailures: {
+                totalAttempts: 0,
+                sliceSetFailures: 0,
+                sliceSetValidationFailures: 0,
+                individualSliceFailures: 0,
+                constraintFailureBreakdown: {
+                    planetSystemCount: 0,
+                    optimalResources: 0,
+                    optimalInfluence: 0,
+                    optimalTotal: 0,
+                    wormholeConstraints: 0,
+                    legendaryConstraints: 0,
+                    duplicateWormholes: 0
+                },
+                sliceGenerationPhases: {
+                    insufficientCandidates: 0,
+                    wormholeAssignmentFailed: 0,
+                    planetSystemSelectionFailed: 0,
+                    emptySystemFillingFailed: 0,
+                    finalSystemFillingFailed: 0,
+                    constraintValidationFailed: 0
+                }
+            }
         },
         debugMode: false
     };
@@ -149,15 +175,20 @@ export function resetWeightsToDefault() {
 
 export function getDebugDetails() {
     console.log('🔍 getDebugDetails called');
-    
+
     // Sync debug mode from global state
     debugMode = window.miltyDebugState.debugMode;
     debugDetails = window.miltyDebugState.debugDetails;
-    
+
     console.log('🔍 Current debugMode variable:', debugMode);
     console.log('🔍 Global debugMode state:', window.miltyDebugState.debugMode);
     console.log('🔍 Current debugDetails:', debugDetails);
     console.log('🔍 debugDetails.swapAttempts:', debugDetails.swapAttempts);
+
+    if (debugDetails.generationFailures) {
+        console.log('🔍 Generation failures:', debugDetails.generationFailures);
+    }
+
     return debugDetails;
 }
 
@@ -337,6 +368,8 @@ function updateSettingsFromUI() {
     currentSettings.sliceCount = parseInt(document.getElementById('sliceCount')?.value) || 6;
     currentSettings.wormholes.includeAlphaBeta = document.getElementById('includeAlphaBeta')?.checked || false;
     currentSettings.wormholes.maxPerSlice = document.getElementById('maxOneWormhole')?.checked ? 1 : 2;
+    currentSettings.wormholes.abundanceWeight = parseFloat(document.getElementById('wormholeAbundanceWeight')?.value) || 1.0;
+    currentSettings.wormholes.forceGamma = document.getElementById('forceGamma')?.checked || false;
     currentSettings.legendaries.minimum = parseInt(document.getElementById('minLegendaries')?.value) || 0;
     currentSettings.legendaries.maximum = parseInt(document.getElementById('maxLegendaries')?.value) || 6;
 
@@ -414,10 +447,23 @@ function getAvailableSystems() {
 
     const filtered = systems.filter(system => {
         if (!system.id) return false;
-        // Exclude by tile ID (e.g., all hyperlanes)
-        if (EXCLUDED_TILE_IDS.includes(system.id)) return false;
+
+        // Exclude by tile ID (robust matching for strings and numbers)
+        const systemId = String(system.id).toLowerCase();
+        const isExcluded = EXCLUDED_TILE_IDS.some(excludedId => {
+            const excludedIdStr = String(excludedId).toLowerCase();
+            return systemId === excludedIdStr;
+        });
+        if (isExcluded) {
+            if (debugMode) console.log(`Excluding system ${system.id} - found in EXCLUDED_TILE_IDS`);
+            return false;
+        }
+
         // Exclude by isHyperlane property (robust for all hyperlane systems)
-        if (system.isHyperlane === true) return false;
+        if (system.isHyperlane === true) {
+            if (debugMode) console.log(`Excluding system ${system.id} - marked as hyperlane`);
+            return false;
+        }
         // Strict source filtering: only include if the system's source matches a selected source
         const source = getSystemSource(system);
         if (
@@ -428,11 +474,20 @@ function getAvailableSystems() {
         ) {
             // Exclude home systems and special tiles that shouldn't be in slices
             const numId = parseInt(system.id);
-            if (numId <= 18 || numId === 51) return false; // Exclude home systems (1-18) and Mecatol Rex (51)
+            if (numId <= 18 || numId === 51) {
+                if (debugMode) console.log(`Excluding system ${system.id} - home system or Mecatol Rex`);
+                return false; // Exclude home systems (1-18) and Mecatol Rex (51)
+            }
             // Exclude systems with baseType === "homesystem"
-            if (system.baseType === "homesystem") return false;
+            if (system.baseType === "homesystem") {
+                if (debugMode) console.log(`Excluding system ${system.id} - baseType is homesystem`);
+                return false;
+            }
             // Exclude systems that are already placed on the map (have baseType set)
-            if (editor && editor.hexes && editor.hexes[system.id] && editor.hexes[system.id].baseType) return false;
+            if (editor && editor.hexes && editor.hexes[system.id] && editor.hexes[system.id].baseType) {
+                if (debugMode) console.log(`Excluding system ${system.id} - already placed on map`);
+                return false;
+            }
             // If system has planets, check for faction restrictions
             if (system.planets && Array.isArray(system.planets) && system.planets.length > 0) {
                 // Exclude systems with faction homeworld planets
@@ -487,42 +542,213 @@ function getSystemSource(system) {
 }
 
 /**
+ * Smart wormhole pre-selection to guarantee constraint satisfaction
+ */
+function smartWormholePreSelection(availableSystems, sliceCount) {
+    console.log('🌀 Running smart wormhole pre-selection...');
+
+    // Find all wormhole systems and count types (exclude gamma - they don't count for alpha/beta constraint)
+    const wormholeSystems = availableSystems.filter(sys =>
+        sys.wormholes && Array.isArray(sys.wormholes) && sys.wormholes.length > 0
+    );
+
+    const wormholeTypeGroups = {};
+    wormholeSystems.forEach(sys => {
+        sys.wormholes.forEach(wh => {
+            // Skip null/undefined wormholes
+            if (!wh) return;
+
+            const wormholeType = wh.toLowerCase();
+            // For alpha/beta constraint, exclude gamma and delta (gamma doesn't count, delta shouldn't be selected)
+            if (wormholeType === 'gamma' || wormholeType === 'delta') return;
+
+            if (!wormholeTypeGroups[wh]) wormholeTypeGroups[wh] = [];
+            wormholeTypeGroups[wh].push(sys);
+        });
+    });
+
+    console.log('Available wormhole types (excluding gamma/delta):', Object.keys(wormholeTypeGroups));
+    console.log('Wormhole type counts:', Object.fromEntries(
+        Object.entries(wormholeTypeGroups).map(([type, systems]) => [type, systems.length])
+    ));
+
+    // Find types with at least 2 tiles
+    const eligibleTypes = Object.entries(wormholeTypeGroups).filter(([type, systems]) => systems.length >= 2);
+
+    if (eligibleTypes.length < 2) {
+        console.warn('Not enough non-gamma wormhole types with 2+ tiles each');
+        return { selectedSystems: [], requiredTypes: null };
+    }
+
+    // Use weighted random selection based on abundance and user preference
+    const abundanceWeight = currentSettings.wormholes.abundanceWeight || 1.0;
+
+    // Calculate weighted probabilities for each eligible type
+    const weightedTypes = eligibleTypes.map(([type, systems]) => ({
+        type,
+        systems,
+        weight: Math.pow(systems.length, abundanceWeight)
+    }));
+
+    // Select first type using weighted random
+    const totalWeight1 = weightedTypes.reduce((sum, wt) => sum + wt.weight, 0);
+    let random1 = Math.random() * totalWeight1;
+    let selectedType1 = null;
+    for (const wt of weightedTypes) {
+        random1 -= wt.weight;
+        if (random1 <= 0) {
+            selectedType1 = wt.type;
+            break;
+        }
+    }
+
+    // Select second type (excluding the first one) using weighted random
+    const remainingTypes = weightedTypes.filter(wt => wt.type !== selectedType1);
+    const totalWeight2 = remainingTypes.reduce((sum, wt) => sum + wt.weight, 0);
+    let random2 = Math.random() * totalWeight2;
+    let selectedType2 = null;
+    for (const wt of remainingTypes) {
+        random2 -= wt.weight;
+        if (random2 <= 0) {
+            selectedType2 = wt.type;
+            break;
+        }
+    }
+
+    const selectedTypes = [selectedType1, selectedType2];
+
+    console.log(`Selected wormhole types: ${selectedTypes[0]} (${wormholeTypeGroups[selectedTypes[0]].length} available), ${selectedTypes[1]} (${wormholeTypeGroups[selectedTypes[1]].length} available)`);
+    console.log(`Abundance weight used: ${abundanceWeight} (1.0 = equal probability, >1.0 = favor abundant types, <1.0 = favor rare types)`);
+    console.log(`Gamma and Delta wormholes excluded from selection (Gamma for constraint rules, Delta by design choice)`);
+
+    // Pre-select enough systems to satisfy the constraint (at least 2 of each type)
+    // Select 2 or more of each type, regardless of slice count
+    const systemsPerType = Math.max(2, Math.min(wormholeTypeGroups[selectedTypes[0]].length, wormholeTypeGroups[selectedTypes[1]].length));
+    const preSelectedSystems = [];
+
+    // Select systems of the first type
+    const type1Systems = [...wormholeTypeGroups[selectedTypes[0]]]; // Copy array
+    const selectedFirstTypeSystems = [];
+    const maxType1 = Math.min(systemsPerType, type1Systems.length);
+    for (let i = 0; i < maxType1; i++) {
+        const randomIndex = Math.floor(Math.random() * type1Systems.length);
+        const selected = type1Systems.splice(randomIndex, 1)[0];
+        selectedFirstTypeSystems.push(selected);
+        preSelectedSystems.push(selected);
+    }
+
+    // Select systems of the second type
+    const type2Systems = [...wormholeTypeGroups[selectedTypes[1]]]; // Copy array
+    const selectedSecondTypeSystems = [];
+    const maxType2 = Math.min(systemsPerType, type2Systems.length);
+    for (let i = 0; i < maxType2; i++) {
+        const randomIndex = Math.floor(Math.random() * type2Systems.length);
+        const selected = type2Systems.splice(randomIndex, 1)[0];
+        selectedSecondTypeSystems.push(selected);
+        preSelectedSystems.push(selected);
+    }
+
+    console.log(`Pre-selected wormhole systems:`, {
+        [selectedTypes[0]]: selectedFirstTypeSystems.map(s => s.id),
+        [selectedTypes[1]]: selectedSecondTypeSystems.map(s => s.id),
+        totalPreSelected: preSelectedSystems.length,
+        systemsPerType: systemsPerType
+    });
+
+    return {
+        selectedSystems: preSelectedSystems,
+        requiredTypes: selectedTypes
+    };
+}
+
+/**
  * Generate slices with all constraints
  */
 async function generateSlicesWithConstraints(availableSystems) {
-    const maxAttempts = 1000;
+    const maxAttempts = 2000;
     let attempts = 0;
 
-    // --- Wormhole logic: find two types with at least 2 tiles each ---
-    let requiredWormholeTypes = null;
-    if (currentSettings.wormholes.includeAlphaBeta) {
-        // Find all wormhole systems and count types
-        const wormholeCounts = {};
-        availableSystems.forEach(sys => {
-            if (Array.isArray(sys.wormholes)) {
-                sys.wormholes.forEach(wh => {
-                    if (!wormholeCounts[wh]) wormholeCounts[wh] = 0;
-                    wormholeCounts[wh]++;
-                });
+    // Reset generation failure tracking if in debug mode
+    if (debugMode) {
+        debugDetails.generationFailures = {
+            totalAttempts: 0,
+            sliceSetFailures: 0,
+            sliceSetValidationFailures: 0,
+            individualSliceFailures: 0,
+            constraintFailureBreakdown: {
+                planetSystemCount: 0,
+                optimalResources: 0,
+                optimalInfluence: 0,
+                optimalTotal: 0,
+                wormholeConstraints: 0,
+                legendaryConstraints: 0,
+                duplicateWormholes: 0
+            },
+            sliceGenerationPhases: {
+                insufficientCandidates: 0,
+                wormholeAssignmentFailed: 0,
+                planetSystemSelectionFailed: 0,
+                emptySystemFillingFailed: 0,
+                finalSystemFillingFailed: 0,
+                constraintValidationFailed: 0
             }
-        });
-        // Find all types with at least 2 tiles
-        const eligibleTypes = Object.entries(wormholeCounts).filter(([type, count]) => count >= 2).map(([type]) => type);
-        if (eligibleTypes.length < 2) {
-            throw new Error('Not enough wormhole tiles of at least 2 types (need 2+ of each).');
+        };
+        window.miltyDebugState.debugDetails = debugDetails;
+    }
+
+    // --- Smart wormhole pre-selection to improve success rates ---
+    let preSelectedWormholeSystems = [];
+    let requiredWormholeTypes = null;
+    let gammaWormholeSystem = null;
+
+    // Handle alpha/beta wormhole pre-selection
+    if (currentSettings.wormholes.includeAlphaBeta) {
+        const wormholeResult = smartWormholePreSelection(availableSystems, currentSettings.sliceCount);
+        preSelectedWormholeSystems = wormholeResult.selectedSystems;
+        requiredWormholeTypes = wormholeResult.requiredTypes;
+
+        if (!requiredWormholeTypes) {
+            throw new Error('Not enough wormhole tiles of at least 2 types (need 2+ of each) for smart pre-selection.');
         }
-        // Pick two types at random
-        const shuffled = eligibleTypes.sort(() => Math.random() - 0.5);
-        requiredWormholeTypes = [shuffled[0], shuffled[1]];
+
         // Store for validation
         currentSettings.wormholes._requiredTypes = requiredWormholeTypes;
-        console.log('Wormhole constraint: requiring at least 2 of each:', requiredWormholeTypes);
+        currentSettings.wormholes._preSelectedSystems = preSelectedWormholeSystems;
+
+        console.log('Smart wormhole pre-selection:', {
+            requiredTypes: requiredWormholeTypes,
+            preSelectedSystems: preSelectedWormholeSystems.length,
+            systemIds: preSelectedWormholeSystems.map(s => s.id)
+        });
     } else {
         currentSettings.wormholes._requiredTypes = null;
+        currentSettings.wormholes._preSelectedSystems = [];
     }
+
+    // Handle gamma wormhole selection independently
+    if (currentSettings.wormholes.forceGamma) {
+        const gammaSystems = availableSystems.filter(sys =>
+            sys.wormholes && sys.wormholes.some(wh => wh && wh.toLowerCase() === 'gamma')
+        );
+
+        if (gammaSystems.length > 0) {
+            // Select a random gamma system
+            gammaWormholeSystem = gammaSystems[Math.floor(Math.random() * gammaSystems.length)];
+            console.log(`Selected gamma wormhole system: ${gammaWormholeSystem.id} (${gammaSystems.length} gamma systems available)`);
+        } else {
+            console.warn('Force gamma requested but no gamma wormhole systems available');
+        }
+    }
+
+    // Store gamma system for slice generation
+    currentSettings.wormholes._gammaSystem = gammaWormholeSystem;
 
     while (attempts < maxAttempts) {
         attempts++;
+        if (debugMode) {
+            debugDetails.generationFailures.totalAttempts++;
+        }
+
         if (attempts % 50 === 0) {
             // Progress updates handled by UI layer
             await new Promise(resolve => setTimeout(resolve, 10));
@@ -530,37 +756,92 @@ async function generateSlicesWithConstraints(availableSystems) {
         try {
             const slices = generateSliceSet(availableSystems);
             if (validateSliceSet(slices)) {
+                if (debugMode) {
+                    console.log(`🎯 Generation succeeded after ${attempts} attempts`);
+                    console.log(`📊 Failure breakdown:`, debugDetails.generationFailures);
+                }
                 return slices;
+            } else {
+                if (debugMode) {
+                    debugDetails.generationFailures.sliceSetValidationFailures++;
+                    console.log(`❌ Slice set validation failed on attempt ${attempts}`);
+                }
             }
         } catch (error) {
+            if (debugMode) {
+                debugDetails.generationFailures.sliceSetFailures++;
+                console.log(`❌ Slice set generation failed on attempt ${attempts}: ${error.message}`);
+            }
             // Continue trying
         }
     }
+
+    if (debugMode) {
+        console.log(`💥 Generation failed after ${maxAttempts} attempts`);
+        console.log(`📊 Final failure breakdown:`, debugDetails.generationFailures);
+    }
+
     throw new Error(`Could not generate valid slice set after ${maxAttempts} attempts. Try relaxing constraints.`);
 }
 
 /**
- * Generate a single set of slices
+ * Generate a single set of slices with smart wormhole handling
  */
 function generateSliceSet(availableSystems) {
     const slices = [];
     const usedSystems = new Set();
-    const wormholeTracker = { alpha: 0, beta: 0, gamma: 0, delta: 0 };
+    // Initialize wormhole tracker with all known wormhole types
+    const wormholeTracker = {
+        alpha: 0, beta: 0, gamma: 0, delta: 0, eta: 0, epsilon: 0,
+        kappa: 0, zeta: 0, champion: 0, probability: 0, voyage: 0,
+        narrows: 0, iota: 0, theta: 0
+    };
     let legendaryCount = 0;
 
+    // Get pre-selected wormhole systems
+    const preSelectedWormholes = currentSettings.wormholes._preSelectedSystems || [];
+    const wormholeQueue = [...preSelectedWormholes]; // Copy for distribution
+    const gammaSystem = currentSettings.wormholes._gammaSystem;
+    let gammaAssigned = false;
+
+    // Randomly choose which slice gets the gamma system (if any)
+    let gammaSliceIndex = -1;
+    if (gammaSystem) {
+        gammaSliceIndex = Math.floor(Math.random() * currentSettings.sliceCount);
+        console.log(`Gamma system ${gammaSystem.id} will be assigned to slice ${gammaSliceIndex}`);
+    }
+
+    console.log(`Starting slice generation with ${wormholeQueue.length} pre-selected wormhole systems`);
+
     for (let i = 0; i < currentSettings.sliceCount; i++) {
-        const slice = generateSingleSlice(availableSystems, usedSystems, wormholeTracker, legendaryCount);
+        // Decide if this slice should get the gamma system
+        const shouldAssignGamma = gammaSystem && i === gammaSliceIndex && !gammaAssigned && !usedSystems.has(gammaSystem.id);
+
+        const slice = generateSingleSlice(availableSystems, usedSystems, wormholeTracker, legendaryCount, wormholeQueue, shouldAssignGamma ? gammaSystem : null);
         if (!slice) throw new Error('Could not generate slice');
 
         slices.push(slice);
         slice.systems.forEach(sys => usedSystems.add(sys.id));
 
+        // Check if gamma was assigned in this slice
+        if (shouldAssignGamma && slice.systems.includes(gammaSystem)) {
+            gammaAssigned = true;
+            console.log(`Gamma system ${gammaSystem.id} assigned to slice ${i}`);
+        }
+
         // Update trackers
         slice.systems.forEach(sys => {
             if (sys.wormholes) {
                 sys.wormholes.forEach(wh => {
-                    if (wormholeTracker[wh] !== undefined) {
-                        wormholeTracker[wh]++;
+                    if (wh && wormholeTracker.hasOwnProperty(wh.toLowerCase())) {
+                        wormholeTracker[wh.toLowerCase()]++;
+                    } else if (wh) {
+                        // Initialize unknown wormhole types dynamically
+                        const wormholeType = wh.toLowerCase();
+                        if (!wormholeTracker[wormholeType]) {
+                            wormholeTracker[wormholeType] = 0;
+                        }
+                        wormholeTracker[wormholeType]++;
                     }
                 });
             }
@@ -574,14 +855,35 @@ function generateSliceSet(availableSystems) {
         });
     }
 
+    console.log(`Final wormhole distribution:`, wormholeTracker);
     return slices;
 }
 
 /**
- * Generate a single slice
+ * Generate a single slice with constraint-aware selection and smart wormhole handling
  */
-function generateSingleSlice(availableSystems, usedSystems, wormholeTracker, currentLegendaryCount) {
+function generateSingleSlice(availableSystems, usedSystems, wormholeTracker, currentLegendaryCount, wormholeQueue = [], assignedGammaSystem = null) {
     const maxSliceAttempts = 100;
+
+    // Pre-categorize systems for more efficient selection
+    const candidateSystems = availableSystems.filter(sys => !usedSystems.has(sys.id));
+    const systemsWithPlanets = candidateSystems.filter(sys => sys.planets && sys.planets.length > 0);
+    const systemsWithoutPlanets = candidateSystems.filter(sys => !sys.planets || sys.planets.length === 0);
+
+    // Further categorize by value to improve constraint satisfaction
+    const highValueSystems = systemsWithPlanets.filter(sys => {
+        const optimalValue = calculateSystemOptimalValue(sys);
+        return optimalValue >= currentSettings.sliceGeneration.minOptimalResources * 1.5;
+    });
+    const mediumValueSystems = systemsWithPlanets.filter(sys => {
+        const optimalValue = calculateSystemOptimalValue(sys);
+        return optimalValue >= currentSettings.sliceGeneration.minOptimalResources * 0.8 &&
+            optimalValue < currentSettings.sliceGeneration.minOptimalResources * 1.5;
+    });
+    const lowValueSystems = systemsWithPlanets.filter(sys => {
+        const optimalValue = calculateSystemOptimalValue(sys);
+        return optimalValue < currentSettings.sliceGeneration.minOptimalResources * 0.8;
+    });
 
     for (let attempt = 0; attempt < maxSliceAttempts; attempt++) {
         const slice = {
@@ -599,13 +901,40 @@ function generateSingleSlice(availableSystems, usedSystems, wormholeTracker, cur
 
         // Each slice should have exactly 5 systems for Milty Draft
         const systemCount = 5;
-        const candidateSystems = availableSystems.filter(sys => !usedSystems.has(sys.id));
 
-        if (candidateSystems.length < systemCount) continue;
+        if (candidateSystems.length < systemCount) {
+            if (debugMode) {
+                debugDetails.generationFailures.sliceGenerationPhases.insufficientCandidates++;
+                console.log(`❌ Insufficient candidate systems: need ${systemCount}, have ${candidateSystems.length}`);
+            }
+            continue;
+        }
 
-        // Separate systems with and without planets for better balancing
-        const systemsWithPlanets = candidateSystems.filter(sys => sys.planets && sys.planets.length > 0);
-        const systemsWithoutPlanets = candidateSystems.filter(sys => !sys.planets || sys.planets.length === 0);
+        // Smart wormhole allocation: try to assign one pre-selected wormhole per slice
+        // But don't force it - some slices might not get wormholes from the pre-selected pool
+        let assignedWormhole = null;
+
+        // Priority 1: Assign gamma system if specified for this slice
+        if (assignedGammaSystem && candidateSystems.includes(assignedGammaSystem)) {
+            assignedWormhole = assignedGammaSystem;
+            console.log(`Assigning gamma system ${assignedGammaSystem.id} to this slice`);
+        }
+        // Priority 2: Assign from pre-selected wormhole queue
+        else if (wormholeQueue.length > 0 && currentSettings.wormholes.includeAlphaBeta) {
+            // Take the first available wormhole from the queue
+            for (let i = 0; i < wormholeQueue.length; i++) {
+                const wormholeSystem = wormholeQueue[i];
+                if (!usedSystems.has(wormholeSystem.id) && candidateSystems.includes(wormholeSystem)) {
+                    assignedWormhole = wormholeSystem;
+                    wormholeQueue.splice(i, 1); // Remove from queue
+                    break;
+                }
+            }
+            // Don't treat this as a failure - just means this slice won't get a pre-selected wormhole
+            if (!assignedWormhole && debugMode && wormholeQueue.length > 0) {
+                console.log(`ℹ️ No suitable wormhole from queue for this slice (${wormholeQueue.length} remaining)`);
+            }
+        }
 
         // Use the configured min/max planet systems settings
         const minPlanetSystems = Math.min(
@@ -623,34 +952,70 @@ function generateSingleSlice(availableSystems, usedSystems, wormholeTracker, cur
         const actualMinPlanetSystems = Math.min(minPlanetSystems, maxPlanetSystems);
         const actualMaxPlanetSystems = maxPlanetSystems;
 
-        // Randomly choose how many planet systems to include within the range
-        const targetPlanetSystems = actualMinPlanetSystems +
+        // Account for the assigned wormhole when calculating planet system targets
+        let targetPlanetSystems = actualMinPlanetSystems +
             Math.floor(Math.random() * (actualMaxPlanetSystems - actualMinPlanetSystems + 1));
 
-        const maxEmptySystems = systemCount - targetPlanetSystems;
+        // If assigned wormhole has planets, it counts toward planet systems
+        if (assignedWormhole && assignedWormhole.planets && assignedWormhole.planets.length > 0) {
+            targetPlanetSystems = Math.max(0, targetPlanetSystems - 1);
+        }
 
         let selectedSystems = [];
 
-        // Pick required planet systems first
-        if (systemsWithPlanets.length >= targetPlanetSystems) {
-            const shuffledPlanetSystems = systemsWithPlanets.sort(() => Math.random() - 0.5);
-            selectedSystems = shuffledPlanetSystems.slice(0, targetPlanetSystems);
+        // Add the assigned wormhole first if we have one
+        if (assignedWormhole) {
+            selectedSystems.push(assignedWormhole);
+        }
+
+        // Smart selection for remaining systems
+        const remainingSlots = systemCount - selectedSystems.length;
+        if (remainingSlots > 0 && targetPlanetSystems > 0 && systemsWithPlanets.length >= targetPlanetSystems) {
+            // Try to build a valid slice by prioritizing constraint satisfaction
+            const remainingPlanetSystems = selectConstraintAwareSystems(
+                highValueSystems.filter(s => !selectedSystems.includes(s)),
+                mediumValueSystems.filter(s => !selectedSystems.includes(s)),
+                lowValueSystems.filter(s => !selectedSystems.includes(s)),
+                targetPlanetSystems,
+                currentSettings
+            );
+
+            if (remainingPlanetSystems.length < targetPlanetSystems && debugMode) {
+                debugDetails.generationFailures.sliceGenerationPhases.planetSystemSelectionFailed++;
+                console.log(`⚠️ Planet system selection: wanted ${targetPlanetSystems}, got ${remainingPlanetSystems.length}`);
+            }
+
+            selectedSystems.push(...remainingPlanetSystems.slice(0, Math.min(remainingSlots, targetPlanetSystems)));
         }
 
         // Fill remaining slots with empty/anomaly systems
-        const remainingSlots = systemCount - selectedSystems.length;
-        if (remainingSlots > 0 && systemsWithoutPlanets.length > 0) {
-            const shuffledEmptySystems = systemsWithoutPlanets.sort(() => Math.random() - 0.5);
-            selectedSystems.push(...shuffledEmptySystems.slice(0, Math.min(remainingSlots, systemsWithoutPlanets.length)));
+        const stillRemainingSlots = systemCount - selectedSystems.length;
+        if (stillRemainingSlots > 0 && systemsWithoutPlanets.length > 0) {
+            const availableEmptySystems = systemsWithoutPlanets.filter(s => !selectedSystems.includes(s));
+            const shuffledEmptySystems = availableEmptySystems.sort(() => Math.random() - 0.5);
+            const emptySystemsToAdd = shuffledEmptySystems.slice(0, Math.min(stillRemainingSlots, availableEmptySystems.length));
+
+            if (emptySystemsToAdd.length < stillRemainingSlots && debugMode) {
+                debugDetails.generationFailures.sliceGenerationPhases.emptySystemFillingFailed++;
+                console.log(`⚠️ Empty system filling: needed ${stillRemainingSlots}, got ${emptySystemsToAdd.length}`);
+            }
+
+            selectedSystems.push(...emptySystemsToAdd);
         }
 
-        // If we still need more systems and couldn't fill with empty systems, 
-        // fill remaining with any available systems
-        const stillRemainingSlots = systemCount - selectedSystems.length;
-        if (stillRemainingSlots > 0) {
+        // If we still need more systems, fill with any available systems
+        const finalRemainingSlots = systemCount - selectedSystems.length;
+        if (finalRemainingSlots > 0) {
             const remainingCandidates = candidateSystems.filter(sys => !selectedSystems.includes(sys));
             const shuffledRemaining = remainingCandidates.sort(() => Math.random() - 0.5);
-            selectedSystems.push(...shuffledRemaining.slice(0, stillRemainingSlots));
+            const finalSystemsToAdd = shuffledRemaining.slice(0, finalRemainingSlots);
+
+            if (finalSystemsToAdd.length < finalRemainingSlots && debugMode) {
+                debugDetails.generationFailures.sliceGenerationPhases.finalSystemFillingFailed++;
+                console.log(`⚠️ Final system filling: needed ${finalRemainingSlots}, got ${finalSystemsToAdd.length}`);
+            }
+
+            selectedSystems.push(...finalSystemsToAdd);
         }
 
         // Shuffle the final selected systems to randomize their positions in the slice
@@ -665,12 +1030,152 @@ function generateSingleSlice(availableSystems, usedSystems, wormholeTracker, cur
             slice.score = calculateSliceScore(slice);
             const planetCount = slice.systems.filter(s => s.planets && s.planets.length > 0).length;
             const emptyCount = slice.systems.filter(s => !s.planets || s.planets.length === 0).length;
-            console.log(`Generated slice: ${slice.systems.length} total systems (${planetCount} planet + ${emptyCount} empty/anomaly) - target was ${targetPlanetSystems} planet systems`);
+            const wormholeIds = slice.systems.filter(s => s.wormholes && s.wormholes.length > 0).map(s => s.id);
+            console.log(`Generated slice: ${slice.systems.length} total systems (${planetCount} planet + ${emptyCount} empty/anomaly) - wormholes: [${wormholeIds.join(', ')}]`);
             return slice;
+        } else {
+            if (debugMode) {
+                debugDetails.generationFailures.sliceGenerationPhases.constraintValidationFailed++;
+                // Get detailed constraint failure info
+                const constraintDetails = getConstraintFailureDetails(slice, wormholeTracker, currentLegendaryCount);
+                console.log(`❌ Slice constraint validation failed:`, constraintDetails);
+            }
         }
     }
 
+    if (debugMode) {
+        debugDetails.generationFailures.individualSliceFailures++;
+        console.log(`❌ Individual slice generation failed after ${maxSliceAttempts} attempts`);
+    }
+
     return null;
+}
+
+/**
+ * Get detailed information about why a slice failed constraint validation
+ */
+function getConstraintFailureDetails(slice, wormholeTracker, currentLegendaryCount) {
+    const failures = [];
+
+    // Check planet system count
+    const planetSystemCount = slice.systems.filter(sys => sys.planets && sys.planets.length > 0).length;
+    if (planetSystemCount < currentSettings.sliceGeneration.minPlanetSystems) {
+        failures.push(`Too few planet systems: ${planetSystemCount} < ${currentSettings.sliceGeneration.minPlanetSystems}`);
+        if (debugMode) debugDetails.generationFailures.constraintFailureBreakdown.planetSystemCount++;
+    }
+    if (planetSystemCount > currentSettings.sliceGeneration.maxPlanetSystems) {
+        failures.push(`Too many planet systems: ${planetSystemCount} > ${currentSettings.sliceGeneration.maxPlanetSystems}`);
+        if (debugMode) debugDetails.generationFailures.constraintFailureBreakdown.planetSystemCount++;
+    }
+
+    // Check optimal values if slice has planets
+    const hasPlanets = slice.systems.some(sys => sys.planets && sys.planets.length > 0);
+    if (hasPlanets) {
+        if (slice.optimalResources < currentSettings.sliceGeneration.minOptimalResources) {
+            failures.push(`Insufficient optimal resources: ${slice.optimalResources.toFixed(1)} < ${currentSettings.sliceGeneration.minOptimalResources}`);
+            if (debugMode) debugDetails.generationFailures.constraintFailureBreakdown.optimalResources++;
+        }
+        if (slice.optimalInfluence < currentSettings.sliceGeneration.minOptimalInfluence) {
+            failures.push(`Insufficient optimal influence: ${slice.optimalInfluence.toFixed(1)} < ${currentSettings.sliceGeneration.minOptimalInfluence}`);
+            if (debugMode) debugDetails.generationFailures.constraintFailureBreakdown.optimalInfluence++;
+        }
+
+        const optimalTotal = slice.optimalResources + slice.optimalInfluence;
+        if (optimalTotal < currentSettings.sliceGeneration.minOptimalTotal) {
+            failures.push(`Insufficient optimal total: ${optimalTotal.toFixed(1)} < ${currentSettings.sliceGeneration.minOptimalTotal}`);
+            if (debugMode) debugDetails.generationFailures.constraintFailureBreakdown.optimalTotal++;
+        }
+        if (optimalTotal > currentSettings.sliceGeneration.maxOptimalTotal) {
+            failures.push(`Excessive optimal total: ${optimalTotal.toFixed(1)} > ${currentSettings.sliceGeneration.maxOptimalTotal}`);
+            if (debugMode) debugDetails.generationFailures.constraintFailureBreakdown.optimalTotal++;
+        }
+    }
+
+    // Check wormhole constraints
+    if (currentSettings.wormholes.maxPerSlice === 1 && slice.wormholes.length > 1) {
+        failures.push(`Too many wormholes: ${slice.wormholes.length} > 1`);
+        if (debugMode) debugDetails.generationFailures.constraintFailureBreakdown.wormholeConstraints++;
+    }
+
+    // Check for duplicate wormholes in slice
+    const wormholeSet = new Set(slice.wormholes);
+    if (wormholeSet.size !== slice.wormholes.length) {
+        failures.push(`Duplicate wormholes in slice: ${slice.wormholes.join(', ')}`);
+        if (debugMode) debugDetails.generationFailures.constraintFailureBreakdown.duplicateWormholes++;
+    }
+
+    return failures;
+}
+
+/**
+ * Calculate the optimal value of a system for constraint checking
+ */
+function calculateSystemOptimalValue(system) {
+    if (!system.planets || !Array.isArray(system.planets)) return 0;
+
+    let optimalResources = 0;
+    let optimalInfluence = 0;
+
+    system.planets.forEach(planet => {
+        const res = planet.resources || 0;
+        const inf = planet.influence || 0;
+
+        if (res === inf && res > 0) {
+            optimalResources += res / 2;
+            optimalInfluence += inf / 2;
+        } else if (res > inf) {
+            optimalResources += res;
+        } else if (inf > res) {
+            optimalInfluence += inf;
+        }
+    });
+
+    return optimalResources + optimalInfluence;
+}
+
+/**
+ * Select systems using constraint-aware logic
+ */
+function selectConstraintAwareSystems(highValue, mediumValue, lowValue, targetCount, settings) {
+    const selected = [];
+
+    // Calculate how much optimal value we need
+    const minOptimalTotal = settings.sliceGeneration.minOptimalTotal;
+    let currentOptimal = 0;
+
+    // First, try to get some high-value systems
+    const highValueNeeded = Math.min(2, Math.floor(targetCount * 0.4), highValue.length);
+    for (let i = 0; i < highValueNeeded && selected.length < targetCount; i++) {
+        const system = highValue[Math.floor(Math.random() * highValue.length)];
+        if (!selected.includes(system)) {
+            selected.push(system);
+            currentOptimal += calculateSystemOptimalValue(system);
+            // Remove from array to avoid duplicates
+            highValue.splice(highValue.indexOf(system), 1);
+        }
+    }
+
+    // Fill with medium value systems
+    while (selected.length < targetCount && mediumValue.length > 0) {
+        const system = mediumValue[Math.floor(Math.random() * mediumValue.length)];
+        if (!selected.includes(system)) {
+            selected.push(system);
+            currentOptimal += calculateSystemOptimalValue(system);
+            mediumValue.splice(mediumValue.indexOf(system), 1);
+        }
+    }
+
+    // If we still need more and haven't met optimal requirements, prefer systems that help
+    while (selected.length < targetCount && lowValue.length > 0) {
+        const system = lowValue[Math.floor(Math.random() * lowValue.length)];
+        if (!selected.includes(system)) {
+            selected.push(system);
+            currentOptimal += calculateSystemOptimalValue(system);
+            lowValue.splice(lowValue.indexOf(system), 1);
+        }
+    }
+
+    return selected;
 }
 
 /**
@@ -777,12 +1282,35 @@ function validateSliceSet(slices) {
     if (totalLegendaries < currentSettings.legendaries.minimum) return false;
     if (totalLegendaries > currentSettings.legendaries.maximum) return false;
 
-    // Check wormhole requirement for any 2 types
+    // Check wormhole requirement for any 2 types (excluding gamma and delta wormholes)
     if (currentSettings.wormholes.includeAlphaBeta && Array.isArray(currentSettings.wormholes._requiredTypes)) {
         const [typeA, typeB] = currentSettings.wormholes._requiredTypes;
-        const countA = slices.reduce((sum, slice) => sum + slice.wormholes.filter(wh => wh === typeA).length, 0);
-        const countB = slices.reduce((sum, slice) => sum + slice.wormholes.filter(wh => wh === typeB).length, 0);
-        if (countA < 2 || countB < 2) return false;
+
+        // Count only non-gamma/non-delta wormholes for the alpha/beta constraint
+        const countA = slices.reduce((sum, slice) => {
+            return sum + slice.wormholes.filter(wh => {
+                const wormholeType = wh.toLowerCase();
+                return wh === typeA && wormholeType !== 'gamma' && wormholeType !== 'delta';
+            }).length;
+        }, 0);
+        const countB = slices.reduce((sum, slice) => {
+            return sum + slice.wormholes.filter(wh => {
+                const wormholeType = wh.toLowerCase();
+                return wh === typeB && wormholeType !== 'gamma' && wormholeType !== 'delta';
+            }).length;
+        }, 0);
+
+        if (countA < 2 || countB < 2) {
+            if (debugMode) {
+                console.log(`❌ Wormhole constraint failed: ${typeA}=${countA}, ${typeB}=${countB} (need 2+ of each, excluding gamma)`);
+                debugDetails.generationFailures.constraintFailureBreakdown.wormholeConstraints++;
+            }
+            return false;
+        }
+
+        if (debugMode) {
+            console.log(`✅ Wormhole constraint satisfied: ${typeA}=${countA}, ${typeB}=${countB}`);
+        }
     }
     return true;
 }
@@ -1030,6 +1558,57 @@ async function balanceSliceScores(slices) {
         slice.score = calculateSliceScore(slice);
     });
 
+    // Final constraint repair - fix any violations that slipped through balancing
+    console.log('\n=== Final Constraint Validation & Repair ===');
+    let constraintViolations = 0;
+    const violatingSlices = [];
+
+    slices.forEach((slice, i) => {
+        const violations = getConstraintViolationDetails(slice);
+        if (violations.length > 0) {
+            console.log(`⚠️ Slice ${i} constraint violations: ${violations.join(', ')}`);
+            constraintViolations++;
+            violatingSlices.push({ index: i, slice, violations });
+        }
+    });
+
+    // If there are violations, try to repair them using unused tiles
+    if (constraintViolations > 0) {
+        console.log(`🔧 Attempting to repair ${constraintViolations} slices with constraint violations...`);
+
+        const availableSystems = getAvailableSystems();
+        const usedSystemIds = new Set();
+        slices.forEach(slice => {
+            slice.systems.forEach(sys => usedSystemIds.add(sys.id));
+        });
+        const unusedSystems = availableSystems.filter(sys => !usedSystemIds.has(sys.id));
+
+        for (const violatingSlice of violatingSlices) {
+            const repaired = await repairSliceConstraints(violatingSlice.slice, violatingSlice.index, unusedSystems);
+            if (repaired) {
+                console.log(`✅ Repaired slice ${violatingSlice.index} constraint violations`);
+            } else {
+                console.log(`❌ Could not repair slice ${violatingSlice.index} constraint violations`);
+            }
+        }
+
+        // Re-validate after repairs
+        constraintViolations = 0;
+        slices.forEach((slice, i) => {
+            const violations = getConstraintViolationDetails(slice);
+            if (violations.length > 0) {
+                console.log(`⚠️ Slice ${i} still has violations: ${violations.join(', ')}`);
+                constraintViolations++;
+            }
+        });
+    }
+
+    if (constraintViolations === 0) {
+        console.log('✅ All slices meet original constraints');
+    } else {
+        console.log(`❌ ${constraintViolations} slices still have constraint violations`);
+    }
+
     const finalScores = slices.map(s => s.score);
     const finalMinScore = Math.min(...finalScores);
     const finalMaxScore = Math.max(...finalScores);
@@ -1062,7 +1641,9 @@ async function balanceSliceScores(slices) {
         console.log(`Final slice scores:`);
         finalScores.forEach((score, i) => {
             const slice = slices[i];
-            console.log(`  Slice ${i}: ${score.toFixed(1)} (${slice.totalResources}R/${slice.totalInfluence}I, ${slice.anomalies.length} anomalies)`);
+            const planetSystems = slice.systems.filter(sys => sys.planets && sys.planets.length > 0).length;
+            const emptySystems = slice.systems.filter(sys => !sys.planets || sys.planets.length === 0).length;
+            console.log(`  Slice ${i}: ${score.toFixed(1)} (${slice.totalResources}R/${slice.totalInfluence}I, ${slice.optimalResources.toFixed(1)}/${slice.optimalInfluence.toFixed(1)} optimal, ${planetSystems} planet + ${emptySystems} empty systems, ${slice.anomalies.length} anomalies)`);
         });
     }
 }
@@ -1200,23 +1781,204 @@ function tryRandomSwap(slices) {
 }
 
 /**
+ * Get detailed constraint violation information for a slice
+ */
+function getConstraintViolationDetails(slice) {
+    const violations = [];
+
+    // Check planet system count
+    const planetSystemCount = slice.systems.filter(sys => sys.planets && sys.planets.length > 0).length;
+    if (planetSystemCount < currentSettings.sliceGeneration.minPlanetSystems) {
+        violations.push(`Too few planet systems: ${planetSystemCount} < ${currentSettings.sliceGeneration.minPlanetSystems}`);
+    }
+    if (planetSystemCount > currentSettings.sliceGeneration.maxPlanetSystems) {
+        violations.push(`Too many planet systems: ${planetSystemCount} > ${currentSettings.sliceGeneration.maxPlanetSystems}`);
+    }
+
+    // Check optimal values if slice has planets
+    const hasPlanets = slice.systems.some(sys => sys.planets && sys.planets.length > 0);
+    if (hasPlanets) {
+        if (slice.optimalResources < currentSettings.sliceGeneration.minOptimalResources) {
+            violations.push(`Insufficient optimal resources: ${slice.optimalResources.toFixed(1)} < ${currentSettings.sliceGeneration.minOptimalResources}`);
+        }
+        if (slice.optimalInfluence < currentSettings.sliceGeneration.minOptimalInfluence) {
+            violations.push(`Insufficient optimal influence: ${slice.optimalInfluence.toFixed(1)} < ${currentSettings.sliceGeneration.minOptimalInfluence}`);
+        }
+
+        const optimalTotal = slice.optimalResources + slice.optimalInfluence;
+        if (optimalTotal < currentSettings.sliceGeneration.minOptimalTotal) {
+            violations.push(`Insufficient optimal total: ${optimalTotal.toFixed(1)} < ${currentSettings.sliceGeneration.minOptimalTotal}`);
+        }
+        if (optimalTotal > currentSettings.sliceGeneration.maxOptimalTotal) {
+            violations.push(`Excessive optimal total: ${optimalTotal.toFixed(1)} > ${currentSettings.sliceGeneration.maxOptimalTotal}`);
+        }
+    }
+
+    return violations;
+}
+
+/**
+ * Attempt to repair constraint violations in a slice using unused systems
+ */
+async function repairSliceConstraints(slice, sliceIndex, unusedSystems) {
+    console.log(`🔧 Attempting to repair slice ${sliceIndex} constraints...`);
+
+    const planetSystemCount = slice.systems.filter(sys => sys.planets && sys.planets.length > 0).length;
+
+    // Handle too many planet systems - replace some planet systems with empty/anomaly systems
+    if (planetSystemCount > currentSettings.sliceGeneration.maxPlanetSystems) {
+        const excessCount = planetSystemCount - currentSettings.sliceGeneration.maxPlanetSystems;
+        console.log(`  Need to replace ${excessCount} planet systems with empty/anomaly systems`);
+
+        const planetSystemIndices = [];
+        slice.systems.forEach((sys, i) => {
+            if (sys.planets && sys.planets.length > 0) {
+                planetSystemIndices.push(i);
+            }
+        });
+
+        // Find suitable empty/anomaly systems from unused pool
+        const emptyUnusedSystems = unusedSystems.filter(sys => !sys.planets || sys.planets.length === 0);
+
+        if (emptyUnusedSystems.length >= excessCount) {
+            // Replace lowest value planet systems with empty systems
+            const systemValues = planetSystemIndices.map(i => ({
+                index: i,
+                value: calculateSystemOptimalValue(slice.systems[i])
+            })).sort((a, b) => a.value - b.value);
+
+            for (let i = 0; i < excessCount && i < systemValues.length; i++) {
+                const replaceIndex = systemValues[i].index;
+                const replacementSystem = emptyUnusedSystems[i];
+
+                console.log(`    Replacing planet system ${slice.systems[replaceIndex].id} with empty system ${replacementSystem.id}`);
+                slice.systems[replaceIndex] = replacementSystem;
+
+                // Remove from unused pool
+                const unusedIndex = unusedSystems.indexOf(replacementSystem);
+                if (unusedIndex >= 0) unusedSystems.splice(unusedIndex, 1);
+            }
+
+            calculateSliceProperties(slice);
+            return true;
+        }
+    }
+
+    // Handle too few planet systems - replace some empty systems with planet systems
+    if (planetSystemCount < currentSettings.sliceGeneration.minPlanetSystems) {
+        const neededCount = currentSettings.sliceGeneration.minPlanetSystems - planetSystemCount;
+        console.log(`  Need to replace ${neededCount} empty/anomaly systems with planet systems`);
+
+        const emptySystemIndices = [];
+        slice.systems.forEach((sys, i) => {
+            if (!sys.planets || sys.planets.length === 0) {
+                emptySystemIndices.push(i);
+            }
+        });
+
+        // Find suitable planet systems from unused pool
+        const planetUnusedSystems = unusedSystems.filter(sys => sys.planets && sys.planets.length > 0)
+            .sort((a, b) => calculateSystemOptimalValue(b) - calculateSystemOptimalValue(a)); // Sort by value descending
+
+        if (planetUnusedSystems.length >= neededCount && emptySystemIndices.length >= neededCount) {
+            for (let i = 0; i < neededCount; i++) {
+                const replaceIndex = emptySystemIndices[i];
+                const replacementSystem = planetUnusedSystems[i];
+
+                console.log(`    Replacing empty system ${slice.systems[replaceIndex].id} with planet system ${replacementSystem.id}`);
+                slice.systems[replaceIndex] = replacementSystem;
+
+                // Remove from unused pool
+                const unusedIndex = unusedSystems.indexOf(replacementSystem);
+                if (unusedIndex >= 0) unusedSystems.splice(unusedIndex, 1);
+            }
+
+            calculateSliceProperties(slice);
+            return true;
+        }
+    }
+
+    // Handle optimal value violations - try to swap systems for better ones
+    const hasPlanets = slice.systems.some(sys => sys.planets && sys.planets.length > 0);
+    if (hasPlanets && (slice.optimalResources < currentSettings.sliceGeneration.minOptimalResources ||
+        slice.optimalInfluence < currentSettings.sliceGeneration.minOptimalInfluence ||
+        slice.optimalResources + slice.optimalInfluence < currentSettings.sliceGeneration.minOptimalTotal)) {
+
+        console.log(`  Attempting to improve optimal values through system replacement`);
+
+        // Find the weakest planet system in the slice
+        let weakestIndex = -1;
+        let weakestValue = Infinity;
+
+        slice.systems.forEach((sys, i) => {
+            if (sys.planets && sys.planets.length > 0) {
+                const value = calculateSystemOptimalValue(sys);
+                if (value < weakestValue) {
+                    weakestValue = value;
+                    weakestIndex = i;
+                }
+            }
+        });
+
+        if (weakestIndex >= 0) {
+            // Find a better replacement from unused systems
+            const betterSystems = unusedSystems.filter(sys =>
+                sys.planets && sys.planets.length > 0 &&
+                calculateSystemOptimalValue(sys) > weakestValue + 1.0 // Must be significantly better
+            ).sort((a, b) => calculateSystemOptimalValue(b) - calculateSystemOptimalValue(a));
+
+            if (betterSystems.length > 0) {
+                const replacementSystem = betterSystems[0];
+                console.log(`    Replacing weak system ${slice.systems[weakestIndex].id} (value: ${weakestValue.toFixed(1)}) with ${replacementSystem.id} (value: ${calculateSystemOptimalValue(replacementSystem).toFixed(1)})`);
+
+                slice.systems[weakestIndex] = replacementSystem;
+
+                // Remove from unused pool
+                const unusedIndex = unusedSystems.indexOf(replacementSystem);
+                if (unusedIndex >= 0) unusedSystems.splice(unusedIndex, 1);
+
+                calculateSliceProperties(slice);
+                return true;
+            }
+        }
+    }
+
+    console.log(`  Could not find suitable replacements to repair slice ${sliceIndex}`);
+    return false;
+}
+
+/**
  * Relaxed constraint validation for balancing (allows temporary constraint violations)
  */
 function validateSliceConstraintsRelaxed(slice) {
     // Only enforce the most critical constraints during balancing
+    // But be stricter about planet system count to prevent violations
 
     // Must have at least some systems
     if (!slice.systems || slice.systems.length === 0) return false;
 
-    // Basic planet system count (allow some flexibility)
+    // Planet system count - enforce the exact constraints, no flexibility
     const planetSystemCount = slice.systems.filter(sys => sys.planets && sys.planets.length > 0).length;
-    if (planetSystemCount < Math.max(1, currentSettings.sliceGeneration.minPlanetSystems - 1) ||
-        planetSystemCount > currentSettings.sliceGeneration.maxPlanetSystems + 1) {
+
+    if (planetSystemCount < currentSettings.sliceGeneration.minPlanetSystems ||
+        planetSystemCount > currentSettings.sliceGeneration.maxPlanetSystems) {
         return false;
     }
 
-    // Allow wormhole violations during balancing
-    // Allow optimal value violations during balancing - they'll be checked at the end
+    // Check basic optimal constraints - allow some flexibility but not too much
+    const hasPlanets = slice.systems.some(sys => sys.planets && sys.planets.length > 0);
+    if (hasPlanets) {
+        // Allow optimal values to be slightly below minimum during balancing, but not too much
+        const minOptimalResources = currentSettings.sliceGeneration.minOptimalResources * 0.9;
+        const minOptimalInfluence = currentSettings.sliceGeneration.minOptimalInfluence * 0.9;
+        const minOptimalTotal = currentSettings.sliceGeneration.minOptimalTotal * 0.9;
+
+        if (slice.optimalResources < minOptimalResources) return false;
+        if (slice.optimalInfluence < minOptimalInfluence) return false;
+
+        const optimalTotal = slice.optimalResources + slice.optimalInfluence;
+        if (optimalTotal < minOptimalTotal) return false;
+    }
 
     return true;
 }

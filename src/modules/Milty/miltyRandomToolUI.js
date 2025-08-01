@@ -11,7 +11,7 @@ let sharedModuleInstance = null;
 async function getSharedModule(forceReload = false) {
     console.log('🔄 getSharedModule called with forceReload:', forceReload);
     console.log('🔄 Current sharedModuleInstance exists:', !!sharedModuleInstance);
-    
+
     if (!sharedModuleInstance || forceReload) {
         const cacheBuster = forceReload ? '?v=' + Date.now() : '';
         console.log('🔄 Loading module with cacheBuster:', cacheBuster);
@@ -50,13 +50,13 @@ async function generateSlicesWithUI() {
         console.log('Module imported:', module);
         console.log('Available exports:', Object.keys(module));
         console.log('generateMiltySlices type:', typeof module.generateMiltySlices);
-        
+
         if (typeof module.generateMiltySlices !== 'function') {
             throw new Error(`generateMiltySlices is not a function. Available exports: ${Object.keys(module).join(', ')}`);
         }
-        
+
         showGenerationProgress('Generating slices...', 20);
-        
+
         // Call the core function and get the slices
         const slices = await module.generateMiltySlices();
 
@@ -135,6 +135,19 @@ export function createGeneratorPopupContent() {
                 <label style="display: block; margin-bottom: 8px; cursor: pointer;">
                     <input type="checkbox" id="maxOneWormhole" style="margin-right: 8px;"> Maximum 1 wormhole per slice
                 </label>
+                <label style="display: block; margin-bottom: 8px; cursor: pointer;">
+                    <input type="checkbox" id="forceGamma" style="margin-right: 8px;"> Force one Gamma wormhole in slices
+                </label>
+                <div style="margin-top: 10px;">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <span style="min-width: 160px;">Abundance Weight:</span>
+                        <input type="number" id="wormholeAbundanceWeight" min="0.1" max="3.0" step="0.1" value="1.0" 
+                               style="width: 80px; padding: 2px; border: 1px solid #555; background: #2a2a2a; color: #fff; border-radius: 3px;">
+                        <span style="font-size: 12px; color: #aaa; margin-left: 8px;">
+                            (1.0 = equal chance, >1.0 = favor common types, <1.0 = favor rare types)
+                        </span>
+                    </label>
+                </div>
             </div>
 
             <div style="margin-bottom: 20px;">
@@ -246,7 +259,7 @@ export function showWeightingSettingsPopup() {
     const cacheBuster = '?v=' + Date.now();
     import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
         const { saveWeightingSettings, resetWeightingSettings } = module;
-        
+
         showPopup({
             content: createWeightingPopupContent(),
             actions: [
@@ -276,7 +289,7 @@ export function showWeightingSettingsPopup() {
 export function createWeightingPopupContent() {
     // Get current weights from the main module
     let currentWeights = {};
-    
+
     // Fallback default weights if module not loaded yet
     const DEFAULT_WEIGHTS = {
         resourceValue: 1.0,
@@ -374,7 +387,7 @@ export function showSliceScores(slices) {
         console.log('📊 Importing calculateSliceScore function...');
         console.log('Available exports in scores function:', Object.keys(module));
         console.log('calculateSliceScore type:', typeof module.calculateSliceScore);
-        
+
         const scoresDiv = document.getElementById('sliceScores');
         const contentDiv = document.getElementById('scoresContent');
 
@@ -530,20 +543,20 @@ export function showDebugInfo() {
     // Check current checkbox state in real time
     const debugCheckbox = document.getElementById('enableDebugMode');
     const balancingCheckbox = document.getElementById('enableScoreBalancing');
-    
+
     console.log('🔍 Real-time checkbox states:');
     console.log('  Debug checkbox element:', debugCheckbox);
     console.log('  Debug checkbox checked:', debugCheckbox?.checked);
     console.log('  Balancing checkbox element:', balancingCheckbox);
     console.log('  Balancing checkbox checked:', balancingCheckbox?.checked);
-    
+
     // Use the same shared module instance to get debug data
     getSharedModule().then(module => {
         console.log('🐛 Loading debug information...');
         console.log('getDebugDetails type:', typeof module.getDebugDetails);
         const debugDetails = module.getDebugDetails?.() || { swapAttempts: 0 };
         console.log('Debug details:', debugDetails);
-        
+
         let content = `
             <div style="padding: 20px; line-height: 1.5; max-height: 60vh; overflow-y: auto; font-family: monospace;">
                 <h3 style="color: #ffe066; margin-top: 0;">Debug Information</h3>
@@ -553,12 +566,12 @@ export function showDebugInfo() {
             // Sync current checkbox states to get real-time status
             const currentDebugMode = debugCheckbox?.checked || false;
             const currentBalancingMode = balancingCheckbox?.checked || false;
-            
+
             // Try to get settings from module, but use real-time checkbox states as fallback
             const currentSettings = module.getCurrentSettings?.() || {};
             const debugModeInSettings = currentSettings.debugMode;
             const balancingInSettings = currentSettings.scoreBalancing?.enabled;
-            
+
             content += `
                 <p style="color: #aaa;">No balancing data available yet.</p>
                 <div style="margin-top: 15px; padding: 10px; background: #2a2a2a; border-radius: 4px; color: #ccc;">
@@ -683,7 +696,9 @@ export async function updateSettingsFromUI(moduleInstance = null) {
         sliceCount: parseInt(document.getElementById('sliceCount')?.value) || 6,
         wormholes: {
             includeAlphaBeta: document.getElementById('includeAlphaBeta')?.checked || false,
-            maxPerSlice: document.getElementById('maxOneWormhole')?.checked ? 1 : 2
+            maxPerSlice: document.getElementById('maxOneWormhole')?.checked ? 1 : 2,
+            abundanceWeight: parseFloat(document.getElementById('wormholeAbundanceWeight')?.value) || 1.0,
+            forceGamma: document.getElementById('forceGamma')?.checked || false
         },
         legendaries: {
             minimum: parseInt(document.getElementById('minLegendaries')?.value) || 0,
@@ -726,7 +741,7 @@ export async function updateSettingsFromUI(moduleInstance = null) {
         console.log('Settings module available:', module);
         console.log('Available exports for settings:', Object.keys(module));
         console.log('setCurrentSettings type:', typeof module.setCurrentSettings);
-        
+
         if (typeof module.setCurrentSettings === 'function') {
             module.setCurrentSettings(settings);
             console.log('✅ Settings successfully applied to core module');
@@ -741,7 +756,7 @@ export async function updateSettingsFromUI(moduleInstance = null) {
 
     console.log('Updated settings:', settings);
     console.log('Debug mode:', settings.debugMode ? 'ENABLED' : 'DISABLED');
-    
+
     return settings;
 }
 
@@ -753,7 +768,7 @@ export function saveWeightingSettings() {
     import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
         const { getCurrentWeights, setCurrentWeights } = module;
         const currentWeights = getCurrentWeights();
-        
+
         // Update weights from UI
         Object.keys(currentWeights).forEach(key => {
             const input = document.getElementById(`weight_${key}`);

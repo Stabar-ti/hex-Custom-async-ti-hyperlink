@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Test Module Import</title>
+</head>
+
+<body>
+    <h1>Module Import Test</h1>
+    <button id="testBtn">Test Import</button>
+    <div id="output"></div>
+
+    <script type="module">
+        document.getElementById('testBtn').addEventListener('click', async () => {
+            const output = document.getElementById('output');
+            try {
+                console.log('Testing import...');
+                output.innerHTML += '<p>Testing import...</p>';
+
+                const cacheBuster = '?v=' + Date.now();
+                const module = await import('./src/modules/Milty/miltyBuilderRandomTool.js' + cacheBuster);
+                console.log('Module:', module);
+                console.log('Available exports:', Object.keys(module));
+
+                output.innerHTML += '<p>Module imported successfully!</p>';
+                output.innerHTML += '<p>Available exports: ' + Object.keys(module).join(', ') + '</p>';
+                output.innerHTML += '<p>generateMiltySlices type: ' + typeof module.generateMiltySlices + '</p>';
+                output.innerHTML += '<p>moduleTest: ' + module.moduleTest + '</p>';
+
+                if (typeof module.generateMiltySlices === 'function') {
+                    output.innerHTML += '<p style="color: green;">✅ generateMiltySlices is available as a function!</p>';
+                } else {
+                    output.innerHTML += '<p style="color: red;">❌ generateMiltySlices is not a function</p>';
+                }
+
+            } catch (error) {
+                console.error('Import failed:', error);
+                output.innerHTML += '<p style="color: red;">Import failed: ' + error.message + '</p>';
+                output.innerHTML += '<p style="color: red;">Error stack: ' + error.stack + '</p>';
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -163,15 +163,15 @@ export function showDraftValuesPopup(forceRefresh = false) {
 function renderDraftValuesAnalysis(container) {
     // Import UI helpers and render using them
     import('./miltyBuilderUI.js').then(uiModule => {
-        const { 
-            createDraftValuesAnalysisContainer, 
+        const {
+            createDraftValuesAnalysisContainer,
             createStyledTableRow,
-            formatTileLabelsForDisplay 
+            formatTileLabelsForDisplay
         } = uiModule;
 
         // Create the analysis container and table structure
         const analysisData = createDraftValuesAnalysisContainer();
-        
+
         // Clear and replace container content
         container.innerHTML = '';
         container.appendChild(analysisData.container);
@@ -283,7 +283,7 @@ function renderDraftValuesAnalysis(container) {
                         `<div style="min-width:80px;">${wormholeHtml || '-'}</div>`,
                         `<span style="color:${statusColor};font-weight:600;">${statusHtml}</span>`
                     ];
-                    
+
                     const mainRow = createStyledTableRow(mainRowCells, slotNum % 2 === 0);
                     tbody.appendChild(mainRow);
 
@@ -291,14 +291,14 @@ function renderDraftValuesAnalysis(container) {
                     if (tilesBlock) {
                         const tileRowCells = [tilesBlock];
                         const tileRow = createStyledTableRow(tileRowCells, slotNum % 2 === 0);
-                        
+
                         // Set colspan for the single cell to span all columns
                         const tileCell = tileRow.querySelector('td');
                         if (tileCell) {
                             tileCell.setAttribute('colspan', '6');
                             tileCell.style.cssText += 'padding: 2px 8px 7px 8px; font-size: 0.85em; color: #888;';
                         }
-                        
+
                         tbody.appendChild(tileRow);
                     }
                 }
@@ -323,13 +323,13 @@ export function showImportSlicesPopup() {
 
     // Import UI helpers from the UI module
     import('./miltyBuilderUI.js').then(uiModule => {
-        const { 
-            createStyledTextarea, 
-            createStyledButton, 
-            createStyledCheckbox, 
-            createPreviewContainer, 
-            updateSliceImportPreview, 
-            handleSliceImport 
+        const {
+            createStyledTextarea,
+            createStyledButton,
+            createStyledCheckbox,
+            createPreviewContainer,
+            updateSliceImportPreview,
+            handleSliceImport
         } = uiModule;
 
         // Create container for the popup content
@@ -367,7 +367,7 @@ export function showImportSlicesPopup() {
         textareaLabel.textContent = 'Slice Data:';
         textareaSection.appendChild(textareaLabel);
 
-        const textarea = createStyledTextarea('importSlicesTextarea', 
+        const textarea = createStyledTextarea('importSlicesTextarea',
             `Paste your slice data here...
 
 Example:
@@ -413,7 +413,7 @@ Example:
             importButton.style.background = '#6c757d';
 
             // Handle the import process
-            handleSliceImport(slicesData, clearExisting, 
+            handleSliceImport(slicesData, clearExisting,
                 (msg) => console.log('Import status:', msg),
                 (success) => {
                     if (!success) {
