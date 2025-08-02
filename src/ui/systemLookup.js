@@ -482,7 +482,11 @@ export default async function initSystemLookup(editor) {
             tilePreview = document.createElement('div');
             tilePreview.id = 'tilePreviewPopup';
             tilePreview.style.position = 'fixed';
-            tilePreview.style.zIndex = '10005';
+            // Set z-index dynamically based on current popup's z-index
+            const currentPopupElement = document.getElementById('system-lookup-popup');
+            const currentZIndex = currentPopupElement ? 
+                parseInt(window.getComputedStyle(currentPopupElement).zIndex) || 10003 : 10003;
+            tilePreview.style.zIndex = (currentZIndex + 10).toString();
             tilePreview.style.background = '#333';
             tilePreview.style.border = '1px solid #666';
             tilePreview.style.borderRadius = '8px';
