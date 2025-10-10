@@ -298,14 +298,12 @@ export default class HexEditor {
     const layout = generateRings(rings, this.fillCorners);
     layout.forEach(h => drawHex(this, h.q, h.r, h.label));
 
-    // Merge in loaded system metadata, if present
-    const lookup = this.sectorIDLookup || {};
+    // Initialize empty state for all hexes - don't auto-assign planets
+    // Planets should only be assigned when user explicitly assigns a system
     for (const [label, hex] of Object.entries(this.hexes)) {
-      const sys = lookup[label.toUpperCase()];
-      if (sys) {
-        hex.planets = sys.planets || [];
-        hex.wormholes = new Set(sys.wormholes || []);
-      }
+      hex.planets = [];
+      hex.wormholes = new Set();
+      hex.realId = null;
     }
     this.currentLayoutRings = rings;
 

@@ -29,25 +29,29 @@ export function showMiltyBuilderUI(container) {
             <p style="margin: 0 0 15px 0; color: #ccc; font-size: 14px;">Design and copy slices between the standard map (A–F) and draft slots (1–12).</p>
             <!-- Control Buttons Section -->
             <div style="margin-bottom: 20px;">
-                <!-- Row 1: Load Map, Import, Output -->
+                <!-- Row 0: Load Map (required first step) -->
+                <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 18px;">
+                    <button id="loadMiltyJsonBtn" style="all: unset !important; display: inline-block !important; font-size: 28px !important; padding: 22px 60px !important; background: #28a745 !important; color: #fff !important; font-weight: bold !important; border-radius: 12px !important; border: 3px solid #1e7e34 !important; box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important; letter-spacing: 1px !important; cursor: pointer !important; margin: 2px !important; text-align: center !important; font-family: inherit !important;">Load Map</button>
+                    <span style="color:#fff;background:#28a745;padding:4px 16px;border-radius:6px;margin-top:10px;font-size:15px;font-weight:bold;box-shadow:0 2px 8px #0003;">You must load the map before using any other features</span>
+                </div>
+                <!-- Row 1: Import, Output -->
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 10px;">
-                    <button id="loadMiltyJsonBtn" class="mode-button" style="font-size:15px;padding:6px 12px;">Load Map</button>
-                    <button id="importSlicesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Import slices</button>
-                    <button id="outputCopyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Output slices</button>
+                    <button id="importSlicesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Import slices</button>
+                    <button id="outputCopyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Output slices</button>
                 </div>
                 <!-- Row 2: Generate, Analysis, Sanity Check -->
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 10px;">
-                    <button id="generateSlicesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Generate Slices</button>
-                    <button id="calcDraftValuesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Analyse Slices</button>
-                    <button id="sanityCheckBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Sanity Check</button>
+                    <button id="generateSlicesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Generate Slices</button>
+                    <button id="calcDraftValuesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Analyse Slices</button>
+                    <button id="sanityCheckBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Sanity Check</button>
                 </div>
                 <!-- Row 3: Refresh, Slice Borders, Slice Numbers, Live Slice Analysis -->
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
-                    <button id="refreshOccupancyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Refresh button slice indicators</button>
-                    <button id="toggleSliceBordersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Toggle Slice Borders</button>
-                    <button id="toggleSliceNumbersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;">Toggle Slice Numbers</button>
+                    <button id="refreshOccupancyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Refresh button slice indicators</button>
+                    <button id="toggleSliceBordersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Toggle Slice Borders</button>
+                    <button id="toggleSliceNumbersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Toggle Slice Numbers</button>
                     <label style="display:inline-flex;align-items:center;font-size:13px;margin-left:10px;cursor:pointer;gap:4px;">
-                        <input type="checkbox" id="liveSliceAnalysisToggle" style="margin-right:4px;" checked> Live Slice Analysis
+                        <input type="checkbox" id="liveSliceAnalysisToggle" style="margin-right:4px;" checked disabled> Live Slice Analysis
                     </label>
                 </div>
             </div>
@@ -155,6 +159,27 @@ export function showMiltyBuilderUI(container) {
                         updateSliceButtonColors();
                         console.log('Slice overlays drawn after MiltyBuilder.json load');
                     }, 500);
+
+                    // Enable all other buttons after loading
+                    [
+                        '#importSlicesBtn',
+                        '#outputCopyBtn',
+                        '#generateSlicesBtn',
+                        '#calcDraftValuesBtn',
+                        '#sanityCheckBtn',
+                        '#refreshOccupancyBtn',
+                        '#toggleSliceBordersBtn',
+                        '#toggleSliceNumbersBtn',
+                    ].forEach(sel => {
+                        const btn = container.querySelector(sel);
+                        if (btn) btn.removeAttribute('disabled');
+                    });
+                    const liveToggle = container.querySelector('#liveSliceAnalysisToggle');
+                    if (liveToggle) liveToggle.removeAttribute('disabled');
+
+                    // Remove the green info message
+                    const infoMsg = loadBtn.nextElementSibling;
+                    if (infoMsg && infoMsg.tagName === 'SPAN') infoMsg.style.display = 'none';
 
                     alert('MiltyBuilder.json loaded!');
                 } catch (err) {

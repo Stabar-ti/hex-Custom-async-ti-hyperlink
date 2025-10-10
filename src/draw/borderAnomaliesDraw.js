@@ -45,6 +45,13 @@ export function drawBorderAnomaliesLayer(editor) {
 
             if (anomaly.type === "Spatial Tear") {
                 drawEdgeLine(layer, p1, p2, "#e32b2b", 3);
+                if (neighbor) {
+                    const oppSide = getOppositeSide(side);
+                    const nVerts = getHexVertices(neighbor.center, editor.hexRadius);
+                    const np1 = insetPoint(nVerts[oppSide], neighbor.center, INSET);
+                    const np2 = insetPoint(nVerts[(oppSide + 1) % 6], neighbor.center, INSET);
+                    drawEdgeLine(layer, np1, np2, "#e32b2b", 3);
+                }
             } else if (anomaly.type === "Gravity Wave") {
                 drawEdgeLine(layer, p1, p2, "#19c67f", 4);
                 if (neighbor) {

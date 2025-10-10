@@ -354,7 +354,7 @@ export default async function initSystemLookup(editor) {
 
         // Build preview content with image and text side by side
         let content = `<div style="display: flex; gap: 12px; font-size: 18px; line-height: 1.4; max-width: 400px;">`;
-        
+
         // Image column (left side)
         content += `<div style="flex-shrink: 0;">`;
         if (system.imagePath && system.imagePath.trim()) {
@@ -484,7 +484,7 @@ export default async function initSystemLookup(editor) {
             tilePreview.style.position = 'fixed';
             // Set z-index dynamically based on current popup's z-index
             const currentPopupElement = document.getElementById('system-lookup-popup');
-            const currentZIndex = currentPopupElement ? 
+            const currentZIndex = currentPopupElement ?
                 parseInt(window.getComputedStyle(currentPopupElement).zIndex) || 10003 : 10003;
             tilePreview.style.zIndex = (currentZIndex + 10).toString();
             tilePreview.style.background = '#333';
@@ -515,7 +515,7 @@ export default async function initSystemLookup(editor) {
         table.style.tableLayout = 'fixed';
         table.style.backgroundColor = '#1a1a1a';
         table.style.border = '1px solid #444';
-        
+
         const thead = document.createElement('thead');
         const headerRow = generateTableHeader(sortColumn, sortDirection, handleSort);
         headerRow.style.position = 'sticky';
@@ -528,10 +528,10 @@ export default async function initSystemLookup(editor) {
 
         items.forEach(s => {
             const row = generateSystemRow(s);
-            
+
             // Check if this system is currently selected
             const isCurrentlySelected = currentlySelectedSystemId && s.id.toString().toUpperCase() === currentlySelectedSystemId.toString().toUpperCase();
-            
+
             if (isRealIDUsed(s.id)) {
                 row.classList.add('used');
                 row.style.backgroundColor = '#522';

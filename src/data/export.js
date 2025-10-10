@@ -334,19 +334,35 @@ export function exportBorderAnomaliesGrouped(editor, doubleSided = true) {
       const neighborLabel = getNeighborHexLabel(editor.hexes, label, side);
       const neighborSide = reverseDir[side];
 
-      if (type === "SpatialTear" && neighborLabel && label > neighborLabel) return;
-
-      // Always add to primary tile
-      const key = `${dir}_${type}`;
-      if (!groups[key]) groups[key] = new Set();
-      groups[key].add(label);
-
-      // Add to neighbor if doubleSided is true
-      if (doubleSided && neighborLabel) {
-        const neighborDir = dirMap[neighborSide];
-        const neighborKey = `${neighborDir}_${type}`;
-        if (!groups[neighborKey]) groups[neighborKey] = new Set();
-        groups[neighborKey].add(neighborLabel);
+      if (type === "SpatialTear") {
+        // Export from both sides (no deduplication)
+        // Always add to primary tile
+        const key = `${dir}_${type}`;
+        if (!groups[key]) groups[key] = new Set();
+        groups[key].add(label);
+        // Always add to neighbor as well (if exists)
+        if (neighborLabel) {
+          const neighborDir = dirMap[neighborSide];
+          const neighborKey = `${neighborDir}_${type}`;
+          if (!groups[neighborKey]) groups[neighborKey] = new Set();
+          groups[neighborKey].add(neighborLabel);
+        }
+      } else if (type === "GravityWave") {
+        // Export only from the side it was set (do NOT add to neighbor)
+        const key = `${dir}_${type}`;
+        if (!groups[key]) groups[key] = new Set();
+        groups[key].add(label);
+      } else {
+        // Default: previous behavior (doubleSided)
+        const key = `${dir}_${type}`;
+        if (!groups[key]) groups[key] = new Set();
+        groups[key].add(label);
+        if (doubleSided && neighborLabel) {
+          const neighborDir = dirMap[neighborSide];
+          const neighborKey = `${neighborDir}_${type}`;
+          if (!groups[neighborKey]) groups[neighborKey] = new Set();
+          groups[neighborKey].add(neighborLabel);
+        }
       }
     });
   });

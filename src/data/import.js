@@ -163,7 +163,8 @@ export function importSectorTypes(editor, tokenString) {
       // --- The rest is unchanged, for normal tiles only ---
       hex.realId = info.id ?? null;
       if (hex.realId) markRealIDUsed(hex.realId);
-      hex.planets = info.planets || [];
+      // Don't auto-assign planets from SystemInfo - only assign when explicitly imported
+      hex.planets = [];
 
       // Clear existing wormholes
       hex.wormholes = new Set();
@@ -356,7 +357,10 @@ export function importFullState(editor, jsonText) {
       // Attach realId and planets (for normal tiles)
       hex.realId = info.id ?? realId ?? null;
       if (hex.realId) markRealIDUsed(hex.realId);
-      hex.planets = info.planets || h.pl || h.planets || [];
+      
+      // Only assign planets if they were explicitly stored in the import data
+      // Don't auto-assign planets from SystemInfo just because realId matches
+      hex.planets = h.pl || h.planets || [];
 
       // ---- Matrix/links (for non-hyperlane tiles)
       hex.matrix = h.ln || h.links || Array.from({ length: 6 }, () => Array(6).fill(0));
