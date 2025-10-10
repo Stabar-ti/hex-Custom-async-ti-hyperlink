@@ -220,6 +220,9 @@ export function importSectorTypes(editor, tokenString) {
       }
       const noPlanets = !(info.planets || []).length;
       const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift;
+      const hasWormholes = hex.wormholes && hex.wormholes.size > 0;
+      const hasBorderAnomalies = hex.borderAnomalies && Object.keys(hex.borderAnomalies).length > 0;
+      
       if (noPlanets && special) {
         editor.setSectorType(id, 'special');
       } else if ((info.planets || []).some(p => p.legendaryAbilityName?.trim())) {
@@ -229,6 +232,7 @@ export function importSectorTypes(editor, tokenString) {
         if (count >= 3) editor.setSectorType(id, '3 planet');
         else if (count >= 2) editor.setSectorType(id, '2 planet');
         else if (count >= 1) editor.setSectorType(id, '1 planet');
+        else if (hasWormholes || hasBorderAnomalies) editor.setSectorType(id, 'empty'); // Has content, so not void
         else editor.setSectorType(id, 'empty');
       }
 
@@ -409,10 +413,14 @@ export function importFullState(editor, jsonText) {
       (h.fx || h.effects || []).forEach(eff => eff && editor.applyEffect(id, eff));
 
       // ---- USE THE SAME CLASSIFICATION LOGIC AS importSectorTypes ---
-      if ((code === '-1' || h.bt === "void" || h.baseType === "void") && isMatrixEmpty(h.ln || h.links)) {
+      // Only set to void if explicitly marked as void in the import data
+      if ((h.bt === "void" || h.baseType === "void") && isMatrixEmpty(h.ln || h.links)) {
         editor.setSectorType(id, 'void');
         return;
       }
+      // Skip classification if no system info and no explicit baseType (keep existing state)
+      if (code === '-1' && !h.bt && !h.baseType) return;
+      
       if (code === 'HL' || !isMatrixEmpty(h.ln || h.links)) return;
       if ((info.planets || []).some(p => p.planetType === 'FACTION') || h.bt === "homesystem" || h.baseType === "homesystem") {
         editor.setSectorType(id, 'homesystem');
@@ -420,6 +428,9 @@ export function importFullState(editor, jsonText) {
       }
       const noPlanets = !(info.planets || []).length;
       const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift;
+      const hasWormholes = hex.wormholes && hex.wormholes.size > 0;
+      const hasBorderAnomalies = hex.borderAnomalies && Object.keys(hex.borderAnomalies).length > 0;
+      
       if (noPlanets && special || h.bt === "special" || h.baseType === "special") {
         editor.setSectorType(id, 'special');
       } else if ((info.planets || []).some(p => p.legendaryAbilityName?.trim()) || h.bt === "legendary planet" || h.baseType === "legendary planet") {
@@ -429,6 +440,7 @@ export function importFullState(editor, jsonText) {
         if (count >= 3 || h.bt === "3 planet" || h.baseType === "3 planet") editor.setSectorType(id, '3 planet');
         else if (count >= 2 || h.bt === "2 planet" || h.baseType === "2 planet") editor.setSectorType(id, '2 planet');
         else if (count >= 1 || h.bt === "1 planet" || h.baseType === "1 planet") editor.setSectorType(id, '1 planet');
+        else if (hasWormholes || hasBorderAnomalies) editor.setSectorType(id, 'empty'); // Has content, so not void
         else editor.setSectorType(id, 'empty');
       }
 

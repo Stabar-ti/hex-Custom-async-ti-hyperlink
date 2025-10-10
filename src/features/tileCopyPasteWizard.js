@@ -171,7 +171,31 @@ export function startCopyPasteWizard(editor, cut = false) {
                     r: hex.r
                 };
             }
-            // Fallback: empty tile
+            // Fallback: check if hex has any content to copy (wormholes, border anomalies, etc.)
+            const hasWormholes = (hex.customWormholes && hex.customWormholes.size > 0) || (hex.wormholes && hex.wormholes.size > 0);
+            const hasBorderAnomalies = hex.borderAnomalies && (Array.isArray(hex.borderAnomalies) ? hex.borderAnomalies.some(x => x) : Object.keys(hex.borderAnomalies).length > 0);
+            const hasCustomAdjacents = hex.customAdjacents && (Array.isArray(hex.customAdjacents) ? hex.customAdjacents.some(x => x) : Object.keys(hex.customAdjacents).length > 0);
+            const hasAdjacencyOverrides = hex.adjacencyOverrides && (Array.isArray(hex.adjacencyOverrides) ? hex.adjacencyOverrides.some(x => x) : Object.keys(hex.adjacencyOverrides).length > 0);
+            const hasEffects = hex.effects && hex.effects.size > 0;
+            
+            if (hasWormholes || hasBorderAnomalies || hasCustomAdjacents || hasAdjacencyOverrides || hasEffects) {
+                // Has some content, so copy it
+                return {
+                    type: 'content',
+                    customWormholes: opts.wormholes ? Array.from(hex.customWormholes || []) : [],
+                    wormholes: opts.wormholes ? Array.from(hex.wormholes || []) : [], // Include all wormholes for content tiles
+                    links: hex.matrix ? JSON.parse(JSON.stringify(hex.matrix)) : undefined,
+                    matrix: hex.matrix ? JSON.parse(JSON.stringify(hex.matrix)) : undefined,
+                    effects: hex.effects ? Array.from(hex.effects) : [],
+                    customAdjacents: opts.customAdjacents && hex.customAdjacents ? JSON.parse(JSON.stringify(hex.customAdjacents)) : undefined,
+                    adjacencyOverrides: hex.adjacencyOverrides ? JSON.parse(JSON.stringify(hex.adjacencyOverrides)) : undefined,
+                    borderAnomalies: opts.borderAnomalies && hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
+                    label,
+                    q: hex.q,
+                    r: hex.r
+                };
+            }
+            // Truly empty tile
             return {
                 type: 'empty',
                 label,
@@ -406,14 +430,19 @@ export function startCopyPasteWizard(editor, cut = false) {
             const h = { ...data, id };
 
             // Skip if really empty/no content
+            const hasWormholes = (h.wormholes && ((Array.isArray(h.wormholes) && h.wormholes.length > 0) || (h.wormholes instanceof Set && h.wormholes.size > 0))) ||
+                                 (h.customWormholes && ((Array.isArray(h.customWormholes) && h.customWormholes.length > 0) || (h.customWormholes instanceof Set && h.customWormholes.size > 0))) ||
+                                 (h.inherentWormholes && ((Array.isArray(h.inherentWormholes) && h.inherentWormholes.length > 0) || (h.inherentWormholes instanceof Set && h.inherentWormholes.size > 0)));
+            const hasBorderAnomalies = h.borderAnomalies && (Array.isArray(h.borderAnomalies) ? h.borderAnomalies.some(x => x) : Object.keys(h.borderAnomalies).length > 0);
+            
             const noContent =
                 (!h.realId && !h.realID) &&
                 (!h.baseType || h.baseType === '') &&
                 (!h.planets || h.planets.length === 0) &&
                 (!h.effects || h.effects.length === 0) &&
-                (!h.wormholes || h.wormholes.length === 0) &&
+                !hasWormholes &&
                 (!h.links || isMatrixEmpty(h.links)) &&
-                !h.customAdjacents && !h.adjacencyOverrides && !h.borderAnomalies;
+                !h.customAdjacents && !h.adjacencyOverrides && !hasBorderAnomalies;
             if (noContent) continue;
 
             // Clean overlays/effects/wormholes
@@ -532,10 +561,14 @@ export function startCopyPasteWizard(editor, cut = false) {
             (h.effects || []).forEach(eff => eff && editor.applyEffect(id, eff));
 
             // ---- USE THE SAME CLASSIFICATION LOGIC AS importSectorTypes ---
-            if ((code === '-1' || h.baseType === "void") && isMatrixEmpty(h.links)) {
+            // Only set to void if explicitly marked as void in the data
+            if (h.baseType === "void" && isMatrixEmpty(h.links)) {
                 editor.setSectorType(id, 'void');
                 continue;
             }
+            // Skip classification if no system info and no explicit baseType (keep existing state)
+            if (code === '-1' && !h.baseType) continue;
+            
             if (code === 'HL' || !isMatrixEmpty(h.links)) continue;
             if ((info.planets || []).some(p => p.planetType === 'FACTION') || h.baseType === "homesystem") {
                 editor.setSectorType(id, 'homesystem');
@@ -549,9 +582,13 @@ export function startCopyPasteWizard(editor, cut = false) {
                 editor.setSectorType(id, 'legendary planet');
             } else {
                 const count = (info.planets || []).length;
+                const hasWormholes = hex.wormholes && hex.wormholes.size > 0;
+                const hasBorderAnomalies = hex.borderAnomalies && hex.borderAnomalies.some(x => x);
+                
                 if (count >= 3 || h.baseType === "3 planet") editor.setSectorType(id, '3 planet');
                 else if (count >= 2 || h.baseType === "2 planet") editor.setSectorType(id, '2 planet');
                 else if (count >= 1 || h.baseType === "1 planet") editor.setSectorType(id, '1 planet');
+                else if (hasWormholes || hasBorderAnomalies) editor.setSectorType(id, 'empty');
                 else editor.setSectorType(id, 'empty');
             }
 
