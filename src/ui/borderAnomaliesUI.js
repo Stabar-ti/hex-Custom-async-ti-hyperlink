@@ -260,7 +260,7 @@ export function installBorderAnomaliesUI(editor) {
         const btn = document.getElementById('toggleBorderAnomalies');
         if (btn) btn.classList.toggle('active', editor.showBorderAnomalies);
     };
-    
+
     // Expose popup function globally for sector controls
     window.showBorderAnomaliesPopup = showBorderAnomaliesPopup;
 }

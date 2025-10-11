@@ -366,7 +366,7 @@ export function showLayoutOptionsPopup() {
                                 content.style.gridTemplateColumns = 'repeat(3, 1fr)'; // 3 columns for compact layout
                                 content.style.gap = '8px';
                                 content.style.padding = '15px';
-                                
+
                                 // Define draw helper tools
                                 const drawHelpers = [
                                     { mode: '1 planet', label: '1 Planet', cls: 'btn-1' },
@@ -376,7 +376,7 @@ export function showLayoutOptionsPopup() {
                                     { mode: 'empty', label: 'Empty', cls: 'btn-empty' },
                                     { mode: 'special', label: 'Special', cls: 'btn-special' }
                                 ];
-                                
+
                                 drawHelpers.forEach(({ mode, label, cls }) => {
                                     const btn = document.createElement('button');
                                     btn.textContent = label;
@@ -408,14 +408,14 @@ export function showLayoutOptionsPopup() {
                                     });
                                     content.appendChild(btn);
                                 });
-                                
+
                                 // Add separator
                                 const separator = document.createElement('div');
                                 separator.style.gridColumn = '1 / -1'; // Span all columns
                                 separator.style.borderTop = '1px solid #666';
                                 separator.style.margin = '10px 0';
                                 content.appendChild(separator);
-                                
+
                                 // Add Effects section
                                 const effectsLabel = document.createElement('div');
                                 effectsLabel.textContent = 'Effects:';
@@ -424,14 +424,14 @@ export function showLayoutOptionsPopup() {
                                 effectsLabel.style.color = '#ffe066';
                                 effectsLabel.style.marginBottom = '8px';
                                 content.appendChild(effectsLabel);
-                                
+
                                 const effects = [
                                     { mode: 'nebula', label: 'Nebula', cls: 'btn-nebula' },
                                     { mode: 'rift', label: 'Rift', cls: 'btn-rift' },
                                     { mode: 'asteroid', label: 'Asteroid', cls: 'btn-asteroid' },
                                     { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova' }
                                 ];
-                                
+
                                 effects.forEach(({ mode, label, cls }) => {
                                     const btn = document.createElement('button');
                                     btn.textContent = label;
@@ -463,7 +463,7 @@ export function showLayoutOptionsPopup() {
                                     });
                                     content.appendChild(btn);
                                 });
-                                
+
                                 return content;
                             })()
                         });

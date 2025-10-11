@@ -418,7 +418,7 @@ export function installCustomLinksUI(editor) {
 
     // Expose redraw method
     editor.redrawCustomAdjacencyOverlay = () => drawCustomAdjacencyLayer(editor);
-    
+
     // Expose popup function globally for sector controls
     window.showCustomLinksPopup = showCustomLinksPopup;
 }
