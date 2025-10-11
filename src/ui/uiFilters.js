@@ -45,8 +45,9 @@ const FILTERS = [
   // ──────────────────────────────
   { key: 'sourceBase', label: 'Base', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic
   { key: 'sourcePok', label: 'PoK', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic
+  { key: 'sourceThundersEdge', label: 'Thunders Edge', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic
   { key: 'sourceDS', label: 'DS/Uncharted', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic
-  { key: 'sourceEronous', label: 'Eronous', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic
+  { key: 'sourceEronous', label: 'Eronous', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic 
   { key: 'sourceOthers', label: 'Others', defaultOn: true, test(sys, a) { return true; } }, // Handled in special OR logic
 
   // Wormhole filter: supports both Set and Array for wormholes (union of inherent+custom)
@@ -850,7 +851,7 @@ export function initFilters(container, editor, onResults) {
   attrWrapper.appendChild(document.createTextNode(' Attribute Filters: '));
 
   // Separate source and attribute filters
-  const sourceFilterKeys = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceOthers'];
+  const sourceFilterKeys = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceThundersEdge', 'sourceOthers'];
   FILTERS.forEach(({ key, label, defaultOn }) => {
     const btn = document.createElement('button');
     btn.id = `filter-${key}`;
@@ -893,7 +894,7 @@ export function applyFilters(editor, onResults) {
     if (editor.hexes[sys.id]?.baseType) return false;
 
     // Handle source filters with OR logic
-    const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceOthers'];
+    const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceThundersEdge', 'sourceOthers'];
     const activeSourceFilters = sourceFilters.filter(key => {
       const btn = document.getElementById(`filter-${key}`);
       return btn?.dataset.active === 'true';
@@ -911,10 +912,11 @@ export function applyFilters(editor, onResults) {
         case 'sourcePok': return source === 'pok';
         case 'sourceDS': return source === 'ds' || source === 'uncharted_space';
         case 'sourceEronous': return source === 'eronous';
+        case 'sourceThundersEdge': return source === 'thunders_edge';
         case 'sourceOthers':
           // Handle "others" - includes known other sources and any unknown sources
           return ['other', 'draft', 'dane_leaks'].includes(source) ||
-            (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
+            (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous', 'thunders_edge'].includes(source));
         default: return false;
       }
     });
@@ -991,7 +993,7 @@ export function refreshSystemList() {
     if (editor.hexes[sys.id]?.baseType) return false;
 
     // Handle source filters with OR logic
-    const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceOthers'];
+    const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceThundersEdge', 'sourceOthers'];
     const activeSourceFilters = sourceFilters.filter(key => {
       const btn = document.getElementById(`filter-${key}`);
       return btn?.dataset.active === 'true';
@@ -1009,10 +1011,11 @@ export function refreshSystemList() {
         case 'sourcePok': return source === 'pok';
         case 'sourceDS': return source === 'ds' || source === 'uncharted_space';
         case 'sourceEronous': return source === 'eronous';
+        case 'sourceThundersEdge': return source === 'thunders_edge';
         case 'sourceOthers':
           // Handle "others" - includes known other sources and any unknown sources
           return ['other', 'draft', 'dane_leaks'].includes(source) ||
-            (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
+            (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous', 'thunders_edge'].includes(source));
         default: return false;
       }
     });
@@ -1053,7 +1056,7 @@ export function getActiveFilterPass(editor) {
     if (editor.hexes[sys.id]?.baseType) return false;
 
     // Handle source filters with OR logic
-    const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceOthers'];
+    const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceThundersEdge', 'sourceOthers'];
     const activeSourceFilters = sourceFilters.filter(key => {
       const btn = document.getElementById(`filter-${key}`);
       return btn?.dataset.active === 'true';
@@ -1071,10 +1074,11 @@ export function getActiveFilterPass(editor) {
         case 'sourcePok': return source === 'pok';
         case 'sourceDS': return source === 'ds' || source === 'uncharted_space';
         case 'sourceEronous': return source === 'eronous';
+        case 'sourceThundersEdge': return source === 'thunders_edge';
         case 'sourceOthers':
           // Handle "others" - includes known other sources and any unknown sources
           return ['other', 'draft', 'dane_leaks'].includes(source) ||
-            (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous'].includes(source));
+            (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous', 'thunders_edge'].includes(source));
         default: return false;
       }
     });
