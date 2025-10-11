@@ -318,6 +318,159 @@ export function showLayoutOptionsPopup() {
         if (themeBtn) {
             themeBtn.onclick = () => toggleTheme();
         }
+        // Sector Controls
+        const sectorControlsBtn = document.getElementById('sectorControlsBtn');
+        if (sectorControlsBtn) {
+            sectorControlsBtn.onclick = () => {
+                // Import the sector controls function and open the popup
+                import('./uisectorControls.js').then(module => {
+                    if (window.editor && typeof module.openSectorControlsPopup === 'function') {
+                        module.openSectorControlsPopup(window.editor);
+                    }
+                });
+            };
+        }
+        // Draw Helpers
+        const drawHelpersBtn = document.getElementById('drawHelpersBtn');
+        if (drawHelpersBtn) {
+            drawHelpersBtn.onclick = () => {
+                // Import the sector controls function and get the draw helpers functionality
+                import('./uisectorControls.js').then(module => {
+                    if (window.editor) {
+                        // Trigger the draw helpers popup directly
+                        showPopup({
+                            id: 'drawHelpersPopupModal',
+                            className: 'layout-options-popup',
+                            title: 'Draw Helpers',
+                            draggable: true,
+                            dragHandleSelector: '.popup-ui-titlebar',
+                            scalable: true,
+                            rememberPosition: true,
+                            style: {
+                                left: '800px',
+                                top: '120px',
+                                minWidth: '240px',
+                                maxWidth: '600px',
+                                minHeight: '120px',
+                                maxHeight: '600px',
+                                color: '#fff',
+                                border: '2px solid #66ff66',
+                                boxShadow: '0 8px 40px #000a',
+                                padding: '0 0 18px 0',
+                                zIndex: 1300
+                            },
+                            content: (() => {
+                                const content = document.createElement('div');
+                                content.className = 'modal-content popup-btn-grid draw-helpers-btn-grid';
+                                content.style.display = 'grid';
+                                content.style.gridTemplateColumns = 'repeat(3, 1fr)'; // 3 columns for compact layout
+                                content.style.gap = '8px';
+                                content.style.padding = '15px';
+                                
+                                // Define draw helper tools
+                                const drawHelpers = [
+                                    { mode: '1 planet', label: '1 Planet', cls: 'btn-1' },
+                                    { mode: '2 planet', label: '2 Planet', cls: 'btn-2' },
+                                    { mode: '3 planet', label: '3 Planet', cls: 'btn-3' },
+                                    { mode: 'legendary planet', label: 'Legendary', cls: 'btn-legendary' },
+                                    { mode: 'empty', label: 'Empty', cls: 'btn-empty' },
+                                    { mode: 'special', label: 'Special', cls: 'btn-special' }
+                                ];
+                                
+                                drawHelpers.forEach(({ mode, label, cls }) => {
+                                    const btn = document.createElement('button');
+                                    btn.textContent = label;
+                                    btn.className = `mode-button ${cls}`;
+                                    btn.style.border = '1px solid #666';
+                                    btn.style.borderRadius = '4px';
+                                    btn.style.padding = '8px 12px';
+                                    btn.style.fontSize = '0.9em';
+                                    btn.style.fontWeight = 'bold';
+                                    btn.style.maxWidth = '120px'; // Fixed max size for compact grid
+                                    btn.style.height = '35px'; // Fixed height
+                                    btn.style.overflow = 'hidden';
+                                    btn.style.textOverflow = 'ellipsis';
+                                    btn.style.whiteSpace = 'nowrap';
+                                    btn.addEventListener('click', (e) => {
+                                        // Clear active from draw helpers popup buttons
+                                        content.querySelectorAll('.mode-button').forEach(b => {
+                                            b.classList.remove('active');
+                                            b.style.background = '';
+                                            b.style.color = '';
+                                            b.style.fontWeight = 'bold';
+                                        });
+                                        // Set active state on clicked button
+                                        e.currentTarget.classList.add('active');
+                                        e.currentTarget.style.background = '#666';
+                                        e.currentTarget.style.color = '#fff';
+                                        e.currentTarget.style.fontWeight = 'bold';
+                                        window.editor.setMode(mode);
+                                    });
+                                    content.appendChild(btn);
+                                });
+                                
+                                // Add separator
+                                const separator = document.createElement('div');
+                                separator.style.gridColumn = '1 / -1'; // Span all columns
+                                separator.style.borderTop = '1px solid #666';
+                                separator.style.margin = '10px 0';
+                                content.appendChild(separator);
+                                
+                                // Add Effects section
+                                const effectsLabel = document.createElement('div');
+                                effectsLabel.textContent = 'Effects:';
+                                effectsLabel.style.gridColumn = '1 / -1'; // Span all columns
+                                effectsLabel.style.fontWeight = 'bold';
+                                effectsLabel.style.color = '#ffe066';
+                                effectsLabel.style.marginBottom = '8px';
+                                content.appendChild(effectsLabel);
+                                
+                                const effects = [
+                                    { mode: 'nebula', label: 'Nebula', cls: 'btn-nebula' },
+                                    { mode: 'rift', label: 'Rift', cls: 'btn-rift' },
+                                    { mode: 'asteroid', label: 'Asteroid', cls: 'btn-asteroid' },
+                                    { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova' }
+                                ];
+                                
+                                effects.forEach(({ mode, label, cls }) => {
+                                    const btn = document.createElement('button');
+                                    btn.textContent = label;
+                                    btn.className = `mode-button ${cls}`;
+                                    btn.style.border = '1px solid #666';
+                                    btn.style.borderRadius = '4px';
+                                    btn.style.padding = '8px 12px';
+                                    btn.style.fontSize = '0.9em';
+                                    btn.style.fontWeight = 'bold';
+                                    btn.style.maxWidth = '120px'; // Fixed max size for compact grid
+                                    btn.style.height = '35px'; // Fixed height
+                                    btn.style.overflow = 'hidden';
+                                    btn.style.textOverflow = 'ellipsis';
+                                    btn.style.whiteSpace = 'nowrap';
+                                    btn.addEventListener('click', (e) => {
+                                        // Clear active from all buttons in the popup
+                                        content.querySelectorAll('.mode-button').forEach(b => {
+                                            b.classList.remove('active');
+                                            b.style.background = '';
+                                            b.style.color = '';
+                                            b.style.fontWeight = 'bold';
+                                        });
+                                        // Set active state on clicked button
+                                        e.currentTarget.classList.add('active');
+                                        e.currentTarget.style.background = '#666';
+                                        e.currentTarget.style.color = '#fff';
+                                        e.currentTarget.style.fontWeight = 'bold';
+                                        window.editor.setMode(mode);
+                                    });
+                                    content.appendChild(btn);
+                                });
+                                
+                                return content;
+                            })()
+                        });
+                    }
+                });
+            };
+        }
         // Reset popup positions
         const resetBtn = document.getElementById('resetPopupPositionsBtn');
         if (resetBtn) {

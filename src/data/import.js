@@ -222,7 +222,7 @@ export function importSectorTypes(editor, tokenString) {
       const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift;
       const hasWormholes = hex.wormholes && hex.wormholes.size > 0;
       const hasBorderAnomalies = hex.borderAnomalies && Object.keys(hex.borderAnomalies).length > 0;
-      
+
       if (noPlanets && special) {
         editor.setSectorType(id, 'special');
       } else if ((info.planets || []).some(p => p.legendaryAbilityName?.trim())) {
@@ -361,7 +361,7 @@ export function importFullState(editor, jsonText) {
       // Attach realId and planets (for normal tiles)
       hex.realId = info.id ?? realId ?? null;
       if (hex.realId) markRealIDUsed(hex.realId);
-      
+
       // Only assign planets if they were explicitly stored in the import data
       // Don't auto-assign planets from SystemInfo just because realId matches
       hex.planets = h.pl || h.planets || [];
@@ -420,7 +420,7 @@ export function importFullState(editor, jsonText) {
       }
       // Skip classification if no system info and no explicit baseType (keep existing state)
       if (code === '-1' && !h.bt && !h.baseType) return;
-      
+
       if (code === 'HL' || !isMatrixEmpty(h.ln || h.links)) return;
       if ((info.planets || []).some(p => p.planetType === 'FACTION') || h.bt === "homesystem" || h.baseType === "homesystem") {
         editor.setSectorType(id, 'homesystem');
@@ -430,7 +430,7 @@ export function importFullState(editor, jsonText) {
       const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift;
       const hasWormholes = hex.wormholes && hex.wormholes.size > 0;
       const hasBorderAnomalies = hex.borderAnomalies && Object.keys(hex.borderAnomalies).length > 0;
-      
+
       if (noPlanets && special || h.bt === "special" || h.baseType === "special") {
         editor.setSectorType(id, 'special');
       } else if ((info.planets || []).some(p => p.legendaryAbilityName?.trim()) || h.bt === "legendary planet" || h.baseType === "legendary planet") {

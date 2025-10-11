@@ -177,7 +177,7 @@ export function startCopyPasteWizard(editor, cut = false) {
             const hasCustomAdjacents = hex.customAdjacents && (Array.isArray(hex.customAdjacents) ? hex.customAdjacents.some(x => x) : Object.keys(hex.customAdjacents).length > 0);
             const hasAdjacencyOverrides = hex.adjacencyOverrides && (Array.isArray(hex.adjacencyOverrides) ? hex.adjacencyOverrides.some(x => x) : Object.keys(hex.adjacencyOverrides).length > 0);
             const hasEffects = hex.effects && hex.effects.size > 0;
-            
+
             if (hasWormholes || hasBorderAnomalies || hasCustomAdjacents || hasAdjacencyOverrides || hasEffects) {
                 // Has some content, so copy it
                 return {
@@ -431,10 +431,10 @@ export function startCopyPasteWizard(editor, cut = false) {
 
             // Skip if really empty/no content
             const hasWormholes = (h.wormholes && ((Array.isArray(h.wormholes) && h.wormholes.length > 0) || (h.wormholes instanceof Set && h.wormholes.size > 0))) ||
-                                 (h.customWormholes && ((Array.isArray(h.customWormholes) && h.customWormholes.length > 0) || (h.customWormholes instanceof Set && h.customWormholes.size > 0))) ||
-                                 (h.inherentWormholes && ((Array.isArray(h.inherentWormholes) && h.inherentWormholes.length > 0) || (h.inherentWormholes instanceof Set && h.inherentWormholes.size > 0)));
+                (h.customWormholes && ((Array.isArray(h.customWormholes) && h.customWormholes.length > 0) || (h.customWormholes instanceof Set && h.customWormholes.size > 0))) ||
+                (h.inherentWormholes && ((Array.isArray(h.inherentWormholes) && h.inherentWormholes.length > 0) || (h.inherentWormholes instanceof Set && h.inherentWormholes.size > 0)));
             const hasBorderAnomalies = h.borderAnomalies && (Array.isArray(h.borderAnomalies) ? h.borderAnomalies.some(x => x) : Object.keys(h.borderAnomalies).length > 0);
-            
+
             const noContent =
                 (!h.realId && !h.realID) &&
                 (!h.baseType || h.baseType === '') &&
@@ -568,7 +568,7 @@ export function startCopyPasteWizard(editor, cut = false) {
             }
             // Skip classification if no system info and no explicit baseType (keep existing state)
             if (code === '-1' && !h.baseType) continue;
-            
+
             if (code === 'HL' || !isMatrixEmpty(h.links)) continue;
             if ((info.planets || []).some(p => p.planetType === 'FACTION') || h.baseType === "homesystem") {
                 editor.setSectorType(id, 'homesystem');
@@ -584,7 +584,7 @@ export function startCopyPasteWizard(editor, cut = false) {
                 const count = (info.planets || []).length;
                 const hasWormholes = hex.wormholes && hex.wormholes.size > 0;
                 const hasBorderAnomalies = hex.borderAnomalies && hex.borderAnomalies.some(x => x);
-                
+
                 if (count >= 3 || h.baseType === "3 planet") editor.setSectorType(id, '3 planet');
                 else if (count >= 2 || h.baseType === "2 planet") editor.setSectorType(id, '2 planet');
                 else if (count >= 1 || h.baseType === "1 planet") editor.setSectorType(id, '1 planet');

@@ -4,22 +4,6 @@ import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js'; // <-- Add hidePopup import
 
 export function installCustomLinksUI(editor) {
-    // --- Add popup launcher at sector controls bottom ---
-    function addPopupLauncher() {
-        const container = document.getElementById('sectorControlsContainer');
-        if (!container) return;
-        if (document.getElementById('customLinksPopupLauncher')) return;
-        const launcher = document.createElement('button');
-        launcher.id = 'customLinksPopupLauncher';
-        launcher.className = 'mode-button';
-        launcher.textContent = 'Custom Links...';
-        launcher.style.marginTop = '24px';
-        launcher.onclick = () => {
-            showCustomLinksPopup();
-        };
-        container.appendChild(launcher);
-    }
-
     // --- Main Custom Links popup using PopupUI ---
     function showCustomLinksPopup() {
         // Only one instance
@@ -222,14 +206,8 @@ export function installCustomLinksUI(editor) {
         return false;
     }
 
-    // Setup UI after DOM is ready
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", () => {
-            addPopupLauncher();
-        });
-    } else {
-        addPopupLauncher();
-    }
+    // Setup UI after DOM is ready - removed old button launcher
+    // The Custom Links button is now in the sector controls popup
 
     // ---- CLICK LOGIC FOR ALL TOOLS ----
     const oldClickHandler = editor._onHexClick;
@@ -440,4 +418,7 @@ export function installCustomLinksUI(editor) {
 
     // Expose redraw method
     editor.redrawCustomAdjacencyOverlay = () => drawCustomAdjacencyLayer(editor);
+    
+    // Expose popup function globally for sector controls
+    window.showCustomLinksPopup = showCustomLinksPopup;
 }

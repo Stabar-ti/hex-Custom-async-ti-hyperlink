@@ -4,7 +4,7 @@
 // ───────────────────────────────────────────────────────────────
 
 import { toggleTheme } from './uiTheme.js';
-import { populateSectorControls } from './uisectorControls.js';
+import { populateSectorControls, openSectorControlsPopup } from './uisectorControls.js';
 import { showModal, closeModal } from './uiModals.js';
 import { updateLayerVisibility } from '../features/realIDsOverlays.js';
 import { generateRings } from '../draw/drawHexes.js';
@@ -121,8 +121,8 @@ export function bindUI(editor) {
   document.getElementById('copyExportWormholePos')?.addEventListener('click', () =>
     navigator.clipboard.writeText(document.getElementById('exportWormholePositionsText')?.value || ''));
 
-  // Render the sector controls/tool palette
-  populateSectorControls(editor);
+  // Auto-open the sector controls popup (modernized version)
+  openSectorControlsPopup(editor);
 
   // Undo/redo hotkeys (Ctrl/Cmd+Z and Shift+Z)
   document.addEventListener('keydown', (e) => {

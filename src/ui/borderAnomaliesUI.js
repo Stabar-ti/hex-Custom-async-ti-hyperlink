@@ -4,21 +4,6 @@ import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js';
 
 export function installBorderAnomaliesUI(editor) {
-    function addPopupLauncher() {
-        const container = document.getElementById('sectorControlsContainer');
-        if (!container) return;
-        if (document.getElementById('borderAnomaliesPopupLauncher')) return;
-        const launcher = document.createElement('button');
-        launcher.id = 'borderAnomaliesPopupLauncher';
-        launcher.className = 'mode-button';
-        launcher.textContent = 'Border Anomalies...';
-        launcher.style.marginTop = '24px';
-        launcher.onclick = () => {
-            showBorderAnomaliesPopup();
-        };
-        container.appendChild(launcher);
-    }
-
     function showBorderAnomaliesPopup() {
         if (document.getElementById('borderAnomaliesPopup')) return;
 
@@ -142,14 +127,8 @@ export function installBorderAnomaliesUI(editor) {
         });
     }
 
-    // DOM ready
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", () => {
-            addPopupLauncher();
-        });
-    } else {
-        addPopupLauncher();
-    }
+    // Setup UI after DOM is ready - removed old button launcher
+    // The Border Anomalies button is now in the sector controls popup
 
     // --- CLICK LOGIC MIRRORING CUSTOM LINKS ---
     const oldClickHandler = editor._onHexClick;
@@ -281,4 +260,7 @@ export function installBorderAnomaliesUI(editor) {
         const btn = document.getElementById('toggleBorderAnomalies');
         if (btn) btn.classList.toggle('active', editor.showBorderAnomalies);
     };
+    
+    // Expose popup function globally for sector controls
+    window.showBorderAnomaliesPopup = showBorderAnomaliesPopup;
 }
