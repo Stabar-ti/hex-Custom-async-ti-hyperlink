@@ -78,7 +78,7 @@ export function exportWormholePositions(editor) {
   const groups = {};
 
   for (const [id, hex] of Object.entries(editor.hexes)) {
-    if (!/^[0-9]{3,4}$/.test(id)) continue;
+    if (!/^([0-9]{3,4}|TL|TR|BL|BR)$/.test(id)) continue;
     // Debug: log wormhole state before export
     console.log('exportWormholePositions', id, {
       inherentWormholes: Array.from(hex.inherentWormholes || []),

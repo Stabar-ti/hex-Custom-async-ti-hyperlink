@@ -24,13 +24,15 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/AsyncTI4/TI4_map_generator_bot temp-bot-repo
 
-      - name: Copy systems, planets, and hyperlanes.properties
+      - name: Copy systems, planets, tokens, attachments, and hyperlanes.properties
         run: |
           # Clean sync - remove existing and copy fresh
-          rm -rf public/data/systems public/data/planets public/data/tiles public/data/hyperlanes.properties
-          mkdir -p public/data/systems public/data/planets public/data public/data/tiles
+          rm -rf public/data/systems public/data/planets public/data/tiles public/data/tokens public/data/attachments public/data/hyperlanes.properties
+          mkdir -p public/data/systems public/data/planets public/data public/data/tiles public/data/tokens public/data/attachments
           cp temp-bot-repo/src/main/resources/systems/*.json public/data/systems/
           cp temp-bot-repo/src/main/resources/planets/*.json public/data/planets/
+          cp temp-bot-repo/src/main/resources/tokens/*.json public/data/tokens/
+          cp temp-bot-repo/src/main/resources/data/attachments/*.json public/data/attachments/
           cp temp-bot-repo/src/main/resources/tiles/*.png public/data/tiles/
           cp temp-bot-repo/src/main/resources/data/hyperlanes.properties public/data/hyperlanes.properties
 
@@ -66,6 +68,104 @@ jobs:
             
           EOF
 
+      - name: Combine tokens into tokens.json
+        run: |
+          python3 - << 'EOF'
+          import json, glob, os
+
+          # Load all tokens into a list
+          tokens = []
+          for path in sorted(glob.glob('public/data/tokens/*.json')):
+            token = json.load(open(path))
+            tokens.append(token)
+
+          # Write the combined tokens bundle
+          os.makedirs('public/data', exist_ok=True)
+          with open('public/data/tokens.json', 'w') as out:
+            json.dump(tokens, out, separators=(',',':'))
+            
+          EOF
+
+      - name: Combine attachments into attachments.json
+        run: |
+          python3 - << 'EOF'
+          import json, glob, os
+
+          # Load all attachments into a list
+          attachments = []
+          for path in sorted(glob.glob('public/data/attachments/*.json')):
+            attachment = json.load(open(path))
+            attachments.append(attachment)
+
+          # Write the combined attachments bundle
+          os.makedirs('public/data', exist_ok=True)
+          with open('public/data/attachments.json', 'w') as out:
+            json.dump(attachments, out, separators=(',',':'))
+            
+          EOF
+
+      - name: Generate border.json from BorderAnomalyModel.java
+        run: |
+          python3 - << 'EOF'
+          import json, os, re
+
+          # Read and parse BorderAnomalyModel.java
+          border_anomalies = []
+          
+          with open('temp-bot-repo/src/main/java/ti4/model/BorderAnomalyModel.java', 'r', encoding='utf-8') as f:
+              content = f.read()
+          
+          # Find the enum section
+          enum_pattern = r'public enum BorderAnomalyType\s*\{(.*?)\}'
+          enum_match = re.search(enum_pattern, content, re.DOTALL)
+          
+          if enum_match:
+              enum_content = enum_match.group(1)
+              
+              # Parse each enum entry - pattern: ENUM_NAME("Display Name", "image.png")
+              entry_pattern = r'(\w+)\("([^"]+)",\s*"([^"]+)"\)'
+              entries = re.findall(entry_pattern, enum_content)
+              
+              for enum_name, display_name, image_file in entries:
+                  # Generate ID from first word of enum name (remove underscores)
+                  id_parts = enum_name.split('_')
+                  if len(id_parts) > 1:
+                      # For multi-word enums like GRAVITY_WAVE, use both words
+                      border_id = ''.join(id_parts)
+                  else:
+                      border_id = enum_name
+                  
+                  # Generate aliases
+                  aliases = [enum_name.lower()]
+                  if '_' in enum_name:
+                      aliases.append(enum_name.lower().replace('_', ''))
+                      aliases.extend(part.lower() for part in enum_name.split('_'))
+                  
+                  # Add display name variations as aliases
+                  display_lower = display_name.lower()
+                  if display_lower not in aliases:
+                      aliases.append(display_lower)
+                  
+                  # Add space-separated words from display name
+                  display_words = display_lower.replace(' ', '_').split('_')
+                  for word in display_words:
+                      if word and word not in aliases:
+                          aliases.append(word)
+                  
+                  border_anomalies.append({
+                      "id": border_id,
+                      "name": display_name,
+                      "alias": list(set(aliases)),  # Remove duplicates
+                      "image": image_file
+                  })
+          
+          # Write the border anomalies data
+          os.makedirs('public/data', exist_ok=True)
+          with open('public/data/border.json', 'w') as out:
+              json.dump(border_anomalies, out, separators=(',',':'))
+              
+          EOF
+
       - name: Convert hyperlanes.properties to compact hyperlanes.json
         run: |
           python3 - << 'EOF'
@@ -90,11 +190,16 @@ jobs:
         run: |
           git add public/data/systems \
                   public/data/planets \
+                  public/data/tokens \
+                  public/data/attachments \
                   public/data/SystemInfo.json \
+                  public/data/tokens.json \
+                  public/data/attachments.json \
+                  public/data/border.json \
                   public/data/hyperlanes.json \
                   public/data/hyperlanes.properties \
                   public/data/tiles
-          git commit -m "🤖 Sync AsyncTI4 data + build SystemInfo.json and hyperlanes.json" \
+          git commit -m "🤖 Sync AsyncTI4 data + build SystemInfo.json, tokens.json, attachments.json, border.json and hyperlanes.json" \
                      || echo "No changes to commit"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git \
                    HEAD:${{ github.ref_name }}
