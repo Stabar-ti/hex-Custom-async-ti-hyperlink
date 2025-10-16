@@ -1,0 +1,219 @@
+name: Sync AsyncTI4 data
+
+on:
+  schedule:
+    - cron:   '0 */12 * * *'   # every 12h UTC
+  workflow_dispatch:
+
+jobs:
+  sync-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+
+      - name: Set up Git config
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Clone source repo
+        run: |
+          git clone --depth 1 https://github.com/AsyncTI4/TI4_map_generator_bot temp-bot-repo
+
+      - name: Copy systems, planets, tokens, attachments, and hyperlanes.properties
+        run: |
+          # Clean sync - remove existing and copy fresh
+          rm -rf public/data/systems public/data/planets public/data/tiles public/data/tokens public/data/attachments public/data/hyperlanes.properties
+          mkdir -p public/data/systems public/data/planets public/data public/data/tiles public/data/tokens public/data/attachments
+          cp temp-bot-repo/src/main/resources/systems/*.json public/data/systems/
+          cp temp-bot-repo/src/main/resources/planets/*.json public/data/planets/
+          # Copy tokens if they exist
+          if ls temp-bot-repo/src/main/resources/tokens/*.json 1> /dev/null 2>&1; then
+            cp temp-bot-repo/src/main/resources/tokens/*.json public/data/tokens/
+          else
+            echo "No JSON files found in tokens directory"
+          fi
+          cp temp-bot-repo/src/main/resources/data/attachments/*.json public/data/attachments/
+          cp temp-bot-repo/src/main/resources/tiles/*.png public/data/tiles/
+          cp temp-bot-repo/src/main/resources/data/hyperlanes.properties public/data/hyperlanes.properties
+
+      - name: Combine into a single bundle
+        run: |
+          python3 - << 'EOF'
+          import json, glob, os
+
+          # Load all planets into a dict by id
+          planets = {}
+          for path in sorted(glob.glob('public/data/planets/*.json')):
+            p = json.load(open(path))
+            planets[p['id']] = p
+
+          # For each system, load it and replace its 'planets' list of IDs
+          # with a list of full planet objects.
+          systems = []
+          for path in sorted(glob.glob('public/data/systems/*.json')):
+            sys = json.load(open(path))
+            # sys['planets'] is currently a list of planet IDs (or empty/null entries)
+            planet_objs = []
+            for pid in sys.get('planets', []):
+              if pid and pid in planets:
+                planet_objs.append(planets[pid])
+            sys['planets'] = planet_objs
+            systems.append(sys)
+
+          # Write the combined bundle
+          bundle = { 'systems': systems }
+          os.makedirs('public/data', exist_ok=True)
+          with open('public/data/SystemInfo.json', 'w') as out:
+            json.dump(bundle, out, separators=(',',':'))
+            
+          EOF
+
+      - name: Combine tokens into tokens.json
+        run: |
+          python3 - << 'EOF'
+          import json, glob, os
+
+          # Load all tokens into a list
+          tokens = []
+          token_files = glob.glob('public/data/tokens/*.json')
+          print(f"Found {len(token_files)} token JSON files")
+          
+          for path in sorted(token_files):
+            print(f"Processing token file: {path}")
+            try:
+              token = json.load(open(path))
+              tokens.append(token)
+            except Exception as e:
+              print(f"Error loading {path}: {e}")
+
+          print(f"Combined {len(tokens)} tokens")
+          
+          # Write the combined tokens bundle
+          os.makedirs('public/data', exist_ok=True)
+          with open('public/data/tokens.json', 'w') as out:
+            json.dump(tokens, out, separators=(',',':'))
+            
+          EOF
+
+      - name: Combine attachments into attachments.json
+        run: |
+          python3 - << 'EOF'
+          import json, glob, os
+
+          # Load all attachments into a list
+          attachments = []
+          for path in sorted(glob.glob('public/data/attachments/*.json')):
+            attachment = json.load(open(path))
+            attachments.append(attachment)
+
+          # Write the combined attachments bundle
+          os.makedirs('public/data', exist_ok=True)
+          with open('public/data/attachments.json', 'w') as out:
+            json.dump(attachments, out, separators=(',',':'))
+            
+          EOF
+
+      - name: Generate border.json from BorderAnomalyModel.java
+        run: |
+          python3 - << 'EOF'
+          import json, os, re
+
+          # Read and parse BorderAnomalyModel.java
+          border_anomalies = []
+          
+          with open('temp-bot-repo/src/main/java/ti4/model/BorderAnomalyModel.java', 'r', encoding='utf-8') as f:
+              content = f.read()
+          
+          # Find the enum section
+          enum_pattern = r'public enum BorderAnomalyType\s*\{(.*?)\}'
+          enum_match = re.search(enum_pattern, content, re.DOTALL)
+          
+          if enum_match:
+              enum_content = enum_match.group(1)
+              
+              # Parse each enum entry - pattern: ENUM_NAME("Display Name", "image.png")
+              entry_pattern = r'(\w+)\("([^"]+)",\s*"([^"]+)"\)'
+              entries = re.findall(entry_pattern, enum_content)
+              
+              for enum_name, display_name, image_file in entries:
+                  # Generate ID from first word of enum name (remove underscores)
+                  id_parts = enum_name.split('_')
+                  if len(id_parts) > 1:
+                      # For multi-word enums like GRAVITY_WAVE, use both words
+                      border_id = ''.join(id_parts)
+                  else:
+                      border_id = enum_name
+                  
+                  # Generate aliases
+                  aliases = [enum_name.lower()]
+                  if '_' in enum_name:
+                      aliases.append(enum_name.lower().replace('_', ''))
+                      aliases.extend(part.lower() for part in enum_name.split('_'))
+                  
+                  # Add display name variations as aliases
+                  display_lower = display_name.lower()
+                  if display_lower not in aliases:
+                      aliases.append(display_lower)
+                  
+                  # Add space-separated words from display name
+                  display_words = display_lower.replace(' ', '_').split('_')
+                  for word in display_words:
+                      if word and word not in aliases:
+                          aliases.append(word)
+                  
+                  border_anomalies.append({
+                      "id": border_id,
+                      "name": display_name,
+                      "alias": list(set(aliases)),  # Remove duplicates
+                      "image": image_file
+                  })
+          
+          # Write the border anomalies data
+          os.makedirs('public/data', exist_ok=True)
+          with open('public/data/border.json', 'w') as out:
+              json.dump(border_anomalies, out, separators=(',',':'))
+              
+          EOF
+
+      - name: Convert hyperlanes.properties to compact hyperlanes.json
+        run: |
+          python3 - << 'EOF'
+          import json
+          props = {}
+          with open('public/data/hyperlanes.properties', encoding='utf-8') as f:
+              for line in f:
+                  line = line.strip()
+                  if not line or line.startswith('#'): continue
+                  if '=' in line:
+                      k, v = line.split('=', 1)
+                      matrix = [
+                          [int(x) for x in row.split(',')]
+                          for row in v.strip().split(';') if row
+                      ]
+                      props[k.strip()] = matrix
+          with open('public/data/hyperlanes.json', 'w', encoding='utf-8') as out:
+              json.dump(props, out, separators=(',', ':'), ensure_ascii=False)
+          EOF
+
+      - name: Commit & push changes
+        run: |
+          git add public/data/systems \
+                  public/data/planets \
+                  public/data/tokens \
+                  public/data/attachments \
+                  public/data/SystemInfo.json \
+                  public/data/tokens.json \
+                  public/data/attachments.json \
+                  public/data/border.json \
+                  public/data/hyperlanes.json \
+                  public/data/hyperlanes.properties \
+                  public/data/tiles
+          git commit -m "🤖 Sync AsyncTI4 data + build SystemInfo.json, tokens.json, attachments.json, border.json and hyperlanes.json" \
+                     || echo "No changes to commit"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git \
+                   HEAD:${{ github.ref_name }}
