@@ -31,12 +31,7 @@ jobs:
           mkdir -p public/data/systems public/data/planets public/data public/data/tiles public/data/tokens public/data/attachments
           cp temp-bot-repo/src/main/resources/systems/*.json public/data/systems/
           cp temp-bot-repo/src/main/resources/planets/*.json public/data/planets/
-          # Copy tokens if they exist
-          if ls temp-bot-repo/src/main/resources/tokens/*.json 1> /dev/null 2>&1; then
-            cp temp-bot-repo/src/main/resources/tokens/*.json public/data/tokens/
-          else
-            echo "No JSON files found in tokens directory"
-          fi
+          cp temp-bot-repo/src/main/resources/tokens/*.json public/data/tokens/
           cp temp-bot-repo/src/main/resources/data/attachments/*.json public/data/attachments/
           cp temp-bot-repo/src/main/resources/tiles/*.png public/data/tiles/
           cp temp-bot-repo/src/main/resources/data/hyperlanes.properties public/data/hyperlanes.properties
