@@ -1,0 +1,86 @@
+{
+    "mapInfo": [
+        {
+            "hexID": "A1B2C3",
+            "systemID": "SYS-001",
+            "planets": [
+                {
+                    "planetID": "PL-Alpha",
+                    "attachments": [
+                        "Att-1",
+                        "Att-2"
+                    ],
+                    "planetLore": [
+                        "MAIN",
+                        "SUB",
+                        "Space/PPlanet"
+                    ]
+                },
+                {
+                    "planetID": "PL-Beta",
+                    "attachments": [],
+                    "planetLore": []
+                }
+            ],
+            "tokens": [
+                "token-1",
+                "token-2"
+            ],
+            "hyperlaneString": "010101110010111001010111001011100101",
+            "border": [
+                "type1",
+                false,
+                "type2",
+                false,
+                false,
+                false
+            ],
+            "systemLore": [
+                "MAIN",
+                "SUB",
+                "Space/PPlanet"
+            ],
+            "Plastic": null,
+            "links": {
+                "customadjacency": [
+                    {
+                        "secondary": "D4E5F6",
+                        "CustomAdjacencyTwoWay": true
+                    }
+                ],
+                "adjacencyoverride": [
+                    {
+                        "secondary": "D4E5F6",
+                        "direction": "010000"
+                    }
+                ]
+            }
+        },
+        {
+            "hexID": "D4E5F6",
+            "systemID": "SYS-002",
+            "planets": [],
+            "tokens": [],
+            "hyperlaneString": "000000000000000000000000000000000000",
+            "border": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            "systemLore": [],
+            "Plastic": null,
+            "links": {
+                "customadjacency": [
+                    {
+                        "secondary": "A1B2C3",
+                        "CustomAdjacencyTwoWay": false
+                    }
+                ],
+                "adjacencyoverride": []
+            }
+        }
+    ]
+}

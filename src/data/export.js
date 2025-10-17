@@ -318,6 +318,132 @@ export function exportCustomAdjacents(editor) {
   return lines.join('\n');
 }
 
+/**
+ * Exports the full map state in a format similar to test.json structure
+ * Returns an object with mapInfo array containing full hex information
+ */
+export function exportMapInfo(editor) {
+  const mapInfo = [];
+  
+  Object.entries(editor.hexes).forEach(([label, hex]) => {
+    if (!hex || !hex.center) return; // Skip uninitialized hexes
+    
+    // Build planets array
+    const planets = (hex.planets || []).map(planet => ({
+      planetID: planet.id || planet.planetID || '',
+      attachments: planet.attachments || []
+    }));
+    
+    // Build tokens array - collect from various token sources
+    const tokens = [];
+    if (hex.tokens) {
+      tokens.push(...hex.tokens);
+    }
+    
+    // Add custom wormholes as tokens using the same mapping as exportWormholePositions
+    if (hex.customWormholes && hex.customWormholes.size > 0) {
+      const whTokenMap = {};
+      Object.keys(wormholeTypes).forEach(
+        key => whTokenMap[key] = 'wh' + key
+      );
+      whTokenMap.iota = 'custom_eronous_whiota';
+      whTokenMap.theta = 'custom_eronous_whtheta';
+      
+      const userWormholes = Array.from(hex.customWormholes);
+      for (const whRaw of userWormholes) {
+        // Normalize to base key, strip any wh prefix
+        const whKey = whRaw.toLowerCase().replace(/^wh/, '');
+        const whToken = whTokenMap[whKey] || ('wh' + whKey);
+        tokens.push(whToken);
+      }
+    }
+    
+    // Build hyperlane string (matrix to binary string)
+    let hyperlaneString = '';
+    if (hex.matrix) {
+      // Convert 6x6 matrix to 36-character binary string
+      for (let row = 0; row < 6; row++) {
+        for (let col = 0; col < 6; col++) {
+          hyperlaneString += (hex.matrix[row] && hex.matrix[row][col]) ? '1' : '0';
+        }
+      }
+    } else {
+      hyperlaneString = '0'.repeat(36); // Default empty hyperlanes
+    }
+    
+    // Build border array (6 sides: n, ne, se, s, sw, nw)
+    const border = [false, false, false, false, false, false];
+    if (hex.borderAnomalies) {
+      Object.entries(hex.borderAnomalies).forEach(([sideStr, anomaly]) => {
+        const side = parseInt(sideStr, 10);
+        if (side >= 0 && side < 6 && anomaly.type) {
+          border[side] = anomaly.type.replace(/\s+/g, ''); // Remove spaces for consistency
+        }
+      });
+    }
+    
+    // Build Lore array
+    let lore = '';
+    if (hex.lore) {
+      if (Array.isArray(hex.lore)) {
+        lore = hex.lore;
+      } else if (typeof hex.lore === 'string') {
+        lore = hex.lore.split(',').map(s => s.trim());
+      }
+    }
+    
+    // Build links object
+    const links = {
+      customadjacency: [],
+      adjacencyoverride: []
+    };
+    
+    // Process custom adjacencies
+    if (hex.customAdjacents) {
+      Object.entries(hex.customAdjacents).forEach(([target, info]) => {
+        links.customadjacency.push({
+          secondary: target,
+          CustomAdjacencyTwoWay: info.twoWay || false
+        });
+      });
+    }
+    
+    // Process adjacency overrides
+    if (hex.adjacencyOverrides) {
+      Object.entries(hex.adjacencyOverrides).forEach(([sideStr, neighborLabel]) => {
+        const side = parseInt(sideStr, 10);
+        if (side >= 0 && side < 6 && neighborLabel) {
+          // Convert side number to binary direction string (6 bits for 6 directions)
+          const direction = '0'.repeat(6).split('');
+          direction[side] = '1';
+          
+          links.adjacencyoverride.push({
+            secondary: neighborLabel,
+            direction: direction.join('')
+          });
+        }
+      });
+    }
+    
+    // Create hex entry
+    const hexEntry = {
+      hexID: label,
+      systemID: hex.realId || hex.systemId || '',
+      planets: planets,
+      tokens: tokens,
+      hyperlaneString: hyperlaneString,
+      border: border,
+      Lore: lore,
+      Plastic: hex.plastic || null,
+      links: links
+    };
+    
+    mapInfo.push(hexEntry);
+  });
+  
+  return { mapInfo };
+}
+
 export function exportBorderAnomaliesGrouped(editor, doubleSided = true) {
   const dirMap = ['n', 'ne', 'se', 's', 'sw', 'nw'];
   const reverseDir = [3, 4, 5, 0, 1, 2];

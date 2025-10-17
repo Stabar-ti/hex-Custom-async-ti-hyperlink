@@ -124,6 +124,7 @@
       <button id="importHLBtn" class="mode-button">Import HL</button>
       <div>
         <button id="exportFullBtn" class="mode-button dropdown-toggle">Save Map</button>
+        <!--  <button id="exportMapInfoBtn" class="mode-button">Export Map Info</button> -->
         <button id="importFullBtn" class="mode-button dropdown-toggle">Load Map</button>
       </div>
     </div>
@@ -224,6 +225,15 @@
     <button id="copyExportFull">Copy</button>
     <button id="downloadExportFull">Download JSON</button>
     <button data-close="exportFullModal">Close</button>
+  </div>
+
+  <!-- Export Map Info Modal -->
+  <div id="exportMapInfoModal" class="modal">
+    <h3>Map Info Export</h3>
+    <textarea id="exportMapInfoText"></textarea><br />
+    <button id="copyExportMapInfo">Copy</button>
+    <button id="downloadExportMapInfo">Download JSON</button>
+    <button data-close="exportMapInfoModal">Close</button>
   </div>
 
   <!-- Import Full State Modal -->
