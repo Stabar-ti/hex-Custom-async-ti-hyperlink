@@ -3,8 +3,8 @@
         "id": "ASTEROID",
         "name": "Asteroid Field",
         "alias": [
-            "asteroid",
             "field",
+            "asteroid",
             "asteroid field"
         ],
         "image": "asteroid_border.png"
@@ -13,10 +13,10 @@
         "id": "GRAVITYWAVE",
         "name": "Gravity Wave",
         "alias": [
-            "gravity wave",
-            "wave",
             "gravity",
+            "wave",
             "gravitywave",
+            "gravity wave",
             "gravity_wave"
         ],
         "image": "gravity_wave_border.png"
@@ -49,11 +49,11 @@
         "id": "SPATIALTEAR",
         "name": "Spatial Tear",
         "alias": [
-            "tear",
-            "spatial tear",
-            "spatialtear",
             "spatial",
-            "spatial_tear"
+            "spatial_tear",
+            "tear",
+            "spatialtear",
+            "spatial tear"
         ],
         "image": "spatial_tear_border.png"
     },
@@ -61,11 +61,11 @@
         "id": "VOIDTETHER",
         "name": "Void Tether",
         "alias": [
-            "void tether",
-            "void_tether",
             "tether",
-            "voidtether",
-            "void"
+            "void_tether",
+            "void tether",
+            "void",
+            "voidtether"
         ],
         "image": "void_tether.png"
     },
@@ -73,11 +73,11 @@
         "id": "COREBORDER",
         "name": "Core border",
         "alias": [
-            "core border",
             "border",
-            "core_border",
             "coreborder",
-            "core"
+            "core",
+            "core border",
+            "core_border"
         ],
         "image": "core_border.png"
     },
@@ -85,11 +85,11 @@
         "id": "RIMBORDER",
         "name": "Rim border",
         "alias": [
-            "rimborder",
             "rim_border",
+            "rimborder",
             "border",
-            "rim",
-            "rim border"
+            "rim border",
+            "rim"
         ],
         "image": "rim_border.png"
     },
