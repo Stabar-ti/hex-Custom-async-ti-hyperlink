@@ -324,22 +324,22 @@ export function exportCustomAdjacents(editor) {
  */
 export function exportMapInfo(editor) {
   const mapInfo = [];
-  
+
   Object.entries(editor.hexes).forEach(([label, hex]) => {
     if (!hex || !hex.center) return; // Skip uninitialized hexes
-    
+
     // Build planets array
     const planets = (hex.planets || []).map(planet => ({
       planetID: planet.id || planet.planetID || '',
       attachments: planet.attachments || []
     }));
-    
+
     // Build tokens array - collect from various token sources
     const tokens = [];
     if (hex.tokens) {
       tokens.push(...hex.tokens);
     }
-    
+
     // Add custom wormholes as tokens using the same mapping as exportWormholePositions
     if (hex.customWormholes && hex.customWormholes.size > 0) {
       const whTokenMap = {};
@@ -348,7 +348,7 @@ export function exportMapInfo(editor) {
       );
       whTokenMap.iota = 'custom_eronous_whiota';
       whTokenMap.theta = 'custom_eronous_whtheta';
-      
+
       const userWormholes = Array.from(hex.customWormholes);
       for (const whRaw of userWormholes) {
         // Normalize to base key, strip any wh prefix
@@ -357,7 +357,7 @@ export function exportMapInfo(editor) {
         tokens.push(whToken);
       }
     }
-    
+
     // Build hyperlane string (matrix to binary string)
     let hyperlaneString = '';
     if (hex.matrix) {
@@ -370,7 +370,7 @@ export function exportMapInfo(editor) {
     } else {
       hyperlaneString = '0'.repeat(36); // Default empty hyperlanes
     }
-    
+
     // Build border array (6 sides: n, ne, se, s, sw, nw)
     const border = [false, false, false, false, false, false];
     if (hex.borderAnomalies) {
@@ -381,7 +381,7 @@ export function exportMapInfo(editor) {
         }
       });
     }
-    
+
     // Build Lore array
     let lore = '';
     if (hex.lore) {
@@ -391,13 +391,13 @@ export function exportMapInfo(editor) {
         lore = hex.lore.split(',').map(s => s.trim());
       }
     }
-    
+
     // Build links object
     const links = {
       customadjacency: [],
       adjacencyoverride: []
     };
-    
+
     // Process custom adjacencies
     if (hex.customAdjacents) {
       Object.entries(hex.customAdjacents).forEach(([target, info]) => {
@@ -407,7 +407,7 @@ export function exportMapInfo(editor) {
         });
       });
     }
-    
+
     // Process adjacency overrides
     if (hex.adjacencyOverrides) {
       Object.entries(hex.adjacencyOverrides).forEach(([sideStr, neighborLabel]) => {
@@ -416,7 +416,7 @@ export function exportMapInfo(editor) {
           // Convert side number to binary direction string (6 bits for 6 directions)
           const direction = '0'.repeat(6).split('');
           direction[side] = '1';
-          
+
           links.adjacencyoverride.push({
             secondary: neighborLabel,
             direction: direction.join('')
@@ -424,7 +424,7 @@ export function exportMapInfo(editor) {
         }
       });
     }
-    
+
     // Create hex entry
     const hexEntry = {
       hexID: label,
@@ -437,10 +437,10 @@ export function exportMapInfo(editor) {
       Plastic: hex.plastic || null,
       links: links
     };
-    
+
     mapInfo.push(hexEntry);
   });
-  
+
   return { mapInfo };
 }
 
