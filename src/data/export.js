@@ -336,7 +336,7 @@ export function exportMapInfo(editor) {
         if (planet.loreMain) planetLore.push(planet.loreMain);
         if (planet.loreSub) planetLore.push(planet.loreSub);
         else if (planet.flavourText) planetLore.push(planet.flavourText);
-        
+
         // Add space/planet indicator if available
         if (planet.spaceOrPlanet) {
           planetLore.push(planet.spaceOrPlanet === 'space' ? 'Space' : 'Planet');
@@ -344,7 +344,7 @@ export function exportMapInfo(editor) {
           planetLore.push('Planet'); // Default to planet if planetType exists
         }
       }
-      
+
       return {
         planetID: planet.id || planet.planetID || '',
         attachments: planet.attachments || [],
@@ -412,7 +412,7 @@ export function exportMapInfo(editor) {
           systemLore.push(...hex.lore.split(',').map(s => s.trim()));
         }
       }
-      
+
       // Add space indicator for system-level lore
       if (hex.spaceOrPlanet) {
         systemLore.push(hex.spaceOrPlanet === 'space' ? 'Space' : 'Planet');

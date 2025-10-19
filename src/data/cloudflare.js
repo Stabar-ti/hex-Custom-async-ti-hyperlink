@@ -129,7 +129,7 @@ async function saveMapInfoToCloudflare(editor) {
 
         // Get the JSON export data - this returns { mapInfo: [...] }
         const mapInfoData = exportMapInfo(editor);
-        
+
         console.log('Sending map info to server:', {
             dataSize: JSON.stringify(mapInfoData).length,
             hexCount: mapInfoData.mapInfo ? mapInfoData.mapInfo.length : 0
@@ -278,7 +278,7 @@ function showDownloadLink(url, type = 'map') {
     // Copy button handler
     copyBtn.addEventListener('click', async () => {
         input.select();
-        
+
         try {
             if (navigator.clipboard) {
                 await navigator.clipboard.writeText(url);
@@ -290,7 +290,7 @@ function showDownloadLink(url, type = 'map') {
                 copyBtn.textContent = '✓ Copied!';
                 copyBtn.style.background = '#4CAF50';
             }
-            
+
             setTimeout(() => {
                 copyBtn.textContent = 'Copy Link';
                 copyBtn.style.background = 'var(--accent, #4CAF50)';
@@ -313,7 +313,7 @@ function showDownloadLink(url, type = 'map') {
     const closeModal = () => {
         document.body.removeChild(overlay);
     };
-    
+
     closeBtn.addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) closeModal();
