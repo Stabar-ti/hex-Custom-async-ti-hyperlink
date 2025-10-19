@@ -4,8 +4,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://*.cloudflare.com; connect-src 'self' https://*.workers.dev https://challenges.cloudflare.com https://*.cloudflare.com; style-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com https://*.cloudflare.com; img-src 'self' data: https://challenges.cloudflare.com; object-src 'none'; base-uri 'self';" />
   <title>Hex Hyperlane Editor</title>
   <link rel="stylesheet" href="styles.css" />
+  <!-- Load Turnstile SDK with optimized loading -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 
 <body>
@@ -124,8 +128,11 @@
       <button id="importHLBtn" class="mode-button">Import HL</button>
       <div>
         <button id="exportFullBtn" class="mode-button dropdown-toggle">Save Map</button>
-        <!--  <button id="exportMapInfoBtn" class="mode-button">Export Map Info</button> -->
+        <!-- <button id="exportMapInfoBtn" class="mode-button">Export Map Info</button> -->
         <button id="importFullBtn" class="mode-button dropdown-toggle">Load Map</button>
+        <!--  <button id="saveMapCloudflareBtn" class="mode-button">Save (48h link)</button> -->
+        <button id="saveMapInfoCloudflareBtn" class="mode-button">DEVELOPER EXPORT</button>
+
       </div>
     </div>
     Rings: <input id="ringCount" type="number" min="1" max="15" value="6" />
@@ -533,7 +540,12 @@
     </div>
   </div>
 
-  <div id="hexHoverInfo" class="hover-info"></div> <!-- Application script -->
+  <div id="hexHoverInfo" class="hover-info"></div>
+
+  <!-- Invisible Cloudflare Turnstile widget -->
+  <div class="cf-turnstile" data-sitekey="0x4AAAAAAB7Xo7ZilyUzi6KU" data-size="invisible"></div>
+
+  <!-- Application script -->
   <!--<script src="app.js" defer></script> -->
   <!-- <script type="module" src="src/main.js"></script> -->
   <script type="module" src="src/main.js"></script>

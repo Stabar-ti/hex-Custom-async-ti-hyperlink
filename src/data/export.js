@@ -329,10 +329,28 @@ export function exportMapInfo(editor) {
     if (!hex || !hex.center) return; // Skip uninitialized hexes
 
     // Build planets array
-    const planets = (hex.planets || []).map(planet => ({
-      planetID: planet.id || planet.planetID || '',
-      attachments: planet.attachments || []
-    }));
+    const planets = (hex.planets || []).map(planet => {
+      // Build planet lore from flavourText or existing lore fields
+      let planetLore = [];
+      if (planet.loreMain || planet.loreSub || planet.flavourText) {
+        if (planet.loreMain) planetLore.push(planet.loreMain);
+        if (planet.loreSub) planetLore.push(planet.loreSub);
+        else if (planet.flavourText) planetLore.push(planet.flavourText);
+        
+        // Add space/planet indicator if available
+        if (planet.spaceOrPlanet) {
+          planetLore.push(planet.spaceOrPlanet === 'space' ? 'Space' : 'Planet');
+        } else if (planet.planetType) {
+          planetLore.push('Planet'); // Default to planet if planetType exists
+        }
+      }
+      
+      return {
+        planetID: planet.id || planet.planetID || '',
+        attachments: planet.attachments || [],
+        planetLore: planetLore
+      };
+    });
 
     // Build tokens array - collect from various token sources
     const tokens = [];
@@ -382,13 +400,24 @@ export function exportMapInfo(editor) {
       });
     }
 
-    // Build Lore array
-    let lore = '';
-    if (hex.lore) {
-      if (Array.isArray(hex.lore)) {
-        lore = hex.lore;
-      } else if (typeof hex.lore === 'string') {
-        lore = hex.lore.split(',').map(s => s.trim());
+    // Build system lore array - process both main/sub parts and general lore
+    let systemLore = [];
+    if (hex.loreMain || hex.loreSub || hex.lore) {
+      if (hex.loreMain) systemLore.push(hex.loreMain);
+      if (hex.loreSub) systemLore.push(hex.loreSub);
+      else if (hex.lore) {
+        if (Array.isArray(hex.lore)) {
+          systemLore.push(...hex.lore);
+        } else if (typeof hex.lore === 'string') {
+          systemLore.push(...hex.lore.split(',').map(s => s.trim()));
+        }
+      }
+      
+      // Add space indicator for system-level lore
+      if (hex.spaceOrPlanet) {
+        systemLore.push(hex.spaceOrPlanet === 'space' ? 'Space' : 'Planet');
+      } else {
+        systemLore.push('Space'); // Default to space for system-level
       }
     }
 
@@ -433,7 +462,7 @@ export function exportMapInfo(editor) {
       tokens: tokens,
       hyperlaneString: hyperlaneString,
       border: border,
-      Lore: lore,
+      systemLore: systemLore,
       Plastic: hex.plastic || null,
       links: links
     };

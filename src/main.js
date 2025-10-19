@@ -192,6 +192,26 @@ document.getElementById('downloadExportMapInfo')?.addEventListener('click', () =
   URL.revokeObjectURL(url);
 });
 
+// ───── Cloudflare upload handlers ─────
+// Import Cloudflare functions
+import { saveMap, saveMapInfo } from './data/cloudflare.js';
+
+// Save map to Cloudflare with 48h link
+const saveMapCloudflareBtn = document.getElementById('saveMapCloudflareBtn');
+if (saveMapCloudflareBtn) {
+  saveMapCloudflareBtn.addEventListener('click', () => {
+    saveMap(editor);
+  });
+}
+
+// Save map info to Cloudflare with 48h link
+const saveMapInfoCloudflareBtn = document.getElementById('saveMapInfoCloudflareBtn');
+if (saveMapInfoCloudflareBtn) {
+  saveMapInfoCloudflareBtn.addEventListener('click', () => {
+    saveMapInfo(editor);
+  });
+}
+
 // ───── Load system reference data (ID/name/aliases) ─────
 (async () => {
   await loadSystemInfo(editor);

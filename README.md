@@ -32,10 +32,38 @@ Just open https://stabar-ti.github.io/hex-Custom-async-ti-hyperlink/ and start b
     git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
     cd YOUR_REPO
     ```
-2. **Open `index.html` in your browser**
+2. **Serve with a local web server:**
+    ```bash
+    # Python 3
+    python -m http.server 8000
+    
+    # Or Node.js (npx http-server)
+    npx http-server -p 8000
+    ```
+3. **Open http://localhost:8000 in your browser**
 
-That’s it!  
+That's it!  
 _No build or install steps needed for the main app._
+
+### Testing Cloud Export Locally (Optional)
+
+To test the cloud export feature locally:
+
+1. **Install dependencies:**
+    ```bash
+    npm install express cors
+    ```
+2. **Start the local worker:**
+    ```bash
+    node local-worker.js
+    ```
+3. **Update `src/data/cloudflare.js` line 6:**
+    ```javascript
+    const API_ORIGIN = "http://localhost:3000";
+    ```
+4. **Now cloud export buttons will work locally!**
+
+For production deployment, see [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md)
 
 ---
 
