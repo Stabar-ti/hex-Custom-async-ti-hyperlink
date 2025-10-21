@@ -334,8 +334,8 @@ export function exportMapInfo(editor) {
       let planetLore = [];
       if (planet.loreMain || planet.loreSub || planet.flavourText) {
         if (planet.loreMain) planetLore.push(planet.loreMain);
-        if (planet.loreSub) planetLore.push(planet.loreSub);
-        else if (planet.flavourText) planetLore.push(planet.flavourText);
+        else if (planet.loreSub) planetLore.push(planet.loreSub);
+        //else if (planet.flavourText) planetLore.push(planet.flavourText);
 
         // Add space/planet indicator if available
         if (planet.spaceOrPlanet) {
@@ -456,8 +456,8 @@ export function exportMapInfo(editor) {
 
     // Create hex entry
     const hexEntry = {
-      hexID: label,
-      systemID: hex.realId || hex.systemId || '',
+      position: label,
+      tileID: hex.realId || hex.systemId || '',
       planets: planets,
       tokens: tokens,
       hyperlaneString: hyperlaneString,
@@ -470,7 +470,7 @@ export function exportMapInfo(editor) {
     mapInfo.push(hexEntry);
   });
 
-  return { mapInfo };
+  return mapInfo;
 }
 
 export function exportBorderAnomaliesGrouped(editor, doubleSided = true) {
