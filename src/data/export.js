@@ -470,7 +470,7 @@ export function exportMapInfo(editor) {
     mapInfo.push(hexEntry);
   });
 
-  return mapInfo;
+  return { mapInfo };
 }
 
 export function exportBorderAnomaliesGrouped(editor, doubleSided = true) {
