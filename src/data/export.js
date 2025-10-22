@@ -340,9 +340,9 @@ export function exportMapInfo(editor) {
         // Add space/planet indicator if available
         if (planet.spaceOrPlanet) {
           planetLore.push(planet.spaceOrPlanet === 'space' ? 'Space' : 'Planet');
-        } else if (planet.planetType) {
-          planetLore.push('Planet'); // Default to planet if planetType exists
-        }
+        } //else if (planet.planetType) {
+        //planetLore.push('Planet'); // Default to planet if planetType exists
+        //}
       }
 
       return {
@@ -392,7 +392,7 @@ export function exportMapInfo(editor) {
     } else {
       hyperlaneString = '0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0'; // Default empty hyperlanes
     }
-    
+
     // If hyperlane string is all zeros, leave it empty
     if (hyperlaneString === '0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0') {
       hyperlaneString = '';
