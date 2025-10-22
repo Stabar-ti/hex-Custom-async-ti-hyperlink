@@ -388,14 +388,23 @@ export function exportMapInfo(editor) {
     } else {
       hyperlaneString = '0'.repeat(36); // Default empty hyperlanes
     }
+    
+    // If hyperlane string is all zeros, leave it empty
+    if (hyperlaneString === '0'.repeat(36)) {
+      hyperlaneString = '';
+    }
 
-    // Build border array (6 sides: n, ne, se, s, sw, nw)
-    const border = [false, false, false, false, false, false];
+    // Build border anomalies array (objects with direction and type)
+    const borderAnomalies = [];
+    const directionNames = ['1', '2', '3', '4', '5', '6']; // ['N', 'NE', 'SE', 'S', 'SW', 'NW'] 
     if (hex.borderAnomalies) {
       Object.entries(hex.borderAnomalies).forEach(([sideStr, anomaly]) => {
         const side = parseInt(sideStr, 10);
         if (side >= 0 && side < 6 && anomaly.type) {
-          border[side] = anomaly.type.replace(/\s+/g, ''); // Remove spaces for consistency
+          borderAnomalies.push({
+            direction: directionNames[side],
+            type: anomaly.type.replace(/\s+/g, '') // Remove spaces for consistency
+          });
         }
       });
     }
@@ -460,8 +469,8 @@ export function exportMapInfo(editor) {
       tileID: hex.realId || hex.systemId || '',
       planets: planets,
       tokens: tokens,
-      hyperlaneString: hyperlaneString,
-      border: border,
+      customHyperlaneString: hyperlaneString,
+      borderAnomalies: borderAnomalies,
       systemLore: systemLore,
       Plastic: hex.plastic || null,
       links: links
