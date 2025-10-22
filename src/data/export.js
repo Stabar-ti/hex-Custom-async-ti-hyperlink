@@ -478,6 +478,8 @@ export function exportMapInfo(editor) {
   return { mapInfo };
 }
 
+//test
+
 export function exportBorderAnomaliesGrouped(editor, doubleSided = true) {
   const dirMap = ['n', 'ne', 'se', 's', 'sw', 'nw'];
   const reverseDir = [3, 4, 5, 0, 1, 2];
