@@ -376,33 +376,36 @@ export function exportMapInfo(editor) {
       }
     }
 
-    // Build hyperlane string (matrix to binary string)
+    // Build hyperlane string (matrix to comma-separated format)
     let hyperlaneString = '';
     if (hex.matrix) {
-      // Convert 6x6 matrix to 36-character binary string
+      // Convert 6x6 matrix to comma-separated format with semicolons between rows
+      const rows = [];
       for (let row = 0; row < 6; row++) {
+        const rowValues = [];
         for (let col = 0; col < 6; col++) {
-          hyperlaneString += (hex.matrix[row] && hex.matrix[row][col]) ? '1' : '0';
+          rowValues.push((hex.matrix[row] && hex.matrix[row][col]) ? '1' : '0');
         }
+        rows.push(rowValues.join(','));
       }
+      hyperlaneString = rows.join(';');
     } else {
-      hyperlaneString = '0'.repeat(36); // Default empty hyperlanes
+      hyperlaneString = '0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0'; // Default empty hyperlanes
     }
     
     // If hyperlane string is all zeros, leave it empty
-    if (hyperlaneString === '0'.repeat(36)) {
+    if (hyperlaneString === '0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0') {
       hyperlaneString = '';
     }
 
     // Build border anomalies array (objects with direction and type)
     const borderAnomalies = [];
-    const directionNames = ['1', '2', '3', '4', '5', '6']; // ['N', 'NE', 'SE', 'S', 'SW', 'NW'] 
     if (hex.borderAnomalies) {
       Object.entries(hex.borderAnomalies).forEach(([sideStr, anomaly]) => {
         const side = parseInt(sideStr, 10);
         if (side >= 0 && side < 6 && anomaly.type) {
           borderAnomalies.push({
-            direction: directionNames[side],
+            direction: side, // Use 0-5 instead of 1-6
             type: anomaly.type.replace(/\s+/g, '') // Remove spaces for consistency
           });
         }
@@ -430,34 +433,26 @@ export function exportMapInfo(editor) {
       }
     }
 
-    // Build links object
-    const links = {
-      customadjacency: [],
-      adjacencyoverride: []
-    };
-
-    // Process custom adjacencies
+    // Build custom adjacencies array
+    const customAdjacencies = [];
     if (hex.customAdjacents) {
       Object.entries(hex.customAdjacents).forEach(([target, info]) => {
-        links.customadjacency.push({
+        customAdjacencies.push({
           secondary: target,
           CustomAdjacencyTwoWay: info.twoWay || false
         });
       });
     }
 
-    // Process adjacency overrides
+    // Build adjacency overrides array
+    const adjacencyOverrides = [];
     if (hex.adjacencyOverrides) {
       Object.entries(hex.adjacencyOverrides).forEach(([sideStr, neighborLabel]) => {
         const side = parseInt(sideStr, 10);
         if (side >= 0 && side < 6 && neighborLabel) {
-          // Convert side number to binary direction string (6 bits for 6 directions)
-          const direction = '0'.repeat(6).split('');
-          direction[side] = '1';
-
-          links.adjacencyoverride.push({
+          adjacencyOverrides.push({
             secondary: neighborLabel,
-            direction: direction.join('')
+            direction: side // Use 0-5 instead of binary string
           });
         }
       });
@@ -473,7 +468,8 @@ export function exportMapInfo(editor) {
       borderAnomalies: borderAnomalies,
       systemLore: systemLore,
       Plastic: hex.plastic || null,
-      links: links
+      customAdjacencies: customAdjacencies,
+      adjacencyOverrides: adjacencyOverrides
     };
 
     mapInfo.push(hexEntry);
