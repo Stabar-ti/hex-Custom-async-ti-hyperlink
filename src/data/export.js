@@ -433,14 +433,18 @@ export function exportMapInfo(editor) {
       }
     }
 
-    // Build custom adjacencies array
+    // Build simplified custom adjacencies array
     const customAdjacencies = [];
     if (hex.customAdjacents) {
       Object.entries(hex.customAdjacents).forEach(([target, info]) => {
-        customAdjacencies.push({
-          secondary: target,
-          CustomAdjacencyTwoWay: info.twoWay || false
-        });
+        if (info.twoWay) {
+          // Two-way: point to both itself and target
+          customAdjacencies.push(label);
+          customAdjacencies.push(target);
+        } else {
+          // One-way: only point to target
+          customAdjacencies.push(target);
+        }
       });
     }
 
