@@ -25,6 +25,7 @@ import { openCalcSlicePopup } from './features/calcSlice.js';
 import { installCustomLinksUI } from './ui/customLinksUI.js';
 import { installBorderAnomaliesUI } from './ui/borderAnomaliesUI.js';
 import { redrawBorderAnomaliesOverlay } from './features/borderAnomaliesOverlay.js';
+import { loadBorderAnomalyTypes } from './constants/borderAnomalies.js';
 import { overlayDefaults } from './config/toggleSettings.js';
 import { updateTileImageLayer } from './features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from './draw/enforceSvgLayerOrder.js';
@@ -69,6 +70,11 @@ initHistory(editor);
 
 installCustomLinksUI(editor);
 installBorderAnomaliesUI(editor);
+
+// Initialize border anomaly types (force reload)
+import { clearCache } from './constants/borderAnomalies.js';
+clearCache(); // Clear any cached types
+loadBorderAnomalyTypes().catch(console.error);
 
 /*// Add Copy/Move and Cut buttons to top bar
 const leftControls = document.getElementById('leftControls');
@@ -501,4 +507,12 @@ const sanityCheckBtn = document.getElementById('sanityCheckBtn');
 if (sanityCheckBtn) {
   sanityCheckBtn.onclick = () => showSanityCheckPopup();
 }
+
+// ───── Add test functions to global window for debugging ─────
+window.editor = editor;
+window.testBorderAnomalies = () => editor.addTestBorderAnomalies();
+window.redrawBorderAnomalies = async () => {
+  const { drawBorderAnomaliesLayer } = await import('./draw/borderAnomaliesDraw.js');
+  drawBorderAnomaliesLayer(editor);
+};
 

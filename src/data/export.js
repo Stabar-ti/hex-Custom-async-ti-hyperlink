@@ -18,6 +18,7 @@ import { typeCodeMap } from '../constants/constants.js';
 import { showModal } from '../ui/uiModals.js';
 import { generateRings } from '../draw/drawHexes.js';
 import { wormholeTypes } from '../constants/constants.js'; // Adjust import path if needed
+import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 
 /**
  * Exports all hyperlane (adjacency) data as a string, showing only hexes with links.
@@ -513,35 +514,27 @@ export function exportBorderAnomaliesGrouped(editor, doubleSided = true) {
       const neighborLabel = getNeighborHexLabel(editor.hexes, label, side);
       const neighborSide = reverseDir[side];
 
-      if (type === "SpatialTear") {
-        // Export from both sides (no deduplication)
-        // Always add to primary tile
-        const key = `${dir}_${type}`;
-        if (!groups[key]) groups[key] = new Set();
-        groups[key].add(label);
-        // Always add to neighbor as well (if exists)
-        if (neighborLabel) {
-          const neighborDir = dirMap[neighborSide];
-          const neighborKey = `${neighborDir}_${type}`;
-          if (!groups[neighborKey]) groups[neighborKey] = new Set();
-          groups[neighborKey].add(neighborLabel);
-        }
-      } else if (type === "GravityWave") {
-        // Export only from the side it was set (do NOT add to neighbor)
-        const key = `${dir}_${type}`;
-        if (!groups[key]) groups[key] = new Set();
-        groups[key].add(label);
-      } else {
-        // Default: previous behavior (doubleSided)
-        const key = `${dir}_${type}`;
-        if (!groups[key]) groups[key] = new Set();
-        groups[key].add(label);
-        if (doubleSided && neighborLabel) {
-          const neighborDir = dirMap[neighborSide];
-          const neighborKey = `${neighborDir}_${type}`;
-          if (!groups[neighborKey]) groups[neighborKey] = new Set();
-          groups[neighborKey].add(neighborLabel);
-        }
+      // Get border anomaly configuration
+      const borderTypes = getBorderAnomalyTypes();
+      const typeId = type.toUpperCase().replace(/\s+/g, '');
+      const anomalyConfig = borderTypes[typeId];
+      
+      const key = `${dir}_${type}`;
+      if (!groups[key]) groups[key] = new Set();
+      groups[key].add(label);
+      
+      // Add to neighbor if bidirectional
+      if (anomalyConfig && anomalyConfig.bidirectional && neighborLabel) {
+        const neighborDir = dirMap[neighborSide];
+        const neighborKey = `${neighborDir}_${type}`;
+        if (!groups[neighborKey]) groups[neighborKey] = new Set();
+        groups[neighborKey].add(neighborLabel);
+      } else if (!anomalyConfig && doubleSided && neighborLabel) {
+        // Fallback for unknown types
+        const neighborDir = dirMap[neighborSide];
+        const neighborKey = `${neighborDir}_${type}`;
+        if (!groups[neighborKey]) groups[neighborKey] = new Set();
+        groups[neighborKey].add(neighborLabel);
       }
     });
   });
