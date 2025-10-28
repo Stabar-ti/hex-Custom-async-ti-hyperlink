@@ -6,7 +6,7 @@ let borderAnomalyTypes = null;
  */
 export async function loadBorderAnomalyTypes() {
     if (borderAnomalyTypes) return borderAnomalyTypes;
-    
+
     try {
         console.log('Loading border anomaly types from public/data/border.json');
         const response = await fetch('public/data/border.json');
@@ -15,27 +15,27 @@ export async function loadBorderAnomalyTypes() {
         }
         const data = await response.json();
         console.log('Loaded border anomaly data:', data);
-        
+
         // Import settings dynamically to ensure they're loaded (with cache bust)
         const settingsModule = await import(`../config/toggleSettings.js?v=${Date.now()}`);
         const { borderAnomalySettings, configVersion } = settingsModule;
         console.log('Loaded config version:', configVersion);
         console.log('Imported border anomaly settings module:', settingsModule);
         console.log('Imported border anomaly settings:', borderAnomalySettings);
-        
+
         // Debug: check specific values that should be false
         console.log('ARROW should be false:', borderAnomalySettings.ARROW);
         console.log('VOIDTETHER should be false:', borderAnomalySettings.VOIDTETHER);
         console.log('COREBORDER should be false:', borderAnomalySettings.COREBORDER);
         console.log('RIMBORDER should be false:', borderAnomalySettings.RIMBORDER);
-        
+
         borderAnomalyTypes = data.reduce((acc, anomaly) => {
             // Get enabled state from settings, default to true if undefined
             const enabledSetting = borderAnomalySettings[anomaly.id];
             const isEnabled = enabledSetting === undefined ? true : enabledSetting;
-            
+
             console.log(`Border anomaly ${anomaly.id}: setting=${enabledSetting}, enabled=${isEnabled}`);
-            
+
             acc[anomaly.id] = {
                 id: anomaly.id,
                 name: anomaly.name,
@@ -47,10 +47,10 @@ export async function loadBorderAnomalyTypes() {
             };
             return acc;
         }, {});
-        
+
         // Apply any saved user settings
         borderAnomalyTypes = await applySavedSettings(borderAnomalyTypes);
-        
+
         console.log('Processed border anomaly types:', Object.keys(borderAnomalyTypes));
         return borderAnomalyTypes;
     } catch (error) {
@@ -77,14 +77,14 @@ export function getBorderAnomalyTypes() {
 export function getEnabledBorderAnomalyTypes() {
     const types = getBorderAnomalyTypes();
     console.log('getEnabledBorderAnomalyTypes - all types:', Object.keys(types));
-    
+
     const filtered = Object.fromEntries(
         Object.entries(types).filter(([id, type]) => {
             console.log(`Filtering ${id}: enabled=${type.enabled}`);
             return type.enabled;
         })
     );
-    
+
     console.log('getEnabledBorderAnomalyTypes - filtered types:', Object.keys(filtered));
     return filtered;
 }
@@ -95,7 +95,7 @@ export function getEnabledBorderAnomalyTypes() {
  * Predefined color palette for auto-generating styles
  */
 const styleColorPalette = [
-    '#e32b2b', '#19c67f', '#8b4513', '#9370db', '#ff4500', '#ffd700', 
+    '#e32b2b', '#19c67f', '#8b4513', '#9370db', '#ff4500', '#ffd700',
     '#4b0082', '#000000', '#696969', '#ffff00', '#ff6347', '#32cd32',
     '#1e90ff', '#ff1493', '#ffa500', '#8a2be2', '#dc143c', '#00ced1',
     '#ff69b4', '#228b22', '#d2691e', '#4169e1', '#ff8c00', '#9932cc'
@@ -121,12 +121,12 @@ function getDefaultDrawStyle(id) {
         'YELLOW': { color: '#ffff00', width: 3, pattern: 'solid' },
         'REDORANGE': { color: '#ff4500', width: 3, pattern: 'solid' }
     };
-    
+
     // Return predefined style if available
     if (predefinedStyles[id]) {
         return predefinedStyles[id];
     }
-    
+
     // Auto-generate style for new types based on ID hash
     return generateStyleFromId(id);
 }
@@ -142,17 +142,17 @@ function generateStyleFromId(id) {
         hash = ((hash << 5) - hash) + char;
         hash = hash & hash; // Convert to 32-bit integer
     }
-    
+
     // Use absolute value to avoid negative indices
     hash = Math.abs(hash);
-    
+
     // Pick style elements based on hash
     const color = styleColorPalette[hash % styleColorPalette.length];
     const width = styleWidths[(hash >> 4) % styleWidths.length];
     const pattern = stylePatterns[(hash >> 8) % stylePatterns.length];
-    
+
     console.log(`Auto-generated style for ${id}:`, { color, width, pattern });
-    
+
     return { color, width, pattern };
 }
 
@@ -164,7 +164,7 @@ function getBidirectionalDefault(id) {
     if (id === 'GRAVITYWAVE') {
         return false;
     }
-    
+
     // All other types are bidirectional by default
     return true;
 }
@@ -201,12 +201,12 @@ function getDefaultBorderAnomalyTypes() {
 export function findBorderAnomalyType(searchTerm) {
     const types = getBorderAnomalyTypes();
     const term = searchTerm.toLowerCase();
-    
+
     // Direct ID match
     if (types[term.toUpperCase()]) {
         return types[term.toUpperCase()];
     }
-    
+
     // Name or alias match
     for (const type of Object.values(types)) {
         if (type.name.toLowerCase() === term) {
@@ -216,7 +216,7 @@ export function findBorderAnomalyType(searchTerm) {
             return type;
         }
     }
-    
+
     return null;
 }
 
@@ -247,7 +247,7 @@ export function updateBorderAnomalyBidirectional(id, bidirectional) {
  */
 function saveBorderAnomalySettings() {
     if (!borderAnomalyTypes) return;
-    
+
     const settings = {};
     Object.entries(borderAnomalyTypes).forEach(([id, type]) => {
         settings[id] = {
@@ -255,7 +255,7 @@ function saveBorderAnomalySettings() {
             bidirectional: type.bidirectional
         };
     });
-    
+
     try {
         localStorage.setItem('borderAnomalySettings', JSON.stringify(settings));
     } catch (error) {
@@ -283,15 +283,15 @@ async function applySavedSettings(types) {
     // Import toggle settings (with cache bust)
     const { borderAnomalySettings } = await import(`../config/toggleSettings.js?v=${Date.now()}`);
     console.log('applySavedSettings - imported toggle settings:', borderAnomalySettings);
-    
+
     const savedSettings = loadBorderAnomalySettings();
-    
+
     Object.entries(types).forEach(([id, type]) => {
         // Apply toggle settings for enabled state
         const toggleEnabled = borderAnomalySettings[id];
         type.enabled = toggleEnabled === undefined ? true : toggleEnabled;
         console.log(`applySavedSettings - ${id}: toggle=${toggleEnabled}, enabled=${type.enabled}`);
-        
+
         // Apply saved user customizations
         const saved = savedSettings[id];
         if (saved) {
@@ -299,7 +299,7 @@ async function applySavedSettings(types) {
             if (saved.bidirectional !== undefined) type.bidirectional = saved.bidirectional;
         }
     });
-    
+
     return types;
 }
 
