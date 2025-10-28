@@ -9,11 +9,11 @@ export async function loadBorderAnomalyTypes() {
 
     try {
         // Use path relative to the HTML file location
-        const basePath = window.location.pathname.endsWith('/') 
-            ? window.location.pathname 
+        const basePath = window.location.pathname.endsWith('/')
+            ? window.location.pathname
             : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
         const jsonPath = `${basePath}public/data/border.json`;
-        
+
         console.log('Loading border anomaly types from:', jsonPath);
         const response = await fetch(jsonPath);
         if (!response.ok) {
