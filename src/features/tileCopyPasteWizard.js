@@ -583,7 +583,7 @@ export function startCopyPasteWizard(editor, cut = false) {
             } else {
                 const count = (info.planets || []).length;
                 const hasWormholes = hex.wormholes && hex.wormholes.size > 0;
-                const hasBorderAnomalies = hex.borderAnomalies && hex.borderAnomalies.some(x => x);
+                const hasBorderAnomalies = hex.borderAnomalies && Object.values(hex.borderAnomalies).some(x => x && x.type);
 
                 if (count >= 3 || h.baseType === "3 planet") editor.setSectorType(id, '3 planet');
                 else if (count >= 2 || h.baseType === "2 planet") editor.setSectorType(id, '2 planet');
