@@ -8,8 +8,14 @@ export async function loadBorderAnomalyTypes() {
     if (borderAnomalyTypes) return borderAnomalyTypes;
 
     try {
-        console.log('Loading border anomaly types from public/data/border.json');
-        const response = await fetch('public/data/border.json');
+        // Use path relative to the HTML file location
+        const basePath = window.location.pathname.endsWith('/') 
+            ? window.location.pathname 
+            : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+        const jsonPath = `${basePath}public/data/border.json`;
+        
+        console.log('Loading border anomaly types from:', jsonPath);
+        const response = await fetch(jsonPath);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
