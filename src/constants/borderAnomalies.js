@@ -8,8 +8,8 @@ export async function loadBorderAnomalyTypes() {
     if (borderAnomalyTypes) return borderAnomalyTypes;
     
     try {
-        console.log('Loading border anomaly types from /public/data/border.json');
-        const response = await fetch('/public/data/border.json');
+        console.log('Loading border anomaly types from public/data/border.json');
+        const response = await fetch('public/data/border.json');
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
