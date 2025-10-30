@@ -474,14 +474,10 @@ export function installBorderAnomaliesUI(editor) {
                     return;
                 }
                 
-                // Get anomaly name from type ID
-                const borderTypes = getEnabledBorderAnomalyTypes();
-                const anomalyName = borderTypes[anomalyTypeId]?.name || anomalyTypeId;
-                
                 if (!this.hexes[primary].borderAnomalies) this.hexes[primary].borderAnomalies = {};
                 if (!this.hexes[secondary].borderAnomalies) this.hexes[secondary].borderAnomalies = {};
-                this.hexes[primary].borderAnomalies[side] = { type: anomalyName };
-                this.hexes[secondary].borderAnomalies[getOppositeSide(side)] = { type: anomalyName };
+                this.hexes[primary].borderAnomalies[side] = { type: anomalyTypeId };
+                this.hexes[secondary].borderAnomalies[getOppositeSide(side)] = { type: anomalyTypeId };
                 editor.commitUndoGroup();
                 this.hexes[primary].polygon.classList.remove('selected');
                 this._pendingBorderAnomaly = null;
@@ -510,12 +506,8 @@ export function installBorderAnomaliesUI(editor) {
                     return;
                 }
                 
-                // Get anomaly name from type ID
-                const borderTypes = getEnabledBorderAnomalyTypes();
-                const anomalyName = borderTypes[anomalyTypeId]?.name || anomalyTypeId;
-                
                 if (!this.hexes[primary].borderAnomalies) this.hexes[primary].borderAnomalies = {};
-                this.hexes[primary].borderAnomalies[side] = { type: anomalyName };
+                this.hexes[primary].borderAnomalies[side] = { type: anomalyTypeId };
                 this.hexes[primary].polygon.classList.remove('selected');
                 this._pendingBorderAnomaly = null;
                 drawBorderAnomaliesLayer(this);

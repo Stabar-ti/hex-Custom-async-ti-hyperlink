@@ -21,6 +21,77 @@ import { wormholeTypes } from '../constants/constants.js'; // Adjust import path
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 
 /**
+ * Cache for wormhole token mappings loaded from tokens.json
+ */
+let wormholeTokenMapCache = null;
+
+/**
+ * Load wormhole token mappings dynamically from tokens.json
+ * Maps wormhole type keys (lowercase, e.g., 'alpha', 'epsilon') to token IDs
+ * @returns {Promise<Object>} Map of wormhole type to token ID
+ */
+async function getWormholeTokenMap() {
+  if (wormholeTokenMapCache) return wormholeTokenMapCache;
+
+  try {
+    const basePath = window.location.pathname.endsWith('/') 
+      ? window.location.pathname 
+      : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+    
+    const response = await fetch(`${basePath}public/data/tokens.json`);
+    if (!response.ok) throw new Error(`Failed to load tokens.json: ${response.status}`);
+    
+    // tokens.json is an array of arrays, flatten it
+    const tokenGroups = await response.json();
+    const allTokens = tokenGroups.flat();
+    
+    const map = {};
+
+    // Build a map of wormhole type to token ID
+    // For each token, check if it has wormholes field
+    allTokens.forEach(token => {
+      if (token.wormholes && token.wormholes.length > 0) {
+        token.wormholes.forEach(whType => {
+          // Normalize wormhole type to lowercase (e.g., "ALPHA" -> "alpha")
+          const whKey = whType.toLowerCase()
+            .replace('custom_eronous_wh', '') // Remove custom_eronous_wh prefix
+            .replace('wh', ''); // Remove wh prefix if present
+          
+          // Only set if not already set, or if this is a shorter/preferred token ID
+          if (!map[whKey] || token.id.length < map[whKey].length) {
+            map[whKey] = token.id;
+          }
+        });
+      }
+    });
+
+    console.log('Loaded wormhole token map from tokens.json:', map);
+    wormholeTokenMapCache = map;
+    return map;
+  } catch (error) {
+    console.error('Failed to load wormhole token map, using fallback:', error);
+    // Fallback to basic mapping
+    return {
+      'alpha': 'whalpha',
+      'beta': 'whbeta',
+      'gamma': 'whgamma',
+      'delta': 'whdelta',
+      'epsilon': 'whepsilon',
+      'eta': 'wheta',
+      'iota': 'custom_eronous_whiota',
+      'theta': 'custom_eronous_whtheta',
+      'zeta': 'whzeta',
+      'kappa': 'whkappa',
+      'champion': 'whchampion',
+      'probability': 'whprobability',
+      'voyage': 'whvoyage',
+      'narrows': 'whnarrows',
+      'vortex': 'vortex'
+    };
+  }
+}
+
+/**
  * Exports all hyperlane (adjacency) data as a string, showing only hexes with links.
  * Ensures that all links are symmetric/bidirectional in the matrix.
  * Output is written to the export text area and shown in a modal.
@@ -67,33 +138,29 @@ export function exportMap(editor) {
  *
  * Only customWormholes are exported (see wormhole handling pattern above).
  */
-export function exportWormholePositions(editor) {
-  // Build the wormhole token map
-  const whTokenMap = {};
-  Object.keys(wormholeTypes).forEach(
-    key => whTokenMap[key] = 'wh' + key
-  );
-  whTokenMap.iota = 'custom_eronous_whiota';
-  whTokenMap.theta = 'custom_eronous_whtheta';
+export async function exportWormholePositions(editor) {
+  // Load wormhole token map dynamically from tokens.json
+  const whTokenMap = await getWormholeTokenMap();
+  console.log('exportWormholePositions: Token map loaded:', whTokenMap);
 
   const groups = {};
 
   for (const [id, hex] of Object.entries(editor.hexes)) {
     if (!/^([0-9]{3,4}|TL|TR|BL|BR)$/.test(id)) continue;
-    // Debug: log wormhole state before export
-    console.log('exportWormholePositions', id, {
-      inherentWormholes: Array.from(hex.inherentWormholes || []),
-      customWormholes: Array.from(hex.customWormholes || []),
-      wormholes: Array.from(hex.wormholes || [])
-    });
+    
     // Only export customWormholes
     const userWormholes = Array.from(hex.customWormholes || []);
     if (userWormholes.length === 0) continue;
 
     for (const whRaw of userWormholes) {
-      // Normalize to base key, strip any wh prefix
-      const whKey = whRaw.toLowerCase().replace(/^wh/, '');
-      const whToken = whTokenMap[whKey] || ('wh' + whKey);
+      // Normalize to lowercase and find token ID from map
+      const whKey = whRaw.toLowerCase();
+      const whToken = whTokenMap[whKey];
+      
+      if (!whToken) {
+        console.warn(`No token mapping found for wormhole type: ${whRaw}`);
+        continue;
+      }
 
       if (!groups[whToken]) groups[whToken] = [];
       groups[whToken].push(id);
@@ -323,7 +390,11 @@ export function exportCustomAdjacents(editor) {
  * Exports the full map state in a format similar to test.json structure
  * Returns an object with mapInfo array containing full hex information
  */
-export function exportMapInfo(editor) {
+export async function exportMapInfo(editor) {
+  // Load wormhole token map dynamically from tokens.json
+  const whTokenMap = await getWormholeTokenMap();
+  console.log('exportMapInfo: Token map loaded:', whTokenMap);
+
   const mapInfo = [];
 
   Object.entries(editor.hexes).forEach(([label, hex]) => {
@@ -359,21 +430,19 @@ export function exportMapInfo(editor) {
       tokens.push(...hex.tokens);
     }
 
-    // Add custom wormholes as tokens using the same mapping as exportWormholePositions
+    // Add custom wormholes as tokens using dynamic token map
     if (hex.customWormholes && hex.customWormholes.size > 0) {
-      const whTokenMap = {};
-      Object.keys(wormholeTypes).forEach(
-        key => whTokenMap[key] = 'wh' + key
-      );
-      whTokenMap.iota = 'custom_eronous_whiota';
-      whTokenMap.theta = 'custom_eronous_whtheta';
-
       const userWormholes = Array.from(hex.customWormholes);
       for (const whRaw of userWormholes) {
-        // Normalize to base key, strip any wh prefix
-        const whKey = whRaw.toLowerCase().replace(/^wh/, '');
-        const whToken = whTokenMap[whKey] || ('wh' + whKey);
-        tokens.push(whToken);
+        // Normalize to lowercase and find token ID from map
+        const whKey = whRaw.toLowerCase();
+        const whToken = whTokenMap[whKey];
+        
+        if (whToken) {
+          tokens.push(whToken);
+        } else {
+          console.warn(`No token mapping found for wormhole type: ${whRaw}`);
+        }
       }
     }
 
@@ -407,7 +476,7 @@ export function exportMapInfo(editor) {
         if (side >= 0 && side < 6 && anomaly.type) {
           borderAnomalies.push({
             direction: side, // Use 0-5 instead of 1-6
-            type: anomaly.type.replace(/\s+/g, '') // Remove spaces for consistency
+            type: anomaly.type // Use the ID directly (e.g., "ASTEROID", not "Asteroid Field")
           });
         }
       });
@@ -458,9 +527,26 @@ export function exportMapInfo(editor) {
     }
 
     // Create hex entry
+    // Determine tileID based on baseType and other conditions
+    let tileID = '';
+    if (hyperlaneString) {
+      // If there are hyperlanes, use 'hl'
+      tileID = 'hl';
+    } else if (hex.baseType === 'void') {
+      // Void tiles get -1
+      tileID = '-1';
+    } else if (hex.baseType === 'homesystem') {
+      // Home system tiles get 0g
+      tileID = '0g';
+      console.log(`exportMapInfo: Setting tileID to '0g' for ${label}, baseType: ${hex.baseType}`);
+    } else {
+      // Otherwise use realId or systemId
+      tileID = hex.realId || hex.systemId || '';
+    }
+
     const hexEntry = {
       position: label,
-      tileID: hyperlaneString ? 'hl' : (hex.realId || hex.systemId || ''),
+      tileID: tileID,
       planets: planets,
       tokens: tokens,
       customHyperlaneString: hyperlaneString,
@@ -473,6 +559,7 @@ export function exportMapInfo(editor) {
 
     // Only add hexEntry if at least one subfield is non-empty/non-trivial
     const hasInfo = (
+      (tileID && tileID !== '') ||  // Include if tileID is set (e.g., '0g', '-1', 'hl', or a realId)
       (planets && planets.length > 0) ||
       (tokens && tokens.length > 0) ||
       (hyperlaneString && hyperlaneString !== '') ||

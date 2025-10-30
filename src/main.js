@@ -173,8 +173,8 @@ document.getElementById('downloadExportFull')?.addEventListener('click', () => {
 // ───── Export map info in test.json format ─────
 const exportMapInfoBtn = document.getElementById('exportMapInfoBtn');
 if (exportMapInfoBtn) {
-  exportMapInfoBtn.addEventListener('click', () => {
-    const mapInfo = exportMapInfo(editor);
+  exportMapInfoBtn.addEventListener('click', async () => {
+    const mapInfo = await exportMapInfo(editor);
     document.getElementById('exportMapInfoText').value = JSON.stringify(mapInfo, null, 2);
     showModal('exportMapInfoModal');
   });
@@ -186,8 +186,8 @@ document.getElementById('copyExportMapInfo')?.addEventListener('click', () => {
 });
 
 // Save map info export as downloadable JSON file
-document.getElementById('downloadExportMapInfo')?.addEventListener('click', () => {
-  const mapInfo = exportMapInfo(editor);
+document.getElementById('downloadExportMapInfo')?.addEventListener('click', async () => {
+  const mapInfo = await exportMapInfo(editor);
   const data = JSON.stringify(mapInfo, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

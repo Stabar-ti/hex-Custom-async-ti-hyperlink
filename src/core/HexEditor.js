@@ -571,8 +571,8 @@ export default class HexEditor {
   exportHyperlaneTilePositions() {
     exportHyperlaneTilePositions(this);
   }
-  exportWormholePositions() {
-    exportWormholePositions(this);
+  async exportWormholePositions() {
+    await exportWormholePositions(this);
   }
 
   /**

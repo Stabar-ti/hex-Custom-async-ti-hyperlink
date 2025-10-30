@@ -61,24 +61,22 @@ export function drawBorderAnomaliesLayer(editor) {
             // Get anomaly type configuration
             const borderTypes = getBorderAnomalyTypes();
             
-            // Try multiple matching strategies for anomaly type
-            let anomalyTypeId = anomaly.type.toUpperCase().replace(/\s+/g, '');
+            // Since anomaly.type is now always the ID (e.g., "ASTEROID"), try direct match first
+            let anomalyTypeId = anomaly.type.toUpperCase();
             let anomalyConfig = borderTypes[anomalyTypeId];
             
-            // If not found, try without the word "FIELD" 
+            // Fallback: try with spaces removed (for backward compatibility with old data)
+            if (!anomalyConfig) {
+                anomalyTypeId = anomaly.type.toUpperCase().replace(/\s+/g, '');
+                anomalyConfig = borderTypes[anomalyTypeId];
+            }
+            
+            // Fallback: try without the word "FIELD" suffix
             if (!anomalyConfig && anomalyTypeId.endsWith('FIELD')) {
                 const withoutField = anomalyTypeId.replace(/FIELD$/, '');
                 anomalyConfig = borderTypes[withoutField];
                 if (anomalyConfig) {
                     anomalyTypeId = withoutField;
-                }
-            }
-            
-            // If still not found, try exact match of original type
-            if (!anomalyConfig) {
-                anomalyConfig = borderTypes[anomaly.type];
-                if (anomalyConfig) {
-                    anomalyTypeId = anomaly.type;
                 }
             }
             

@@ -128,7 +128,7 @@ async function saveMapInfoToCloudflare(editor) {
         const { exportMapInfo } = await import('./export.js');
 
         // Get the JSON export data - this returns { mapInfo: [...] }
-        const mapInfoData = exportMapInfo(editor);
+        const mapInfoData = await exportMapInfo(editor);
 
         console.log('Sending map info to server:', {
             dataSize: JSON.stringify(mapInfoData).length,
@@ -346,15 +346,89 @@ async function saveMap(editor) {
 
 /**
  * Main function to save map info and show download link
+ * Shows a modal with both Cloudflare and local download options
  * @param {Object} editor - The editor instance
  */
 async function saveMapInfo(editor) {
-    try {
-        const url = await saveMapInfoToCloudflare(editor);
-        showDownloadLink(url, 'map info');
-    } catch (error) {
-        alert(`Failed to save map info: ${error.message}`);
-    }
+    // Create a modal to show both options
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    modal.style.padding = '30px';
+    modal.style.textAlign = 'center';
+    modal.innerHTML = `
+        <h3>Export Map Info</h3>
+        <p>Choose how to export your map data:</p>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin: 20px 0;">
+            <button id="cloudflareExportBtn" style="padding: 12px 24px; font-size: 14px; cursor: pointer;">
+                ☁️ Upload to Cloud (48h shareable link)
+            </button>
+            <button id="localDownloadBtn" style="padding: 12px 24px; font-size: 14px; cursor: pointer;">
+                💾 Download Locally
+            </button>
+            <button id="cancelExportBtn" style="padding: 12px 24px; font-size: 14px; cursor: pointer; background: #666;">
+                Cancel
+            </button>
+        </div>
+        <div id="exportStatus" style="margin-top: 15px; font-style: italic; min-height: 20px;"></div>
+    `;
+    document.body.appendChild(modal);
+
+    const cloudflareBtn = modal.querySelector('#cloudflareExportBtn');
+    const localBtn = modal.querySelector('#localDownloadBtn');
+    const cancelBtn = modal.querySelector('#cancelExportBtn');
+    const statusDiv = modal.querySelector('#exportStatus');
+
+    // Cloudflare export handler
+    cloudflareBtn.addEventListener('click', async () => {
+        try {
+            cloudflareBtn.disabled = true;
+            localBtn.disabled = true;
+            statusDiv.textContent = 'Uploading to Cloudflare...';
+            
+            const url = await saveMapInfoToCloudflare(editor);
+            document.body.removeChild(modal);
+            showDownloadLink(url, 'map info');
+        } catch (error) {
+            statusDiv.textContent = `Failed: ${error.message}`;
+            cloudflareBtn.disabled = false;
+            localBtn.disabled = false;
+        }
+    });
+
+    // Local download handler
+    localBtn.addEventListener('click', async () => {
+        try {
+            localBtn.disabled = true;
+            cloudflareBtn.disabled = true;
+            statusDiv.textContent = 'Preparing download...';
+            
+            // Import and use the exportMapInfo function
+            const { exportMapInfo } = await import('./export.js');
+            const mapInfoData = await exportMapInfo(editor);
+            
+            // Create downloadable JSON file
+            const data = JSON.stringify(mapInfoData, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `ti4-map-info-${Date.now()}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            document.body.removeChild(modal);
+        } catch (error) {
+            statusDiv.textContent = `Failed: ${error.message}`;
+            localBtn.disabled = false;
+            cloudflareBtn.disabled = false;
+        }
+    });
+
+    // Cancel handler
+    cancelBtn.addEventListener('click', () => {
+        document.body.removeChild(modal);
+    });
 }
 
 export {
