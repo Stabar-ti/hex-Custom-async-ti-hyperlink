@@ -438,14 +438,8 @@ export function exportMapInfo(editor) {
     const customAdjacencies = [];
     if (hex.customAdjacents) {
       Object.entries(hex.customAdjacents).forEach(([target, info]) => {
-        if (info.twoWay) {
-          // Two-way: point to both itself and target
-          customAdjacencies.push(label);
-          customAdjacencies.push(target);
-        } else {
-          // One-way: only point to target
-          customAdjacencies.push(target);
-        }
+        // Just add the target - two-way connections are already stored on both hexes
+        customAdjacencies.push(target);
       });
     }
 
@@ -466,7 +460,7 @@ export function exportMapInfo(editor) {
     // Create hex entry
     const hexEntry = {
       position: label,
-      tileID: hex.realId || hex.systemId || '',
+      tileID: hyperlaneString ? 'hl' : (hex.realId || hex.systemId || ''),
       planets: planets,
       tokens: tokens,
       customHyperlaneString: hyperlaneString,
