@@ -385,7 +385,7 @@ async function saveMapInfo(editor) {
             cloudflareBtn.disabled = true;
             localBtn.disabled = true;
             statusDiv.textContent = 'Uploading to Cloudflare...';
-            
+
             const url = await saveMapInfoToCloudflare(editor);
             document.body.removeChild(modal);
             showDownloadLink(url, 'map info');
@@ -402,11 +402,11 @@ async function saveMapInfo(editor) {
             localBtn.disabled = true;
             cloudflareBtn.disabled = true;
             statusDiv.textContent = 'Preparing download...';
-            
+
             // Import and use the exportMapInfo function
             const { exportMapInfo } = await import('./export.js');
             const mapInfoData = await exportMapInfo(editor);
-            
+
             // Create downloadable JSON file
             const data = JSON.stringify(mapInfoData, null, 2);
             const blob = new Blob([data], { type: 'application/json' });
@@ -416,7 +416,7 @@ async function saveMapInfo(editor) {
             link.download = `ti4-map-info-${Date.now()}.json`;
             link.click();
             URL.revokeObjectURL(url);
-            
+
             document.body.removeChild(modal);
         } catch (error) {
             statusDiv.textContent = `Failed: ${error.message}`;

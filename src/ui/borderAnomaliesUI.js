@@ -12,14 +12,14 @@ export function installBorderAnomaliesUI(editor) {
         await loadBorderAnomalyTypes();
         const allBorderTypes = await import('../constants/borderAnomalies.js').then(m => m.getBorderAnomalyTypes());
         const borderTypes = getEnabledBorderAnomalyTypes();
-        
+
         console.log('All border types:', Object.keys(allBorderTypes));
         console.log('Enabled border types:', Object.keys(borderTypes));
         console.log('Disabled border types:', Object.keys(allBorderTypes).filter(id => !borderTypes[id]));
 
         // Build content
         const content = document.createElement('div');
-        
+
         // Tool label
         const label = document.createElement('div');
         label.textContent = "Border Anomaly Tools:";
@@ -55,7 +55,7 @@ export function installBorderAnomaliesUI(editor) {
             btn.style.fontSize = '0.85em';
             btn.style.transition = 'all 0.2s ease';
             btn.style.cursor = 'pointer';
-            
+
             // Add scripted indicator
             if (isScripted) {
                 btn.style.border = '2px solid #4CAF50';
@@ -64,7 +64,7 @@ export function installBorderAnomaliesUI(editor) {
                 btn.style.border = '2px solid #FF9800';
                 btn.style.boxShadow = '0 0 4px rgba(255, 152, 0, 0.3)';
             }
-            
+
             // Add visual style indicator
             if (drawStyle) {
                 // Create a visual border line sample
@@ -77,27 +77,27 @@ export function installBorderAnomaliesUI(editor) {
                 styleLine.style.height = `${Math.min(drawStyle.width, 4)}px`;
                 styleLine.style.backgroundColor = drawStyle.color;
                 styleLine.style.borderRadius = '1px';
-                
+
                 // Apply pattern styles
                 if (drawStyle.pattern === 'dashed') {
                     styleLine.style.background = `repeating-linear-gradient(to right, ${drawStyle.color} 0px, ${drawStyle.color} 4px, transparent 4px, transparent 8px)`;
                 } else if (drawStyle.pattern === 'dotted') {
                     styleLine.style.background = `repeating-linear-gradient(to right, ${drawStyle.color} 0px, ${drawStyle.color} 2px, transparent 2px, transparent 5px)`;
                 }
-                
+
                 btn.appendChild(styleLine);
-                
+
                 // Add subtle border color hint and background tint
                 btn.style.borderLeft = `4px solid ${drawStyle.color}`;
                 btn.style.backgroundColor = `${drawStyle.color}15`; // 15 = ~8% opacity
-                
+
                 // Add hover effects
                 btn.addEventListener('mouseenter', () => {
                     btn.style.backgroundColor = `${drawStyle.color}25`; // 25 = ~15% opacity
                     btn.style.transform = 'translateY(-1px)';
                     btn.style.boxShadow = `0 4px 8px ${drawStyle.color}40`;
                 });
-                
+
                 btn.addEventListener('mouseleave', () => {
                     if (!btn.classList.contains('active')) {
                         btn.style.backgroundColor = `${drawStyle.color}15`;
@@ -105,7 +105,7 @@ export function installBorderAnomaliesUI(editor) {
                         btn.style.boxShadow = 'none';
                     }
                 });
-                
+
                 // Add bidirectional indicator
                 if (bidirectional) {
                     const bidirIcon = document.createElement('span');
@@ -125,7 +125,7 @@ export function installBorderAnomaliesUI(editor) {
                     btn.appendChild(unidirIcon);
                 }
             }
-            
+
             btn.onclick = () => {
                 // Clear active state from all border anomaly buttons (in both sections)
                 Array.from(content.querySelectorAll('.border-anomaly-tool-btn')).forEach(b => {
@@ -152,7 +152,7 @@ export function installBorderAnomaliesUI(editor) {
             };
             return btn;
         }
-        
+
         // Legend (moved above scripted section)
         const legend = document.createElement('div');
         legend.style.marginTop = '8px';
@@ -184,14 +184,14 @@ export function installBorderAnomaliesUI(editor) {
         removeBtn.style.transition = 'all 0.2s ease';
         removeBtn.style.cursor = 'pointer';
         removeBtn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-        
+
         // Add hover effects for remove button
         removeBtn.addEventListener('mouseenter', () => {
             removeBtn.style.backgroundColor = '#ff2222';
             removeBtn.style.transform = 'translateY(-1px)';
             removeBtn.style.boxShadow = '0 4px 8px rgba(255, 68, 68, 0.4)';
         });
-        
+
         removeBtn.addEventListener('mouseleave', () => {
             if (!removeBtn.classList.contains('active')) {
                 removeBtn.style.backgroundColor = '#ff4444';
@@ -215,7 +215,7 @@ export function installBorderAnomaliesUI(editor) {
             removeBtn.style.backgroundColor = '#cc0000';
             removeBtn.style.transform = 'translateY(-1px)';
             removeBtn.style.boxShadow = '0 4px 12px rgba(255, 68, 68, 0.6)';
-            
+
             editor.setMode('border-anomaly-remove');
             editor._selectedAnomalyType = 'REMOVE';
             if (editor._pendingBorderAnomaly) {
@@ -289,8 +289,8 @@ export function installBorderAnomaliesUI(editor) {
             if (!scriptedTypes.includes(type.id)) {
                 console.log(`Creating non-scripted button for ${type.name} (enabled: ${type.enabled})`);
                 btnRow.appendChild(toolBtn(
-                    type.name, 
-                    type.id, 
+                    type.name,
+                    type.id,
                     `${type.name} ${type.bidirectional ? '(both ways)' : '(one way)'}\nColor: ${type.drawStyle.color} | Width: ${type.drawStyle.width}px | Pattern: ${type.drawStyle.pattern}\n[NOT SCRIPTED - Visual only]`,
                     type.bidirectional,
                     type.drawStyle,
@@ -298,17 +298,17 @@ export function installBorderAnomaliesUI(editor) {
                 ));
             }
         });
-        
+
         // Remove button is now created above and added to scripted section
-        
+
         content.appendChild(btnRow);
-        
+
         // Add border anomaly settings button at the bottom
         const settingsSection = document.createElement('div');
         settingsSection.style.marginTop = '16px';
         settingsSection.style.paddingTop = '12px';
         settingsSection.style.borderTop = '1px solid #444';
-        
+
         const settingsBtn = document.createElement('button');
         settingsBtn.className = 'mode-button';
         settingsBtn.textContent = '⚙️ Border Settings';
@@ -323,19 +323,19 @@ export function installBorderAnomaliesUI(editor) {
         settingsBtn.style.borderRadius = '4px';
         settingsBtn.style.cursor = 'pointer';
         settingsBtn.style.transition = 'all 0.2s ease';
-        
+
         settingsBtn.addEventListener('mouseenter', () => {
             settingsBtn.style.backgroundColor = '#34495e';
             settingsBtn.style.transform = 'translateY(-1px)';
             settingsBtn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
         });
-        
+
         settingsBtn.addEventListener('mouseleave', () => {
             settingsBtn.style.backgroundColor = '#2c3e50';
             settingsBtn.style.transform = 'translateY(0)';
             settingsBtn.style.boxShadow = 'none';
         });
-        
+
         settingsBtn.onclick = () => {
             // Open the border anomaly settings popup
             if (typeof window.showBorderAnomalySettings === 'function') {
@@ -352,10 +352,10 @@ export function installBorderAnomaliesUI(editor) {
                 });
             }
         };
-        
+
         settingsSection.appendChild(settingsBtn);
         content.appendChild(settingsSection);
-        
+
 
 
         showPopup({
@@ -461,7 +461,7 @@ export function installBorderAnomaliesUI(editor) {
             } else if (this._pendingBorderAnomaly && this._pendingBorderAnomaly !== label) {
                 const primary = this._pendingBorderAnomaly, secondary = label;
                 const anomalyTypeId = this._selectedAnomalyType || 'SPATIALTEAR';
-                
+
                 editor.beginUndoGroup();
                 editor.saveState(primary);
                 editor.saveState(secondary);
@@ -473,7 +473,7 @@ export function installBorderAnomaliesUI(editor) {
                     this._pendingBorderAnomaly = null;
                     return;
                 }
-                
+
                 if (!this.hexes[primary].borderAnomalies) this.hexes[primary].borderAnomalies = {};
                 if (!this.hexes[secondary].borderAnomalies) this.hexes[secondary].borderAnomalies = {};
                 this.hexes[primary].borderAnomalies[side] = { type: anomalyTypeId };
@@ -495,7 +495,7 @@ export function installBorderAnomaliesUI(editor) {
             } else if (this._pendingBorderAnomaly && this._pendingBorderAnomaly !== label) {
                 const primary = this._pendingBorderAnomaly, secondary = label;
                 const anomalyTypeId = this._selectedAnomalyType || 'GRAVITYWAVE';
-                
+
                 editor.saveState(primary);
                 const side = getSideBetween(this.hexes, primary, secondary);
                 if (side === undefined) {
@@ -505,7 +505,7 @@ export function installBorderAnomaliesUI(editor) {
                     this._pendingBorderAnomaly = null;
                     return;
                 }
-                
+
                 if (!this.hexes[primary].borderAnomalies) this.hexes[primary].borderAnomalies = {};
                 this.hexes[primary].borderAnomalies[side] = { type: anomalyTypeId };
                 this.hexes[primary].polygon.classList.remove('selected');
@@ -526,7 +526,7 @@ export function installBorderAnomaliesUI(editor) {
                     const borderTypes = getEnabledBorderAnomalyTypes();
                     const anomalyTypeId = anomaly.type.toUpperCase().replace(/\s+/g, '');
                     const anomalyConfig = borderTypes[anomalyTypeId];
-                    
+
                     if (anomalyConfig && anomalyConfig.bidirectional) {
                         const neighbor = getNeighborHex(this.hexes, label, side);
                         if (neighbor && neighbor.borderAnomalies) {
@@ -596,18 +596,18 @@ export function installBorderAnomaliesUI(editor) {
         // Load all border anomaly types
         await loadBorderAnomalyTypes();
         const allTypes = await import('../constants/borderAnomalies.js').then(m => m.getBorderAnomalyTypes());
-        
+
         const content = document.createElement('div');
-        
+
         const intro = document.createElement('p');
         intro.textContent = 'Configure visual appearance of border anomaly types. To enable/disable types, edit borderAnomalySettings in toggleSettings.js:';
         intro.style.margin = '0 0 16px 0';
         content.appendChild(intro);
-        
+
         const table = document.createElement('table');
         table.style.width = '100%';
         table.style.borderCollapse = 'collapse';
-        
+
         // Table header
         const headerRow = document.createElement('tr');
         ['Type', 'Color', 'Width', 'Pattern', 'Bidirectional', 'Actions'].forEach(text => {
@@ -620,17 +620,17 @@ export function installBorderAnomaliesUI(editor) {
             headerRow.appendChild(th);
         });
         table.appendChild(headerRow);
-        
+
         // Type rows - only show enabled types
         Object.values(allTypes).filter(type => type.enabled).forEach(type => {
             const row = document.createElement('tr');
-            
+
             // Type name
             const nameCell = document.createElement('td');
             nameCell.style.padding = '4px 8px';
             nameCell.style.fontSize = '0.9em';
             nameCell.textContent = type.name;
-            
+
             // Color picker
             const colorCell = document.createElement('td');
             colorCell.style.padding = '4px 8px';
@@ -644,13 +644,13 @@ export function installBorderAnomaliesUI(editor) {
                 type.drawStyle.color = colorInput.value; // Update local copy
             };
             colorCell.appendChild(colorInput);
-            
+
             // Width selector
             const widthCell = document.createElement('td');
             widthCell.style.padding = '4px 8px';
             const widthSelect = document.createElement('select');
             widthSelect.style.width = '50px';
-            [1,2,3,4,5,6,7,8].forEach(w => {
+            [1, 2, 3, 4, 5, 6, 7, 8].forEach(w => {
                 const option = document.createElement('option');
                 option.value = w;
                 option.textContent = w + 'px';
@@ -662,7 +662,7 @@ export function installBorderAnomaliesUI(editor) {
                 type.drawStyle.width = parseInt(widthSelect.value);
             };
             widthCell.appendChild(widthSelect);
-            
+
             // Pattern selector
             const patternCell = document.createElement('td');
             patternCell.style.padding = '4px 8px';
@@ -680,7 +680,7 @@ export function installBorderAnomaliesUI(editor) {
                 type.drawStyle.pattern = patternSelect.value;
             };
             patternCell.appendChild(patternSelect);
-            
+
             // Bidirectional toggle
             const bidirCell = document.createElement('td');
             bidirCell.style.padding = '4px 8px';
@@ -692,7 +692,7 @@ export function installBorderAnomaliesUI(editor) {
                 type.bidirectional = bidirCheckbox.checked;
             };
             bidirCell.appendChild(bidirCheckbox);
-            
+
             // Actions
             const actionsCell = document.createElement('td');
             actionsCell.style.padding = '4px 8px';
@@ -711,19 +711,19 @@ export function installBorderAnomaliesUI(editor) {
                 setTimeout(() => showBorderAnomalySettings(), 100);
             };
             actionsCell.appendChild(resetBtn);
-            
+
             row.appendChild(nameCell);
             row.appendChild(colorCell);
             row.appendChild(widthCell);
             row.appendChild(patternCell);
             row.appendChild(bidirCell);
             row.appendChild(actionsCell);
-            
+
             table.appendChild(row);
         });
-        
+
         content.appendChild(table);
-        
+
         showPopup({
             id: 'borderAnomalySettingsPopup',
             className: 'popup-ui',

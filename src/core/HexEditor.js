@@ -778,22 +778,22 @@ export default class HexEditor {
       console.log('Not enough hexes to create border anomalies');
       return;
     }
-    
+
     // Find first two adjacent hexes for testing
     const firstHex = hexLabels[0];
     const neighbors = getNeighbors(this.hexes[firstHex]);
     const secondHex = neighbors.find(n => this.hexes[n]);
-    
+
     if (!secondHex) {
       console.log('No neighbor found for first hex');
       return;
     }
-    
+
     // Add asteroid field border anomaly
     if (!this.hexes[firstHex].borderAnomalies) {
       this.hexes[firstHex].borderAnomalies = {};
     }
-    
+
     // Find which side connects to the neighbor
     const dirs = [
       { q: 0, r: -1 }, // 0: NW
@@ -803,12 +803,12 @@ export default class HexEditor {
       { q: -1, r: 1 }, // 4: SW
       { q: -1, r: 0 }  // 5: W
     ];
-    
+
     const firstCoords = this.hexes[firstHex];
     const secondCoords = this.hexes[secondHex];
     const dq = secondCoords.q - firstCoords.q;
     const dr = secondCoords.r - firstCoords.r;
-    
+
     let side = -1;
     for (let i = 0; i < 6; i++) {
       if (dirs[i].q === dq && dirs[i].r === dr) {
@@ -816,16 +816,16 @@ export default class HexEditor {
         break;
       }
     }
-    
+
     if (side === -1) {
       console.log('Could not determine side between hexes');
       return;
     }
-    
+
     // Add asteroid field anomaly
     this.hexes[firstHex].borderAnomalies[side] = { type: 'Asteroid Field' };
     console.log(`Added Asteroid Field border anomaly between ${firstHex} and ${secondHex} on side ${side}`);
-    
+
     // Redraw border anomalies
     const { drawBorderAnomaliesLayer } = await import('../draw/borderAnomaliesDraw.js');
     drawBorderAnomaliesLayer(this);

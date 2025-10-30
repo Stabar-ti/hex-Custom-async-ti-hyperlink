@@ -34,17 +34,17 @@ async function getWormholeTokenMap() {
   if (wormholeTokenMapCache) return wormholeTokenMapCache;
 
   try {
-    const basePath = window.location.pathname.endsWith('/') 
-      ? window.location.pathname 
+    const basePath = window.location.pathname.endsWith('/')
+      ? window.location.pathname
       : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
-    
+
     const response = await fetch(`${basePath}public/data/tokens.json`);
     if (!response.ok) throw new Error(`Failed to load tokens.json: ${response.status}`);
-    
+
     // tokens.json is an array of arrays, flatten it
     const tokenGroups = await response.json();
     const allTokens = tokenGroups.flat();
-    
+
     const map = {};
 
     // Build a map of wormhole type to token ID
@@ -56,7 +56,7 @@ async function getWormholeTokenMap() {
           const whKey = whType.toLowerCase()
             .replace('custom_eronous_wh', '') // Remove custom_eronous_wh prefix
             .replace('wh', ''); // Remove wh prefix if present
-          
+
           // Only set if not already set, or if this is a shorter/preferred token ID
           if (!map[whKey] || token.id.length < map[whKey].length) {
             map[whKey] = token.id;
@@ -147,7 +147,7 @@ export async function exportWormholePositions(editor) {
 
   for (const [id, hex] of Object.entries(editor.hexes)) {
     if (!/^([0-9]{3,4}|TL|TR|BL|BR)$/.test(id)) continue;
-    
+
     // Only export customWormholes
     const userWormholes = Array.from(hex.customWormholes || []);
     if (userWormholes.length === 0) continue;
@@ -156,7 +156,7 @@ export async function exportWormholePositions(editor) {
       // Normalize to lowercase and find token ID from map
       const whKey = whRaw.toLowerCase();
       const whToken = whTokenMap[whKey];
-      
+
       if (!whToken) {
         console.warn(`No token mapping found for wormhole type: ${whRaw}`);
         continue;
@@ -437,7 +437,7 @@ export async function exportMapInfo(editor) {
         // Normalize to lowercase and find token ID from map
         const whKey = whRaw.toLowerCase();
         const whToken = whTokenMap[whKey];
-        
+
         if (whToken) {
           tokens.push(whToken);
         } else {

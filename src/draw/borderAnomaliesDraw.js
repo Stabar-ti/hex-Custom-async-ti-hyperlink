@@ -13,10 +13,10 @@ export function drawBorderAnomaliesLayer(editor) {
     const drawnEdges = new Set();
     const INSET = 2; // px to move inward from each edge endpoint (tweak to taste)
     //const center = hex.center;
-    
+
     console.log('drawBorderAnomaliesLayer called');
     console.log('Available hexes:', Object.keys(editor.hexes).length);
-    
+
     let totalAnomalies = 0;
     for (const hex of Object.values(editor.hexes)) {
         if (hex.borderAnomalies) {
@@ -37,13 +37,13 @@ export function drawBorderAnomaliesLayer(editor) {
 
     for (const [label, hex] of Object.entries(editor.hexes)) {
         if (!hex.borderAnomalies) continue;
-        
+
         console.log(`Processing hex ${label} with border anomalies:`, hex.borderAnomalies);
-        
+
         for (const [sideStr, anomaly] of Object.entries(hex.borderAnomalies)) {
             const side = parseInt(sideStr, 10);
             const neighbor = getNeighborHex(editor, label, side);
-            
+
             console.log(`Processing anomaly: ${anomaly.type} on side ${side} of hex ${label}`);
 
             // Only draw this edge once (see previous answer for edgeKey logic)
@@ -60,17 +60,17 @@ export function drawBorderAnomaliesLayer(editor) {
 
             // Get anomaly type configuration
             const borderTypes = getBorderAnomalyTypes();
-            
+
             // Since anomaly.type is now always the ID (e.g., "ASTEROID"), try direct match first
             let anomalyTypeId = anomaly.type.toUpperCase();
             let anomalyConfig = borderTypes[anomalyTypeId];
-            
+
             // Fallback: try with spaces removed (for backward compatibility with old data)
             if (!anomalyConfig) {
                 anomalyTypeId = anomaly.type.toUpperCase().replace(/\s+/g, '');
                 anomalyConfig = borderTypes[anomalyTypeId];
             }
-            
+
             // Fallback: try without the word "FIELD" suffix
             if (!anomalyConfig && anomalyTypeId.endsWith('FIELD')) {
                 const withoutField = anomalyTypeId.replace(/FIELD$/, '');
@@ -79,20 +79,20 @@ export function drawBorderAnomaliesLayer(editor) {
                     anomalyTypeId = withoutField;
                 }
             }
-            
+
             console.log(`Looking for anomaly config for '${anomalyTypeId}' (original: '${anomaly.type}'):`, anomalyConfig);
             console.log('Available border types:', Object.keys(borderTypes));
             console.log('Anomaly config enabled?', anomalyConfig?.enabled);
-            
+
             if (anomalyConfig && anomalyConfig.enabled) {
                 const style = anomalyConfig.drawStyle;
                 console.log(`Drawing ${anomalyTypeId} with style:`, style);
                 console.log(`Drawing edge from (${p1.x}, ${p1.y}) to (${p2.x}, ${p2.y})`);
-                
+
                 // Draw primary edge
                 drawStyledEdgeLine(layer, p1, p2, style);
                 console.log(`Drew styled edge line for ${anomalyTypeId}`);
-                
+
                 // Draw on neighbor side if bidirectional
                 if (anomalyConfig.bidirectional && neighbor) {
                     const oppSide = getOppositeSide(side);
@@ -117,19 +117,19 @@ function drawStyledEdgeLine(layer, p1, p2, style) {
     line.setAttribute('stroke-width', style.width);
     line.setAttribute('opacity', '0.93');
     line.setAttribute('stroke-linecap', 'square');
-    
+
     // Apply pattern styles
     if (style.pattern === 'dashed') {
         line.setAttribute('stroke-dasharray', '5,5');
     } else if (style.pattern === 'dotted') {
         line.setAttribute('stroke-dasharray', '2,3');
     }
-    
+
     layer.appendChild(line);
     console.log(`Added line element to layer:`, line);
     console.log(`Line attributes:`, {
         x1: line.getAttribute('x1'),
-        y1: line.getAttribute('y1'), 
+        y1: line.getAttribute('y1'),
         x2: line.getAttribute('x2'),
         y2: line.getAttribute('y2'),
         stroke: line.getAttribute('stroke'),
