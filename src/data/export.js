@@ -471,20 +471,20 @@ export function exportMapInfo(editor) {
       adjacencyOverrides: adjacencyOverrides
     };
 
-      // Only add hexEntry if at least one subfield is non-empty/non-trivial
-      const hasInfo = (
-        (planets && planets.length > 0) ||
-        (tokens && tokens.length > 0) ||
-        (hyperlaneString && hyperlaneString !== '') ||
-        (borderAnomalies && borderAnomalies.length > 0) ||
-        (systemLore && systemLore.length > 0) ||
-        (hex.plastic != null && hex.plastic !== '') ||
-        (customAdjacencies && customAdjacencies.length > 0) ||
-        (adjacencyOverrides && adjacencyOverrides.length > 0)
-      );
-      if (hasInfo) {
-        mapInfo.push(hexEntry);
-      }
+    // Only add hexEntry if at least one subfield is non-empty/non-trivial
+    const hasInfo = (
+      (planets && planets.length > 0) ||
+      (tokens && tokens.length > 0) ||
+      (hyperlaneString && hyperlaneString !== '') ||
+      (borderAnomalies && borderAnomalies.length > 0) ||
+      (systemLore && systemLore.length > 0) ||
+      (hex.plastic != null && hex.plastic !== '') ||
+      (customAdjacencies && customAdjacencies.length > 0) ||
+      (adjacencyOverrides && adjacencyOverrides.length > 0)
+    );
+    if (hasInfo) {
+      mapInfo.push(hexEntry);
+    }
   });
 
   return { mapInfo };
@@ -512,11 +512,11 @@ export function exportBorderAnomaliesGrouped(editor, doubleSided = true) {
       const borderTypes = getBorderAnomalyTypes();
       const typeId = type.toUpperCase().replace(/\s+/g, '');
       const anomalyConfig = borderTypes[typeId];
-      
+
       const key = `${dir}_${type}`;
       if (!groups[key]) groups[key] = new Set();
       groups[key].add(label);
-      
+
       // Add to neighbor if bidirectional
       if (anomalyConfig && anomalyConfig.bidirectional && neighborLabel) {
         const neighborDir = dirMap[neighborSide];
