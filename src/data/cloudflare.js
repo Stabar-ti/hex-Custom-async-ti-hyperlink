@@ -5,7 +5,7 @@
 
 import { showPopup, hidePopup } from '../ui/popupUI.js';
 
-const API_ORIGIN = "https://hyperlaneeditor-cloudflare.ericvaughan.workers.dev";
+const API_ORIGIN = "https://gateway.stabarrabats.workers.dev";
 
 // Optimized Turnstile readiness check
 let turnstileReady = false;
