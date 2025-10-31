@@ -444,7 +444,7 @@ async function saveMapInfo(editor) {
         try {
             cloudUploadBtn.disabled = true;
             localDownloadBtn.disabled = true;
-            
+
             statusDiv.textContent = 'Uploading to Cloudflare...';
             statusDiv.style.color = '#4dabf7';
 
@@ -472,7 +472,7 @@ async function saveMapInfo(editor) {
         try {
             cloudUploadBtn.disabled = true;
             localDownloadBtn.disabled = true;
-            
+
             statusDiv.textContent = 'Preparing download...';
             statusDiv.style.color = '#51cf66';
 
