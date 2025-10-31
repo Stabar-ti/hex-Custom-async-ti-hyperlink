@@ -532,9 +532,9 @@ export async function exportMapInfo(editor) {
     if (hyperlaneString) {
       // If there are hyperlanes, use 'hl'
       tileID = 'hl';
-    } else if (hex.baseType === 'void') {
-      // Void tiles get -1
-      tileID = '-1';
+      //} else if (hex.baseType === 'void') {
+      //  // Void tiles get -1
+      //  tileID = '-1';
     } else if (hex.baseType === 'homesystem') {
       // Home system tiles get 0g
       tileID = '0g';
