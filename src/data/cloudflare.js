@@ -3,9 +3,7 @@
  * Provides functionality to get Turnstile tokens and upload maps to Cloudflare Workers
  */
 
-import { showPopup, hidePopup } from '../ui/popupUI.js';
-
-const API_ORIGIN = "https://gateway.stabarrabats.workers.dev";
+const API_ORIGIN = "https://gateway.stabarrabats.workers.dev"; // TODO: Replace with your gateway Worker URL
 
 // Optimized Turnstile readiness check
 let turnstileReady = false;
@@ -352,8 +350,35 @@ async function saveMap(editor) {
  * @param {Object} editor - The editor instance
  */
 async function saveMapInfo(editor) {
-    // Create content HTML with embedded buttons
-    const content = `
+    // Create a modal overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+    `;
+
+    // Create modal content with improved GUI
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        background: var(--bg-main, #1e1e1e);
+        color: var(--text-main, #e0e0e0);
+        padding: 30px;
+        border-radius: 8px;
+        max-width: 600px;
+        width: 90%;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    `;
+
+    modal.innerHTML = `
+        <h3 style="margin: 0 0 20px 0; color: var(--accent, #4CAF50); text-align: center;">Export Map Info</h3>
         <div style="margin-bottom: 25px;">
             <div style="margin-bottom: 20px; padding: 15px; background: var(--bg-secondary, #2d2d2d); border-radius: 6px; border-left: 4px solid #4dabf7;">
                 <div style="display: flex; align-items: center; margin-bottom: 10px;">
@@ -378,7 +403,7 @@ async function saveMapInfo(editor) {
                     font-weight: 500;
                     transition: background 0.2s;
                 ">
-                    ☁️ Upload to Cloud (15m shareable link)
+                    ☁️ Upload to Cloud (48h shareable link)
                 </button>
             </div>
             
@@ -411,45 +436,41 @@ async function saveMapInfo(editor) {
         </div>
         
         <div id="exportStatus" style="margin-top: 15px; padding: 10px; font-style: italic; min-height: 20px; text-align: center; font-size: 16px; color: #ff6b6b; border-radius: 4px;"></div>
+        
+        <div style="margin-top: 20px; text-align: center;">
+            <button id="cancelExportBtn" style="
+                padding: 10px 24px;
+                background: var(--bg-secondary, #555);
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 16px;
+            ">
+                Cancel
+            </button>
+        </div>
     `;
 
-    // Create popup with cancel action only
-    const popup = showPopup({
-        id: 'exportMapInfoPopup',
-        title: 'Export Map Info',
-        content: content,
-        actions: [
-            {
-                label: 'Cancel',
-                action: (btn) => {
-                    hidePopup(popup);
-                }
-            }
-        ],
-        modal: false,
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        style: {
-            minWidth: '450px'
-        }
-    });
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
 
-    // Add event listeners to the embedded buttons
-    const cloudUploadBtn = popup.querySelector('#cloudUploadBtn');
-    const localDownloadBtn = popup.querySelector('#localDownloadBtn');
-    const statusDiv = popup.querySelector('#exportStatus');
+    const cloudUploadBtn = modal.querySelector('#cloudUploadBtn');
+    const localDownloadBtn = modal.querySelector('#localDownloadBtn');
+    const cancelBtn = modal.querySelector('#cancelExportBtn');
+    const statusDiv = modal.querySelector('#exportStatus');
 
     // Cloud upload handler
     cloudUploadBtn.addEventListener('click', async () => {
         try {
             cloudUploadBtn.disabled = true;
             localDownloadBtn.disabled = true;
-
+            
             statusDiv.textContent = 'Uploading to Cloudflare...';
             statusDiv.style.color = '#4dabf7';
 
             const url = await saveMapInfoToCloudflare(editor);
-            hidePopup(popup);
+            document.body.removeChild(overlay);
             showDownloadLink(url, 'map info');
         } catch (error) {
             statusDiv.textContent = `Failed: ${error.message}`;
@@ -472,7 +493,7 @@ async function saveMapInfo(editor) {
         try {
             cloudUploadBtn.disabled = true;
             localDownloadBtn.disabled = true;
-
+            
             statusDiv.textContent = 'Preparing download...';
             statusDiv.style.color = '#51cf66';
 
@@ -490,7 +511,7 @@ async function saveMapInfo(editor) {
             link.click();
             URL.revokeObjectURL(url);
 
-            hidePopup(popup);
+            document.body.removeChild(overlay);
         } catch (error) {
             statusDiv.textContent = `Failed: ${error.message}`;
             statusDiv.style.color = '#ff6b6b';
@@ -505,6 +526,18 @@ async function saveMapInfo(editor) {
     });
     localDownloadBtn.addEventListener('mouseleave', () => {
         if (!localDownloadBtn.disabled) localDownloadBtn.style.background = '#51cf66';
+    });
+
+    // Cancel handler
+    cancelBtn.addEventListener('click', () => {
+        document.body.removeChild(overlay);
+    });
+
+    // Close on overlay click
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            document.body.removeChild(overlay);
+        }
     });
 }
 
