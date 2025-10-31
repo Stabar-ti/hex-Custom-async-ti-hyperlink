@@ -121,8 +121,12 @@ async function saveMapToCloudflare(editor) {
  */
 async function saveMapInfoToCloudflare(editor) {
     try {
+        console.log('Starting map info upload to Cloudflare...');
+        
         // Get Turnstile token for verification
+        console.log('Requesting Turnstile token...');
         const token = await getTurnstileToken();
+        console.log('Turnstile token received:', token ? 'yes' : 'no');
 
         // Import the export function dynamically to avoid circular dependencies
         const { exportMapInfo } = await import('./export.js');
@@ -131,6 +135,7 @@ async function saveMapInfoToCloudflare(editor) {
         const mapInfoData = await exportMapInfo(editor);
 
         console.log('Sending map info to server:', {
+            endpoint: `${API_ORIGIN}/upload-mapinfo`,
             dataSize: JSON.stringify(mapInfoData).length,
             hexCount: mapInfoData.mapInfo ? mapInfoData.mapInfo.length : 0
         });
@@ -145,6 +150,12 @@ async function saveMapInfoToCloudflare(editor) {
             body: JSON.stringify(mapInfoData, null, 2)
         });
 
+        console.log('Response received:', {
+            status: res.status,
+            statusText: res.statusText,
+            ok: res.ok
+        });
+
         const out = await res.json();
 
         if (!res.ok) {
@@ -155,6 +166,11 @@ async function saveMapInfoToCloudflare(editor) {
         return out.signed_url;
     } catch (error) {
         console.error('Failed to save map info to Cloudflare:', error);
+        console.error('Error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
         throw error;
     }
 }
