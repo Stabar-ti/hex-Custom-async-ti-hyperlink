@@ -122,7 +122,7 @@ async function saveMapToCloudflare(editor) {
 async function saveMapInfoToCloudflare(editor) {
     try {
         console.log('Starting map info upload to Cloudflare...');
-        
+
         // Get Turnstile token for verification
         console.log('Requesting Turnstile token...');
         const token = await getTurnstileToken();
