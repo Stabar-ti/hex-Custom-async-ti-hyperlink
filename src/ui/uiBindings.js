@@ -99,6 +99,17 @@ export function bindUI(editor) {
   document.getElementById('genMapBtn')?.addEventListener('click', () => editor.generateMap());
   document.getElementById('cornerToggle')?.addEventListener('change', e => editor.toggleCorners(e.target.checked));
 
+  // Advanced Export Toggle
+  document.getElementById('advancedExportToggle')?.addEventListener('click', () => {
+    const container = document.getElementById('advancedExportContainer');
+    const button = document.getElementById('advancedExportToggle');
+    if (container && button) {
+      const isHidden = container.style.display === 'none';
+      container.style.display = isHidden ? 'block' : 'none';
+      button.textContent = isHidden ? 'Advanced Fragmented Export ▴' : 'Advanced Fragmented Export ▾';
+    }
+  });
+
   // Export buttons
   document.getElementById('exportHL')?.addEventListener('click', () => editor.exportData());
   document.getElementById('exportTypes')?.addEventListener('click', () => editor.exportSectorTypes());

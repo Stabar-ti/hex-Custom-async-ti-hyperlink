@@ -557,19 +557,9 @@ export async function exportMapInfo(editor) {
       adjacencyOverrides: adjacencyOverrides
     };
 
-    // Only add hexEntry if at least one subfield is non-empty/non-trivial
-    const hasInfo = (
-      (tileID && tileID !== '') ||  // Include if tileID is set (e.g., '0g', '-1', 'hl', or a realId)
-      (planets && planets.length > 0) ||
-      (tokens && tokens.length > 0) ||
-      (hyperlaneString && hyperlaneString !== '') ||
-      (borderAnomalies && borderAnomalies.length > 0) ||
-      (systemLore && systemLore.length > 0) ||
-      (hex.plastic != null && hex.plastic !== '') ||
-      (customAdjacencies && customAdjacencies.length > 0) ||
-      (adjacencyOverrides && adjacencyOverrides.length > 0)
-    );
-    if (hasInfo) {
+    // Only add hexEntry if tileID is assigned (required field)
+    // If there's no tileID, omit the entire position even if there's other data
+    if (tileID && tileID !== '') {
       mapInfo.push(hexEntry);
     }
   });

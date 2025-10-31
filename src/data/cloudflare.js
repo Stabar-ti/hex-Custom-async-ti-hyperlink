@@ -3,7 +3,9 @@
  * Provides functionality to get Turnstile tokens and upload maps to Cloudflare Workers
  */
 
-const API_ORIGIN = "https://gateway.stabarrabats.workers.dev"; // TODO: Replace with your gateway Worker URL
+import { showPopup, hidePopup } from '../ui/popupUI.js';
+
+const API_ORIGIN = "https://hyperlaneeditor-cloudflare.ericvaughan.workers.dev";
 
 // Optimized Turnstile readiness check
 let turnstileReady = false;
@@ -350,58 +352,129 @@ async function saveMap(editor) {
  * @param {Object} editor - The editor instance
  */
 async function saveMapInfo(editor) {
-    // Create a modal to show both options
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.style.display = 'block';
-    modal.style.padding = '30px';
-    modal.style.textAlign = 'center';
-    modal.innerHTML = `
-        <h3>Export Map Info</h3>
-        <p>Choose how to export your map data:</p>
-        <div style="display: flex; flex-direction: column; gap: 10px; margin: 20px 0;">
-            <button id="cloudflareExportBtn" style="padding: 12px 24px; font-size: 14px; cursor: pointer;">
-                ☁️ Upload to Cloud (48h shareable link)
-            </button>
-            <button id="localDownloadBtn" style="padding: 12px 24px; font-size: 14px; cursor: pointer;">
-                💾 Download Locally
-            </button>
-            <button id="cancelExportBtn" style="padding: 12px 24px; font-size: 14px; cursor: pointer; background: #666;">
-                Cancel
-            </button>
+    // Create content HTML with embedded buttons
+    const content = `
+        <div style="margin-bottom: 25px;">
+            <div style="margin-bottom: 20px; padding: 15px; background: var(--bg-secondary, #2d2d2d); border-radius: 6px; border-left: 4px solid #4dabf7;">
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <span style="font-size: 30px; margin-right: 10px;">☁️</span>
+                    <strong style="font-size: 21px; color: #4dabf7;">Cloud Upload</strong>
+                </div>
+                <p style="margin: 0 0 8px 0; font-size: 19px; line-height: 1.5; color: var(--text-secondary, #b0b0b0);">
+                    Use the provided link in the async bot and use the following command in the GM channel or during setup:
+                </p>
+                <div style="margin-bottom: 12px; padding: 8px 12px; background: var(--bg-main, #1e1e1e); border-radius: 4px; font-family: monospace; font-size: 19px; color: #4dabf7;">
+                    /map import_json
+                </div>
+                <button id="cloudUploadBtn" style="
+                    width: 100%;
+                    padding: 10px 16px;
+                    background: #4dabf7;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 21px;
+                    font-weight: 500;
+                    transition: background 0.2s;
+                ">
+                    ☁️ Upload to Cloud (15m shareable link)
+                </button>
+            </div>
+            
+            <div style="margin-bottom: 20px; padding: 15px; background: var(--bg-secondary, #2d2d2d); border-radius: 6px; border-left: 4px solid #51cf66;">
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <span style="font-size: 30px; margin-right: 10px;">💾</span>
+                    <strong style="font-size: 21px; color: #51cf66;">Local Download</strong>
+                </div>
+                <p style="margin: 0 0 8px 0; font-size: 19px; line-height: 1.5; color: var(--text-secondary, #b0b0b0);">
+                    This will download the json locally. You can still provide it through other means:
+                </p>
+                <div style="margin-bottom: 12px; padding: 8px 12px; background: var(--bg-main, #1e1e1e); border-radius: 4px; font-family: monospace; font-size: 18px; color: #51cf66;">
+                    http://your.link.here/name.json
+                </div>
+                <button id="localDownloadBtn" style="
+                    width: 100%;
+                    padding: 10px 16px;
+                    background: #51cf66;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 21px;
+                    font-weight: 500;
+                    transition: background 0.2s;
+                ">
+                    💾 Download Locally
+                </button>
+            </div>
         </div>
-        <div id="exportStatus" style="margin-top: 15px; font-style: italic; min-height: 20px;"></div>
+        
+        <div id="exportStatus" style="margin-top: 15px; padding: 10px; font-style: italic; min-height: 20px; text-align: center; font-size: 16px; color: #ff6b6b; border-radius: 4px;"></div>
     `;
-    document.body.appendChild(modal);
 
-    const cloudflareBtn = modal.querySelector('#cloudflareExportBtn');
-    const localBtn = modal.querySelector('#localDownloadBtn');
-    const cancelBtn = modal.querySelector('#cancelExportBtn');
-    const statusDiv = modal.querySelector('#exportStatus');
-
-    // Cloudflare export handler
-    cloudflareBtn.addEventListener('click', async () => {
-        try {
-            cloudflareBtn.disabled = true;
-            localBtn.disabled = true;
-            statusDiv.textContent = 'Uploading to Cloudflare...';
-
-            const url = await saveMapInfoToCloudflare(editor);
-            document.body.removeChild(modal);
-            showDownloadLink(url, 'map info');
-        } catch (error) {
-            statusDiv.textContent = `Failed: ${error.message}`;
-            cloudflareBtn.disabled = false;
-            localBtn.disabled = false;
+    // Create popup with cancel action only
+    const popup = showPopup({
+        id: 'exportMapInfoPopup',
+        title: 'Export Map Info',
+        content: content,
+        actions: [
+            {
+                label: 'Cancel',
+                action: (btn) => {
+                    hidePopup(popup);
+                }
+            }
+        ],
+        modal: false,
+        draggable: true,
+        dragHandleSelector: '.popup-ui-titlebar',
+        style: {
+            minWidth: '450px'
         }
     });
 
-    // Local download handler
-    localBtn.addEventListener('click', async () => {
+    // Add event listeners to the embedded buttons
+    const cloudUploadBtn = popup.querySelector('#cloudUploadBtn');
+    const localDownloadBtn = popup.querySelector('#localDownloadBtn');
+    const statusDiv = popup.querySelector('#exportStatus');
+
+    // Cloud upload handler
+    cloudUploadBtn.addEventListener('click', async () => {
         try {
-            localBtn.disabled = true;
-            cloudflareBtn.disabled = true;
+            cloudUploadBtn.disabled = true;
+            localDownloadBtn.disabled = true;
+            
+            statusDiv.textContent = 'Uploading to Cloudflare...';
+            statusDiv.style.color = '#4dabf7';
+
+            const url = await saveMapInfoToCloudflare(editor);
+            hidePopup(popup);
+            showDownloadLink(url, 'map info');
+        } catch (error) {
+            statusDiv.textContent = `Failed: ${error.message}`;
+            statusDiv.style.color = '#ff6b6b';
+            cloudUploadBtn.disabled = false;
+            localDownloadBtn.disabled = false;
+        }
+    });
+
+    // Add hover effect for cloud upload button
+    cloudUploadBtn.addEventListener('mouseenter', () => {
+        if (!cloudUploadBtn.disabled) cloudUploadBtn.style.background = '#339af0';
+    });
+    cloudUploadBtn.addEventListener('mouseleave', () => {
+        if (!cloudUploadBtn.disabled) cloudUploadBtn.style.background = '#4dabf7';
+    });
+
+    // Local download handler
+    localDownloadBtn.addEventListener('click', async () => {
+        try {
+            cloudUploadBtn.disabled = true;
+            localDownloadBtn.disabled = true;
+            
             statusDiv.textContent = 'Preparing download...';
+            statusDiv.style.color = '#51cf66';
 
             // Import and use the exportMapInfo function
             const { exportMapInfo } = await import('./export.js');
@@ -417,17 +490,21 @@ async function saveMapInfo(editor) {
             link.click();
             URL.revokeObjectURL(url);
 
-            document.body.removeChild(modal);
+            hidePopup(popup);
         } catch (error) {
             statusDiv.textContent = `Failed: ${error.message}`;
-            localBtn.disabled = false;
-            cloudflareBtn.disabled = false;
+            statusDiv.style.color = '#ff6b6b';
+            cloudUploadBtn.disabled = false;
+            localDownloadBtn.disabled = false;
         }
     });
 
-    // Cancel handler
-    cancelBtn.addEventListener('click', () => {
-        document.body.removeChild(modal);
+    // Add hover effect for local download button
+    localDownloadBtn.addEventListener('mouseenter', () => {
+        if (!localDownloadBtn.disabled) localDownloadBtn.style.background = '#40c057';
+    });
+    localDownloadBtn.addEventListener('mouseleave', () => {
+        if (!localDownloadBtn.disabled) localDownloadBtn.style.background = '#51cf66';
     });
 }
 
