@@ -3,7 +3,8 @@ export const overlayDefaults = {
     showPlanetTypes: true,
     showResInf: false,
     showIdealRI: true,
-    showRealID: true
+    showRealID: true,
+    showLore: false
 };
 
 // Border anomaly type enablement settings

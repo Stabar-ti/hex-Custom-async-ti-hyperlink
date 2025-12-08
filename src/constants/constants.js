@@ -162,7 +162,8 @@ export const SVG_LAYER_ORDER = [
   'tileImageLayer',         // images
   'wormholeIconLayer',      // <--- tokens/icons go here
   'customAdjacencyLayer',
-  'borderAnomalyLayer'      // top-most
+  'borderAnomalyLayer',
+  'lore-overlay'            // lore indicators on top
 
   // top-most
 ];

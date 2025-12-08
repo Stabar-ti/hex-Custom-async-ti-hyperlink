@@ -229,6 +229,36 @@ export function exportFullState(editor) {
     if (hex.adjacencyOverrides && Object.keys(hex.adjacencyOverrides).length) h.ao = JSON.parse(JSON.stringify(hex.adjacencyOverrides));
     if (hex.borderAnomalies && Object.keys(hex.borderAnomalies).length) h.ba = JSON.parse(JSON.stringify(hex.borderAnomalies));
     if (hex.matrix && hex.matrix.flat().some(x => x !== 0)) h.ln = hex.matrix;
+    
+    // Add system lore if it exists
+    if (hex.systemLore) {
+      h.sl = {
+        lt: hex.systemLore.loreText || "",
+        ft: hex.systemLore.footerText || "",
+        r: hex.systemLore.receiver || "CURRENT",
+        t: hex.systemLore.trigger || "CONTROLLED",
+        p: hex.systemLore.ping || "NO",
+        pe: hex.systemLore.persistance || "ONCE"
+      };
+    }
+    
+    // Add planet lore if it exists
+    if (hex.planetLore && Object.keys(hex.planetLore).length > 0) {
+      h.prl = {};
+      Object.entries(hex.planetLore).forEach(([planetIndex, lore]) => {
+        if (lore) {
+          h.prl[planetIndex] = {
+            lt: lore.loreText || "",
+            ft: lore.footerText || "",
+            r: lore.receiver || "CURRENT",
+            t: lore.trigger || "CONTROLLED",
+            p: lore.ping || "NO",
+            pe: lore.persistance || "ONCE"
+          };
+        }
+      });
+    }
+    
     return h;
   });
   return JSON.stringify({ hexes }, null, 1);
@@ -401,20 +431,36 @@ export async function exportMapInfo(editor) {
     if (!hex || !hex.center) return; // Skip uninitialized hexes
 
     // Build planets array
-    const planets = (hex.planets || []).map(planet => {
-      // Build planet lore from flavourText or existing lore fields
-      let planetLore = [];
-      if (planet.loreMain || planet.loreSub || planet.flavourText) {
-        if (planet.loreMain) planetLore.push(planet.loreMain);
-        else if (planet.loreSub) planetLore.push(planet.loreSub);
-        //else if (planet.flavourText) planetLore.push(planet.flavourText);
-
-        // Add space/planet indicator if available
-        if (planet.spaceOrPlanet) {
-          planetLore.push(planet.spaceOrPlanet === 'space' ? 'Space' : 'Planet');
-        } //else if (planet.planetType) {
-        //planetLore.push('Planet'); // Default to planet if planetType exists
-        //}
+    const planets = (hex.planets || []).map((planet, planetIndex) => {
+      // Build planet lore from new lore module structure
+      let planetLore = null;
+      if (hex.planetLore && hex.planetLore[planetIndex]) {
+        const lore = hex.planetLore[planetIndex];
+        planetLore = {
+          loreText: lore.loreText || "",
+          footerText: lore.footerText || "",
+          receiver: lore.receiver || "CURRENT",
+          trigger: lore.trigger || "CONTROLLED",
+          ping: lore.ping || "NO",
+          persistance: lore.persistance || "ONCE"
+        };
+      } else if (planet.loreMain || planet.loreSub || planet.flavourText) {
+        // Legacy fallback - convert old planet lore format
+        let loreText = "";
+        if (planet.loreMain) loreText = planet.loreMain;
+        else if (planet.loreSub) loreText = planet.loreSub;
+        else if (planet.flavourText) loreText = planet.flavourText;
+        
+        if (loreText) {
+          planetLore = {
+            loreText: loreText,
+            footerText: "",
+            receiver: "CURRENT",
+            trigger: "CONTROLLED",
+            ping: "NO",
+            persistance: "ONCE"
+          };
+        }
       }
 
       return {
@@ -482,24 +528,40 @@ export async function exportMapInfo(editor) {
       });
     }
 
-    // Build system lore array - process both main/sub parts and general lore
-    let systemLore = [];
-    if (hex.loreMain || hex.loreSub || hex.lore) {
-      if (hex.loreMain) systemLore.push(hex.loreMain);
-      if (hex.loreSub) systemLore.push(hex.loreSub);
+    // Build system lore - use new lore module structure
+    let systemLore = null;
+    if (hex.systemLore) {
+      // Use the structured lore object from the lore module
+      systemLore = {
+        loreText: hex.systemLore.loreText || "",
+        footerText: hex.systemLore.footerText || "",
+        receiver: hex.systemLore.receiver || "CURRENT",
+        trigger: hex.systemLore.trigger || "CONTROLLED",
+        ping: hex.systemLore.ping || "NO",
+        persistance: hex.systemLore.persistance || "ONCE"
+      };
+    } else if (hex.loreMain || hex.loreSub || hex.lore) {
+      // Legacy fallback - convert old lore format to new structure
+      let loreText = "";
+      if (hex.loreMain) loreText = hex.loreMain;
+      else if (hex.loreSub) loreText = hex.loreSub;
       else if (hex.lore) {
         if (Array.isArray(hex.lore)) {
-          systemLore.push(...hex.lore);
+          loreText = hex.lore.join(" ");
         } else if (typeof hex.lore === 'string') {
-          systemLore.push(...hex.lore.split(',').map(s => s.trim()));
+          loreText = hex.lore;
         }
       }
-
-      // Add space indicator for system-level lore
-      if (hex.spaceOrPlanet) {
-        systemLore.push(hex.spaceOrPlanet === 'space' ? 'Space' : 'Planet');
-      } else {
-        systemLore.push('Space'); // Default to space for system-level
+      
+      if (loreText) {
+        systemLore = {
+          loreText: loreText,
+          footerText: "",
+          receiver: "CURRENT",
+          trigger: "CONTROLLED", 
+          ping: "NO",
+          persistance: "ONCE"
+        };
       }
     }
 

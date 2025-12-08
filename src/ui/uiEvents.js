@@ -27,7 +27,12 @@ export function registerClickHandler(editor) {
       return;
     }
 
-    // 2. Hyperlane editing: delete/link/unlink
+    // 2. Lore selection mode: ignore and let custom handler deal with it
+    if (this.mode === 'lore-selection') {
+      return; // Let the lore selection handler process the click
+    }
+
+    // 3. Hyperlane editing: delete/link/unlink
     // deleteAllSegments, _selectHex, etc. MUST saveState internally
     if (this.mode === 'hyperlane') {
       if (e.shiftKey) {

@@ -110,6 +110,7 @@ export function showOverlayOptionsPopup() {
         <button id="toggleResInf" class="mode-button">Resources/ Influence</button>
         <button id="toggleIdealRI" class="mode-button">Ideal R/I</button>
         <button id="toggleRealID" class="mode-button">RealID Labels</button>
+        <button id="toggleLore" class="mode-button">Lore Indicators</button>
       </div>
       <div class="popup-section-label">Tile Information</div>
       <div class="popup-btn-grid">
@@ -218,6 +219,24 @@ export function showOverlayOptionsPopup() {
         });
         setupToggle('toggleRealID', 'showRealID', () => {
             redrawAllRealIDOverlays(editor);
+        });
+
+        // Lore overlay toggle
+        setupToggle('toggleLore', 'showLore', () => {
+            if (!editor.loreOverlay) {
+                import('../features/loreOverlay.js').then(({ default: LoreOverlay }) => {
+                    editor.loreOverlay = new LoreOverlay(editor);
+                    if (editor.showLore) {
+                        editor.loreOverlay.show();
+                    }
+                });
+            } else {
+                if (editor.showLore) {
+                    editor.loreOverlay.show();
+                } else {
+                    editor.loreOverlay.hide();
+                }
+            }
         });
 
         // Border Anomalies toggle (handled above in setupToggle)

@@ -21,6 +21,7 @@ export function showSpecialModePopup() {
             <button id="miltySliceDesignerBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">🎲 Milty Slice Designer</button>
             <button id="miltyRandomGeneratorBtn" class="mode-button" style="font-size:16px;padding:10px 28px;display:none;">🎯 Milty Random Generator</button>
             <button id="autoMapBuilderBtn" class="mode-button" style="font-size:16px;padding:10px 28px;display:none;">🤖 AutoMapper - Intelligent Map Builder</button>
+            <button id="loreModuleBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">📚 Lore Module</button>
         </div>
         <hr>
         <p style="font-size: 14px; color: #888; margin-top: 16px;">Advanced tools for competitive and casual play setup.</p>
@@ -61,6 +62,7 @@ export function showSpecialModePopup() {
         const miltyBtn = document.getElementById('miltySliceDesignerBtn');
         const generatorBtn = document.getElementById('miltyRandomGeneratorBtn');
         const autoMapperBtn = document.getElementById('autoMapBuilderBtn');
+        const loreBtn = document.getElementById('loreModuleBtn');
 
         if (miltyBtn) {
             miltyBtn.onclick = () => {
@@ -239,6 +241,28 @@ export function showSpecialModePopup() {
                         content: autoMapperContent,
                         actions: [{ label: 'Close', onClick: () => hidePopup('automapper-popup') }]
                     });
+                });
+            };
+        }
+
+        // Lore Module button handler
+        if (loreBtn) {
+            loreBtn.onclick = () => {
+                hidePopup('special-mode-popup');
+                // Import and call the lore UI
+                import('../modules/Lore/loreUI.js').then(mod => {
+                    console.log('Lore module loaded:', mod);
+                    const showLoreUI = mod.showLorePopup;
+                    
+                    if (typeof showLoreUI === 'function') {
+                        showLoreUI();
+                    } else {
+                        console.error('showLorePopup is not a function in the loaded module.');
+                        alert('Error: Could not initialize Lore Module UI.');
+                    }
+                }).catch(err => {
+                    console.error('Failed to load Lore module:', err);
+                    alert('Error: Failed to load Lore module.');
                 });
             };
         }

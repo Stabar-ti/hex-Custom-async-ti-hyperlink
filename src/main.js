@@ -36,6 +36,8 @@ import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopu
 import { resetAllPopupPositions } from './ui/popupUI.js';
 import { checkRealIdUniqueness } from './features/sanityCheck.js';
 import './ui/specialModePopup.js';
+import { installLoreUI } from './modules/Lore/loreUI.js';
+import LoreOverlay from './features/loreOverlay.js';
 
 // ───── Initialize the core HexEditor and set defaults ─────
 const svg = document.getElementById('hexMap');
@@ -70,6 +72,10 @@ initHistory(editor);
 
 installCustomLinksUI(editor);
 installBorderAnomaliesUI(editor);
+installLoreUI(editor);
+
+// Initialize lore overlay
+editor.loreOverlay = new LoreOverlay(editor);
 
 // Initialize border anomaly types (force reload)
 import { clearCache } from './constants/borderAnomalies.js';

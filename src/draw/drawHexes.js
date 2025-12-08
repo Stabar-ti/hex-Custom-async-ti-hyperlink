@@ -87,7 +87,10 @@ export function drawHex(editor, q, r, label) {
     label, q, r, center, polygon: poly, baseType: '',
     effects: new Set(), overlays: [],
     matrix: Array.from({ length: 6 }, () => Array(6).fill(0)),
-    wormholes: new Set(), wormholeOverlays: []
+    wormholes: new Set(), wormholeOverlays: [],
+    // Lore properties
+    systemLore: null,  // System-level lore object
+    planetLore: []     // Array of planet lore objects
   };
 }
 
@@ -209,7 +212,10 @@ export function drawCornerHex(editor, x, y, label) {
     wormholeOverlays: [],
     isCorner: true,
     planets: [],
-    realId: null
+    realId: null,
+    // Lore properties
+    systemLore: null,  // System-level lore object
+    planetLore: []     // Array of planet lore objects
   };
 }
 

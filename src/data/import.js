@@ -412,6 +412,39 @@ export function importFullState(editor, jsonText) {
       // ---- Effects from JSON (always restore)
       (h.fx || h.effects || []).forEach(eff => eff && editor.applyEffect(id, eff));
 
+      // ---- Import system lore
+      if (h.sl) {
+        hex.systemLore = {
+          loreText: h.sl.lt || "",
+          footerText: h.sl.ft || "",
+          receiver: h.sl.r || "CURRENT",
+          trigger: h.sl.t || "CONTROLLED",
+          ping: h.sl.p || "NO",
+          persistance: h.sl.pe || "ONCE"
+        };
+      } else {
+        delete hex.systemLore;
+      }
+
+      // ---- Import planet lore
+      if (h.prl && Object.keys(h.prl).length > 0) {
+        hex.planetLore = {};
+        Object.entries(h.prl).forEach(([planetIndex, lore]) => {
+          if (lore) {
+            hex.planetLore[planetIndex] = {
+              loreText: lore.lt || "",
+              footerText: lore.ft || "",
+              receiver: lore.r || "CURRENT",
+              trigger: lore.t || "CONTROLLED",
+              ping: lore.p || "NO",
+              persistance: lore.pe || "ONCE"
+            };
+          }
+        });
+      } else {
+        delete hex.planetLore;
+      }
+
       // ---- USE THE SAME CLASSIFICATION LOGIC AS importSectorTypes ---
       // Only set to void if explicitly marked as void in the import data
       if ((h.bt === "void" || h.baseType === "void") && isMatrixEmpty(h.ln || h.links)) {
@@ -516,6 +549,39 @@ export function importFullState(editor, jsonText) {
       });
       // Effects
       (h.fx || h.effects || []).forEach(eff => eff && editor.applyEffect(h.id, eff));
+
+      // ---- Import system lore (for extra hexes)
+      if (h.sl) {
+        hex.systemLore = {
+          loreText: h.sl.lt || "",
+          footerText: h.sl.ft || "",
+          receiver: h.sl.r || "CURRENT",
+          trigger: h.sl.t || "CONTROLLED",
+          ping: h.sl.p || "NO",
+          persistance: h.sl.pe || "ONCE"
+        };
+      } else {
+        delete hex.systemLore;
+      }
+
+      // ---- Import planet lore (for extra hexes)
+      if (h.prl && Object.keys(h.prl).length > 0) {
+        hex.planetLore = {};
+        Object.entries(h.prl).forEach(([planetIndex, lore]) => {
+          if (lore) {
+            hex.planetLore[planetIndex] = {
+              loreText: lore.lt || "",
+              footerText: lore.ft || "",
+              receiver: lore.r || "CURRENT",
+              trigger: lore.t || "CONTROLLED",
+              ping: lore.p || "NO",
+              persistance: lore.pe || "ONCE"
+            };
+          }
+        });
+      } else {
+        delete hex.planetLore;
+      }
     });
 
     redrawAllRealIDOverlays(editor);
