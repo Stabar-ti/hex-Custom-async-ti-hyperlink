@@ -203,8 +203,30 @@ function createLoreForm(type, planetIndex = null) {
     loreTextCounter.style.marginBottom = '8px';
     loreTextCounter.textContent = '0/1000 characters';
     
-    // Add input listener for real-time counting
+    // Add input listener for real-time counting and semicolon validation
     loreTextArea.addEventListener('input', function() {
+        // Remove semicolons from input
+        if (this.value.includes(';')) {
+            const cursorPosition = this.selectionStart;
+            this.value = this.value.replace(/;/g, '');
+            this.setSelectionRange(cursorPosition - 1, cursorPosition - 1);
+            // Show warning
+            loreTextCounter.textContent = 'Semicolons not allowed! - ' + loreTextCounter.textContent;
+            loreTextCounter.style.color = '#e74c3c';
+            setTimeout(() => {
+                const length = this.value.length;
+                loreTextCounter.textContent = `${length}/1000 characters`;
+                if (length > 1000) {
+                    loreTextCounter.style.color = '#e74c3c';
+                } else if (length > 900) {
+                    loreTextCounter.style.color = '#f39c12';
+                } else {
+                    loreTextCounter.style.color = '#888';
+                }
+            }, 2000);
+            return;
+        }
+        
         const length = this.value.length;
         loreTextCounter.textContent = `${length}/1000 characters`;
         if (length > 1000) {
@@ -248,8 +270,30 @@ function createLoreForm(type, planetIndex = null) {
     footerTextCounter.style.marginBottom = '8px';
     footerTextCounter.textContent = '0/200 characters';
     
-    // Add input listener for real-time counting
+    // Add input listener for real-time counting and semicolon validation
     footerInput.addEventListener('input', function() {
+        // Remove semicolons from input
+        if (this.value.includes(';')) {
+            const cursorPosition = this.selectionStart;
+            this.value = this.value.replace(/;/g, '');
+            this.setSelectionRange(cursorPosition - 1, cursorPosition - 1);
+            // Show warning
+            footerTextCounter.textContent = 'Semicolons not allowed! - ' + footerTextCounter.textContent;
+            footerTextCounter.style.color = '#e74c3c';
+            setTimeout(() => {
+                const length = this.value.length;
+                footerTextCounter.textContent = `${length}/200 characters`;
+                if (length > 200) {
+                    footerTextCounter.style.color = '#e74c3c';
+                } else if (length > 180) {
+                    footerTextCounter.style.color = '#f39c12';
+                } else {
+                    footerTextCounter.style.color = '#888';
+                }
+            }, 2000);
+            return;
+        }
+        
         const length = this.value.length;
         footerTextCounter.textContent = `${length}/200 characters`;
         if (length > 200) {
@@ -735,9 +779,20 @@ function saveLore(type, planetIndex) {
         persistance: document.getElementById(`${prefix}Persistance`).value
     };
     
-    // Validate length constraints before saving
+    // Validate length constraints and prohibited characters before saving
     const loreTextLength = loreData.loreText.length;
     const footerTextLength = loreData.footerText.length;
+    
+    // Check for prohibited semicolon characters
+    if (loreData.loreText.includes(';')) {
+        alert('Lore text cannot contain semicolon (;) characters - they break export functionality');
+        return;
+    }
+    
+    if (loreData.footerText.includes(';')) {
+        alert('Footer text cannot contain semicolon (;) characters - they break export functionality');
+        return;
+    }
     
     if (loreTextLength > 1000) {
         alert(`Lore text is too long: ${loreTextLength} characters (maximum 1000 allowed)`);
