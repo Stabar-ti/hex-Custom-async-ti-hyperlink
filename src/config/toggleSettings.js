@@ -4,7 +4,8 @@ export const overlayDefaults = {
     showResInf: false,
     showIdealRI: true,
     showRealID: true,
-    showLore: false
+    showLore: false,
+    showTokens: false
 };
 
 // Border anomaly type enablement settings

@@ -38,6 +38,9 @@ import { checkRealIdUniqueness } from './features/sanityCheck.js';
 import './ui/specialModePopup.js';
 import { installLoreUI } from './modules/Lore/loreUI.js';
 import LoreOverlay from './features/loreOverlay.js';
+import { TokenManager } from './modules/Token/tokenCore.js';
+import { installTokenUI } from './modules/Token/tokenUI.js';
+import { TokenOverlay } from './modules/Token/tokenOverlay.js';
 
 // ───── Initialize the core HexEditor and set defaults ─────
 const svg = document.getElementById('hexMap');
@@ -76,6 +79,33 @@ installLoreUI(editor);
 
 // Initialize lore overlay
 editor.loreOverlay = new LoreOverlay(editor);
+
+// Initialize token system
+console.log('Initializing Token System...');
+const tokenManager = new TokenManager(editor);
+window.tokenManager = tokenManager;
+editor.tokenManager = tokenManager;
+
+// Initialize token manager asynchronously
+tokenManager.initialize().then(success => {
+  if (success) {
+    console.log('Token system initialized successfully');
+    
+    // Install token UI
+    installTokenUI(editor);
+    
+    // Initialize token overlay
+    editor.tokenOverlay = new TokenOverlay(editor);
+    editor.tokenOverlay.initialize();
+    window.tokenOverlay = editor.tokenOverlay;
+    
+    console.log('Token system ready');
+  } else {
+    console.error('Failed to initialize token system');
+  }
+}).catch(error => {
+  console.error('Error initializing token system:', error);
+});
 
 // Initialize border anomaly types (force reload)
 import { clearCache } from './constants/borderAnomalies.js';

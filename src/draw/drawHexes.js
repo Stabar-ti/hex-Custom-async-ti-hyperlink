@@ -90,7 +90,10 @@ export function drawHex(editor, q, r, label) {
     wormholes: new Set(), wormholeOverlays: [],
     // Lore properties
     systemLore: null,  // System-level lore object
-    planetLore: []     // Array of planet lore objects
+    planetLore: [],    // Array of planet lore objects
+    // Token properties
+    systemTokens: [],  // Array of token IDs for system-level tokens
+    planetTokens: {}   // Object mapping planet index to array of token IDs: { 0: ['token1'], 1: ['token2'] }
   };
 }
 

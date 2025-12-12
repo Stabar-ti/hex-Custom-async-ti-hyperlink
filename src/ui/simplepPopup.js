@@ -111,6 +111,7 @@ export function showOverlayOptionsPopup() {
         <button id="toggleIdealRI" class="mode-button">Ideal R/I</button>
         <button id="toggleRealID" class="mode-button">RealID Labels</button>
         <button id="toggleLore" class="mode-button">Lore Indicators</button>
+        <button id="toggleTokens" class="mode-button">Token Indicators</button>
       </div>
       <div class="popup-section-label">Tile Information</div>
       <div class="popup-btn-grid">
@@ -235,6 +236,19 @@ export function showOverlayOptionsPopup() {
                     editor.loreOverlay.show();
                 } else {
                     editor.loreOverlay.hide();
+                }
+            }
+        });
+
+        // Token overlay toggle
+        setupToggle('toggleTokens', 'showTokens', () => {
+            if (!editor.tokenOverlay) {
+                console.warn('Token overlay not initialized yet');
+            } else {
+                if (editor.showTokens) {
+                    editor.tokenOverlay.show();
+                } else {
+                    editor.tokenOverlay.hide();
                 }
             }
         });

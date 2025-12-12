@@ -165,6 +165,10 @@ function createSectorControlsContent(editor) {
     if (typeof window.deactivateLoreMode === 'function') {
       window.deactivateLoreMode();
     }
+    // Deactivate token mode if it was active
+    if (typeof window.deactivateTokenMode === 'function') {
+      window.deactivateTokenMode();
+    }
     
     // Use the new popup system if available, fallback to old modal
     if (typeof window.showSystemLookupPopup === 'function') {
@@ -212,6 +216,10 @@ function createSectorControlsContent(editor) {
       if (typeof window.deactivateLoreMode === 'function') {
         window.deactivateLoreMode();
       }
+      // Deactivate token mode if it was active
+      if (typeof window.deactivateTokenMode === 'function') {
+        window.deactivateTokenMode();
+      }
       // Set active state on clicked button (like wormhole popup)
       e.currentTarget.classList.add('active');
       e.currentTarget.style.background = '#666';
@@ -252,6 +260,10 @@ function createSectorControlsContent(editor) {
     // Deactivate lore mode if it was active
     if (typeof window.deactivateLoreMode === 'function') {
       window.deactivateLoreMode();
+    }
+    // Deactivate token mode if it was active
+    if (typeof window.deactivateTokenMode === 'function') {
+      window.deactivateTokenMode();
     }
 
     showPopup({
@@ -433,6 +445,10 @@ function createSectorControlsContent(editor) {
     if (typeof window.deactivateLoreMode === 'function') {
       window.deactivateLoreMode();
     }
+    // Deactivate token mode if it was active
+    if (typeof window.deactivateTokenMode === 'function') {
+      window.deactivateTokenMode();
+    }
 
     showPopup({
       id: 'wormholesPopupModal',
@@ -522,6 +538,10 @@ function createSectorControlsContent(editor) {
     if (typeof window.deactivateLoreMode === 'function') {
       window.deactivateLoreMode();
     }
+    // Deactivate token mode if it was active
+    if (typeof window.deactivateTokenMode === 'function') {
+      window.deactivateTokenMode();
+    }
 
     // Open the custom links popup
     if (typeof window.showCustomLinksPopup === 'function') {
@@ -568,6 +588,10 @@ function createSectorControlsContent(editor) {
     if (typeof window.deactivateLoreMode === 'function') {
       window.deactivateLoreMode();
     }
+    // Deactivate token mode if it was active
+    if (typeof window.deactivateTokenMode === 'function') {
+      window.deactivateTokenMode();
+    }
 
     // Open the border anomalies popup
     if (typeof window.showBorderAnomaliesPopup === 'function') {
@@ -583,11 +607,73 @@ function createSectorControlsContent(editor) {
   };
   container.appendChild(borderAnomaliesBtn);
 
+  // ───────────── Token Placement Button ─────────────
+  const tokenPlacementBtn = document.createElement('button');
+  tokenPlacementBtn.id = 'launchTokenPlacementPopup';
+  tokenPlacementBtn.className = 'mode-button';
+  tokenPlacementBtn.textContent = 'EXPERIMENTAL Token Placement…';
+  tokenPlacementBtn.title = 'Place tokens on systems and planets';
+  tokenPlacementBtn.style.width = '100%';
+  tokenPlacementBtn.style.maxWidth = '200px';
+  tokenPlacementBtn.style.minWidth = '70px';
+  tokenPlacementBtn.style.height = '38px';
+  tokenPlacementBtn.style.marginBottom = '6px';
+  tokenPlacementBtn.style.fontSize = '0.9em';
+  tokenPlacementBtn.style.padding = '8px 12px';
+  tokenPlacementBtn.style.boxSizing = 'border-box';
+  tokenPlacementBtn.style.textOverflow = 'ellipsis';
+  tokenPlacementBtn.style.whiteSpace = 'nowrap';
+  tokenPlacementBtn.style.overflow = 'hidden';
+  tokenPlacementBtn.style.flex = 'none';
+  tokenPlacementBtn.style.background = '#e74c3c';
+  tokenPlacementBtn.style.color = '#fff';
+  tokenPlacementBtn.onclick = (e) => {
+    console.log('Token Placement button clicked!');
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Clear active state from other mode buttons
+    container.querySelectorAll('.mode-button').forEach(btn => {
+      if (btn !== tokenPlacementBtn) {
+        btn.classList.remove('active');
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.fontWeight = '';
+      }
+    });
+    
+    // Deactivate lore mode if it was active
+    if (typeof window.deactivateLoreMode === 'function') {
+      window.deactivateLoreMode();
+    }
+
+    // Toggle token hex selector mode
+    tokenHexSelectorActive = !tokenHexSelectorActive;
+    console.log('tokenHexSelectorActive toggled to:', tokenHexSelectorActive);
+    
+    if (tokenHexSelectorActive) {
+      console.log('Activating token hex selection mode');
+      // Activate mode
+      tokenPlacementBtn.classList.add('active');
+      tokenPlacementBtn.style.background = '#c0392b';
+      tokenPlacementBtn.style.color = '#fff';
+      tokenPlacementBtn.style.fontWeight = 'bold';
+      tokenPlacementBtn.textContent = 'Click a Hex...';
+      
+      // Enable hex click listener
+      enableTokenHexSelection();
+    } else {
+      // Deactivate mode
+      deactivateTokenMode();
+    }
+  };
+  container.appendChild(tokenPlacementBtn);
+
   // ───────────── Select Hex for Lore Button ─────────────
   const selectHexForLoreBtn = document.createElement('button');
   selectHexForLoreBtn.id = 'selectHexForLoreBtn';
   selectHexForLoreBtn.className = 'mode-button';
-  selectHexForLoreBtn.textContent = 'Add Lore';
+  selectHexForLoreBtn.textContent = 'Add Lore...';
   selectHexForLoreBtn.title = 'Click to activate hex selection mode for lore editing';
   selectHexForLoreBtn.style.width = '100%';
   selectHexForLoreBtn.style.maxWidth = '200px';
@@ -774,5 +860,100 @@ function selectHexInLorePopup(hexLabel) {
         alert('Error: Failed to load Lore module.');
       });
     }
+  }
+}
+
+// ───────────── Token Hex Selection Helper Functions ─────────────
+let tokenHexSelectorActive = false;
+let tokenHexClickHandler = null;
+let previousTokenMode = null;
+
+function deactivateTokenMode() {
+  tokenHexSelectorActive = false;
+  const btn = document.getElementById('launchTokenPlacementPopup');
+  if (btn) {
+    btn.classList.remove('active');
+    btn.style.background = '#e74c3c';
+    btn.style.color = '#fff';
+    btn.style.fontWeight = '';
+    btn.textContent = 'Token Placement…';
+  }
+  disableTokenHexSelection();
+}
+
+// Make deactivateTokenMode globally available so other buttons can call it
+window.deactivateTokenMode = deactivateTokenMode;
+
+function enableTokenHexSelection() {
+  console.log('enableTokenHexSelection called');
+  // Remove any existing handler first
+  disableTokenHexSelection();
+  
+  // Store the current editor mode and switch to a special token mode
+  const editor = window.editor;
+  if (editor) {
+    previousTokenMode = editor.mode;
+    editor.mode = 'token-selection'; // Special mode to prevent other click handlers
+  }
+  
+  // Create new click handler
+  tokenHexClickHandler = (event) => {
+    console.log('Token hex click handler triggered', event.target);
+    const hex = event.target.closest('[data-label]');
+    console.log('Found hex element:', hex);
+    if (hex) {
+      const hexLabel = hex.getAttribute('data-label');
+      console.log('Hex label:', hexLabel);
+      if (hexLabel) {
+        // Open token popup for this hex
+        openTokenPopupForHex(hexLabel);
+        
+        // Don't deactivate - let user continue selecting hexes
+        
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }
+  };
+  
+  // Add event listener to the hex map
+  const svgContainer = document.querySelector('#hexMap');
+  console.log('SVG container found:', !!svgContainer);
+  if (svgContainer) {
+    svgContainer.addEventListener('click', tokenHexClickHandler, true);
+    svgContainer.style.cursor = 'crosshair';
+    console.log('Event listener added to hexMap, cursor set to crosshair');
+  }
+}
+
+function disableTokenHexSelection() {
+  // Restore the previous editor mode
+  const editor = window.editor;
+  if (editor && previousTokenMode !== null) {
+    editor.mode = previousTokenMode;
+    previousTokenMode = null;
+  }
+  
+  // Remove event listener
+  if (tokenHexClickHandler) {
+    const svgContainer = document.querySelector('#hexMap');
+    if (svgContainer) {
+      svgContainer.removeEventListener('click', tokenHexClickHandler, true);
+      svgContainer.style.cursor = '';
+    }
+    tokenHexClickHandler = null;
+  }
+}
+
+function openTokenPopupForHex(hexLabel) {
+  console.log('openTokenPopupForHex called with:', hexLabel);
+  
+  // Check if token system is initialized
+  if (typeof window.showTokenPopup === 'function') {
+    console.log('Opening token popup for hex:', hexLabel);
+    window.showTokenPopup(hexLabel);
+  } else {
+    console.warn('Token system not initialized yet. Please wait...');
+    alert('Token system is loading. Please try again in a moment.');
   }
 }

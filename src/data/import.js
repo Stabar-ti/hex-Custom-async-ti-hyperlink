@@ -449,6 +449,25 @@ export function importFullState(editor, jsonText) {
         delete hex.planetLore;
       }
 
+      // ---- Import system tokens
+      if (h.st && Array.isArray(h.st)) {
+        hex.systemTokens = [...h.st];
+      } else {
+        hex.systemTokens = [];
+      }
+
+      // ---- Import planet tokens
+      if (h.pt && Object.keys(h.pt).length > 0) {
+        hex.planetTokens = {};
+        Object.entries(h.pt).forEach(([planetIndex, tokens]) => {
+          if (tokens && Array.isArray(tokens)) {
+            hex.planetTokens[planetIndex] = [...tokens];
+          }
+        });
+      } else {
+        hex.planetTokens = {};
+      }
+
       // ---- USE THE SAME CLASSIFICATION LOGIC AS importSectorTypes ---
       // Only set to void if explicitly marked as void in the import data
       if ((h.bt === "void" || h.baseType === "void") && isMatrixEmpty(h.ln || h.links)) {

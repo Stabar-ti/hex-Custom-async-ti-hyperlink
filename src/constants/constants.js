@@ -160,9 +160,10 @@ export const SVG_LAYER_ORDER = [
   'idealRILayer',
   'realIDLabelLayer',
   'tileImageLayer',         // images
-  'wormholeIconLayer',      // <--- tokens/icons go here
+  'wormholeIconLayer',      // <--- wormhole icons (NOT tokens!)
   'customAdjacencyLayer',
   'borderAnomalyLayer',
+  'token-overlay-group',    // token indicators (separate from wormholes)
   'lore-overlay'            // lore indicators on top
 
   // top-most
