@@ -3,8 +3,8 @@
         "id": "ASTEROID",
         "name": "Asteroid Field",
         "alias": [
-            "asteroid field",
             "asteroid",
+            "asteroid field",
             "field"
         ],
         "image": "asteroid_border.png"
@@ -14,10 +14,10 @@
         "name": "Gravity Wave",
         "alias": [
             "gravitywave",
-            "wave",
+            "gravity_wave",
             "gravity wave",
             "gravity",
-            "gravity_wave"
+            "wave"
         ],
         "image": "gravity_wave_border.png"
     },
@@ -49,11 +49,11 @@
         "id": "SPATIALTEAR",
         "name": "Spatial Tear",
         "alias": [
-            "spatialtear",
+            "spatial_tear",
             "tear",
             "spatial",
-            "spatial tear",
-            "spatial_tear"
+            "spatialtear",
+            "spatial tear"
         ],
         "image": "spatial_tear_border.png"
     },
@@ -61,11 +61,11 @@
         "id": "VOIDTETHER",
         "name": "Void Tether",
         "alias": [
-            "void tether",
-            "void_tether",
             "tether",
+            "void_tether",
             "void",
-            "voidtether"
+            "voidtether",
+            "void tether"
         ],
         "image": "void_tether.png"
     },
@@ -73,11 +73,11 @@
         "id": "COREBORDER",
         "name": "Core border",
         "alias": [
-            "core border",
-            "border",
             "core_border",
+            "border",
+            "core",
             "coreborder",
-            "core"
+            "core border"
         ],
         "image": "core_border.png"
     },
@@ -86,10 +86,10 @@
         "name": "Rim border",
         "alias": [
             "rim_border",
-            "border",
             "rimborder",
+            "rim",
             "rim border",
-            "rim"
+            "border"
         ],
         "image": "rim_border.png"
     },
