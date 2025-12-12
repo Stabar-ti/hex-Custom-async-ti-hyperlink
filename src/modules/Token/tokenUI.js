@@ -484,7 +484,12 @@ function createTokenCard(token) {
     
     // Token image
     const img = document.createElement('img');
-    img.src = `./public/data/tokens/${token.imagePath}`;
+    // Use correct folder based on whether it's an attachment or token
+    if (token.isAttachment) {
+        img.src = `./public/attachment_token/${token.imagePath}`;
+    } else {
+        img.src = `./public/tokens/${token.imagePath}`;
+    }
     img.alt = token.id;
     img.style.cssText = `
         width: 60px;

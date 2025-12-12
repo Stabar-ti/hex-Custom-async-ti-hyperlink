@@ -94,16 +94,30 @@ export class TokenOverlay {
         const radius = this.editor.hexRadius;
 
         // Position tokens in top-right area of hex
-        const baseX = center.x + radius * 0.5;
-        const baseY = center.y - radius * 0.5;
+        // Use smaller offset to stay within bounds (0.25 instead of 0.35)
+        const baseX = center.x + radius * 0.25;
+        const baseY = center.y - radius * 0.25;
+
+        // Token indicator size (radius = 8, so needs 8px clearance)
+        const indicatorRadius = 10; // Include some margin for hover effect
 
         hex.systemTokens.forEach((tokenId, index) => {
             const tokenInfo = this.tokenManager?.getTokenInfo(tokenId);
             
-            // Calculate position for multiple tokens (stack them)
-            const offsetY = index * 20;
-            const x = baseX;
-            const y = baseY + offsetY;
+            // Calculate position for multiple tokens (stack vertically)
+            const offsetY = index * 14;
+            let x = baseX;
+            let y = baseY + offsetY;
+
+            // Ensure token stays within hex bounds
+            // Hex extends from center - radius to center + radius
+            const maxY = center.y + radius - indicatorRadius;
+            const minY = center.y - radius + indicatorRadius;
+            const maxX = center.x + radius - indicatorRadius;
+            const minX = center.x - radius + indicatorRadius;
+            
+            y = Math.max(minY, Math.min(maxY, y));
+            x = Math.max(minX, Math.min(maxX, x));
 
             // Create token indicator
             const indicator = this.createTokenIndicator(
@@ -129,8 +143,12 @@ export class TokenOverlay {
         const radius = this.editor.hexRadius;
 
         // Position planet tokens in bottom-left area
-        const baseX = center.x - radius * 0.5;
-        const baseY = center.y + radius * 0.4;
+        // Use smaller offset to stay within bounds (0.25/0.2 instead of 0.35/0.3)
+        const baseX = center.x - radius * 0.25;
+        const baseY = center.y + radius * 0.2;
+
+        // Token indicator size (radius = 8, so needs 8px clearance)
+        const indicatorRadius = 10; // Include some margin for hover effect
 
         Object.entries(hex.planetTokens).forEach(([planetIndex, tokens]) => {
             const planet = hex.planets[parseInt(planetIndex)];
@@ -140,10 +158,20 @@ export class TokenOverlay {
                 const tokenInfo = this.tokenManager?.getTokenInfo(tokenId);
                 
                 // Stack tokens for the same planet
-                const offsetX = parseInt(planetIndex) * 25;
-                const offsetY = tokenIndex * 20;
-                const x = baseX + offsetX;
-                const y = baseY + offsetY;
+                const offsetX = parseInt(planetIndex) * 16;
+                const offsetY = tokenIndex * 14;
+                let x = baseX + offsetX;
+                let y = baseY + offsetY;
+
+                // Ensure token stays within hex bounds
+                // Hex extends from center - radius to center + radius
+                const maxY = center.y + radius - indicatorRadius;
+                const minY = center.y - radius + indicatorRadius;
+                const maxX = center.x + radius - indicatorRadius;
+                const minX = center.x - radius + indicatorRadius;
+                
+                y = Math.max(minY, Math.min(maxY, y));
+                x = Math.max(minX, Math.min(maxX, x));
 
                 // Create token indicator
                 const indicator = this.createTokenIndicator(
@@ -175,7 +203,7 @@ export class TokenOverlay {
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('cx', x);
         circle.setAttribute('cy', y);
-        circle.setAttribute('r', '12');
+        circle.setAttribute('r', '8');
         
         // Determine fill color
         let fillColor = type === 'system' ? '#3498db' : '#f39c12';
@@ -205,9 +233,9 @@ export class TokenOverlay {
         // Icon/emoji indicator
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', x);
-        text.setAttribute('y', y + 5);
+        text.setAttribute('y', y + 3);
         text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('font-size', '14');
+        text.setAttribute('font-size', '9');
         text.setAttribute('fill', '#fff');
         text.setAttribute('font-weight', 'bold');
         
@@ -265,12 +293,12 @@ export class TokenOverlay {
         
         group.addEventListener('mouseenter', () => {
             circle.setAttribute('opacity', '1');
-            circle.setAttribute('r', '14');
+            circle.setAttribute('r', '10');
         });
         
         group.addEventListener('mouseleave', () => {
             circle.setAttribute('opacity', '0.9');
-            circle.setAttribute('r', '12');
+            circle.setAttribute('r', '8');
         });
 
         // Click to remove (with confirmation)

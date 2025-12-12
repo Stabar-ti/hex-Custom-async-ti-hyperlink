@@ -39,7 +39,7 @@ const CATEGORY_DEFINITIONS = {
             },
             other: { 
                 label: "Other", 
-                filter: (token) => true,
+                filter: (token) => !token.isLegendary && !token.addsTechSpeciality && !token.modifiesResources && !token.modifiesInfluence,
                 className: "other-attachment"
             }
         }
@@ -55,7 +55,7 @@ const CATEGORY_DEFINITIONS = {
             novas: { label: "Supernovas", filter: (token) => token.isNova === true },
             scars: { label: "Gravity Rifts", filter: (token) => token.isScar === true },
             asteroids: { label: "Asteroid Fields", filter: (token) => token.isAsteroids === true },
-            other: { label: "Other", filter: (token) => true }
+            other: { label: "Other", filter: (token) => !token.isRift && !token.isNebula && !token.isNova && !token.isScar && !token.isAsteroids }
         }
     },
     
@@ -67,7 +67,12 @@ const CATEGORY_DEFINITIONS = {
             special: { label: "Special Planets", filter: (token) => token.tokenPlanetName !== undefined },
             relics: { label: "Relics", filter: (token) => token.id.includes('relic') || token.id.includes('fragment') },
             structures: { label: "Structures", filter: (token) => token.id.includes('sleeper') || token.id.includes('dmz') || token.id.includes('core') },
-            other: { label: "Other", filter: (token) => true }
+            other: { 
+                label: "Other", 
+                filter: (token) => !token.tokenPlanetName && 
+                                   !token.id.includes('relic') && !token.id.includes('fragment') && 
+                                   !token.id.includes('sleeper') && !token.id.includes('dmz') && !token.id.includes('core')
+            }
         }
     },
     
@@ -78,7 +83,7 @@ const CATEGORY_DEFINITIONS = {
         subcategories: {
             planet: { label: "Planet Custodians", filter: (token) => token.spaceOrPlanet === "planet" },
             space: { label: "Space Custodians", filter: (token) => token.spaceOrPlanet === "space" },
-            other: { label: "Other", filter: (token) => true }
+            other: { label: "Other", filter: (token) => token.spaceOrPlanet !== "planet" && token.spaceOrPlanet !== "space" }
         }
     },
     
@@ -90,7 +95,12 @@ const CATEGORY_DEFINITIONS = {
             frontier: { label: "Frontier", filter: (token) => token.id.includes('frontier') },
             breach: { label: "Breach/Ingress", filter: (token) => token.id.includes('breach') || token.id.includes('ingress') },
             special: { label: "Special", filter: (token) => token.source === "ascendant_sun" || token.source === "thunders_edge" || token.source === "ds" },
-            other: { label: "Other", filter: (token) => true }
+            other: { 
+                label: "Other", 
+                filter: (token) => !token.id.includes('frontier') && 
+                                   !token.id.includes('breach') && !token.id.includes('ingress') && 
+                                   token.source !== "ascendant_sun" && token.source !== "thunders_edge" && token.source !== "ds"
+            }
         }
     },
     
