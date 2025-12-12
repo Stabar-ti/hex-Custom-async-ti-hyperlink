@@ -114,7 +114,8 @@
     <button id="controlsPanelCloseBtn" title="Hide controls">&raquo;</button>
 
     <!-- Advanced Fragmented Export Toggle Button -->
-    <button id="advancedExportToggle" class="mode-button dropdown-toggle">Advanced Fragmented Export ▾</button>
+    <button id="advancedExportToggle" class="mode-button dropdown-toggle">Advanced Fragmented Export and Import
+      ▾</button>
 
     <!-- Collapsible Export Buttons Container -->
     <div id="advancedExportContainer" style="display: none;">
@@ -129,18 +130,24 @@
         <button id="exportCustomAdjBtn" class="mode-button">Export Custom Links</button>
         <button id="exportBorderAnomaliesBtn" class="mode-button">Export Border Anomalies</button>
       </div>
+      <div>
+        <button id="importTypesBtn" class="mode-button">Import Map String</button>
+        <button id="importHLBtn" class="mode-button">Import HL</button>
+      </div>
     </div>
 
     <div>
-      <button id="importTypesBtn" class="mode-button">Import Map String</button>
-      <button id="importHLBtn" class="mode-button">Import HL</button>
       <div>
-        <button id="exportFullBtn" class="mode-button dropdown-toggle">Save Map</button>
+        <button id="exportFullBtn" class="mode-button dropdown-toggle">Save Map locally</button>
         <!-- <button id="exportMapInfoBtn" class="mode-button">Export Map Info</button> -->
-        <button id="importFullBtn" class="mode-button dropdown-toggle">Load Map</button>
+        <button id="importFullBtn" class="mode-button dropdown-toggle">Load locally savedMap</button>
+      </div>
+      <div>
+        <button id="importMapInfoBtn" class="mode-button" style="background-color: #f59f00; color: white;">Import map
+          from AsyncTI</button>
         <!--  <button id="saveMapCloudflareBtn" class="mode-button">Save (48h link)</button> -->
         <button id="saveMapInfoCloudflareBtn" class="mode-button"
-          style="background-color: #059f00; color: white;">Upload map to AsyncTI</button>
+          style="background-color: #059f00; color: white;">Upload final map to AsyncTI</button>
 
       </div>
     </div>
@@ -259,6 +266,16 @@
     <textarea id="importFullText"></textarea><br />
     <button id="doImportFull">Import from Text or File</button>
     <button data-close="importFullModal">Close</button>
+  </div>
+
+  <!-- Import MapInfo Modal -->
+  <div id="importMapInfoModal" class="modal">
+    <h3>Import Map from AsyncTI</h3>
+    <p>Upload a JSON file exported from AsyncTI (mapInfo format)</p>
+    <input type="file" id="importMapInfoFile" accept=".json"><br /><br />
+    <textarea id="importMapInfoText" placeholder="Or paste JSON here..."></textarea><br />
+    <button id="doImportMapInfo">Import MapInfo</button>
+    <button data-close="importMapInfoModal">Close</button>
   </div>
 
   <!-- calculate slice -->

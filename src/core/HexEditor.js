@@ -654,6 +654,10 @@ export default class HexEditor {
       // delete hex.adjacencyOverrides;
       // delete hex.borderAnomalies;
 
+      // Clear lore data
+      hex.systemLore = null;
+      hex.planetLore = [];
+
       // if there was a real system assigned, unmark it and clear planet data
       if (hex.realId != null) {
         unmarkRealIDUsed(hex.realId.toString());

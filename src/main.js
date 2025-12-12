@@ -224,6 +224,14 @@ if (saveMapInfoCloudflareBtn) {
   });
 }
 
+// Import map info from AsyncTI format
+const importMapInfoBtn = document.getElementById('importMapInfoBtn');
+if (importMapInfoBtn) {
+  importMapInfoBtn.addEventListener('click', () => {
+    showModal('importMapInfoModal');
+  });
+}
+
 // ───── Load system reference data (ID/name/aliases) ─────
 (async () => {
   await loadSystemInfo(editor);
@@ -259,6 +267,35 @@ document.getElementById('importFullFile')?.addEventListener('change', (e) => {
   const reader = new FileReader();
   reader.onload = (event) => {
     document.getElementById('importFullText').value = event.target.result;
+  };
+  reader.readAsText(file);
+});
+
+// Import mapInfo from AsyncTI format
+document.getElementById('doImportMapInfo')?.addEventListener('click', async () => {
+  const text = document.getElementById('importMapInfoText').value;
+  if (!text) {
+    alert("Please paste JSON or upload a file.");
+    return;
+  }
+  try {
+    const { importMapInfo } = await import('./data/import.js');
+    await importMapInfo(editor, text);
+    closeModal('importMapInfoModal');
+    alert('Map imported successfully!');
+  } catch (err) {
+    console.error('Import error:', err);
+    alert('Import failed: ' + err.message);
+  }
+});
+
+// Load mapInfo JSON from uploaded file and fill input box
+document.getElementById('importMapInfoFile')?.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    document.getElementById('importMapInfoText').value = event.target.result;
   };
   reader.readAsText(file);
 });

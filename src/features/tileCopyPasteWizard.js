@@ -133,6 +133,8 @@ export function startCopyPasteWizard(editor, cut = false) {
                     customAdjacents: opts.customAdjacents && hex.customAdjacents ? JSON.parse(JSON.stringify(hex.customAdjacents)) : undefined,
                     adjacencyOverrides: hex.adjacencyOverrides ? JSON.parse(JSON.stringify(hex.adjacencyOverrides)) : undefined,
                     borderAnomalies: opts.borderAnomalies && hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
+                    systemLore: hex.systemLore ? JSON.parse(JSON.stringify(hex.systemLore)) : undefined,
+                    planetLore: hex.planetLore ? JSON.parse(JSON.stringify(hex.planetLore)) : undefined,
                     label,
                     q: hex.q,
                     r: hex.r
@@ -148,6 +150,8 @@ export function startCopyPasteWizard(editor, cut = false) {
                     customAdjacents: opts.customAdjacents && hex.customAdjacents ? JSON.parse(JSON.stringify(hex.customAdjacents)) : undefined,
                     adjacencyOverrides: hex.adjacencyOverrides ? JSON.parse(JSON.stringify(hex.adjacencyOverrides)) : undefined,
                     borderAnomalies: opts.borderAnomalies && hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
+                    systemLore: hex.systemLore ? JSON.parse(JSON.stringify(hex.systemLore)) : undefined,
+                    planetLore: hex.planetLore ? JSON.parse(JSON.stringify(hex.planetLore)) : undefined,
                     label,
                     q: hex.q,
                     r: hex.r
@@ -166,6 +170,8 @@ export function startCopyPasteWizard(editor, cut = false) {
                     customAdjacents: opts.customAdjacents && hex.customAdjacents ? JSON.parse(JSON.stringify(hex.customAdjacents)) : undefined,
                     adjacencyOverrides: hex.adjacencyOverrides ? JSON.parse(JSON.stringify(hex.adjacencyOverrides)) : undefined,
                     borderAnomalies: opts.borderAnomalies && hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
+                    systemLore: hex.systemLore ? JSON.parse(JSON.stringify(hex.systemLore)) : undefined,
+                    planetLore: hex.planetLore ? JSON.parse(JSON.stringify(hex.planetLore)) : undefined,
                     label,
                     q: hex.q,
                     r: hex.r
@@ -190,6 +196,8 @@ export function startCopyPasteWizard(editor, cut = false) {
                     customAdjacents: opts.customAdjacents && hex.customAdjacents ? JSON.parse(JSON.stringify(hex.customAdjacents)) : undefined,
                     adjacencyOverrides: hex.adjacencyOverrides ? JSON.parse(JSON.stringify(hex.adjacencyOverrides)) : undefined,
                     borderAnomalies: opts.borderAnomalies && hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
+                    systemLore: hex.systemLore ? JSON.parse(JSON.stringify(hex.systemLore)) : undefined,
+                    planetLore: hex.planetLore ? JSON.parse(JSON.stringify(hex.planetLore)) : undefined,
                     label,
                     q: hex.q,
                     r: hex.r
@@ -597,6 +605,14 @@ export function startCopyPasteWizard(editor, cut = false) {
             if (info.isGravityRift) editor.applyEffect(id, 'rift');
             if (info.isSupernova) editor.applyEffect(id, 'supernova');
             if (info.isAsteroidField) editor.applyEffect(id, 'asteroid');
+
+            // ---- LORE DATA: Restore system and planet lore ----
+            if (h.systemLore !== undefined) {
+                hex.systemLore = JSON.parse(JSON.stringify(h.systemLore));
+            }
+            if (h.planetLore !== undefined) {
+                hex.planetLore = JSON.parse(JSON.stringify(h.planetLore));
+            }
         }
         editor.commitUndoGroup?.();
         clearPasteGhost(editor);
@@ -608,6 +624,11 @@ export function startCopyPasteWizard(editor, cut = false) {
         enforceSvgLayerOrder(editor.svg);
         redrawAllRealIDOverlays(editor);
 
+        // Refresh lore overlay if it exists and is active
+        if (editor.loreOverlay && editor.loreOverlay.isActive) {
+            editor.loreOverlay.refresh();
+        }
+
         // ---- CUT FUNCTIONALITY: Clear original tiles if this was a cut operation ----
         if (wizardState.cut) {
             console.log('Cut operation: clearing original tiles', wizardState.selectedLabels);
@@ -618,6 +639,10 @@ export function startCopyPasteWizard(editor, cut = false) {
                     // Then clear everything else
                     editor.clearAll(label);
                 }
+            }
+            // Refresh lore overlay if it exists and is active (after clearing)
+            if (editor.loreOverlay && editor.loreOverlay.isActive) {
+                editor.loreOverlay.refresh();
             }
             // After cut, release paste mode and overlays, but do NOT close the main wizard popup
             wizardState.mode = null;

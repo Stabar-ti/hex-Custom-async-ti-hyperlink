@@ -1,1 +1,112 @@
-[{"id":"ASTEROID","name":"Asteroid Field","alias":["asteroid field","asteroid","field"],"image":"asteroid_border.png"},{"id":"GRAVITYWAVE","name":"Gravity Wave","alias":["gravitywave","wave","gravity wave","gravity","gravity_wave"],"image":"gravity_wave_border.png"},{"id":"NEBULA","name":"Nebula","alias":["nebula"],"image":"nebula_border.png"},{"id":"MINEFIELD","name":"Minefield","alias":["minefield"],"image":"minefield_border.png"},{"id":"ARROW","name":"Arrow","alias":["arrow"],"image":"adjacency_arrow.png"},{"id":"SPATIALTEAR","name":"Spatial Tear","alias":["spatialtear","tear","spatial","spatial tear","spatial_tear"],"image":"spatial_tear_border.png"},{"id":"VOIDTETHER","name":"Void Tether","alias":["void tether","void_tether","tether","void","voidtether"],"image":"void_tether.png"},{"id":"COREBORDER","name":"Core border","alias":["core border","border","core_border","coreborder","core"],"image":"core_border.png"},{"id":"RIMBORDER","name":"Rim border","alias":["rim_border","border","rimborder","rim border","rim"],"image":"rim_border.png"},{"id":"YELLOW","name":"Yellow","alias":["yellow"],"image":"yellow.png"},{"id":"REDORANGE","name":"RedOrange","alias":["redorange"],"image":"redorange.png"}]
+[
+    {
+        "id": "ASTEROID",
+        "name": "Asteroid Field",
+        "alias": [
+            "asteroid field",
+            "asteroid",
+            "field"
+        ],
+        "image": "asteroid_border.png"
+    },
+    {
+        "id": "GRAVITYWAVE",
+        "name": "Gravity Wave",
+        "alias": [
+            "gravitywave",
+            "wave",
+            "gravity wave",
+            "gravity",
+            "gravity_wave"
+        ],
+        "image": "gravity_wave_border.png"
+    },
+    {
+        "id": "NEBULA",
+        "name": "Nebula",
+        "alias": [
+            "nebula"
+        ],
+        "image": "nebula_border.png"
+    },
+    {
+        "id": "MINEFIELD",
+        "name": "Minefield",
+        "alias": [
+            "minefield"
+        ],
+        "image": "minefield_border.png"
+    },
+    {
+        "id": "ARROW",
+        "name": "Arrow",
+        "alias": [
+            "arrow"
+        ],
+        "image": "adjacency_arrow.png"
+    },
+    {
+        "id": "SPATIALTEAR",
+        "name": "Spatial Tear",
+        "alias": [
+            "spatialtear",
+            "tear",
+            "spatial",
+            "spatial tear",
+            "spatial_tear"
+        ],
+        "image": "spatial_tear_border.png"
+    },
+    {
+        "id": "VOIDTETHER",
+        "name": "Void Tether",
+        "alias": [
+            "void tether",
+            "void_tether",
+            "tether",
+            "void",
+            "voidtether"
+        ],
+        "image": "void_tether.png"
+    },
+    {
+        "id": "COREBORDER",
+        "name": "Core border",
+        "alias": [
+            "core border",
+            "border",
+            "core_border",
+            "coreborder",
+            "core"
+        ],
+        "image": "core_border.png"
+    },
+    {
+        "id": "RIMBORDER",
+        "name": "Rim border",
+        "alias": [
+            "rim_border",
+            "border",
+            "rimborder",
+            "rim border",
+            "rim"
+        ],
+        "image": "rim_border.png"
+    },
+    {
+        "id": "YELLOW",
+        "name": "Yellow",
+        "alias": [
+            "yellow"
+        ],
+        "image": "yellow.png"
+    },
+    {
+        "id": "REDORANGE",
+        "name": "RedOrange",
+        "alias": [
+            "redorange"
+        ],
+        "image": "redorange.png"
+    }
+]
