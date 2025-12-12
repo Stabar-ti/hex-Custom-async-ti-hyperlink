@@ -215,8 +215,8 @@ export function importSectorTypes(editor, tokenString) {
       }
       if (code === 'HL') continue;
       // Check both planetType (string) and planetTypes (array) for FACTION
-      if ((info.planets || []).some(p => 
-        p.planetType === 'FACTION' || 
+      if ((info.planets || []).some(p =>
+        p.planetType === 'FACTION' ||
         (Array.isArray(p.planetTypes) && p.planetTypes.includes('FACTION'))
       )) {
         editor.setSectorType(id, 'homesystem');
@@ -460,8 +460,8 @@ export function importFullState(editor, jsonText) {
 
       if (code === 'HL' || !isMatrixEmpty(h.ln || h.links)) return;
       // Check both planetType (string) and planetTypes (array) for FACTION
-      if ((info.planets || []).some(p => 
-        p.planetType === 'FACTION' || 
+      if ((info.planets || []).some(p =>
+        p.planetType === 'FACTION' ||
         (Array.isArray(p.planetTypes) && p.planetTypes.includes('FACTION'))
       ) || h.bt === "homesystem" || h.baseType === "homesystem") {
         editor.setSectorType(id, 'homesystem');
@@ -646,7 +646,7 @@ async function getReverseWormholeTokenMap() {
           const whKey = whType.toLowerCase()
             .replace('custom_eronous_wh', '')
             .replace('wh', '');
-          
+
           // Map token ID to wormhole type
           map[token.id] = whKey;
         });
@@ -748,7 +748,7 @@ async function getBorderAnomalyAliasMap() {
       if (border.id) {
         // Map the ID itself (case-insensitive)
         map[border.id.toLowerCase()] = border.id;
-        
+
         // Map all aliases to this ID
         if (Array.isArray(border.alias)) {
           border.alias.forEach(alias => {
@@ -781,7 +781,7 @@ export async function importMapInfo(editor, jsonData) {
     // Parse JSON if it's a string
     const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
     const mapInfo = data.mapInfo || [];
-    
+
     if (!Array.isArray(mapInfo)) {
       throw new Error("Invalid mapInfo format - expected an array");
     }
@@ -790,10 +790,10 @@ export async function importMapInfo(editor, jsonData) {
 
     // Load reverse wormhole token map for converting token IDs back to wormhole types
     const reverseWhTokenMap = await getReverseWormholeTokenMap();
-    
+
     // Load token imagePath map for fallback lookup when token IDs have file extensions
     const tokenImagePathMap = await getTokenImagePathMap();
-    
+
     // Load border anomaly alias map for resolving anomaly names to IDs
     const borderAnomalyAliasMap = await getBorderAnomalyAliasMap();
 
@@ -835,7 +835,7 @@ export async function importMapInfo(editor, jsonData) {
     for (const hexData of mapInfo) {
       const position = hexData.position;
       const hex = editor.hexes[position];
-      
+
       if (!hex || !hex.center) {
         console.warn(`importMapInfo: Hex ${position} not found or not initialized`);
         continue;
@@ -914,13 +914,13 @@ export async function importMapInfo(editor, jsonData) {
       // Import tokens and extract custom wormholes
       hex.tokens = [];
       hex.customWormholes = new Set();
-      
+
       if (hexData.tokens && Array.isArray(hexData.tokens)) {
         for (let tokenId of hexData.tokens) {
           // Fallback: If tokenId looks like a filename (has extension), try to resolve to actual token ID
           let actualTokenId = tokenId;
           let tokenData = null;
-          
+
           // Check if it has a file extension (.png, .jpg, etc.)
           if (/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(tokenId)) {
             // Look up the token by imagePath
@@ -932,7 +932,7 @@ export async function importMapInfo(editor, jsonData) {
               console.warn(`importMapInfo: Could not resolve token filename ${tokenId} to a token ID`);
             }
           }
-          
+
           // Check if this token is a wormhole token using the resolved ID
           const whType = reverseWhTokenMap[actualTokenId];
           if (whType) {
@@ -960,15 +960,15 @@ export async function importMapInfo(editor, jsonData) {
         hexData.borderAnomalies.forEach(anomaly => {
           const direction = anomaly.direction;
           let type = anomaly.type;
-          
+
           if (direction >= 0 && direction < 6 && type) {
             // Try to resolve the type using the alias map
             const resolvedType = borderAnomalyAliasMap[type.toLowerCase()] || type;
-            
+
             if (resolvedType !== type) {
               console.log(`importMapInfo: Resolved border anomaly type "${type}" to ID "${resolvedType}"`);
             }
-            
+
             hex.borderAnomalies[direction] = { type: resolvedType };
           }
         });
@@ -1024,7 +1024,7 @@ export async function importMapInfo(editor, jsonData) {
 
       // Set inherent wormholes from system info
       hex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
-      
+
       // Update hex.wormholes as union of inherent and custom
       if (typeof updateHexWormholes === 'function') {
         updateHexWormholes(hex);
@@ -1055,7 +1055,7 @@ export async function importMapInfo(editor, jsonData) {
 
       // Determine and set sector type based on imported data
       const hasHyperlanes = hex.matrix && hex.matrix.flat().some(x => x === 1);
-      
+
       if (hasHyperlanes) {
         // Hyperlane tile - don't set baseType, let it be handled by the system
         continue;
@@ -1063,8 +1063,8 @@ export async function importMapInfo(editor, jsonData) {
         editor.setSectorType(position, 'homesystem');
       } else if (info.planets?.some(p => {
         // Check both planetType (string) and planetTypes (array) for FACTION
-        return p.planetType === 'FACTION' || 
-               (Array.isArray(p.planetTypes) && p.planetTypes.includes('FACTION'));
+        return p.planetType === 'FACTION' ||
+          (Array.isArray(p.planetTypes) && p.planetTypes.includes('FACTION'));
       })) {
         editor.setSectorType(position, 'homesystem');
       } else if (tileID === '-1') {
@@ -1110,7 +1110,7 @@ export async function importMapInfo(editor, jsonData) {
         labelList.push(label);
       }
     }
-    
+
     // Add corner tiles if they exist in the editor
     const cornerTiles = ['TL', 'TR', 'BL', 'BR'];
     cornerTiles.forEach(corner => {
