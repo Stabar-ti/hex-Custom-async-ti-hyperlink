@@ -90,15 +90,15 @@ editor.tokenManager = tokenManager;
 tokenManager.initialize().then(success => {
   if (success) {
     console.log('Token system initialized successfully');
-    
+
     // Install token UI
     installTokenUI(editor);
-    
+
     // Initialize token overlay
     editor.tokenOverlay = new TokenOverlay(editor);
     editor.tokenOverlay.initialize();
     window.tokenOverlay = editor.tokenOverlay;
-    
+
     console.log('Token system ready');
   } else {
     console.error('Failed to initialize token system');
