@@ -419,8 +419,13 @@ export function exportCustomAdjacents(editor) {
 /**
  * Exports the full map state in a format similar to test.json structure
  * Returns an object with mapInfo array containing full hex information
+ * @param {Object} editor - The hex editor instance
+ * @param {Object} options - Export options
+ * @param {boolean} options.includeFlavourText - If true, use planet flavourText as lore fallback (default: true)
  */
-export async function exportMapInfo(editor) {
+export async function exportMapInfo(editor, options = {}) {
+  const { includeFlavourText = true } = options;
+  
   // Load wormhole token map dynamically from tokens.json
   const whTokenMap = await getWormholeTokenMap();
   console.log('exportMapInfo: Token map loaded:', whTokenMap);
@@ -444,12 +449,12 @@ export async function exportMapInfo(editor) {
           ping: lore.ping || "NO",
           persistance: lore.persistance || "ONCE"
         };
-      } else if (planet.loreMain || planet.loreSub || planet.flavourText) {
+      } else if (planet.loreMain || planet.loreSub || (includeFlavourText && planet.flavourText)) {
         // Legacy fallback - convert old planet lore format
         let loreText = "";
         if (planet.loreMain) loreText = planet.loreMain;
         else if (planet.loreSub) loreText = planet.loreSub;
-        else if (planet.flavourText) loreText = planet.flavourText;
+        else if (includeFlavourText && planet.flavourText) loreText = planet.flavourText;
         
         if (loreText) {
           planetLore = {
