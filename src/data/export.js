@@ -229,7 +229,7 @@ export function exportFullState(editor) {
     if (hex.adjacencyOverrides && Object.keys(hex.adjacencyOverrides).length) h.ao = JSON.parse(JSON.stringify(hex.adjacencyOverrides));
     if (hex.borderAnomalies && Object.keys(hex.borderAnomalies).length) h.ba = JSON.parse(JSON.stringify(hex.borderAnomalies));
     if (hex.matrix && hex.matrix.flat().some(x => x !== 0)) h.ln = hex.matrix;
-    
+
     // Add system lore if it exists
     if (hex.systemLore) {
       h.sl = {
@@ -241,7 +241,7 @@ export function exportFullState(editor) {
         pe: hex.systemLore.persistance || "ONCE"
       };
     }
-    
+
     // Add planet lore if it exists
     if (hex.planetLore && Object.keys(hex.planetLore).length > 0) {
       h.prl = {};
@@ -258,7 +258,7 @@ export function exportFullState(editor) {
         }
       });
     }
-    
+
     return h;
   });
   return JSON.stringify({ hexes }, null, 1);
@@ -425,7 +425,7 @@ export function exportCustomAdjacents(editor) {
  */
 export async function exportMapInfo(editor, options = {}) {
   const { includeFlavourText = true } = options;
-  
+
   // Load wormhole token map dynamically from tokens.json
   const whTokenMap = await getWormholeTokenMap();
   console.log('exportMapInfo: Token map loaded:', whTokenMap);
@@ -455,7 +455,7 @@ export async function exportMapInfo(editor, options = {}) {
         if (planet.loreMain) loreText = planet.loreMain;
         else if (planet.loreSub) loreText = planet.loreSub;
         else if (includeFlavourText && planet.flavourText) loreText = planet.flavourText;
-        
+
         if (loreText) {
           planetLore = {
             loreText: loreText,
@@ -557,13 +557,13 @@ export async function exportMapInfo(editor, options = {}) {
           loreText = hex.lore;
         }
       }
-      
+
       if (loreText) {
         systemLore = {
           loreText: loreText,
           footerText: "",
           receiver: "CURRENT",
-          trigger: "CONTROLLED", 
+          trigger: "CONTROLLED",
           ping: "NO",
           persistance: "ONCE"
         };
