@@ -259,6 +259,21 @@ export function exportFullState(editor) {
       });
     }
 
+    // Add system tokens if they exist
+    if (hex.systemTokens && hex.systemTokens.length > 0) {
+      h.st = hex.systemTokens;
+    }
+
+    // Add planet tokens if they exist
+    if (hex.planetTokens && Object.keys(hex.planetTokens).length > 0) {
+      h.pt = {};
+      Object.entries(hex.planetTokens).forEach(([planetIndex, tokens]) => {
+        if (tokens && tokens.length > 0) {
+          h.pt[planetIndex] = tokens;
+        }
+      });
+    }
+
     return h;
   });
   return JSON.stringify({ hexes }, null, 1);

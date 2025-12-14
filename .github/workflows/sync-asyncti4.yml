@@ -24,11 +24,11 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/AsyncTI4/TI4_map_generator_bot temp-bot-repo
 
-      - name: Copy systems, planets, tokens, attachments, and hyperlanes.properties
+      - name: Copy systems, planets, tokens, attachments, images, and properties files
         run: |
           # Clean sync - remove existing and copy fresh
-          rm -rf public/data/systems public/data/planets public/data/tiles public/data/tokens public/data/attachments public/data/hyperlanes.properties
-          mkdir -p public/data/systems public/data/planets public/data public/data/tiles public/data/tokens public/data/attachments
+          rm -rf public/data/systems public/data/planets public/data/tiles public/data/tokens public/data/attachments public/data/hyperlanes.properties public/data/tokens.properties public/attachment_token public/tokens
+          mkdir -p public/data/systems public/data/planets public/data public/data/tiles public/data/tokens public/data/attachments public/attachment_token public/tokens
           cp temp-bot-repo/src/main/resources/systems/*.json public/data/systems/
           cp temp-bot-repo/src/main/resources/planets/*.json public/data/planets/
           # Copy tokens if they exist
@@ -41,6 +41,26 @@ jobs:
           cp temp-bot-repo/src/main/resources/data/attachments/*.json public/data/attachments/
           cp temp-bot-repo/src/main/resources/tiles/*.png public/data/tiles/
           cp temp-bot-repo/src/main/resources/data/hyperlanes.properties public/data/hyperlanes.properties
+          # Copy tokens.properties
+          if [ -f temp-bot-repo/src/main/resources/data/tokens.properties ]; then
+            cp temp-bot-repo/src/main/resources/data/tokens.properties public/data/tokens.properties
+            echo "Copied tokens.properties"
+          else
+            echo "tokens.properties not found"
+          fi
+          # Copy token images
+          if [ -d temp-bot-repo/src/main/resources/attachment_token ]; then
+            cp -r temp-bot-repo/src/main/resources/attachment_token/* public/attachment_token/
+            echo "Copied attachment token images"
+          else
+            echo "attachment_token directory not found"
+          fi
+          if [ -d temp-bot-repo/src/main/resources/tokens ]; then
+            cp -r temp-bot-repo/src/main/resources/tokens/* public/tokens/
+            echo "Copied token images"
+          else
+            echo "tokens directory not found"
+          fi
 
       - name: Combine into a single bundle
         run: |
@@ -213,8 +233,11 @@ jobs:
                   public/data/border.json \
                   public/data/hyperlanes.json \
                   public/data/hyperlanes.properties \
-                  public/data/tiles
-          git commit -m "🤖 Sync AsyncTI4 data + build SystemInfo.json, tokens.json, attachments.json, border.json and hyperlanes.json" \
+                  public/data/tokens.properties \
+                  public/data/tiles \
+                  public/attachment_token \
+                  public/tokens
+          git commit -m "🤖 Sync AsyncTI4 data + build SystemInfo.json, tokens.json, attachments.json, border.json, hyperlanes.json + token images" \
                      || echo "No changes to commit"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git \
                    HEAD:${{ github.ref_name }}
