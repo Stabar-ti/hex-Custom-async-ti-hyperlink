@@ -210,7 +210,7 @@ document.getElementById('downloadExportFull')?.addEventListener('click', () => {
 const exportMapInfoBtn = document.getElementById('exportMapInfoBtn');
 if (exportMapInfoBtn) {
   exportMapInfoBtn.addEventListener('click', async () => {
-    const includeFlavourText = document.getElementById('exportMapInfoIncludeFlavourText')?.checked ?? true;
+    const includeFlavourText = document.getElementById('exportMapInfoIncludeFlavourText')?.checked ?? false;
     const mapInfo = await exportMapInfo(editor, { includeFlavourText });
     document.getElementById('exportMapInfoText').value = JSON.stringify(mapInfo, null, 2);
     showModal('exportMapInfoModal');
@@ -224,7 +224,7 @@ document.getElementById('copyExportMapInfo')?.addEventListener('click', () => {
 
 // Save map info export as downloadable JSON file
 document.getElementById('downloadExportMapInfo')?.addEventListener('click', async () => {
-  const includeFlavourText = document.getElementById('exportMapInfoIncludeFlavourText')?.checked ?? true;
+  const includeFlavourText = document.getElementById('exportMapInfoIncludeFlavourText')?.checked ?? false;
   const mapInfo = await exportMapInfo(editor, { includeFlavourText });
   const data = JSON.stringify(mapInfo, null, 2);
   const blob = new Blob([data], { type: 'application/json' });

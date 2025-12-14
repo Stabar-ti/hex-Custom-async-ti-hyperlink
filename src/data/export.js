@@ -436,10 +436,10 @@ export function exportCustomAdjacents(editor) {
  * Returns an object with mapInfo array containing full hex information
  * @param {Object} editor - The hex editor instance
  * @param {Object} options - Export options
- * @param {boolean} options.includeFlavourText - If true, use planet flavourText as lore fallback (default: true)
+ * @param {boolean} options.includeFlavourText - If true, use planet flavourText as lore fallback (default: false)
  */
 export async function exportMapInfo(editor, options = {}) {
-  const { includeFlavourText = true } = options;
+  const { includeFlavourText = false } = options;
 
   // Load wormhole token map dynamically from tokens.json
   const whTokenMap = await getWormholeTokenMap();
