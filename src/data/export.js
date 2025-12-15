@@ -229,7 +229,7 @@ export function exportFullState(editor) {
     if (hex.adjacencyOverrides && Object.keys(hex.adjacencyOverrides).length) h.ao = JSON.parse(JSON.stringify(hex.adjacencyOverrides));
     if (hex.borderAnomalies && Object.keys(hex.borderAnomalies).length) h.ba = JSON.parse(JSON.stringify(hex.borderAnomalies));
     if (hex.matrix && hex.matrix.flat().some(x => x !== 0)) h.ln = hex.matrix;
-    
+
     // Add system lore if it exists
     if (hex.systemLore) {
       h.sl = {
@@ -241,7 +241,7 @@ export function exportFullState(editor) {
         pe: hex.systemLore.persistance || "ONCE"
       };
     }
-    
+
     // Add planet lore if it exists
     if (hex.planetLore && Object.keys(hex.planetLore).length > 0) {
       h.prl = {};
@@ -258,12 +258,12 @@ export function exportFullState(editor) {
         }
       });
     }
-    
+
     // Add system tokens if they exist
     if (hex.systemTokens && hex.systemTokens.length > 0) {
       h.st = hex.systemTokens;
     }
-    
+
     // Add planet tokens if they exist
     if (hex.planetTokens && Object.keys(hex.planetTokens).length > 0) {
       h.pt = {};
@@ -273,7 +273,7 @@ export function exportFullState(editor) {
         }
       });
     }
-    
+
     return h;
   });
   return JSON.stringify({ hexes }, null, 1);
@@ -434,8 +434,13 @@ export function exportCustomAdjacents(editor) {
 /**
  * Exports the full map state in a format similar to test.json structure
  * Returns an object with mapInfo array containing full hex information
+ * @param {Object} editor - The hex editor instance
+ * @param {Object} options - Export options
+ * @param {boolean} options.includeFlavourText - If true, use planet flavourText as lore fallback (default: false)
  */
-export async function exportMapInfo(editor) {
+export async function exportMapInfo(editor, options = {}) {
+  const { includeFlavourText = false } = options;
+
   // Load wormhole token map dynamically from tokens.json
   const whTokenMap = await getWormholeTokenMap();
   console.log('exportMapInfo: Token map loaded:', whTokenMap);
@@ -459,13 +464,13 @@ export async function exportMapInfo(editor) {
           ping: lore.ping || "NO",
           persistance: lore.persistance || "ONCE"
         };
-      } else if (planet.loreMain || planet.loreSub || planet.flavourText) {
+      } else if (planet.loreMain || planet.loreSub || (includeFlavourText && planet.flavourText)) {
         // Legacy fallback - convert old planet lore format
         let loreText = "";
         if (planet.loreMain) loreText = planet.loreMain;
         else if (planet.loreSub) loreText = planet.loreSub;
-        else if (planet.flavourText) loreText = planet.flavourText;
-        
+        else if (includeFlavourText && planet.flavourText) loreText = planet.flavourText;
+
         if (loreText) {
           planetLore = {
             loreText: loreText,
@@ -567,13 +572,13 @@ export async function exportMapInfo(editor) {
           loreText = hex.lore;
         }
       }
-      
+
       if (loreText) {
         systemLore = {
           loreText: loreText,
           footerText: "",
           receiver: "CURRENT",
-          trigger: "CONTROLLED", 
+          trigger: "CONTROLLED",
           ping: "NO",
           persistance: "ONCE"
         };

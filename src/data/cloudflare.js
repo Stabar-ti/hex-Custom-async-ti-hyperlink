@@ -119,7 +119,7 @@ async function saveMapToCloudflare(editor) {
  * @param {Object} editor - The editor instance
  * @returns {Promise<string>} The signed download URL
  */
-async function saveMapInfoToCloudflare(editor) {
+async function saveMapInfoToCloudflare(editor, options = {}) {
     try {
         console.log('Starting map info upload to Cloudflare...');
 
@@ -132,7 +132,7 @@ async function saveMapInfoToCloudflare(editor) {
         const { exportMapInfo } = await import('./export.js');
 
         // Get the JSON export data - this returns { mapInfo: [...] }
-        const mapInfoData = await exportMapInfo(editor);
+        const mapInfoData = await exportMapInfo(editor, options);
 
         console.log('Sending map info to server:', {
             endpoint: `${API_ORIGIN}/upload-mapinfo`,
@@ -395,6 +395,12 @@ async function saveMapInfo(editor) {
 
     modal.innerHTML = `
         <h3 style="margin: 0 0 20px 0; color: var(--accent, #4CAF50); text-align: center;">Export Map Info</h3>
+        <div style="margin-bottom: 20px; padding: 15px; background: var(--bg-secondary, #2d2d2d); border-radius: 6px;">
+            <label style="display: flex; align-items: center; cursor: pointer; font-size: 16px; color: var(--text-main, #e0e0e0);">
+                <input type="checkbox" id="cloudExportIncludeFlavourText" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
+                Include planet flavour Lore as lore fallback
+            </label>
+        </div>
         <div style="margin-bottom: 25px;">
             <div style="margin-bottom: 20px; padding: 15px; background: var(--bg-secondary, #2d2d2d); border-radius: 6px; border-left: 4px solid #4dabf7;">
                 <div style="display: flex; align-items: center; margin-bottom: 10px;">
@@ -475,6 +481,7 @@ async function saveMapInfo(editor) {
     const localDownloadBtn = modal.querySelector('#localDownloadBtn');
     const cancelBtn = modal.querySelector('#cancelExportBtn');
     const statusDiv = modal.querySelector('#exportStatus');
+    const includeFlavourTextCheckbox = modal.querySelector('#cloudExportIncludeFlavourText');
 
     // Cloud upload handler
     cloudUploadBtn.addEventListener('click', async () => {
@@ -485,7 +492,8 @@ async function saveMapInfo(editor) {
             statusDiv.textContent = 'Uploading to Cloudflare...';
             statusDiv.style.color = '#4dabf7';
 
-            const url = await saveMapInfoToCloudflare(editor);
+            const includeFlavourText = includeFlavourTextCheckbox?.checked ?? false;
+            const url = await saveMapInfoToCloudflare(editor, { includeFlavourText });
             document.body.removeChild(overlay);
             showDownloadLink(url, 'map info');
         } catch (error) {
@@ -515,7 +523,8 @@ async function saveMapInfo(editor) {
 
             // Import and use the exportMapInfo function
             const { exportMapInfo } = await import('./export.js');
-            const mapInfoData = await exportMapInfo(editor);
+            const includeFlavourText = includeFlavourTextCheckbox?.checked ?? false;
+            const mapInfoData = await exportMapInfo(editor, { includeFlavourText });
 
             // Create downloadable JSON file
             const data = JSON.stringify(mapInfoData, null, 2);

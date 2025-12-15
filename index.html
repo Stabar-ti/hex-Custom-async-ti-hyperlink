@@ -50,7 +50,7 @@
       <button id="featuresToggle" class="mode-button">Features</button>
     </div>
 
-    <div id="versionTag">v1.8.5</div>
+    <div id="versionTag">v1.9</div>
   </div>
 
   <!-- The movable popup for GUI options, hidden by default -->
@@ -253,6 +253,10 @@
   <!-- Export Map Info Modal -->
   <div id="exportMapInfoModal" class="modal">
     <h3>Map Info Export</h3>
+    <label>
+      <input type="checkbox" id="exportMapInfoIncludeFlavourText">
+      Include planet flavourText as lore fallback
+    </label><br /><br />
     <textarea id="exportMapInfoText"></textarea><br />
     <button id="copyExportMapInfo">Copy</button>
     <button id="downloadExportMapInfo">Download JSON</button>
