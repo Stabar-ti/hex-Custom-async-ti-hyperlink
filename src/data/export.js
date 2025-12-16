@@ -626,8 +626,11 @@ export async function exportMapInfo(editor, options = {}) {
       tileID = hex.realId || hex.systemId || '';
     }
 
+    // Convert corner tile positions to lowercase for export
+    const exportLabel = /^(TL|TR|BL|BR)$/.test(label) ? label.toLowerCase() : label;
+
     const hexEntry = {
-      position: label,
+      position: exportLabel,
       tileID: tileID,
       planets: planets,
       tokens: tokens,
