@@ -120,9 +120,9 @@ function createHexSelectorSection() {
     selectBtn.textContent = 'Select';
     selectBtn.style.marginLeft = '8px';
     selectBtn.style.padding = '6px 12px';
-    selectBtn.style.border = '1px solid #9b59b6';
+    selectBtn.style.border = '1px solid #27ae60';
     selectBtn.style.borderRadius = '4px';
-    selectBtn.style.backgroundColor = '#9b59b6';
+    selectBtn.style.backgroundColor = '#27ae60';
     selectBtn.style.color = '#fff';
     selectBtn.style.cursor = 'pointer';
     selectBtn.onclick = () => selectHex(input.value.trim());
@@ -352,9 +352,9 @@ function createLoreForm(type, planetIndex = null) {
     const copyBtn = document.createElement('button');
     copyBtn.textContent = 'Copy';
     copyBtn.style.padding = '6px 12px';
-    copyBtn.style.border = '1px solid #f39c12';
+    copyBtn.style.border = '1px solid #3498db';
     copyBtn.style.borderRadius = '4px';
-    copyBtn.style.backgroundColor = '#f39c12';
+    copyBtn.style.backgroundColor = '#3498db';
     copyBtn.style.color = '#fff';
     copyBtn.style.cursor = 'pointer';
     copyBtn.onclick = () => copyLore(type, planetIndex);
@@ -362,9 +362,9 @@ function createLoreForm(type, planetIndex = null) {
     const pasteBtn = document.createElement('button');
     pasteBtn.textContent = 'Paste';
     pasteBtn.style.padding = '6px 12px';
-    pasteBtn.style.border = '1px solid #9b59b6';
+    pasteBtn.style.border = '1px solid #3498db';
     pasteBtn.style.borderRadius = '4px';
-    pasteBtn.style.backgroundColor = '#9b59b6';
+    pasteBtn.style.backgroundColor = '#3498db';
     pasteBtn.style.color = '#fff';
     pasteBtn.style.cursor = 'pointer';
     pasteBtn.onclick = () => pasteLore(type, planetIndex);
@@ -601,9 +601,9 @@ function createActionButtonsSection() {
     const exportBtn = document.createElement('button');
     exportBtn.textContent = 'Export Lore';
     exportBtn.style.padding = '8px 16px';
-    exportBtn.style.border = '1px solid #3498db';
+    exportBtn.style.border = '1px solid #27ae60';
     exportBtn.style.borderRadius = '4px';
-    exportBtn.style.backgroundColor = '#3498db';
+    exportBtn.style.backgroundColor = '#27ae60';
     exportBtn.style.color = '#fff';
     exportBtn.style.cursor = 'pointer';
     exportBtn.onclick = () => exportLore();
