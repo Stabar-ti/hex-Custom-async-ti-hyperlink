@@ -1,0 +1,16 @@
+# AI assistant reference notes (not for version control)
+.notes/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Editor metadata
+.VSCodeCounter/
+.history/
+
+# Dependencies (if ever added)
+node_modules/
+
+# Logs
+*.log

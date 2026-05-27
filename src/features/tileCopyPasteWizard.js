@@ -11,9 +11,8 @@ import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { markRealIDUsed } from '../ui/uiFilters.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { isMatrixEmpty } from '../utils/matrix.js';
-import { toggleWormhole, updateHexWormholes, removeWormholeOverlay } from '../features/wormholes.js';
-import { assignSystem } from '../features/assignSystem.js';
-import { showWizardPopup, hideWizardPopup, showWizardInfoPopup, hideWizardInfoPopup, setupTileCopySingleButtonAndPopup } from '../ui/tileCopyPasteWizardUI.js';
+import { updateHexWormholes, removeWormholeOverlay } from '../features/wormholes.js';
+import { hideWizardPopup, showWizardInfoPopup, hideWizardInfoPopup } from '../ui/tileCopyPasteWizardUI.js';
 
 let wizardState = {
     mode: null, // 'select', 'paste', null
@@ -23,8 +22,13 @@ let wizardState = {
     offset: { q: 0, r: 0 },
     cut: false,
     prevOnHexClick: null,
+    editor: null,
+    rotateSelection: null,
+    selectionClickHandler: null,
+    lastPastePreviewEvent: null,
     // --- Handler references for cleanup ---
     onPastePreview: null,
+    onWheel: null,
     onKeyUp: null,
     cancelHandler: null,
 };
@@ -37,6 +41,7 @@ export function startCopyPasteWizard(editor, cut = false) {
     wizardState.origin = null;
     wizardState.offset = { q: 0, r: 0 };
     wizardState.cut = cut;
+    wizardState.editor = editor;
     wizardState.prevOnHexClick = editor._onHexClick;
 
     // Deactivate all other tools/modes
@@ -52,23 +57,23 @@ export function startCopyPasteWizard(editor, cut = false) {
     // showWizardPopup('', []); // <-- Remove or comment out this line
 
     // Only allow selection via shift+click
-    editor._onHexClick = (e, label) => {
+    wizardState.selectionClickHandler = (e, label) => {
         if (wizardState.mode !== 'select') return;
         if (!e.shiftKey) return;
         if (!wizardState.selectedLabels.length) {
             wizardState.selectedLabels.push(label);
             wizardState.origin = editor.hexes[label];
         } else {
-            // Only allow connected tiles
-            const last = editor.hexes[wizardState.selectedLabels[wizardState.selectedLabels.length - 1]];
-            if (areConnected(last, editor.hexes[label])) {
-                if (!wizardState.selectedLabels.includes(label)) {
-                    wizardState.selectedLabels.push(label);
-                }
+            const isAdjacentToAny = wizardState.selectedLabels.some(existingLabel =>
+                areConnected(editor.hexes[existingLabel], editor.hexes[label])
+            );
+            if (isAdjacentToAny && !wizardState.selectedLabels.includes(label)) {
+                wizardState.selectedLabels.push(label);
             }
         }
         updateHighlights(editor);
     };
+    editor._onHexClick = wizardState.selectionClickHandler;
 
     // Listen for shift release to finish selection
     wizardState.onKeyUp = function (e) {
@@ -82,24 +87,37 @@ export function startCopyPasteWizard(editor, cut = false) {
     wizardState.cancelHandler = function (e) {
         if (e.type === 'contextmenu') {
             e.preventDefault();
-            // Only release paste mode and overlays, do NOT close the main wizard popup
-            wizardState.mode = null;
-            clearHighlights(editor);
-            clearPasteGhost(editor);
-            // Remove listeners for paste preview and wheel
-            if (wizardState.onPastePreview) {
-                editor.svg.removeEventListener('mousemove', wizardState.onPastePreview);
-                wizardState.onPastePreview = null;
+            if (wizardState.mode === 'select') {
+                // Right-click during selection: step back by deselecting the last tile
+                wizardState.selectedLabels.pop();
+                if (!wizardState.selectedLabels.length) wizardState.origin = null;
+                updateHighlights(editor);
+                return;
             }
-            if (wizardState.onWheel) {
-                editor.svg.removeEventListener('wheel', wizardState.onWheel);
-                wizardState.onWheel = null;
+            if (wizardState.mode === 'paste') {
+                // Return to selection mode — preserve current selection, let user adjust then re-paste
+                wizardState.mode = 'select';
+                wizardState.rotateSelection = null;
+                clearPasteGhost(editor);
+                if (wizardState.onPastePreview) {
+                    editor.svg.removeEventListener('mousemove', wizardState.onPastePreview);
+                    wizardState.onPastePreview = null;
+                }
+                if (wizardState.onWheel) {
+                    editor.svg.removeEventListener('wheel', wizardState.onWheel);
+                    wizardState.onWheel = null;
+                }
+                if (wizardState.selectionClickHandler) editor._onHexClick = wizardState.selectionClickHandler;
+                hideWizardInfoPopup();
+                document.getElementById('tilePasteInfoPreview')?.remove();
+                const n = wizardState.selectedLabels.length;
+                showWizardInfoPopup(
+                    `${n} tile${n !== 1 ? 's' : ''} selected. SHIFT+Click to add more. Release SHIFT to paste.`,
+                    [{ label: 'Cancel', action: () => { hideWizardInfoPopup(); closeWizard(editor); } }]
+                );
+                updateHighlights(editor);
             }
-            // Restore click handler
-            if (wizardState.prevOnHexClick) editor._onHexClick = wizardState.prevOnHexClick;
-            // Remove floating info box if present
-            document.getElementById('tilePasteInfoPreview')?.remove();
-            // Do NOT hideWizardPopup();
+            // mode === null: nothing to do
             return;
         }
         if (e.type === 'click' && e.target.id === 'cancelWizardBtn') {
@@ -111,7 +129,12 @@ export function startCopyPasteWizard(editor, cut = false) {
     document.body.addEventListener('click', wizardState.cancelHandler);
 
     function finishSelection(editor) {
-        if (!wizardState.selectedLabels.length) return closeWizard(editor);
+        if (!wizardState.selectedLabels.length) {
+            showWizardInfoPopup('No tiles selected. SHIFT+Click a hex to begin.', [
+                { label: 'Cancel', action: () => { hideWizardInfoPopup(); closeWizard(editor); } }
+            ]);
+            return;
+        }
         wizardState.mode = 'paste';
         // Build minimal canonical data for each tile, respecting toggles
         const opts = window.tileCopyOptions || { wormholes: true, customAdjacents: true, borderAnomalies: true };
@@ -226,11 +249,11 @@ export function startCopyPasteWizard(editor, cut = false) {
                         {
                             label: 'Continue', action: () => {
                                 hideWizardInfoPopup();
-                                showWizardInfoPopup('Move mouse to preview. Left click to paste.', [
+                                showWizardInfoPopup('Move mouse to preview. Left click to paste. Hold Alt+scroll to rotate.', [
                                     { label: 'Cancel', action: () => { hideWizardInfoPopup(); closeWizard(editor); } }
                                 ]);
                                 updateHighlights(editor, true);
-                                setupPastePreviewAndRotation();
+                                setupPaste();
                             }
                         },
                         { label: 'Cancel', action: () => { hideWizardInfoPopup(); closeWizard(editor); } }
@@ -239,17 +262,16 @@ export function startCopyPasteWizard(editor, cut = false) {
             });
             return;
         }
-        showWizardInfoPopup('Move mouse to preview. Left click to paste.', [
+        showWizardInfoPopup('Move mouse to preview. Left click to paste. Hold Alt+scroll to rotate.', [
             { label: 'Cancel', action: () => { hideWizardInfoPopup(); closeWizard(editor); } }
         ]);
         updateHighlights(editor, true);
-        setupPastePreviewAndRotation();
+        setupPaste();
 
-        function setupPastePreviewAndRotation() {
-            // Now handle paste preview & actual paste
+        function setupPaste() {
             wizardState.onPastePreview = function pastePreviewHandler(e) {
-                if (wizardState.mode !== 'paste') return; // guard: do nothing if not in paste mode
-                clearPasteGhost(editor); // always clear overlays before drawing new ones
+                if (wizardState.mode !== 'paste') return;
+                clearPasteGhost(editor);
                 const poly = e.target.closest('polygon');
                 if (!poly) return;
                 const destLabel = poly.dataset.label;
@@ -258,7 +280,6 @@ export function startCopyPasteWizard(editor, cut = false) {
                 const dq = destHex.q - wizardState.origin.q;
                 const dr = destHex.r - wizardState.origin.r;
                 wizardState.offset = { q: dq, r: dr };
-                // --- Store last event for rotation overlay update ---
                 wizardState.lastPastePreviewEvent = e;
                 for (const data of wizardState.tileData) {
                     if (!data) continue;
@@ -272,57 +293,19 @@ export function startCopyPasteWizard(editor, cut = false) {
             editor._onHexClick = onPasteConfirm;
             wizardState.onWheel = function onWheelRotate(e) {
                 if (wizardState.mode !== 'paste') return;
-                if (!e.altKey) return; // Only rotate if Alt is held
+                if (!e.altKey) return;
                 e.preventDefault();
-                e.stopImmediatePropagation(); // Prevent map zoom handler from running
-                const dir = e.deltaY < 0 ? 1 : -1; // up: +60°, down: -60°
+                e.stopImmediatePropagation();
+                const dir = e.deltaY < 0 ? 1 : -1;
                 rotateSelection(dir);
                 clearPasteGhost(editor);
-                // Redraw ghost overlay at new orientation using last mouse event
-                if (typeof wizardState.onPastePreview === 'function' && wizardState.lastPastePreviewEvent) {
+                if (wizardState.lastPastePreviewEvent) {
                     wizardState.onPastePreview(wizardState.lastPastePreviewEvent);
                 }
             };
             editor.svg.addEventListener('wheel', wizardState.onWheel, { passive: false });
+            wizardState.rotateSelection = rotateSelection;
         }
-        // --- ROTATE SUPPORT: Alt+Mouse wheel rotates selection during paste preview ---
-        let lastPastePreviewLabel = null;
-        wizardState.onPastePreview = function pastePreviewHandler(e) {
-            if (wizardState.mode !== 'paste') return; // guard: do nothing if not in paste mode
-            clearPasteGhost(editor); // always clear overlays before drawing new ones
-            const poly = e.target.closest('polygon');
-            if (!poly) return;
-            const destLabel = poly.dataset.label;
-            lastPastePreviewLabel = destLabel;
-            const destHex = editor.hexes[destLabel];
-            if (!destHex) return;
-            const dq = destHex.q - wizardState.origin.q;
-            const dr = destHex.r - wizardState.origin.r;
-            wizardState.offset = { q: dq, r: dr };
-            for (const data of wizardState.tileData) {
-                if (!data) continue;
-                const q = data.q + dq;
-                const r = data.r + dr;
-                const dest = Object.values(editor.hexes).find(h => h.q === q && h.r === r);
-                if (dest && dest.polygon) dest.polygon.classList.add('tile-paste-ghost');
-            }
-        };
-        editor.svg.addEventListener('mousemove', wizardState.onPastePreview);
-        editor._onHexClick = onPasteConfirm;
-        wizardState.onWheel = function onWheelRotate(e) {
-            if (wizardState.mode !== 'paste') return;
-            if (!e.altKey) return; // Only rotate if Alt is held
-            e.preventDefault();
-            e.stopImmediatePropagation(); // Prevent map zoom handler from running
-            const dir = e.deltaY < 0 ? 1 : -1; // up: +60°, down: -60°
-            rotateSelection(dir);
-            clearPasteGhost(editor);
-            // Redraw ghost overlay at new orientation using last mouse event
-            if (typeof wizardState.onPastePreview === 'function' && wizardState.lastPastePreviewEvent) {
-                wizardState.onPastePreview(wizardState.lastPastePreviewEvent);
-            }
-        };
-        editor.svg.addEventListener('wheel', wizardState.onWheel, { passive: false });
 
         function rotateSelection(dir) {
             // dir: +1 = 60° clockwise, -1 = 60° counterclockwise
@@ -340,15 +323,11 @@ export function startCopyPasteWizard(editor, cut = false) {
                     // Only apply rotation logic if this tile has non-empty hyperlane logic (matrix/links)
                     const hasHyperlaneLogic = (tile.matrix && !isMatrixEmpty(tile.matrix)) || (tile.links && !isMatrixEmpty(tile.links));
                     if (hasHyperlaneLogic) {
-                        console.debug('[rotateSelection] BEFORE parse:', { realId: tile.realId });
                         const parsed = parseHyperlaneRealID(tile.realId);
-                        console.debug('[rotateSelection] AFTER parse:', { parsed });
                         if (parsed.style) {
                             let newRot = parsed.rot + dir;
-                            let cleanBase = parsed.base.replace(/-+$/, ''); // extra safety
-                            console.debug('[rotateSelection] cleanBase:', { cleanBase, newRot, style: parsed.style });
+                            let cleanBase = parsed.base.replace(/-+$/, '');
                             const rebuilt = buildHyperlaneRealID(cleanBase, newRot, parsed.style, editor);
-                            console.debug('[rotateSelection] buildHyperlaneRealID result:', { rebuilt });
                             tile.realId = rebuilt;
                             // Optionally, update matrix/links from sectorIDLookup or hyperlaneMatrices if available
                             let lookupId = tile.realId.toUpperCase();
@@ -393,16 +372,20 @@ export function startCopyPasteWizard(editor, cut = false) {
             }
             if (tile.matrix) tile.matrix = rotateMatrix(tile.matrix, dir);
             if (tile.links) tile.links = rotateMatrix(tile.links, dir);
-            if (tile.borderAnomalies) tile.borderAnomalies = rotateArr(tile.borderAnomalies);
+            if (tile.borderAnomalies) {
+                if (Array.isArray(tile.borderAnomalies)) {
+                    tile.borderAnomalies = rotateArr(tile.borderAnomalies);
+                } else {
+                    const rotated = {};
+                    for (const [sideStr, val] of Object.entries(tile.borderAnomalies)) {
+                        rotated[((parseInt(sideStr, 10) + dir + 6) % 6)] = val;
+                    }
+                    tile.borderAnomalies = rotated;
+                }
+            }
             if (tile.customAdjacents) tile.customAdjacents = rotateArr(tile.customAdjacents);
             if (tile.adjacencyOverrides) tile.adjacencyOverrides = rotateArr(tile.adjacencyOverrides);
         }
-        // --- Remove wheel handler on wizard close ---
-        const origCloseWizard = closeWizard;
-        closeWizard = function (editor) {
-            editor.svg.removeEventListener('wheel', wizardState.onWheel);
-            origCloseWizard(editor);
-        };
     }
 
     function onPasteConfirm(e, destLabel) {
@@ -451,7 +434,12 @@ export function startCopyPasteWizard(editor, cut = false) {
                 !hasWormholes &&
                 (!h.links || isMatrixEmpty(h.links)) &&
                 !h.customAdjacents && !h.adjacencyOverrides && !hasBorderAnomalies;
-            if (noContent) continue;
+            if (noContent) {
+                editor.deleteAllSegments(id);
+                hex.matrix = Array.from({ length: 6 }, () => Array(6).fill(0));
+                hex.links = hex.matrix;
+                continue;
+            }
 
             // Clean overlays/effects/wormholes
             hex.overlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
@@ -474,31 +462,26 @@ export function startCopyPasteWizard(editor, cut = false) {
             }
 
             // --------- Hyperlane tile logic ---------
-            console.debug('PASTE DEBUG: hyperlane candidate', { id, h, info, matrix: h.matrix, links: h.links });
             const matrixToUse = (h.links && !isMatrixEmpty(h.links)) ? h.links
                 : (h.matrix && !isMatrixEmpty(h.matrix)) ? h.matrix
                     : null;
             if (info.isHyperlane) {
-                // Always mark as used and assign realId
+                // Full destination reset: clear neighbor border anomaly mirrors, then wipe hex
+                clearBorderAnomalyMirrors(editor, hex);
+                editor.clearAll(id);
                 hex.realId = info.id ?? realId;
                 if (hex.realId) markRealIDUsed(hex.realId);
 
-                // Use matrix from copy (links or matrix), or from hyperlaneMatrices
                 if (matrixToUse) {
                     hex.matrix = matrixToUse;
                     hex.links = matrixToUse;
-                    console.debug('PASTE DEBUG: setting matrix', { id, matrix: matrixToUse });
                     drawMatrixLinks(editor, id, hex.matrix);
                 } else if (editor.hyperlaneMatrices && info.id && editor.hyperlaneMatrices[info.id.toLowerCase()]) {
                     const matrix = editor.hyperlaneMatrices[info.id.toLowerCase()];
-                    hex.matrix = matrix.map(row => [...row]); // deep copy
+                    hex.matrix = matrix.map(row => [...row]);
                     hex.links = hex.matrix;
-                    console.debug('PASTE DEBUG: using default matrix', { id, matrix });
                     drawMatrixLinks(editor, id, hex.matrix);
-                } else {
-                    console.debug('PASTE DEBUG: no matrix found for hyperlane', { id, h });
                 }
-                // Do NOT assign baseType, overlays, planets, etc
                 continue;
             }
             // --------- End hyperlane tile logic ---------
@@ -509,7 +492,11 @@ export function startCopyPasteWizard(editor, cut = false) {
             hex.planets = info.planets || h.planets || [];
 
             // ---- Matrix/links (for non-hyperlane tiles)
+            // deleteAllSegments must come first — it zeroes hex.matrix in-place,
+            // so assigning h.links before the call would destroy the source matrix.
+            editor.deleteAllSegments(id);
             hex.matrix = h.links || Array.from({ length: 6 }, () => Array(6).fill(0));
+            hex.links = hex.matrix;
             drawMatrixLinks(editor, id, hex.matrix);
 
             // ---- Adjacency/custom links/border anomalies
@@ -517,8 +504,12 @@ export function startCopyPasteWizard(editor, cut = false) {
             else delete hex.customAdjacents;
             if (h.adjacencyOverrides !== undefined) hex.adjacencyOverrides = JSON.parse(JSON.stringify(h.adjacencyOverrides));
             else delete hex.adjacencyOverrides;
+            // Clear existing bidirectional mirrors from neighbors before overwriting
+            clearBorderAnomalyMirrors(editor, hex);
             if (h.borderAnomalies !== undefined) hex.borderAnomalies = JSON.parse(JSON.stringify(h.borderAnomalies));
             else delete hex.borderAnomalies;
+            // Apply new bidirectional mirrors to neighbors
+            applyBorderAnomalyMirrors(editor, hex);
 
             // ---- WORMHOLES: Use new pattern with proper cleanup and restoration ----
             // First, clear any existing wormhole overlays
@@ -574,8 +565,12 @@ export function startCopyPasteWizard(editor, cut = false) {
                 editor.setSectorType(id, 'void');
                 continue;
             }
-            // Skip classification if no system info and no explicit baseType (keep existing state)
-            if (code === '-1' && !h.baseType) continue;
+            // Skip classification if no system info and no explicit baseType.
+            // If source has hyperlane links, reset destination background to blank so it looks like a hyperlane hex.
+            if (code === '-1' && !h.baseType) {
+                if (h.links && !isMatrixEmpty(h.links)) editor.setSectorType(id, '');
+                continue;
+            }
 
             if (code === 'HL' || !isMatrixEmpty(h.links)) continue;
             if ((info.planets || []).some(p => p.planetType === 'FACTION') || h.baseType === "homesystem") {
@@ -617,35 +612,16 @@ export function startCopyPasteWizard(editor, cut = false) {
         editor.commitUndoGroup?.();
         clearPasteGhost(editor);
 
-        // Update all visual overlays and layers
-        updateEffectsVisibility(editor);
-        updateWormholeVisibility(editor);
-        updateTileImageLayer(editor);
-        enforceSvgLayerOrder(editor.svg);
-        redrawAllRealIDOverlays(editor);
-
-        // Refresh lore overlay if it exists and is active
-        if (editor.loreOverlay && editor.loreOverlay.isActive) {
-            editor.loreOverlay.refresh();
-        }
-
-        // ---- CUT FUNCTIONALITY: Clear original tiles if this was a cut operation ----
+        // ---- CUT FUNCTIONALITY: Clear original tiles and release paste mode ----
         if (wizardState.cut) {
-            console.log('Cut operation: clearing original tiles', wizardState.selectedLabels);
             for (const label of wizardState.selectedLabels) {
                 if (editor.hexes[label]) {
-                    // Explicitly clear wormhole overlays first to ensure proper cleanup
                     removeWormholeOverlay(editor, label);
-                    // Then clear everything else
                     editor.clearAll(label);
                 }
             }
-            // Refresh lore overlay if it exists and is active (after clearing)
-            if (editor.loreOverlay && editor.loreOverlay.isActive) {
-                editor.loreOverlay.refresh();
-            }
-            // After cut, release paste mode and overlays, but do NOT close the main wizard popup
             wizardState.mode = null;
+            wizardState.rotateSelection = null;
             clearHighlights(editor);
             clearPasteGhost(editor);
             if (wizardState.onPastePreview) {
@@ -658,24 +634,55 @@ export function startCopyPasteWizard(editor, cut = false) {
             }
             if (wizardState.prevOnHexClick) editor._onHexClick = wizardState.prevOnHexClick;
             document.getElementById('tilePasteInfoPreview')?.remove();
-            // Do NOT hideWizardPopup();
-            // Always close info/warning popup after cut
-            if (typeof hideWizardInfoPopup === 'function') hideWizardInfoPopup();
         }
 
-        // For copy, do NOT close or release anything (keep paste mode active)
-        // But always close info/warning popup after copy
-        if (!wizardState.cut && typeof hideWizardInfoPopup === 'function') hideWizardInfoPopup();
-        // closeWizard(editor); // <-- Still commented out
-        // Redraw overlays and enforce layer order
-        if (typeof redrawAllRealIDOverlays === 'function') redrawAllRealIDOverlays(editor);
-        if (typeof drawCustomAdjacencyLayer === 'function') drawCustomAdjacencyLayer(editor);
-        if (typeof drawBorderAnomaliesLayer === 'function') drawBorderAnomaliesLayer(editor);
-        if (typeof updateEffectsVisibility === 'function') updateEffectsVisibility(editor);
-        if (typeof updateWormholeVisibility === 'function') updateWormholeVisibility(editor);
-        if (typeof updateTileImageLayer === 'function') updateTileImageLayer(editor);
-        if (typeof redrawBorderAnomaliesOverlay === 'function') redrawBorderAnomaliesOverlay(editor);
-        if (typeof enforceSvgLayerOrder === 'function') enforceSvgLayerOrder(editor.svg);
+        hideWizardInfoPopup();
+
+        // Refresh all overlays once (after paste and after cut clears originals)
+        redrawAllRealIDOverlays(editor);
+        drawCustomAdjacencyLayer(editor);
+        drawBorderAnomaliesLayer(editor);
+        redrawBorderAnomaliesOverlay(editor);
+        updateEffectsVisibility(editor);
+        updateWormholeVisibility(editor);
+        updateTileImageLayer(editor);
+        enforceSvgLayerOrder(editor.svg);
+        if (editor.loreOverlay && editor.loreOverlay.isActive) editor.loreOverlay.refresh();
+    }
+}
+
+const _BIDI_ANOMALY_TYPES = ["Spatial Tear", "Gravity Wave"];
+const _HEX_DIRS = [
+    { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 1, r: 0 },
+    { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }
+];
+
+function clearBorderAnomalyMirrors(editor, hex) {
+    if (!hex || !hex.borderAnomalies) return;
+    for (const [sideStr, anomaly] of Object.entries(hex.borderAnomalies)) {
+        if (!anomaly || !_BIDI_ANOMALY_TYPES.includes(anomaly.type)) continue;
+        const side = parseInt(sideStr, 10);
+        const nq = hex.q + _HEX_DIRS[side].q;
+        const nr = hex.r + _HEX_DIRS[side].r;
+        const neighbor = Object.values(editor.hexes).find(nb => nb.q === nq && nb.r === nr);
+        if (!neighbor || !neighbor.borderAnomalies) continue;
+        const opp = (side + 3) % 6;
+        delete neighbor.borderAnomalies[opp];
+        if (Object.keys(neighbor.borderAnomalies).length === 0) delete neighbor.borderAnomalies;
+    }
+}
+
+function applyBorderAnomalyMirrors(editor, hex) {
+    if (!hex || !hex.borderAnomalies) return;
+    for (const [sideStr, anomaly] of Object.entries(hex.borderAnomalies)) {
+        if (!anomaly || !_BIDI_ANOMALY_TYPES.includes(anomaly.type)) continue;
+        const side = parseInt(sideStr, 10);
+        const nq = hex.q + _HEX_DIRS[side].q;
+        const nr = hex.r + _HEX_DIRS[side].r;
+        const neighbor = Object.values(editor.hexes).find(nb => nb.q === nq && nb.r === nr);
+        if (!neighbor) continue;
+        if (!neighbor.borderAnomalies) neighbor.borderAnomalies = {};
+        neighbor.borderAnomalies[(side + 3) % 6] = { type: anomaly.type };
     }
 }
 
@@ -687,7 +694,11 @@ function closeWizard(editor) {
     // Remove listeners and restore click handler
     if (wizardState.onPastePreview) {
         editor.svg.removeEventListener('mousemove', wizardState.onPastePreview);
-        wizardState.onPastePreview = null; // prevent accidental re-attachment
+        wizardState.onPastePreview = null;
+    }
+    if (wizardState.onWheel) {
+        editor.svg.removeEventListener('wheel', wizardState.onWheel);
+        wizardState.onWheel = null;
     }
     if (wizardState.onKeyUp) document.removeEventListener('keyup', wizardState.onKeyUp);
     if (wizardState.cancelHandler) {
@@ -695,6 +706,9 @@ function closeWizard(editor) {
         document.body.removeEventListener('click', wizardState.cancelHandler);
     }
     if (wizardState.prevOnHexClick) editor._onHexClick = wizardState.prevOnHexClick;
+    wizardState.editor = null;
+    wizardState.rotateSelection = null;
+    wizardState.selectionClickHandler = null;
     if (typeof editor.setMode === 'function') editor.setMode('hyperlane');
     // Remove floating info box if present
     document.getElementById('tilePasteInfoPreview')?.remove();
@@ -840,9 +854,9 @@ export { wizardState, parseHyperlaneRealID, buildHyperlaneRealID };
 
 // Listen for wizard-rotate events from the popup UI
 window.addEventListener('wizard-rotate', (e) => {
-    if (wizardState.mode === 'paste' && typeof rotateSelection === 'function') {
-        rotateSelection(e.detail);
-        clearPasteGhost(editor);
+    if (wizardState.mode === 'paste' && typeof wizardState.rotateSelection === 'function') {
+        wizardState.rotateSelection(e.detail);
+        if (wizardState.editor) clearPasteGhost(wizardState.editor);
         if (typeof wizardState.onPastePreview === 'function' && wizardState.lastPastePreviewEvent) {
             wizardState.onPastePreview(wizardState.lastPastePreviewEvent);
         }
