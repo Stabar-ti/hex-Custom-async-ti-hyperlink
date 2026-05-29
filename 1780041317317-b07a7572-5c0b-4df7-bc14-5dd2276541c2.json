@@ -1,0 +1,28 @@
+{
+  "mapInfo": [
+    {
+      "position": "105",
+      "tileID": "yellowblank",
+      "planets": [],
+      "tokens": [],
+      "customHyperlaneString": "",
+      "borderAnomalies": [],
+      "systemLore": null,
+      "Plastic": null,
+      "customAdjacencies": [],
+      "adjacencyOverrides": []
+    },
+    {
+      "position": "000",
+      "tileID": "yellow1",
+      "planets": [],
+      "tokens": [],
+      "customHyperlaneString": "",
+      "borderAnomalies": [],
+      "systemLore": null,
+      "Plastic": null,
+      "customAdjacencies": [],
+      "adjacencyOverrides": []
+    }
+  ]
+}
