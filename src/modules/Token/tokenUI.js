@@ -199,13 +199,14 @@ function createCategoryTabs() {
     tabContainer.style.gap = '4px';
     tabContainer.style.borderBottom = '2px solid #555';
     tabContainer.style.paddingBottom = '8px';
-    
-    const categories = getCategories();
-    
-    // Check if current hex has realID
+    tabContainer.style.flexWrap = 'wrap';
+
+    const categorized = tokenManager.getCategorizedTokens();
+    const categories = getCategories(categorized).filter(c => (c.count ?? 1) > 0);
+
     const hex = tokenManager.editor.hexes[currentHexLabel];
     const hasRealId = hex && hex.realId && hex.realId.trim() !== '';
-    
+
     categories.forEach(category => {
         const tab = document.createElement('button');
         tab.className = 'token-category-tab';
@@ -222,29 +223,29 @@ function createCategoryTabs() {
             transition: background-color 0.2s;
             opacity: ${hasRealId ? '1' : '0.5'};
         `;
-        
+
         if (hasRealId) {
             tab.onmouseover = () => {
-                if (category.key !== currentCategory) {
-                    tab.style.backgroundColor = '#4a5f7f';
-                }
+                if (category.key !== currentCategory) tab.style.backgroundColor = '#4a5f7f';
             };
             tab.onmouseout = () => {
-                if (category.key !== currentCategory) {
-                    tab.style.backgroundColor = '#34495e';
-                }
+                if (category.key !== currentCategory) tab.style.backgroundColor = '#34495e';
             };
-            
             tab.onclick = () => switchCategory(category.key);
         } else {
             tab.onclick = () => {
-                alert('⚠️ Cannot browse tokens - This tile does not have a RealID assigned.');
+                const displayArea = document.getElementById('tokenDisplayArea');
+                if (displayArea) displayArea.innerHTML = `
+                    <div style="color:#e74c3c;text-align:center;padding:30px 20px;">
+                        <div style="font-size:2em;margin-bottom:12px;">⚠️</div>
+                        Assign a system to this tile before browsing tokens.
+                    </div>`;
             };
         }
-        
+
         tabContainer.appendChild(tab);
     });
-    
+
     return tabContainer;
 }
 
@@ -601,64 +602,66 @@ function placeToken(token) {
 function showPlanetSelector(token) {
     const hex = tokenManager.editor.hexes[currentHexLabel];
     if (!hex || !hex.planets) return;
-    
-    const selector = document.createElement('div');
-    selector.style.cssText = `
-        margin-top: 12px;
-        padding: 12px;
-        background: #2c3e50;
-        border: 1px solid #3498db;
-        border-radius: 6px;
-    `;
-    
-    selector.innerHTML = `<strong style="color: #fff;">Select Planet for ${token.id}:</strong>`;
-    
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.cssText = `
-        display: flex;
-        gap: 8px;
-        margin-top: 8px;
-        flex-wrap: wrap;
-    `;
-    
+
+    const displayArea = document.getElementById('tokenDisplayArea');
+    if (!displayArea) return;
+
+    // Replace token grid with a full-area planet picker so nothing is off-screen.
+    displayArea.innerHTML = '';
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'padding: 12px;';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'color:#fff; font-weight:bold; margin-bottom:12px; font-size:0.95em;';
+    title.textContent = `Select planet for: ${token.name || token.id}`;
+    wrapper.appendChild(title);
+
     hex.planets.forEach((planet, index) => {
         const planetName = planet.name || planet.planetID || planet.id || `Planet ${index + 1}`;
         const btn = document.createElement('button');
         btn.textContent = planetName;
         btn.style.cssText = `
-            padding: 6px 12px;
+            display: block;
+            width: 100%;
+            padding: 9px 12px;
+            margin-bottom: 8px;
             border: 1px solid #27ae60;
             border-radius: 4px;
             background: #27ae60;
             color: #fff;
             cursor: pointer;
+            font-size: 0.9em;
+            text-align: left;
         `;
+        btn.onmouseover = () => btn.style.background = '#2ecc71';
+        btn.onmouseout  = () => btn.style.background = '#27ae60';
         btn.onclick = () => {
             placePlanetToken(token.id, index);
-            selector.remove();
+            updateTokenDisplay(); // return to token grid
         };
-        buttonContainer.appendChild(btn);
+        wrapper.appendChild(btn);
     });
-    
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.style.cssText = `
-        padding: 6px 12px;
-        border: 1px solid #95a5a6;
+
+    const backBtn = document.createElement('button');
+    backBtn.textContent = '← Back';
+    backBtn.style.cssText = `
+        display: block;
+        width: 100%;
+        padding: 7px 12px;
+        margin-top: 4px;
+        border: 1px solid #666;
         border-radius: 4px;
-        background: #95a5a6;
-        color: #fff;
+        background: transparent;
+        color: #aaa;
         cursor: pointer;
+        font-size: 0.85em;
+        text-align: left;
     `;
-    cancelBtn.onclick = () => selector.remove();
-    buttonContainer.appendChild(cancelBtn);
-    
-    selector.appendChild(buttonContainer);
-    
-    const displayArea = document.getElementById('tokenDisplayArea');
-    if (displayArea) {
-        displayArea.insertBefore(selector, displayArea.firstChild);
-    }
+    backBtn.onclick = () => updateTokenDisplay();
+    wrapper.appendChild(backBtn);
+
+    displayArea.appendChild(wrapper);
 }
 
 function placePlanetToken(tokenId, planetIndex) {
@@ -784,8 +787,34 @@ function clearAllTokensFromHex() {
 }
 
 function showNotification(message) {
-    // Simple notification - could be enhanced
-    console.log('Token action:', message);
+    const existing = document.getElementById('tokenToast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'tokenToast';
+    toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 28px;
+        right: 28px;
+        background: #27ae60;
+        color: #fff;
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-size: 0.95em;
+        font-family: sans-serif;
+        z-index: 99999;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        pointer-events: none;
+        opacity: 1;
+        transition: opacity 0.4s ease;
+    `;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 420);
+    }, 2000);
 }
 
 function showTokenHelp() {

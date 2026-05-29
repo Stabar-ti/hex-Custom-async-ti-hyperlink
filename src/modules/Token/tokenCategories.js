@@ -125,58 +125,66 @@ const CATEGORY_DEFINITIONS = {
  * @returns {Object} Categorized tokens
  */
 export function categorizeTokens(tokensData) {
-    console.log('Categorizing tokens...');
-    
-    // Flatten the nested array structure and filter out wormhole tokens
-    const allTokens = tokensData.flat().filter(token => {
-        // Exclude wormhole tokens (keep them separate)
-        if (token.wormholes && token.wormholes.length > 0) {
-            return false;
-        }
-        return true;
-    });
-    
-    console.log(`Total tokens after filtering wormholes: ${allTokens.length}`);
-    
+    // Flatten and strip wormhole tokens (managed separately)
+    const allTokens = tokensData.flat().filter(t => !(t.wormholes && t.wormholes.length > 0));
+
     const categorized = {};
-    
-    // Process each category
+
     Object.entries(CATEGORY_DEFINITIONS).forEach(([categoryKey, categoryDef]) => {
         const categoryTokens = allTokens.filter(categoryDef.filter);
-        
+
         categorized[categoryKey] = {
             label: categoryDef.label,
             icon: categoryDef.icon,
             tokens: categoryTokens,
             subcategories: {}
         };
-        
-        // Process subcategories
+
         if (categoryDef.subcategories) {
             Object.entries(categoryDef.subcategories).forEach(([subKey, subDef]) => {
-                const subTokens = categoryTokens.filter(subDef.filter);
                 categorized[categoryKey].subcategories[subKey] = {
                     label: subDef.label,
-                    tokens: subTokens
+                    tokens: categoryTokens.filter(subDef.filter)
                 };
             });
         }
-        
-        console.log(`Category ${categoryKey}: ${categoryTokens.length} tokens`);
     });
-    
+
+    // Collect tokens not matched by any defined category
+    const categorizedIds = new Set(
+        Object.values(categorized).flatMap(c => c.tokens.map(t => t.id))
+    );
+    const uncategorized = allTokens.filter(t => !categorizedIds.has(t.id));
+    if (uncategorized.length > 0) {
+        categorized['other'] = {
+            label: 'Other',
+            icon: '🎲',
+            tokens: uncategorized,
+            subcategories: {}
+        };
+    }
+
     return categorized;
 }
 
 /**
- * Get all available categories
+ * Get all available categories, optionally including dynamic ones from categorized data.
+ * @param {Object} [categorized] - Result of categorizeTokens(); if provided, dynamic
+ *   categories (e.g. "other") and per-category token counts are included.
  */
-export function getCategories() {
-    return Object.keys(CATEGORY_DEFINITIONS).map(key => ({
+export function getCategories(categorized) {
+    const base = Object.keys(CATEGORY_DEFINITIONS).map(key => ({
         key,
         label: CATEGORY_DEFINITIONS[key].label,
-        icon: CATEGORY_DEFINITIONS[key].icon
+        icon: CATEGORY_DEFINITIONS[key].icon,
+        count: categorized ? (categorized[key]?.tokens.length ?? 0) : null
     }));
+
+    if (categorized && categorized.other) {
+        base.push({ key: 'other', label: 'Other', icon: '🎲', count: categorized.other.tokens.length });
+    }
+
+    return base;
 }
 
 /**

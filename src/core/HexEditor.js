@@ -338,6 +338,9 @@ export default class HexEditor {
     enforceSvgLayerOrder(this.svg);
 
     autoscaleView(this);
+
+    // Restore token overlay after SVG was wiped and rebuilt
+    this.tokenOverlay?.refresh();
   }
 
   addRing() {
@@ -657,6 +660,11 @@ export default class HexEditor {
       // Clear lore data
       hex.systemLore = null;
       hex.planetLore = [];
+
+      // Clear token state
+      hex.systemTokens = [];
+      hex.planetTokens = {};
+      this.tokenOverlay?.updateHex(label);
 
       // if there was a real system assigned, unmark it and clear planet data
       if (hex.realId != null) {

@@ -137,7 +137,7 @@ export function startCopyPasteWizard(editor, cut = false) {
         }
         wizardState.mode = 'paste';
         // Build minimal canonical data for each tile, respecting toggles
-        const opts = window.tileCopyOptions || { wormholes: true, customAdjacents: true, borderAnomalies: true };
+        const opts = window.tileCopyOptions || { wormholes: true, customAdjacents: true, borderAnomalies: true, tokens: true };
         wizardState.tileData = wizardState.selectedLabels.map(label => {
             const hex = editor.hexes[label];
             if (!hex) return null;
@@ -158,6 +158,8 @@ export function startCopyPasteWizard(editor, cut = false) {
                     borderAnomalies: opts.borderAnomalies && hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
                     systemLore: hex.systemLore ? JSON.parse(JSON.stringify(hex.systemLore)) : undefined,
                     planetLore: hex.planetLore ? JSON.parse(JSON.stringify(hex.planetLore)) : undefined,
+                    systemTokens: opts.tokens ? (hex.systemTokens ? [...hex.systemTokens] : []) : [],
+                    planetTokens: opts.tokens ? (hex.planetTokens ? JSON.parse(JSON.stringify(hex.planetTokens)) : {}) : {},
                     label,
                     q: hex.q,
                     r: hex.r
@@ -175,6 +177,8 @@ export function startCopyPasteWizard(editor, cut = false) {
                     borderAnomalies: opts.borderAnomalies && hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
                     systemLore: hex.systemLore ? JSON.parse(JSON.stringify(hex.systemLore)) : undefined,
                     planetLore: hex.planetLore ? JSON.parse(JSON.stringify(hex.planetLore)) : undefined,
+                    systemTokens: opts.tokens ? (hex.systemTokens ? [...hex.systemTokens] : []) : [],
+                    planetTokens: opts.tokens ? (hex.planetTokens ? JSON.parse(JSON.stringify(hex.planetTokens)) : {}) : {},
                     label,
                     q: hex.q,
                     r: hex.r
@@ -195,6 +199,8 @@ export function startCopyPasteWizard(editor, cut = false) {
                     borderAnomalies: opts.borderAnomalies && hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
                     systemLore: hex.systemLore ? JSON.parse(JSON.stringify(hex.systemLore)) : undefined,
                     planetLore: hex.planetLore ? JSON.parse(JSON.stringify(hex.planetLore)) : undefined,
+                    systemTokens: opts.tokens ? (hex.systemTokens ? [...hex.systemTokens] : []) : [],
+                    planetTokens: opts.tokens ? (hex.planetTokens ? JSON.parse(JSON.stringify(hex.planetTokens)) : {}) : {},
                     label,
                     q: hex.q,
                     r: hex.r
@@ -221,6 +227,8 @@ export function startCopyPasteWizard(editor, cut = false) {
                     borderAnomalies: opts.borderAnomalies && hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
                     systemLore: hex.systemLore ? JSON.parse(JSON.stringify(hex.systemLore)) : undefined,
                     planetLore: hex.planetLore ? JSON.parse(JSON.stringify(hex.planetLore)) : undefined,
+                    systemTokens: opts.tokens ? (hex.systemTokens ? [...hex.systemTokens] : []) : [],
+                    planetTokens: opts.tokens ? (hex.planetTokens ? JSON.parse(JSON.stringify(hex.planetTokens)) : {}) : {},
                     label,
                     q: hex.q,
                     r: hex.r
@@ -608,6 +616,10 @@ export function startCopyPasteWizard(editor, cut = false) {
             if (h.planetLore !== undefined) {
                 hex.planetLore = JSON.parse(JSON.stringify(h.planetLore));
             }
+
+            // ---- TOKENS: Restore system and planet tokens ----
+            hex.systemTokens = h.systemTokens ? [...h.systemTokens] : [];
+            hex.planetTokens = h.planetTokens ? JSON.parse(JSON.stringify(h.planetTokens)) : {};
         }
         editor.commitUndoGroup?.();
         clearPasteGhost(editor);
@@ -646,6 +658,7 @@ export function startCopyPasteWizard(editor, cut = false) {
         updateEffectsVisibility(editor);
         updateWormholeVisibility(editor);
         updateTileImageLayer(editor);
+        if (editor.tokenOverlay) editor.tokenOverlay.refresh();
         enforceSvgLayerOrder(editor.svg);
         if (editor.loreOverlay && editor.loreOverlay.isActive) editor.loreOverlay.refresh();
     }

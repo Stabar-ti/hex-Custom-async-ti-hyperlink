@@ -3,12 +3,21 @@
  * Shows token indicators for system and planet tokens
  */
 
+import { enforceSvgLayerOrder } from '../../draw/enforceSvgLayerOrder.js';
+
+// Planet positions mirror drawPlanetTypeLayer in realIDsOverlays.js:
+// angles [-90, 0, 180] (top, right, left), distance (r-17) from center, circle r=10
+const PLANET_ANGLES_DEG = [-90, 0, 180];
+const PLANET_DIST_OFFSET = 17;
+const PLANET_CIRCLE_R = 10;
+
 export class TokenOverlay {
     constructor(editor) {
         this.editor = editor;
         this.overlayGroup = null;
         this.tokenManager = window.tokenManager;
         this.visible = true;
+        this.useImages = true;
     }
 
     /**
@@ -40,13 +49,20 @@ export class TokenOverlay {
      * Refresh the entire overlay
      */
     refresh() {
+        // If the overlay group was detached (e.g. generateMap wiped the SVG), recreate it
+        if (this.overlayGroup && !this.overlayGroup.isConnected) {
+            this.overlayGroup = null;
+        }
+        if (!this.overlayGroup) {
+            this.initialize();
+        }
         if (!this.overlayGroup) {
             console.warn('TokenOverlay not initialized');
             return;
         }
 
         console.log('Refreshing token overlay...');
-        
+
         // Clear existing overlays
         this.overlayGroup.innerHTML = '';
 
@@ -56,11 +72,12 @@ export class TokenOverlay {
         }
 
         // Render tokens for all hexes
-        for (const [label, hex] of Object.entries(this.editor.hexes)) {
+        for (const hex of Object.values(this.editor.hexes)) {
             this.renderHexTokens(hex);
         }
 
-        console.log('Token overlay refreshed');
+        // Ensure token layer stays above planet/realID layers
+        enforceSvgLayerOrder(this.editor.svg);
     }
 
     /**
@@ -86,107 +103,200 @@ export class TokenOverlay {
     }
 
     /**
-     * Render system-level tokens
+     * Render system-level tokens.
+     * Single token → image indicator at bottom-center.
+     * Multiple tokens → count badge at bottom-center; click opens token popup.
      */
     renderSystemTokens(hex) {
-        const tokenCount = hex.systemTokens.length;
-        const center = hex.center;
-        const radius = this.editor.hexRadius;
+        const tokens = hex.systemTokens;
+        if (!tokens || tokens.length === 0) return;
 
-        // Position tokens in top-right area of hex
-        // Use smaller offset to stay within bounds (0.25 instead of 0.35)
-        const baseX = center.x + radius * 0.25;
-        const baseY = center.y - radius * 0.25;
+        const { x: cx, y: cy } = hex.center;
+        const r = this.editor.hexRadius;
+        // Bottom-center: planets are at top/right/left, so this area is always clear
+        const x = cx;
+        const y = cy + r * 0.35;
 
-        // Token indicator size (radius = 8, so needs 8px clearance)
-        const indicatorRadius = 10; // Include some margin for hover effect
-
-        hex.systemTokens.forEach((tokenId, index) => {
-            const tokenInfo = this.tokenManager?.getTokenInfo(tokenId);
-            
-            // Calculate position for multiple tokens (stack vertically)
-            const offsetY = index * 14;
-            let x = baseX;
-            let y = baseY + offsetY;
-
-            // Ensure token stays within hex bounds
-            // Hex extends from center - radius to center + radius
-            const maxY = center.y + radius - indicatorRadius;
-            const minY = center.y - radius + indicatorRadius;
-            const maxX = center.x + radius - indicatorRadius;
-            const minX = center.x - radius + indicatorRadius;
-            
-            y = Math.max(minY, Math.min(maxY, y));
-            x = Math.max(minX, Math.min(maxX, x));
-
-            // Create token indicator
-            const indicator = this.createTokenIndicator(
-                tokenId,
-                tokenInfo,
-                x,
-                y,
-                'system',
-                hex.label
+        if (tokens.length === 1) {
+            const info = this.tokenManager?.getTokenInfo(tokens[0]);
+            this.overlayGroup.appendChild(
+                this.createTokenIndicator(tokens[0], info, x, y, 'system', hex.label)
             );
+        } else {
+            this.overlayGroup.appendChild(
+                this.createStackBadge(tokens, 'system', x, y, hex.label)
+            );
+        }
+    }
 
-            this.overlayGroup.appendChild(indicator);
+    /**
+     * Render planet tokens grouped per planet.
+     * Each planet's tokens are anchored just below that planet's circle.
+     * Single token → image. Multiple → count badge.
+     */
+    renderPlanetTokens(hex) {
+        if (!hex.planets || hex.planets.length === 0 || !hex.planetTokens) return;
+
+        const { x: cx, y: cy } = hex.center;
+        const r = this.editor.hexRadius;
+        const PLANET_R = PLANET_CIRCLE_R;
+
+        Object.entries(hex.planetTokens).forEach(([idxStr, tokens]) => {
+            if (!tokens || tokens.length === 0) return;
+            const planetIndex = parseInt(idxStr);
+            const planet = hex.planets[planetIndex];
+            if (!planet) return;
+
+            // Replicate planet circle position from realIDsOverlays.js
+            const θ = PLANET_ANGLES_DEG[planetIndex % 3] * Math.PI / 180;
+            const px = cx + (r - PLANET_DIST_OFFSET) * Math.cos(θ);
+            const py = cy + (r - PLANET_DIST_OFFSET) * Math.sin(θ);
+
+            // Anchor token at the bottom of each planet circle regardless of planet angle.
+            // tx = px keeps horizontal alignment; ty = py + PLANET_R + TOKEN_HALF places
+            // the token's top edge flush with the planet circle's bottom edge.
+            // This stays inside the hex for all three planet positions (top/right/left).
+            const tx = px;
+            const ty = py + PLANET_R;
+
+            const planetName = planet.name || `Planet ${planetIndex + 1}`;
+
+            if (tokens.length === 1) {
+                const info = this.tokenManager?.getTokenInfo(tokens[0]);
+                this.overlayGroup.appendChild(
+                    this.createTokenIndicator(tokens[0], info, tx, ty, 'planet', hex.label, planetName)
+                );
+            } else {
+                this.overlayGroup.appendChild(
+                    this.createStackBadge(tokens, 'planet', tx, ty, hex.label, planetName)
+                );
+            }
         });
     }
 
     /**
-     * Render planet tokens
+     * Create a count badge for a stack of tokens.
+     * Shows a filled circle with the token count.
+     * Tooltip lists all token names. Click opens the token popup.
      */
-    renderPlanetTokens(hex) {
-        if (!hex.planets || hex.planets.length === 0) return;
+    createStackBadge(tokens, type, x, y, hexLabel, planetName = null) {
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        group.classList.add('token-indicator', 'token-stack');
+        group.setAttribute('data-hex', hexLabel);
+        group.setAttribute('data-type', type);
 
-        const center = hex.center;
-        const radius = this.editor.hexRadius;
+        const R = 8;
+        const bgColor = type === 'system' ? '#2980b9' : '#d4870a';
 
-        // Position planet tokens in bottom-left area
-        // Use smaller offset to stay within bounds (0.25/0.2 instead of 0.35/0.3)
-        const baseX = center.x - radius * 0.25;
-        const baseY = center.y + radius * 0.2;
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', x);
+        circle.setAttribute('cy', y);
+        circle.setAttribute('r', R);
+        circle.setAttribute('fill', bgColor);
+        circle.setAttribute('stroke', '#fff');
+        circle.setAttribute('stroke-width', '1.5');
+        circle.setAttribute('opacity', '0.95');
+        group.appendChild(circle);
 
-        // Token indicator size (radius = 8, so needs 8px clearance)
-        const indicatorRadius = 10; // Include some margin for hover effect
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x);
+        text.setAttribute('y', y + 3);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('font-size', '8');
+        text.setAttribute('font-weight', 'bold');
+        text.setAttribute('fill', '#fff');
+        text.textContent = tokens.length;
+        group.appendChild(text);
 
-        Object.entries(hex.planetTokens).forEach(([planetIndex, tokens]) => {
-            const planet = hex.planets[parseInt(planetIndex)];
-            if (!planet) return;
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        const names = tokens.map(id => this.tokenManager?.getTokenInfo(id)?.name || id);
+        title.textContent = (planetName ? `${planetName}:\n` : 'System tokens:\n') + names.join('\n');
+        group.appendChild(title);
 
-            tokens.forEach((tokenId, tokenIndex) => {
-                const tokenInfo = this.tokenManager?.getTokenInfo(tokenId);
-                
-                // Stack tokens for the same planet
-                const offsetX = parseInt(planetIndex) * 16;
-                const offsetY = tokenIndex * 14;
-                let x = baseX + offsetX;
-                let y = baseY + offsetY;
+        group.style.cursor = 'pointer';
+        group.style.pointerEvents = 'auto';
 
-                // Ensure token stays within hex bounds
-                // Hex extends from center - radius to center + radius
-                const maxY = center.y + radius - indicatorRadius;
-                const minY = center.y - radius + indicatorRadius;
-                const maxX = center.x + radius - indicatorRadius;
-                const minX = center.x - radius + indicatorRadius;
-                
-                y = Math.max(minY, Math.min(maxY, y));
-                x = Math.max(minX, Math.min(maxX, x));
+        // Fan-out elements, created on hover and destroyed on leave
+        let fanItems = null;
 
-                // Create token indicator
-                const indicator = this.createTokenIndicator(
-                    tokenId,
-                    tokenInfo,
-                    x,
-                    y,
-                    'planet',
-                    hex.label,
-                    planet.name || `Planet ${parseInt(planetIndex) + 1}`
-                );
+        const showFan = () => {
+            if (fanItems) return;
+            fanItems = [];
+            const FAN_R = 30;
+            const IMG_SIZE = 20;
+            // Spread tokens in an arc centred upward (-π/2), capped at 120° total
+            const totalSpreadRad = Math.min((tokens.length - 1) * 0.55, Math.PI * 2 / 3);
+            const centerAngle = -Math.PI / 2;
 
-                this.overlayGroup.appendChild(indicator);
+            tokens.forEach((tokenId, i) => {
+                const info = this.tokenManager?.getTokenInfo(tokenId);
+                const angle = tokens.length === 1
+                    ? centerAngle
+                    : centerAngle - totalSpreadRad / 2 + (totalSpreadRad / (tokens.length - 1)) * i;
+
+                const fx = x + FAN_R * Math.cos(angle);
+                const fy = y + FAN_R * Math.sin(angle);
+
+                const fanGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                fanGroup.style.pointerEvents = 'none';
+
+                if (this.useImages && info?.imagePath) {
+                    const src = info.isAttachment
+                        ? `./public/attachment_token/${info.imagePath}`
+                        : `./public/tokens/${info.imagePath}`;
+                    const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+                    img.setAttribute('href', src);
+                    img.setAttribute('x', fx - IMG_SIZE / 2);
+                    img.setAttribute('y', fy - IMG_SIZE / 2);
+                    img.setAttribute('width', IMG_SIZE);
+                    img.setAttribute('height', IMG_SIZE);
+                    fanGroup.appendChild(img);
+                } else {
+                    const fc = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    fc.setAttribute('cx', fx);
+                    fc.setAttribute('cy', fy);
+                    fc.setAttribute('r', '9');
+                    fc.setAttribute('fill', type === 'system' ? '#2980b9' : '#d4870a');
+                    fc.setAttribute('stroke', '#fff');
+                    fc.setAttribute('stroke-width', '1.5');
+                    fanGroup.appendChild(fc);
+                }
+
+                const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                t.textContent = info?.name || tokenId;
+                fanGroup.appendChild(t);
+
+                group.appendChild(fanGroup);
+                fanItems.push(fanGroup);
             });
+        };
+
+        const hideFan = () => {
+            if (!fanItems) return;
+            fanItems.forEach(el => el.remove());
+            fanItems = null;
+        };
+
+        group.addEventListener('mouseenter', () => {
+            circle.setAttribute('r', R + 2);
+            circle.setAttribute('opacity', '1');
+            showFan();
         });
+        group.addEventListener('mouseleave', () => {
+            circle.setAttribute('r', R);
+            circle.setAttribute('opacity', '0.95');
+            hideFan();
+        });
+
+        // Click: open token popup so user can manage individual tokens
+        group.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof window.showTokenPopup === 'function') {
+                window.showTokenPopup(hexLabel);
+            }
+        });
+
+        return group;
     }
 
     /**
@@ -199,107 +309,89 @@ export class TokenOverlay {
         group.setAttribute('data-hex', hexLabel);
         group.setAttribute('data-type', type);
 
-        // Background circle with color based on type and properties
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', x);
-        circle.setAttribute('cy', y);
-        circle.setAttribute('r', '8');
-        
-        // Determine fill color
-        let fillColor = type === 'system' ? '#3498db' : '#f39c12';
-        let strokeColor = '#fff';
-        let strokeWidth = '1.5';
-        
-        if (tokenInfo && tokenInfo.isAttachment) {
-            if (tokenInfo.isLegendary) {
-                fillColor = '#f1c40f'; // Gold for legendary
-                strokeColor = '#fff';
-                strokeWidth = '2';
-            } else if (tokenInfo.addsTechSpeciality) {
-                fillColor = '#3498db'; // Blue for tech
-            } else if (tokenInfo.modifiesResources || tokenInfo.modifiesInfluence) {
-                fillColor = '#27ae60'; // Green for stat modifiers
-            } else {
-                fillColor = '#9b59b6'; // Purple for other attachments
+        const SIZE = 20;
+
+        if (this.useImages && tokenInfo?.imagePath) {
+            // Render token image
+            const src = tokenInfo.isAttachment
+                ? `./public/attachment_token/${tokenInfo.imagePath}`
+                : `./public/tokens/${tokenInfo.imagePath}`;
+
+            const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+            img.setAttribute('href', src);
+            img.setAttribute('x', x - SIZE / 2);
+            img.setAttribute('y', y - SIZE / 2);
+            img.setAttribute('width', SIZE);
+            img.setAttribute('height', SIZE);
+            img.setAttribute('opacity', '0.9');
+            group.appendChild(img);
+
+            group.addEventListener('mouseenter', () => {
+                img.setAttribute('opacity', '1');
+                img.setAttribute('x', x - SIZE / 2 - 2);
+                img.setAttribute('y', y - SIZE / 2 - 2);
+                img.setAttribute('width', SIZE + 4);
+                img.setAttribute('height', SIZE + 4);
+            });
+            group.addEventListener('mouseleave', () => {
+                img.setAttribute('opacity', '0.9');
+                img.setAttribute('x', x - SIZE / 2);
+                img.setAttribute('y', y - SIZE / 2);
+                img.setAttribute('width', SIZE);
+                img.setAttribute('height', SIZE);
+            });
+        } else {
+            // Fallback: colored circle with type-based color
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', '8');
+
+            let fillColor = type === 'system' ? '#3498db' : '#f39c12';
+            const strokeColor = '#fff';
+            let strokeWidth = '1.5';
+            if (tokenInfo?.isAttachment) {
+                if (tokenInfo.isLegendary) { fillColor = '#f1c40f'; strokeWidth = '2'; }
+                else if (tokenInfo.addsTechSpeciality) fillColor = '#3498db';
+                else if (tokenInfo.modifiesResources || tokenInfo.modifiesInfluence) fillColor = '#27ae60';
+                else fillColor = '#9b59b6';
             }
-        }
-        
-        circle.setAttribute('fill', fillColor);
-        circle.setAttribute('stroke', strokeColor);
-        circle.setAttribute('stroke-width', strokeWidth);
-        circle.setAttribute('opacity', '0.9');
-        group.appendChild(circle);
+            circle.setAttribute('fill', fillColor);
+            circle.setAttribute('stroke', strokeColor);
+            circle.setAttribute('stroke-width', strokeWidth);
+            circle.setAttribute('opacity', '0.9');
+            group.appendChild(circle);
 
-        // Icon/emoji indicator
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', x);
-        text.setAttribute('y', y + 3);
-        text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('font-size', '9');
-        text.setAttribute('fill', '#fff');
-        text.setAttribute('font-weight', 'bold');
-        
-        // Choose icon based on type and properties
-        let icon = '🎲';
-        if (tokenInfo) {
-            if (tokenInfo.isAttachment) {
-                // Special icons for attachments based on properties
-                if (tokenInfo.isLegendary) icon = '⭐';
-                else if (tokenInfo.addsTechSpeciality) icon = '🔬';
-                else if (tokenInfo.modifiesResources && tokenInfo.modifiesInfluence) icon = '💰';
-                else if (tokenInfo.modifiesResources) icon = '⚙️';
-                else if (tokenInfo.modifiesInfluence) icon = '🏛️';
-                else icon = '📎';
-            } else if (tokenInfo.id.includes('custodian')) icon = '👑';
-            else if (tokenInfo.id.includes('frontier')) icon = '🚀';
-            else if (tokenInfo.id.includes('relic')) icon = '💎';
-            else if (tokenInfo.isAnomaly) icon = '⚠️';
-            else if (tokenInfo.isPlanet) icon = '🪐';
+            group.addEventListener('mouseenter', () => {
+                circle.setAttribute('opacity', '1');
+                circle.setAttribute('r', '10');
+            });
+            group.addEventListener('mouseleave', () => {
+                circle.setAttribute('opacity', '0.9');
+                circle.setAttribute('r', '8');
+            });
         }
-        text.textContent = icon;
-        group.appendChild(text);
 
-        // Tooltip with enhanced attachment info
+        // Tooltip
         const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
         let tooltipText = tokenInfo?.name || tokenId;
         tooltipText += ` (${type})`;
-        if (planetName) {
-            tooltipText += ` - ${planetName}`;
-        }
+        if (planetName) tooltipText += ` - ${planetName}`;
         if (tokenInfo) {
             tooltipText += `\nSource: ${tokenInfo.source || 'unknown'}`;
-            
-            // Add attachment properties to tooltip
             if (tokenInfo.isAttachment) {
                 tooltipText += '\n---';
                 if (tokenInfo.isLegendary) tooltipText += '\n⭐ LEGENDARY';
-                if (tokenInfo.addsTechSpeciality) {
-                    tooltipText += `\n🔬 Tech: ${tokenInfo.techSpeciality.join(', ')}`;
-                }
-                if (tokenInfo.modifiesResources) {
-                    tooltipText += `\n⚙️ Resources: ${tokenInfo.resourcesModifier > 0 ? '+' : ''}${tokenInfo.resourcesModifier}`;
-                }
-                if (tokenInfo.modifiesInfluence) {
-                    tooltipText += `\n🏛️ Influence: ${tokenInfo.influenceModifier > 0 ? '+' : ''}${tokenInfo.influenceModifier}`;
-                }
+                if (tokenInfo.addsTechSpeciality) tooltipText += `\n🔬 Tech: ${tokenInfo.techSpeciality.join(', ')}`;
+                if (tokenInfo.modifiesResources) tooltipText += `\n⚙️ Resources: ${tokenInfo.resourcesModifier > 0 ? '+' : ''}${tokenInfo.resourcesModifier}`;
+                if (tokenInfo.modifiesInfluence) tooltipText += `\n🏛️ Influence: ${tokenInfo.influenceModifier > 0 ? '+' : ''}${tokenInfo.influenceModifier}`;
             }
         }
         title.textContent = tooltipText;
         group.appendChild(title);
 
-        // Hover effects
         group.style.cursor = 'pointer';
         group.style.pointerEvents = 'auto';
-        
-        group.addEventListener('mouseenter', () => {
-            circle.setAttribute('opacity', '1');
-            circle.setAttribute('r', '10');
-        });
-        
-        group.addEventListener('mouseleave', () => {
-            circle.setAttribute('opacity', '0.9');
-            circle.setAttribute('r', '8');
-        });
 
         // Click to remove (with confirmation)
         group.addEventListener('click', (e) => {
@@ -309,7 +401,7 @@ export class TokenOverlay {
                     this.tokenManager.removeSystemToken(hexLabel, tokenId);
                 } else {
                     const planetIndex = Object.entries(this.editor.hexes[hexLabel].planetTokens)
-                        .find(([idx, tokens]) => tokens.includes(tokenId))?.[0];
+                        .find(([, tokens]) => tokens.includes(tokenId))?.[0];
                     if (planetIndex !== undefined) {
                         this.tokenManager.removePlanetToken(hexLabel, planetIndex, tokenId);
                     }
@@ -363,6 +455,14 @@ export class TokenOverlay {
         } else {
             this.show();
         }
+    }
+
+    /**
+     * Toggle between image and circle rendering, then refresh
+     */
+    setUseImages(enabled) {
+        this.useImages = enabled;
+        this.refresh();
     }
 
     /**

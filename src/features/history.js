@@ -107,6 +107,7 @@ export function initHistory(editor) {
     redrawAllRealIDOverlays(this);
     drawCustomAdjacencyLayer(this);
     drawBorderAnomaliesLayer(this);
+    if (this.tokenOverlay) this.tokenOverlay.refresh();
     refreshSystemList(); // ⬅️ Ensure filter/search updates after undo
     // allow the next saveState() to go through
     lastRestoredId = null;
@@ -130,6 +131,7 @@ export function initHistory(editor) {
     redrawAllRealIDOverlays(this);
     drawCustomAdjacencyLayer(this);
     drawBorderAnomaliesLayer(this);
+    if (this.tokenOverlay) this.tokenOverlay.refresh();
     refreshSystemList(); // ⬅️ Ensure filter/search updates after redo
     lastRestoredId = null;
   };
@@ -152,6 +154,8 @@ export function initHistory(editor) {
       customAdjacents: hex.customAdjacents ? JSON.parse(JSON.stringify(hex.customAdjacents)) : undefined,
       adjacencyOverrides: hex.adjacencyOverrides ? JSON.parse(JSON.stringify(hex.adjacencyOverrides)) : undefined,
       borderAnomalies: hex.borderAnomalies ? JSON.parse(JSON.stringify(hex.borderAnomalies)) : undefined,
+      systemTokens: hex.systemTokens ? [...hex.systemTokens] : [],
+      planetTokens: hex.planetTokens ? JSON.parse(JSON.stringify(hex.planetTokens)) : {},
     };
   };
 
@@ -236,10 +240,15 @@ export function initHistory(editor) {
       toggleWormhole(this, snap.id, w);
     }
 
-    // 3. Re-draw sector, overlays, wormholes, links
+    // 3. Restore token state
+    hex.systemTokens = snap.systemTokens ? [...snap.systemTokens] : [];
+    hex.planetTokens = snap.planetTokens ? JSON.parse(JSON.stringify(snap.planetTokens)) : {};
+    this.tokenOverlay?.updateHex(snap.id);
+
+    // 4. Re-draw sector, overlays, wormholes, links
     this.setSectorType(snap.id, hex.baseType);         // fill, possibly removes overlays
     hex.effects.forEach(eff => applyEffectToHex(this, snap.id, eff));
     drawMatrixLinks(this, snap.id, hex.matrix);
-    // 4. All overlays are rebuilt by redrawAllRealIDOverlays in undo/redo above
+    // 5. All overlays are rebuilt by redrawAllRealIDOverlays in undo/redo above
   };
 }

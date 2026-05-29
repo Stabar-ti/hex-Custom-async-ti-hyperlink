@@ -102,6 +102,7 @@ export class TokenManager {
             return false;
         }
 
+        this.editor.saveState(hexLabel);
         hex.systemTokens.push(tokenId);
         console.log(`Added system token ${tokenId} to hex ${hexLabel}`);
         return true;
@@ -121,6 +122,7 @@ export class TokenManager {
             return false;
         }
 
+        this.editor.saveState(hexLabel);
         hex.systemTokens.splice(index, 1);
         console.log(`Removed system token ${tokenId} from hex ${hexLabel}`);
         return true;
@@ -165,6 +167,7 @@ export class TokenManager {
             return false;
         }
 
+        this.editor.saveState(hexLabel);
         hex.planetTokens[planetIndex].push(tokenId);
         console.log(`Added planet token ${tokenId} to hex ${hexLabel}, planet ${planetIndex}`);
         return true;
@@ -184,8 +187,9 @@ export class TokenManager {
             return false;
         }
 
+        this.editor.saveState(hexLabel);
         hex.planetTokens[planetIndex].splice(index, 1);
-        
+
         // Clean up empty arrays
         if (hex.planetTokens[planetIndex].length === 0) {
             delete hex.planetTokens[planetIndex];
@@ -270,72 +274,6 @@ export class TokenManager {
         
         console.log(`Cleared tokens from ${clearedCount} hexes`);
         return clearedCount;
-    }
-
-    /**
-     * Export all token data
-     */
-    exportTokens() {
-        const tokenData = {};
-        
-        for (const [label, hex] of Object.entries(this.editor.hexes)) {
-            if ((hex.systemTokens && hex.systemTokens.length > 0) ||
-                (hex.planetTokens && Object.keys(hex.planetTokens).length > 0)) {
-                
-                tokenData[label] = {
-                    system: hex.systemTokens || [],
-                    planets: hex.planetTokens || {}
-                };
-            }
-        }
-        
-        return tokenData;
-    }
-
-    /**
-     * Import token data
-     */
-    importTokens(tokenData) {
-        if (!tokenData || typeof tokenData !== 'object') {
-            console.warn('Invalid token data for import');
-            return 0;
-        }
-
-        let importedCount = 0;
-        
-        for (const [hexLabel, hexTokens] of Object.entries(tokenData)) {
-            const hex = this.editor.hexes[hexLabel];
-            if (!hex) {
-                console.warn(`Hex ${hexLabel} not found during import`);
-                continue;
-            }
-
-            // Import system tokens
-            if (hexTokens.system && Array.isArray(hexTokens.system)) {
-                hex.systemTokens = [...hexTokens.system];
-            }
-
-            // Import planet tokens
-            if (hexTokens.planets && typeof hexTokens.planets === 'object') {
-                hex.planetTokens = {};
-                for (const [planetIdx, tokens] of Object.entries(hexTokens.planets)) {
-                    if (Array.isArray(tokens)) {
-                        hex.planetTokens[planetIdx] = [...tokens];
-                    }
-                }
-            }
-
-            importedCount++;
-        }
-
-        console.log(`Imported tokens for ${importedCount} hexes`);
-        
-        // Refresh token overlay if it exists and is active
-        if (this.editor && this.editor.tokenOverlay) {
-            this.editor.tokenOverlay.refresh();
-        }
-
-        return importedCount;
     }
 
     /**

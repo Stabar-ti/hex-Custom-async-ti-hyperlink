@@ -483,9 +483,12 @@ export async function exportMapInfo(editor, options = {}) {
         }
       }
 
+      const placedAttachments = (hex.planetTokens && hex.planetTokens[planetIndex])
+        ? hex.planetTokens[planetIndex]
+        : [];
       return {
         planetID: planet.id || planet.planetID || '',
-        attachments: planet.attachments || [],
+        attachments: [...(planet.attachments || []), ...placedAttachments],
         planetLore: planetLore
       };
     });
@@ -494,6 +497,11 @@ export async function exportMapInfo(editor, options = {}) {
     const tokens = [];
     if (hex.tokens) {
       tokens.push(...hex.tokens);
+    }
+
+    // Add user-placed system tokens
+    if (hex.systemTokens && hex.systemTokens.length > 0) {
+      tokens.push(...hex.systemTokens);
     }
 
     // Add custom wormholes as tokens using dynamic token map

@@ -1162,6 +1162,8 @@ Layout butoons and other Popup & Buttons
   padding: 12px 18px;
   font-size: 15px;
   max-width: 370px;
+  max-height: 80vh;
+  overflow-y: auto;
   line-height: 1.4;
   transition: opacity 0.13s;
   opacity: 0.97;

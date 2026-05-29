@@ -2,6 +2,7 @@ import { showPopup, hidePopup, resetAllPopupPositions } from './popupUI.js';
 import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 import { toggleTheme } from './uiTheme.js';
 import { checkRealIdUniqueness, generateSanityCheckSummary } from '../features/sanityCheck.js';
+import { setupHexHoverInfo } from './HexHoverInfo2.js';
 
 export function showOptionsPopup(editor) {
     // Build content dynamically, reflecting current editor options
@@ -283,9 +284,7 @@ export function showOverlayOptionsPopup() {
         }
 
         // --- NEW: Hook up tile hover info logic to the button ---
-        import('./HexHoverInfo2.js').then(({ setupHexHoverInfo }) => {
-            setupHexHoverInfo(editor);
-        });
+        setupHexHoverInfo(editor);
 
     }, 0);
 }

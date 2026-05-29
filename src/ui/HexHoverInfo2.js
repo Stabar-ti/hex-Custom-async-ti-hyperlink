@@ -8,7 +8,11 @@
  * - No global state, no recursion, no MutationObserver.
  * - Uses the same info formatting as the original.
  */
+let _hoverSetup = false;
+
 export function setupHexHoverInfo(editor) {
+    if (_hoverSetup) return;
+    _hoverSetup = true;
     // Called every time overlays popup is opened
     function bindHoverToggleButton() {
         const infoDiv = document.getElementById('hexHoverInfo');
@@ -113,6 +117,29 @@ export function setupHexHoverInfo(editor) {
                 html += `</ul>`;
             } else {
                 html += `<b>Planets:</b> -<br>`;
+            }
+            const tm = window.tokenManager;
+            const hasSystemTokens = hex.systemTokens && hex.systemTokens.length > 0;
+            const hasPlanetTokens = hex.planetTokens && Object.keys(hex.planetTokens).length > 0;
+            if (hasSystemTokens || hasPlanetTokens) {
+                html += `<b>Tokens:</b>`;
+                if (hasSystemTokens) {
+                    const names = hex.systemTokens.map(id => tm?.getTokenInfo(id)?.name || id);
+                    html += `<ul><li><i>System:</i> ${names.join(', ')}</li>`;
+                } else {
+                    html += `<ul>`;
+                }
+                if (hasPlanetTokens) {
+                    Object.entries(hex.planetTokens).forEach(([idx, tokens]) => {
+                        if (!tokens || tokens.length === 0) return;
+                        const pName = hex.planets?.[idx]?.name || `Planet ${parseInt(idx) + 1}`;
+                        const names = tokens.map(id => tm?.getTokenInfo(id)?.name || id);
+                        html += `<li><i>${pName}:</i> ${names.join(', ')}</li>`;
+                    });
+                }
+                html += `</ul>`;
+            } else {
+                html += `<b>Tokens:</b> -<br>`;
             }
             if (matrix && matrix.length) {
                 html += `<b>Hyperlane Matrix:</b><pre>${matrix.map(row => row.join(' ')).join('\n')}</pre>`;
