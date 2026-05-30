@@ -1,5 +1,5 @@
 // features/assignSystem.js
-import { toggleWormhole } from '../features/wormholes.js';
+import { updateHexWormholes } from '../features/wormholes.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
@@ -92,22 +92,7 @@ export function assignSystem(editor, sys, hexID) {
   );
   // Always clear customWormholes when assigning a RealID system
   hex.customWormholes = new Set();
-  // Always update the union
-  if (typeof updateHexWormholes === 'function') {
-    updateHexWormholes(hex);
-    console.log('assignSystem: after updateHexWormholes', hexID, {
-      inherentWormholes: Array.from(hex.inherentWormholes),
-      customWormholes: Array.from(hex.customWormholes),
-      wormholes: Array.from(hex.wormholes)
-    });
-  } else {
-    hex.wormholes = new Set([...hex.inherentWormholes, ...(hex.customWormholes || [])]);
-    console.log('assignSystem: after manual union', hexID, {
-      inherentWormholes: Array.from(hex.inherentWormholes),
-      customWormholes: Array.from(hex.customWormholes),
-      wormholes: Array.from(hex.wormholes)
-    });
-  }
+  updateHexWormholes(hex);
   // Draw overlays for all wormholes (inherent + custom)
   hex.wormholeOverlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
   hex.wormholeOverlays = [];

@@ -425,6 +425,7 @@ export function startCopyPasteWizard(editor, cut = false) {
                 return h.q === q && h.r === r;
             });
             if (!id) continue;
+            editor.saveState(id);
             let hex = editor.hexes[id];
             const h = { ...data, id };
 

@@ -52,6 +52,7 @@ export class LoreManager {
             return false;
         }
 
+        this.editor.saveState(hexLabel);
         hex.systemLore = { ...loreData };
         console.log(`Set system lore for hex ${hexLabel}`);
         return true;
@@ -91,6 +92,7 @@ export class LoreManager {
             hex.planetLore.push(null);
         }
 
+        this.editor.saveState(hexLabel);
         hex.planetLore[planetIndex] = { ...loreData };
         console.log(`Set planet lore for hex ${hexLabel}, planet ${planetIndex}`);
         return true;
@@ -121,7 +123,8 @@ export class LoreManager {
     removeSystemLore(hexLabel) {
         const hex = this.editor.hexes[hexLabel];
         if (!hex) return false;
-        
+
+        this.editor.saveState(hexLabel);
         hex.systemLore = null;
         console.log(`Removed system lore from hex ${hexLabel}`);
         return true;
@@ -135,7 +138,8 @@ export class LoreManager {
         if (!hex || !hex.planetLore || planetIndex >= hex.planetLore.length) {
             return false;
         }
-        
+
+        this.editor.saveState(hexLabel);
         hex.planetLore[planetIndex] = null;
         console.log(`Removed planet lore from hex ${hexLabel}, planet ${planetIndex}`);
         return true;

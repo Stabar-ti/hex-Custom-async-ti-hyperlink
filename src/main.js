@@ -467,40 +467,15 @@ svg.addEventListener('click', e => {
     const sys = editor.sectorIDLookup[editor.pendingSystemId.toUpperCase()];
     if (sys) {
       editor.beginUndoGroup();
-      editor._historyLocked = true;
-      editor.saveState(hexID);
+      editor.saveState(hexID);         // snapshot BEFORE mutation
+      editor._historyLocked = true;    // prevent cascading saves inside assignSystem
       assignSystem(editor, sys, hexID);
       editor._historyLocked = false;
       editor.commitUndoGroup();
       redrawAllRealIDOverlays(editor);
     }
     editor.pendingSystemId = null;
-    return; // <--- Prevents hyperlane drawing after system assign!
-  }
-
-  editor.selectedHex = hexID;
-
-  const pid = editor.pendingSystemId;
-  if (pid) {
-    const sys = editor.sectorIDLookup[pid.toUpperCase()];
-
-    if (sys) {
-
-      const sys = editor.sectorIDLookup[pid.toUpperCase()];
-      if (!sys) return;
-
-      editor.beginUndoGroup();
-
-      // lock history so nested setSectorType / clearAll don’t re-snapshot
-      editor._historyLocked = true;
-      editor.saveState(hexID);
-      assignSystem(editor, sys, hexID);
-      editor._historyLocked = false;
-
-      editor.commitUndoGroup();
-      redrawAllRealIDOverlays(editor);
-    }
-    editor.pendingSystemId = null;
+    return;
   }
 });
 

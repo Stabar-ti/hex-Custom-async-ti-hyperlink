@@ -59,8 +59,12 @@ export function registerClickHandler(editor) {
       return;
     }
 
-    // 5. Sector type fill (for all other modes): setSectorType now always saves history unless told to skip
+    // 5. Sector type fill (for all other modes): snapshot BEFORE clearAll wipes the hex,
+    // then lock history so setSectorType doesn't double-save.
+    this.saveState(label);
+    this._historyLocked = true;
     if (this.clearAll) this.clearAll(label);
+    this._historyLocked = false;
     this.setSectorType(label, this.mode);
 
     // --- ENFORCE SVG LAYER ORDER AFTER ANY ACTION ---

@@ -381,6 +381,8 @@ export default class HexEditor {
     }
 
     // Remove cut hexes (with clearAll and polygon/label removal), but skip corners!
+    // Lock history: deleted hexes cannot be restored, so these saves would only pollute the undo stack.
+    this._historyLocked = true;
     for (const label of oldLabels) {
       if (
         !newLabels.has(label) &&
@@ -403,6 +405,7 @@ export default class HexEditor {
         delete this.hexes[label];
       }
     }
+    this._historyLocked = false;
 
     // --- Preserve corner hex data, then redraw special corners ---
     // Save corner hex data before clearing
