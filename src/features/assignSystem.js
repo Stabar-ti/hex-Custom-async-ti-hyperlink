@@ -101,11 +101,8 @@ export function assignSystem(editor, sys, hexID) {
     const len = positions.length;
     const reversedIndex = len - 1 - (i % len);
     const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
-    const overlay = (typeof createWormholeOverlay === 'function')
-      ? createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase())
-      : null;
+    const overlay = createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase());
     if (overlay) {
-      // Tag overlay group with hex label for easy removal
       overlay.setAttribute('data-label', hexID);
       const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
       if (wormholeIconLayer) {
@@ -114,13 +111,8 @@ export function assignSystem(editor, sys, hexID) {
         editor.svg.appendChild(overlay);
       }
       hex.wormholeOverlays.push(overlay);
-      console.log('assignSystem: drew overlay', hexID, w);
-    } else {
-      console.warn('assignSystem: failed to create overlay', hexID, w);
     }
   });
-
-  console.log('assignSystem');
 
   updateTileImageLayer(editor);
   enforceSvgLayerOrder(editor.svg);

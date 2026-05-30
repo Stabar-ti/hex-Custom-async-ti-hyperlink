@@ -9,14 +9,10 @@
 
 import { hexToMatrix } from '../utils/matrix.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
-import { toggleWormhole, updateHexWormholes } from '../features/wormholes.js';
-//import { updateEffectsVisibility } from '../features/effects.js';
-//import { drawCurveLink, drawLoopCircle, drawLoopbackCurve } from '../draw/links.js';
-import { markRealIDUsed, unmarkRealIDUsed, beginBatch, endBatch, clearRealIDUsage, } from '../ui/uiFilters.js';
+import { updateHexWormholes } from '../features/wormholes.js';
+import { markRealIDUsed, beginBatch, endBatch, clearRealIDUsage } from '../ui/uiFilters.js';
 import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
-import { MAX_MAP_RINGS } from '../constants/constants.js';
-import { updateEffectsVisibility, updateWormholeVisibility } from '../features/baseOverlays.js'
-import { generateRings } from '../draw/drawHexes.js';
+import { updateEffectsVisibility, updateWormholeVisibility } from '../features/baseOverlays.js';
 import { isMatrixEmpty } from '../utils/matrix.js';
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
@@ -179,7 +175,7 @@ export function importSectorTypes(editor, tokenString) {
         hex.inherentWormholes.add(wh.toLowerCase());
       });
       // Always update the union after setting inherent/custom wormholes
-      if (typeof updateHexWormholes === 'function') updateHexWormholes(hex);
+      updateHexWormholes(hex);
       // Remove all overlays and redraw for all wormholes (inherent + custom)
       hex.wormholeOverlays?.forEach(o => o.parentNode && o.parentNode.removeChild(o));
       hex.wormholeOverlays = [];
@@ -188,9 +184,7 @@ export function importSectorTypes(editor, tokenString) {
         const len = positions.length;
         const reversedIndex = len - 1 - (i % len);
         const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
-        const overlay = (typeof createWormholeOverlay === 'function')
-          ? createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase())
-          : null;
+        const overlay = createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase());
         if (overlay) {
           const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
           if (wormholeIconLayer) {
@@ -399,9 +393,7 @@ export function importFullState(editor, jsonText) {
         const len = positions.length;
         const reversedIndex = len - 1 - (i % len);
         const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
-        const overlay = (typeof createWormholeOverlay === 'function')
-          ? createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase())
-          : null;
+        const overlay = createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase());
         if (overlay) {
           const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
           if (wormholeIconLayer) {
@@ -561,9 +553,7 @@ export function importFullState(editor, jsonText) {
         const len = positions.length;
         const reversedIndex = len - 1 - (i % len);
         const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
-        const overlay = (typeof createWormholeOverlay === 'function')
-          ? createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase())
-          : null;
+        const overlay = createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase());
         if (overlay) {
           const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
           if (wormholeIconLayer) {
@@ -617,6 +607,7 @@ export function importFullState(editor, jsonText) {
     updateEffectsVisibility(editor);
     updateWormholeVisibility(editor);
     updateTileImageLayer(editor);
+    editor.loreOverlay?.refresh();
 
   } catch (err) {
     console.error(err);
@@ -860,8 +851,6 @@ export async function importMapInfo(editor, jsonData) {
         continue;
       }
 
-      // Determine if this is a corner tile (non-numeric position)
-      const isCornerTile = !/^\d{3,4}$/.test(position);
 
       // Clean existing overlays/effects/wormholes
       hex.overlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
@@ -888,13 +877,16 @@ export async function importMapInfo(editor, jsonData) {
 
       // Import planets
       if (hexData.planets && Array.isArray(hexData.planets) && hexData.planets.length > 0) {
-        // Planets explicitly provided in JSON
-        hex.planets = hexData.planets.map(planetData => {
-          const planet = {
-            id: planetData.planetID || '',
-            planetID: planetData.planetID || '',
-            attachments: planetData.attachments || []
-          };
+        // Planets provided in JSON — merge full info from SystemInfo by planetID,
+        // so names/resources/influence are preserved alongside JSON-specific data (attachments).
+        hex.planets = hexData.planets.map((planetData, index) => {
+          const infoMatch = info.planets?.find(p =>
+            (p.id || p.planetID || '').toLowerCase() === (planetData.planetID || '').toLowerCase()
+          ) || info.planets?.[index];
+          const planet = infoMatch ? JSON.parse(JSON.stringify(infoMatch)) : {};
+          planet.id = planetData.planetID || planet.id || '';
+          planet.planetID = planetData.planetID || planet.planetID || '';
+          planet.attachments = planetData.attachments || planet.attachments || [];
           return planet;
         });
 
@@ -1044,12 +1036,7 @@ export async function importMapInfo(editor, jsonData) {
       // Set inherent wormholes from system info
       hex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
 
-      // Update hex.wormholes as union of inherent and custom
-      if (typeof updateHexWormholes === 'function') {
-        updateHexWormholes(hex);
-      } else {
-        hex.wormholes = new Set([...hex.inherentWormholes, ...hex.customWormholes]);
-      }
+      updateHexWormholes(hex);
 
       // Draw wormhole overlays for all wormholes
       hex.wormholeOverlays = [];
@@ -1058,9 +1045,7 @@ export async function importMapInfo(editor, jsonData) {
         const len = positions.length;
         const reversedIndex = len - 1 - (i % len);
         const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
-        const overlay = (typeof createWormholeOverlay === 'function')
-          ? createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase())
-          : null;
+        const overlay = createWormholeOverlay(hex.center.x + pos.dx, hex.center.y + pos.dy, w.toLowerCase());
         if (overlay) {
           const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
           if (wormholeIconLayer) {
@@ -1158,6 +1143,7 @@ export async function importMapInfo(editor, jsonData) {
     updateEffectsVisibility(editor);
     updateWormholeVisibility(editor);
     updateTileImageLayer(editor);
+    editor.loreOverlay?.refresh();
 
     console.log('importMapInfo: Import completed successfully');
 

@@ -2,7 +2,7 @@
  * Lore Module UI - User interface for managing system and planet lore
  */
 
-import { showPopup, hidePopup } from '../../ui/popupUI.js';
+import { showPopup } from '../../ui/popupUI.js';
 import { LoreManager, LORE_RECEIVERS, LORE_TRIGGERS, LORE_PINGS, LORE_PERSISTANCE } from './loreCore.js';
 
 let loreManager = null;
@@ -12,27 +12,18 @@ let copiedSystemLore = null;
 let copiedPlanetLore = null;
 
 export function installLoreUI(editor) {
-    console.log('installLoreUI called with editor:', editor);
     loreManager = new LoreManager(editor);
-    console.log('LoreManager created:', loreManager);
-    
-    // Add to global window for console access
     window.loreManager = loreManager;
     window.showLorePopup = showLorePopup;
-    console.log('Lore UI installed successfully, window.showLorePopup available:', typeof window.showLorePopup);
 }
 
 /**
  * Show the main lore management popup
  */
 export function showLorePopup() {
-    console.log('showLorePopup called');
     if (document.getElementById('lorePopup')) {
-        console.log('Lore popup already exists, returning');
         return;
     }
-    
-    console.log('Creating new lore popup...');
     
     const content = document.createElement('div');
     content.style.minWidth = '400px';
@@ -157,10 +148,65 @@ function createLoreEditorSection() {
     planetSection.innerHTML = '<h4 style="margin: 16px 0 12px 0; color: #f39c12;">Planet Lore</h4>';
     planetSection.id = 'planetLoreSection';
     
+    // Clone section
+    const cloneSection = createCloneSection();
+
     section.appendChild(systemSection);
     section.appendChild(planetSection);
-    
+    section.appendChild(cloneSection);
+
     return section;
+}
+
+function createCloneSection() {
+    const section = document.createElement('div');
+    section.style.cssText = 'margin-top:16px;padding:12px;border:1px solid #555;border-radius:6px;background:#2c3e50';
+
+    const heading = document.createElement('h5');
+    heading.style.cssText = 'margin:0 0 10px 0;color:#9b59b6';
+    heading.textContent = 'Clone Lore to Another Hex';
+    section.appendChild(heading);
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'cloneTargetInput';
+    input.placeholder = 'Target hex (e.g. 042)';
+    Object.assign(input.style, {
+        width: '140px', padding: '5px 8px', border: '1px solid #666',
+        borderRadius: '4px', background: '#34495e', color: '#fff', fontSize: '13px'
+    });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doClone('all'); });
+
+    const mkBtn = (text, color, onClick) => {
+        const btn = document.createElement('button');
+        btn.textContent = text;
+        btn.style.cssText = `padding:5px 12px;border:1px solid ${color};border-radius:4px;` +
+            `background:${color};color:#fff;cursor:pointer;font-size:13px`;
+        btn.onclick = onClick;
+        return btn;
+    };
+
+    row.appendChild(input);
+    row.appendChild(mkBtn('Clone System', '#8e44ad', () => doClone('system')));
+    row.appendChild(mkBtn('Clone All',    '#6c3483', () => doClone('all')));
+
+    const status = document.createElement('div');
+    status.id = 'cloneStatus';
+    status.style.cssText = 'margin-top:6px;font-size:0.85em;color:#aaa';
+
+    section.appendChild(row);
+    section.appendChild(status);
+    return section;
+
+    function doClone(type) {
+        const targetLabel = input.value.trim();
+        if (!targetLabel) { status.textContent = 'Enter a target hex label.'; return; }
+        const result = cloneLore(targetLabel, type);
+        status.textContent = result;
+    }
 }
 
 function createLoreForm(type, planetIndex = null) {
@@ -485,27 +531,16 @@ function createQuickInsertButtons(targetInputId, type = 'system', hexLabel = '',
 }
 
 function updateQuickInsertButtons(hex) {
-    console.log('updateQuickInsertButtons called with hex:', hex);
-    console.log('Hex label:', hex.label);
-    console.log('Hex planets:', hex.planets);
-    
     // Update system buttons
     const systemFooterInput = document.querySelector('#systemFooterText');
-    console.log('System footer input found:', !!systemFooterInput);
-    
     let systemButtons = [];
     if (systemFooterInput) {
-        // The button container is the previous sibling of the footer input
         const buttonContainer = systemFooterInput.previousElementSibling;
-        console.log('System button container found:', !!buttonContainer);
-        console.log('System button container style:', buttonContainer?.style?.display);
         if (buttonContainer && buttonContainer.style.display === 'flex') {
             systemButtons = buttonContainer.children;
         }
     }
-    
-    console.log('Found system buttons:', systemButtons.length);
-    
+
     if (systemButtons.length > 0) {
         const buttonTexts = [
             `/add_token tile_name:${hex.label} token:`,
@@ -513,9 +548,6 @@ function updateQuickInsertButtons(hex) {
             '/player stats trade_goods:',
             '/player stats commodities:'
         ];
-        
-        console.log('System button texts:', buttonTexts);
-        
         Array.from(systemButtons).forEach((btn, index) => {
             if (index < buttonTexts.length) {
                 btn.onclick = (e) => {
@@ -532,35 +564,23 @@ function updateQuickInsertButtons(hex) {
             }
         });
     }
-    
+
     // Update planet buttons
     const planetCount = hex.planets?.length || 0;
-    console.log('Planet count:', planetCount);
-    
     for (let i = 0; i < planetCount; i++) {
         const planet = hex.planets[i];
-        console.log(`Planet ${i}:`, planet);
-        
         const planetName = (planet && (planet.name || planet.planetID || planet.id)) || `planet_${i+1}`;
-        const cleanPlanetName = planetName.replace(/\s+/g, ''); // Remove spaces for command format
-        console.log(`Planet ${i} name: "${planetName}" -> "${cleanPlanetName}"`);
-        
+        const cleanPlanetName = planetName.replace(/\s+/g, '');
+
         const planetFooterInput = document.querySelector(`#planet${i}FooterText`);
-        console.log(`Planet ${i} footer input found:`, !!planetFooterInput);
-        
         let planetButtons = [];
         if (planetFooterInput) {
-            // The button container is the previous sibling of the footer input
             const buttonContainer = planetFooterInput.previousElementSibling;
-            console.log(`Planet ${i} button container found:`, !!buttonContainer);
-            console.log(`Planet ${i} button container style:`, buttonContainer?.style?.display);
             if (buttonContainer && buttonContainer.style.display === 'flex') {
                 planetButtons = buttonContainer.children;
             }
         }
-        
-        console.log(`Found planet ${i} buttons:`, planetButtons.length);
-        
+
         if (planetButtons.length > 0) {
             const buttonTexts = [
                 `/add_token tile_name:${hex.label} planet:${cleanPlanetName} token:`,
@@ -568,9 +588,6 @@ function updateQuickInsertButtons(hex) {
                 '/player stats trade_goods:',
                 '/player stats commodities:'
             ];
-            
-            console.log(`Planet ${i} button texts:`, buttonTexts);
-            
             Array.from(planetButtons).forEach((btn, index) => {
                 if (index < buttonTexts.length) {
                     btn.onclick = (e) => {
@@ -677,8 +694,7 @@ function updateHexStatus(message) {
 
 function loadLoreData(hexLabel) {
     const systemLore = loreManager.getSystemLore(hexLabel);
-    const planetLore = loreManager.getAllPlanetLore(hexLabel);
-    
+
     // Load system lore
     if (systemLore) {
         document.getElementById('systemLoreText').value = systemLore.loreText || '';
@@ -849,6 +865,58 @@ function clearLore(type, planetIndex) {
     }
 }
 
+function cloneLore(targetHexLabel, type) {
+    const sourceHexLabel = document.getElementById('hexLabelInput')?.value.trim();
+    if (!sourceHexLabel) return 'No source hex selected.';
+    if (sourceHexLabel === targetHexLabel) return 'Source and target are the same hex.';
+
+    const sourceHex = loreManager.editor.hexes[sourceHexLabel];
+    const targetHex = loreManager.editor.hexes[targetHexLabel];
+    if (!sourceHex) return `Source hex ${sourceHexLabel} not found.`;
+    if (!targetHex) return `Target hex ${targetHexLabel} not found.`;
+
+    let clonedSystem = false;
+    let clonedPlanets = 0;
+
+    if ((type === 'system' || type === 'all') && sourceHex.systemLore) {
+        const lore = _applyHexReplacements({ ...sourceHex.systemLore }, targetHex, null);
+        loreManager.setSystemLore(targetHexLabel, lore);
+        clonedSystem = true;
+    }
+
+    if (type === 'all' && sourceHex.planetLore) {
+        Object.entries(sourceHex.planetLore).forEach(([idx, lore]) => {
+            if (!lore) return;
+            const i = parseInt(idx);
+            const updated = _applyHexReplacements({ ...lore }, targetHex, i);
+            loreManager.addPlanetLore(targetHexLabel, i, updated);
+            clonedPlanets++;
+        });
+    }
+
+    if (!clonedSystem && clonedPlanets === 0) return `No lore found on hex ${sourceHexLabel} to clone.`;
+
+    if (loreManager.editor.loreOverlay) loreManager.editor.loreOverlay.refresh();
+
+    const parts = [];
+    if (clonedSystem) parts.push('system lore');
+    if (clonedPlanets > 0) parts.push(`${clonedPlanets} planet lore entry${clonedPlanets > 1 ? 's' : ''}`);
+    return `Cloned ${parts.join(' + ')} to hex ${targetHexLabel}.`;
+}
+
+function _applyHexReplacements(loreData, targetHex, planetIndex) {
+    if (!loreData.footerText?.includes('tile_name:')) return loreData;
+    loreData.footerText = loreData.footerText.replace(/tile_name:\w+/g, `tile_name:${targetHex.label}`);
+    if (planetIndex !== null) {
+        const planet = targetHex.planets?.[planetIndex];
+        if (planet) {
+            const pName = (planet.name || planet.planetID || planet.id || '').replace(/\s+/g, '');
+            if (pName) loreData.footerText = loreData.footerText.replace(/planet:\w+/g, `planet:${pName}`);
+        }
+    }
+    return loreData;
+}
+
 function clearSystemForm() {
     document.getElementById('systemLoreText').value = '';
     document.getElementById('systemFooterText').value = '';
@@ -1016,37 +1084,105 @@ function showLoreHelp() {
         className: 'popup-ui popup-ui-info',
         title: 'Lore Module Help',
         content: `
-            <div style="line-height: 1.6;">
-                <h4>Overview</h4>
-                <p>The Lore Module allows you to add narrative text and triggers to systems and planets.</p>
-                
-                <h4>Usage</h4>
-                <ol>
-                    <li><strong>Select a Hex:</strong> Enter the hex label (e.g., 001, 201) and click Select</li>
-                    <li><strong>System Lore:</strong> Add lore that applies to the entire system</li>
-                    <li><strong>Planet Lore:</strong> Add lore for individual planets (if the system has planets)</li>
-                    <li><strong>Configure Options:</strong>
-                        <ul>
-                            <li><strong>Receiver:</strong> Who sees the lore (CURRENT, ADJACENT, ALL)</li>
-                            <li><strong>Trigger:</strong> When it activates (CONTROLLED, ACTIVATED, EXPLORED)</li>
-                            <li><strong>Ping:</strong> Whether to notify players (YES, NO)</li>
-                            <li><strong>Persistence:</strong> How often it triggers (ONCE, ALWAYS, CONDITIONAL)</li>
+            <div style="line-height:1.6;font-size:13px">
+
+                <h4 style="color:#9b59b6;margin-top:0">Overview</h4>
+                <p style="margin-top:0">
+                    The Lore Module lets you attach narrative text and bot commands to systems and planets.
+                    Lore entries are sent to players by the AsyncTI4 bot when a trigger condition is met
+                    (e.g. a planet is controlled or a system is activated).
+                </p>
+
+                <h4 style="color:#9b59b6">Writing Lore — Step by Step</h4>
+                <ol style="margin-top:0;padding-left:18px">
+                    <li><strong>Select a hex</strong> — type the hex label (e.g. <code>042</code>) and click <em>Select</em>,
+                        or click the <em>Add Lore</em> button in the toolbar and click a hex on the map.</li>
+                    <li><strong>Fill in the lore text</strong> for the system and/or each planet.
+                        The <em>Lore Text</em> field is the narrative shown to players.
+                        The <em>Footer Text</em> field holds optional bot commands (e.g. <code>/add_token</code>).</li>
+                    <li><strong>Configure the options</strong> for each lore entry:
+                        <ul style="margin-top:4px">
+                            <li><strong>Receiver</strong> — who receives the message:
+                                <code>CURRENT</code> (active player), <code>ADJACENT</code> (neighbours), <code>ALL</code> (everyone), <code>GM</code> (game master only)</li>
+                            <li><strong>Trigger</strong> — when the lore fires:
+                                <code>CONTROLLED</code> (planet controlled), <code>ACTIVATED</code> (system activated), <code>MOVED</code> (units moved in)</li>
+                            <li><strong>Ping</strong> — whether to ping the receiver: <code>YES</code> or <code>NO</code></li>
+                            <li><strong>Persistence</strong> — how many times it fires:
+                                <code>ONCE</code> (first time only), <code>ALWAYS</code> (every trigger)</li>
                         </ul>
                     </li>
+                    <li><strong>Save</strong> each entry with the <em>Save</em> button. Use <em>Clear</em> to remove lore from a slot.</li>
                 </ol>
-                
-                <h4>Export/Import</h4>
-                <p>Use Export Lore to save your lore data to a JSON file, and Import Lore to load it back.</p>
-                
-                <h4>Data Structure</h4>
-                <p>Lore data is stored in the hex properties as <code>systemLore</code> and <code>planetLore</code> objects.</p>
+
+                <h4 style="color:#9b59b6">Quick-Insert Buttons</h4>
+                <p style="margin-top:0">
+                    Below each Footer Text field are quick-insert buttons that pre-fill common bot command prefixes
+                    (<code>/add_token</code>, <code>/add_units</code>, <code>/player stats</code>) with the correct
+                    tile name and planet name already filled in.
+                </p>
+
+                <h4 style="color:#9b59b6">Copy &amp; Paste Lore (within the popup)</h4>
+                <p style="margin-top:0">
+                    Each lore form has <em>Copy</em> and <em>Paste</em> buttons. Copying a system lore stores it to
+                    a clipboard; pasting writes it to the currently selected hex and automatically replaces any
+                    <code>tile_name:</code> and <code>planet:</code> references in the footer text with the target hex's values.
+                </p>
+
+                <h4 style="color:#9b59b6">Clone Lore to Another Hex</h4>
+                <p style="margin-top:0">
+                    At the bottom of the editor section, the <em>Clone Lore to Another Hex</em> panel lets you
+                    copy lore to a different hex in one step — no need to navigate to it first.
+                    Type the target hex label, then click:
+                </p>
+                <ul style="margin-top:0;padding-left:18px">
+                    <li><strong>Clone System</strong> — copies only the system lore to the target hex.</li>
+                    <li><strong>Clone All</strong> — copies system lore and all planet lore entries to the target hex.</li>
+                </ul>
+                <p>You can clone to multiple hexes in a row by changing the target label and clicking again.</p>
+
+                <h4 style="color:#9b59b6">Map Overlay &amp; Hover Tooltips</h4>
+                <p style="margin-top:0">
+                    Toggle <em>Lore Indicators</em> in the Overlays panel to show icons on hexes that have lore:
+                </p>
+                <ul style="margin-top:0;padding-left:18px">
+                    <li>🟢 <strong>Book</strong> — system lore only</li>
+                    <li>🟠 <strong>Scroll</strong> — planet lore only</li>
+                    <li>🟣 <strong>Star</strong> — both system and planet lore</li>
+                </ul>
+                <p>
+                    <strong>Hover</strong> any icon to read the full lore text and settings in a tooltip.
+                    The tooltip also shows <em>Copy</em> buttons — move your mouse onto the tooltip to click them.
+                </p>
+
+                <h4 style="color:#9b59b6">Ctrl+Click to Paste (map-driven)</h4>
+                <p style="margin-top:0">
+                    Once you have copied lore (via the tooltip copy buttons), a clipboard badge appears at the
+                    bottom of the screen. While the overlay is active, <strong>Ctrl+click any hex</strong> to paste:
+                </p>
+                <ul style="margin-top:0;padding-left:18px">
+                    <li><strong>System lore</strong> — pastes immediately to the clicked hex.</li>
+                    <li><strong>Planet lore, single planet</strong> — pastes immediately to planet 1.</li>
+                    <li><strong>Planet lore, multiple planets</strong> — a small picker appears; click the planet to paste to.</li>
+                </ul>
+                <p>The clipboard stays set so you can Ctrl+click many hexes in a row.
+                   Footer text <code>tile_name:</code> and <code>planet:</code> references are updated automatically for each target.</p>
+
+                <h4 style="color:#9b59b6">Export / Import</h4>
+                <p style="margin-top:0">
+                    Use <em>Export Lore</em> to download all lore data as a JSON file.
+                    Use <em>Import Lore</em> to load it back — useful for sharing lore between maps or restoring a backup.
+                    Lore is also saved as part of the full map state when you export the map normally.
+                </p>
+
             </div>
         `,
         draggable: true,
         dragHandleSelector: '.popup-ui-titlebar',
         style: {
-            minWidth: '400px',
-            maxWidth: '600px',
+            minWidth: '460px',
+            maxWidth: '640px',
+            maxHeight: '80vh',
+            overflowY: 'auto',
             border: '2px solid #9b59b6'
         }
     });

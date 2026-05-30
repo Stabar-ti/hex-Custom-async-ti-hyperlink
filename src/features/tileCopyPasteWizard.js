@@ -622,17 +622,21 @@ export function startCopyPasteWizard(editor, cut = false) {
             hex.systemTokens = h.systemTokens ? [...h.systemTokens] : [];
             hex.planetTokens = h.planetTokens ? JSON.parse(JSON.stringify(h.planetTokens)) : {};
         }
-        editor.commitUndoGroup?.();
-        clearPasteGhost(editor);
-
-        // ---- CUT FUNCTIONALITY: Clear original tiles and release paste mode ----
+        // ---- CUT FUNCTIONALITY: Snapshot and clear source tiles inside the same undo group ----
         if (wizardState.cut) {
             for (const label of wizardState.selectedLabels) {
                 if (editor.hexes[label]) {
+                    editor.saveState(label);
                     removeWormholeOverlay(editor, label);
                     editor.clearAll(label);
                 }
             }
+        }
+
+        editor.commitUndoGroup?.();
+        clearPasteGhost(editor);
+
+        if (wizardState.cut) {
             wizardState.mode = null;
             wizardState.rotateSelection = null;
             clearHighlights(editor);

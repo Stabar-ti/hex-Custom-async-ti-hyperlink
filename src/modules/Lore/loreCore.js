@@ -54,7 +54,6 @@ export class LoreManager {
 
         this.editor.saveState(hexLabel);
         hex.systemLore = { ...loreData };
-        console.log(`Set system lore for hex ${hexLabel}`);
         return true;
     }
 
@@ -82,19 +81,13 @@ export class LoreManager {
             return false;
         }
 
-        // Initialize planet lore array if not exists
-        if (!hex.planetLore) {
-            hex.planetLore = [];
-        }
-
-        // Ensure array is large enough
-        while (hex.planetLore.length <= planetIndex) {
-            hex.planetLore.push(null);
+        // Use plain object keyed by planet index (consistent with import/export/history paths)
+        if (!hex.planetLore || Array.isArray(hex.planetLore)) {
+            hex.planetLore = {};
         }
 
         this.editor.saveState(hexLabel);
         hex.planetLore[planetIndex] = { ...loreData };
-        console.log(`Set planet lore for hex ${hexLabel}, planet ${planetIndex}`);
         return true;
     }
 
@@ -103,10 +96,8 @@ export class LoreManager {
      */
     getPlanetLore(hexLabel, planetIndex) {
         const hex = this.editor.hexes[hexLabel];
-        if (!hex || !hex.planetLore || planetIndex >= hex.planetLore.length) {
-            return null;
-        }
-        return hex.planetLore[planetIndex];
+        if (!hex || !hex.planetLore) return null;
+        return hex.planetLore[planetIndex] ?? null;
     }
 
     /**
@@ -114,7 +105,7 @@ export class LoreManager {
      */
     getAllPlanetLore(hexLabel) {
         const hex = this.editor.hexes[hexLabel];
-        return hex?.planetLore || [];
+        return hex?.planetLore || {};
     }
 
     /**
@@ -126,7 +117,6 @@ export class LoreManager {
 
         this.editor.saveState(hexLabel);
         hex.systemLore = null;
-        console.log(`Removed system lore from hex ${hexLabel}`);
         return true;
     }
 
@@ -135,13 +125,12 @@ export class LoreManager {
      */
     removePlanetLore(hexLabel, planetIndex) {
         const hex = this.editor.hexes[hexLabel];
-        if (!hex || !hex.planetLore || planetIndex >= hex.planetLore.length) {
+        if (!hex || !hex.planetLore || !(planetIndex in hex.planetLore)) {
             return false;
         }
 
         this.editor.saveState(hexLabel);
-        hex.planetLore[planetIndex] = null;
-        console.log(`Removed planet lore from hex ${hexLabel}, planet ${planetIndex}`);
+        delete hex.planetLore[planetIndex];
         return true;
     }
 
@@ -188,7 +177,7 @@ export class LoreManager {
         
         for (const [label, hex] of Object.entries(this.editor.hexes)) {
             const hasSystemLore = hex.systemLore !== null && hex.systemLore !== undefined;
-            const hasPlanetLore = hex.planetLore && hex.planetLore.some(lore => lore !== null);
+            const hasPlanetLore = hex.planetLore && Object.values(hex.planetLore).some(lore => lore != null);
             
             if (hasSystemLore || hasPlanetLore) {
                 hexesWithLore.push({
@@ -211,14 +200,12 @@ export class LoreManager {
         let clearedCount = 0;
         
         for (const hex of Object.values(this.editor.hexes)) {
-            if (hex.systemLore || (hex.planetLore && hex.planetLore.length > 0)) {
+            if (hex.systemLore || (hex.planetLore && Object.keys(hex.planetLore).length > 0)) {
                 hex.systemLore = null;
-                hex.planetLore = [];
+                hex.planetLore = {};
                 clearedCount++;
             }
         }
-        
-        console.log(`Cleared lore from ${clearedCount} hexes`);
         return clearedCount;
     }
 
@@ -229,7 +216,7 @@ export class LoreManager {
         const loreData = {};
         
         for (const [label, hex] of Object.entries(this.editor.hexes)) {
-            if (hex.systemLore || (hex.planetLore && hex.planetLore.some(lore => lore !== null))) {
+            if (hex.systemLore || (hex.planetLore && Object.values(hex.planetLore).some(lore => lore != null))) {
                 loreData[label] = {};
                 
                 if (hex.systemLore) {
@@ -267,16 +254,17 @@ export class LoreManager {
                 hex.systemLore = { ...hexLore.systemLore };
             }
             
-            if (hexLore.planetLore && Array.isArray(hexLore.planetLore)) {
-                hex.planetLore = hexLore.planetLore.map(lore => 
-                    lore && this.validateLoreData(lore) ? { ...lore } : null
-                );
+            if (hexLore.planetLore && typeof hexLore.planetLore === 'object') {
+                hex.planetLore = {};
+                Object.entries(hexLore.planetLore).forEach(([idx, lore]) => {
+                    if (lore && this.validateLoreData(lore)) {
+                        hex.planetLore[idx] = { ...lore };
+                    }
+                });
             }
-            
+
             importedCount++;
         }
-        
-        console.log(`Imported lore data for ${importedCount} hexes`);
         
         // Refresh lore overlay if it exists and is active
         if (this.editor && this.editor.loreOverlay) {

@@ -169,7 +169,7 @@ function createSectorControlsContent(editor) {
     if (typeof window.deactivateTokenMode === 'function') {
       window.deactivateTokenMode();
     }
-    
+
     // Use the new popup system if available, fallback to old modal
     if (typeof window.showSystemLookupPopup === 'function') {
       window.showSystemLookupPopup();
@@ -211,7 +211,7 @@ function createSectorControlsContent(editor) {
         btn.style.color = '';
         btn.style.fontWeight = '';
       });
-      
+
       // Deactivate lore mode if it was active
       if (typeof window.deactivateLoreMode === 'function') {
         window.deactivateLoreMode();
@@ -256,7 +256,7 @@ function createSectorControlsContent(editor) {
       btn.style.color = '';
       btn.style.fontWeight = '';
     });
-    
+
     // Deactivate lore mode if it was active
     if (typeof window.deactivateLoreMode === 'function') {
       window.deactivateLoreMode();
@@ -440,7 +440,7 @@ function createSectorControlsContent(editor) {
       btn.style.color = '';
       btn.style.fontWeight = '';
     });
-    
+
     // Deactivate lore mode if it was active
     if (typeof window.deactivateLoreMode === 'function') {
       window.deactivateLoreMode();
@@ -533,7 +533,7 @@ function createSectorControlsContent(editor) {
       btn.style.color = '';
       btn.style.fontWeight = '';
     });
-    
+
     // Deactivate lore mode if it was active
     if (typeof window.deactivateLoreMode === 'function') {
       window.deactivateLoreMode();
@@ -583,7 +583,7 @@ function createSectorControlsContent(editor) {
       btn.style.color = '';
       btn.style.fontWeight = '';
     });
-    
+
     // Deactivate lore mode if it was active
     if (typeof window.deactivateLoreMode === 'function') {
       window.deactivateLoreMode();
@@ -611,7 +611,7 @@ function createSectorControlsContent(editor) {
   const tokenPlacementBtn = document.createElement('button');
   tokenPlacementBtn.id = 'launchTokenPlacementPopup';
   tokenPlacementBtn.className = 'mode-button';
-  tokenPlacementBtn.textContent = 'EXPERIMENTAL Token Placement…';
+  tokenPlacementBtn.textContent = 'Token Placement…';
   tokenPlacementBtn.title = 'Place tokens on systems and planets';
   tokenPlacementBtn.style.width = '100%';
   tokenPlacementBtn.style.maxWidth = '200px';
@@ -625,13 +625,10 @@ function createSectorControlsContent(editor) {
   tokenPlacementBtn.style.whiteSpace = 'nowrap';
   tokenPlacementBtn.style.overflow = 'hidden';
   tokenPlacementBtn.style.flex = 'none';
-  tokenPlacementBtn.style.background = '#e74c3c';
-  tokenPlacementBtn.style.color = '#fff';
   tokenPlacementBtn.onclick = (e) => {
-    console.log('Token Placement button clicked!');
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Clear active state from other mode buttons
     container.querySelectorAll('.mode-button').forEach(btn => {
       if (btn !== tokenPlacementBtn) {
@@ -641,7 +638,7 @@ function createSectorControlsContent(editor) {
         btn.style.fontWeight = '';
       }
     });
-    
+
     // Deactivate lore mode if it was active
     if (typeof window.deactivateLoreMode === 'function') {
       window.deactivateLoreMode();
@@ -649,21 +646,15 @@ function createSectorControlsContent(editor) {
 
     // Toggle token hex selector mode
     tokenHexSelectorActive = !tokenHexSelectorActive;
-    console.log('tokenHexSelectorActive toggled to:', tokenHexSelectorActive);
-    
+
     if (tokenHexSelectorActive) {
-      console.log('Activating token hex selection mode');
-      // Activate mode
       tokenPlacementBtn.classList.add('active');
-      tokenPlacementBtn.style.background = '#c0392b';
+      tokenPlacementBtn.style.background = '#2980b9';
       tokenPlacementBtn.style.color = '#fff';
       tokenPlacementBtn.style.fontWeight = 'bold';
       tokenPlacementBtn.textContent = 'Click a Hex...';
-      
-      // Enable hex click listener
       enableTokenHexSelection();
     } else {
-      // Deactivate mode
       deactivateTokenMode();
     }
   };
@@ -687,14 +678,14 @@ function createSectorControlsContent(editor) {
   selectHexForLoreBtn.style.whiteSpace = 'nowrap';
   selectHexForLoreBtn.style.overflow = 'hidden';
   selectHexForLoreBtn.style.flex = 'none';
-  
+
   let loreHexSelectorActive = false;
-  
+
   selectHexForLoreBtn.onclick = (e) => {
     console.log('Add Lore button clicked!');
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Clear active state from other mode buttons
     container.querySelectorAll('.mode-button').forEach(btn => {
       if (btn !== selectHexForLoreBtn) {
@@ -708,7 +699,7 @@ function createSectorControlsContent(editor) {
     // Toggle lore hex selector mode
     loreHexSelectorActive = !loreHexSelectorActive;
     console.log('loreHexSelectorActive toggled to:', loreHexSelectorActive);
-    
+
     if (loreHexSelectorActive) {
       console.log('Activating lore hex selection mode');
       // Activate mode
@@ -717,7 +708,7 @@ function createSectorControlsContent(editor) {
       selectHexForLoreBtn.style.color = '#fff';
       selectHexForLoreBtn.style.fontWeight = 'bold';
       selectHexForLoreBtn.textContent = 'Click a Hex...';
-      
+
       // Enable hex click listener
       enableLoreHexSelection();
     } else {
@@ -753,14 +744,14 @@ function enableLoreHexSelection() {
   console.log('enableLoreHexSelection called');
   // Remove any existing handler first
   disableLoreHexSelection();
-  
+
   // Store the current editor mode and switch to a special lore mode
   const editor = window.editor;
   if (editor) {
     previousMode = editor.mode;
     editor.mode = 'lore-selection'; // Special mode to prevent other click handlers
   }
-  
+
   // Create new click handler
   loreHexClickHandler = (event) => {
     console.log('Lore hex click handler triggered', event.target);
@@ -772,16 +763,16 @@ function enableLoreHexSelection() {
       if (hexLabel) {
         // Select hex in lore popup
         selectHexInLorePopup(hexLabel);
-        
+
         // Don't deactivate - let user continue selecting hexes
         // Only deactivate when another button is clicked or same button is toggled
-        
+
         event.preventDefault();
         event.stopPropagation();
       }
     }
   };
-  
+
   // Add event listener to the hex map
   const svgContainer = document.querySelector('#hexMap');
   console.log('SVG container found:', !!svgContainer);
@@ -799,7 +790,7 @@ function disableLoreHexSelection() {
     editor.mode = previousMode;
     previousMode = null;
   }
-  
+
   // Remove event listener
   if (loreHexClickHandler) {
     const svgContainer = document.querySelector('#hexMap');
@@ -813,15 +804,15 @@ function disableLoreHexSelection() {
 
 function selectHexInLorePopup(hexLabel) {
   console.log('selectHexInLorePopup called with:', hexLabel);
-  
+
   // Check if lore popup is already open
   const loreInput = document.getElementById('hexLabelInput');
   console.log('loreInput found:', !!loreInput);
-  
+
   if (loreInput) {
     // Set the hex label and trigger selection
     loreInput.value = hexLabel;
-    
+
     // Trigger the select button click
     const selectBtn = document.getElementById('selectHexBtn');
     console.log('selectBtn found:', !!selectBtn);
@@ -832,7 +823,7 @@ function selectHexInLorePopup(hexLabel) {
     // Open lore popup first, then select hex
     console.log('Opening lore popup first...');
     console.log('window.showLorePopup available:', typeof window.showLorePopup);
-    
+
     // Try window.showLorePopup first (if module was already loaded)
     if (typeof window.showLorePopup === 'function') {
       console.log('Using window.showLorePopup');
@@ -845,7 +836,7 @@ function selectHexInLorePopup(hexLabel) {
       import('../modules/Lore/loreUI.js').then(mod => {
         console.log('Lore module loaded:', mod);
         const showLoreUI = mod.showLorePopup;
-        
+
         if (typeof showLoreUI === 'function') {
           console.log('Calling showLoreUI function');
           showLoreUI();
@@ -873,8 +864,8 @@ function deactivateTokenMode() {
   const btn = document.getElementById('launchTokenPlacementPopup');
   if (btn) {
     btn.classList.remove('active');
-    btn.style.background = '#e74c3c';
-    btn.style.color = '#fff';
+    btn.style.background = '';
+    btn.style.color = '';
     btn.style.fontWeight = '';
     btn.textContent = 'Token Placement…';
   }
@@ -888,14 +879,14 @@ function enableTokenHexSelection() {
   console.log('enableTokenHexSelection called');
   // Remove any existing handler first
   disableTokenHexSelection();
-  
+
   // Store the current editor mode and switch to a special token mode
   const editor = window.editor;
   if (editor) {
     previousTokenMode = editor.mode;
     editor.mode = 'token-selection'; // Special mode to prevent other click handlers
   }
-  
+
   // Create new click handler
   tokenHexClickHandler = (event) => {
     console.log('Token hex click handler triggered', event.target);
@@ -907,15 +898,15 @@ function enableTokenHexSelection() {
       if (hexLabel) {
         // Open token popup for this hex
         openTokenPopupForHex(hexLabel);
-        
+
         // Don't deactivate - let user continue selecting hexes
-        
+
         event.preventDefault();
         event.stopPropagation();
       }
     }
   };
-  
+
   // Add event listener to the hex map
   const svgContainer = document.querySelector('#hexMap');
   console.log('SVG container found:', !!svgContainer);
@@ -933,7 +924,7 @@ function disableTokenHexSelection() {
     editor.mode = previousTokenMode;
     previousTokenMode = null;
   }
-  
+
   // Remove event listener
   if (tokenHexClickHandler) {
     const svgContainer = document.querySelector('#hexMap');
@@ -947,7 +938,7 @@ function disableTokenHexSelection() {
 
 function openTokenPopupForHex(hexLabel) {
   console.log('openTokenPopupForHex called with:', hexLabel);
-  
+
   // Check if token system is initialized
   if (typeof window.showTokenPopup === 'function') {
     console.log('Opening token popup for hex:', hexLabel);

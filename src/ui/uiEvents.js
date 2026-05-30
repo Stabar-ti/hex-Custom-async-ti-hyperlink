@@ -67,9 +67,6 @@ export function registerClickHandler(editor) {
     this._historyLocked = false;
     this.setSectorType(label, this.mode);
 
-    // --- ENFORCE SVG LAYER ORDER AFTER ANY ACTION ---
-    if (typeof enforceSVGLayerOrder === "function") {
-      enforceSVGLayerOrder(this.svg);
-    }
+    enforceSvgLayerOrder(this.svg);
   };
 }

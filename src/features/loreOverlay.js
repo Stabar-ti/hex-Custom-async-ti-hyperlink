@@ -1,13 +1,17 @@
 // loreOverlay.js - Visual indicators for systems and planets with lore
+import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
+
 class LoreOverlay {
     constructor(editor) {
         this.editor = editor;
         this.isActive = false;
         this.overlayGroup = null;
+        this._hideTimer = null;
+        this._clipboard = null;        // { type, data, sourceLabel, planetIndex }
+        this._ctrlClickBound = null;   // bound Ctrl+click handler reference
     }
 
     initialize() {
-        // Create overlay group if it doesn't exist
         if (!this.overlayGroup) {
             this.overlayGroup = this.editor.svg.querySelector('#lore-overlay');
             if (!this.overlayGroup) {
@@ -17,7 +21,6 @@ class LoreOverlay {
                 this.overlayGroup.style.display = 'block';
                 this.overlayGroup.style.opacity = '1';
                 this.editor.svg.appendChild(this.overlayGroup);
-                console.log('LoreOverlay: Created overlay group', this.overlayGroup);
             }
         }
     }
@@ -33,24 +36,255 @@ class LoreOverlay {
     }
 
     show() {
-        console.log('LoreOverlay: show() called');
         this.initialize();
         this.isActive = true;
         this.render();
         this.overlayGroup.style.display = 'block';
-        
-        // Ensure proper layer ordering
-        if (typeof window !== 'undefined' && window.enforceSvgLayerOrder) {
-            window.enforceSvgLayerOrder(this.editor.svg);
-        }
-        
-        console.log('LoreOverlay: overlay group created and displayed', this.overlayGroup);
+        enforceSvgLayerOrder(this.editor.svg);
+        this._attachCtrlClickHandler();
+        this._updateClipboardBadge();
     }
 
     hide() {
         this.isActive = false;
         if (this.overlayGroup) {
             this.overlayGroup.style.display = 'none';
+        }
+        this._hideTooltip();
+        this._detachCtrlClickHandler();
+        this._updateClipboardBadge();
+    }
+
+    // ── Tooltip ──────────────────────────────────────────────────
+
+    _getOrCreateTooltip() {
+        let tip = document.getElementById('lore-icon-tooltip');
+        if (!tip) {
+            tip = document.createElement('div');
+            tip.id = 'lore-icon-tooltip';
+            Object.assign(tip.style, {
+                position:     'fixed',
+                display:      'none',
+                zIndex:       '9999',
+                maxWidth:     '320px',
+                padding:      '10px 12px',
+                background:   '#1c1c2e',
+                color:        '#f0f0f0',
+                border:       '1px solid #555',
+                borderRadius: '6px',
+                boxShadow:    '0 4px 16px rgba(0,0,0,0.7)',
+                fontSize:     '13px',
+                lineHeight:   '1.5',
+                pointerEvents:'auto',
+                fontFamily:   'inherit',
+            });
+            tip.addEventListener('mouseenter', () => clearTimeout(this._hideTimer));
+            tip.addEventListener('mouseleave', () => this._scheduleHideTooltip());
+            document.body.appendChild(tip);
+        }
+        return tip;
+    }
+
+    _showTooltip(hexLabel, e) {
+        clearTimeout(this._hideTimer);
+        const tip = this._getOrCreateTooltip();
+        tip.innerHTML = '';
+        this._buildTooltipContent(tip, hexLabel);
+        tip.style.display = 'block';
+        this._positionTooltip(e);
+    }
+
+    _positionTooltip(e) {
+        const tip = document.getElementById('lore-icon-tooltip');
+        if (!tip || tip.style.display === 'none') return;
+        const pad = 16;
+        let x = e.clientX + pad;
+        let y = e.clientY + pad;
+        requestAnimationFrame(() => {
+            const w = tip.offsetWidth;
+            const h = tip.offsetHeight;
+            if (x + w > window.innerWidth)  x = e.clientX - w - pad;
+            if (y + h > window.innerHeight) y = e.clientY - h - pad;
+            tip.style.left = x + 'px';
+            tip.style.top  = y + 'px';
+        });
+    }
+
+    _scheduleHideTooltip() {
+        clearTimeout(this._hideTimer);
+        this._hideTimer = setTimeout(() => this._hideTooltip(), 180);
+    }
+
+    _hideTooltip() {
+        clearTimeout(this._hideTimer);
+        const tip = document.getElementById('lore-icon-tooltip');
+        if (tip) tip.style.display = 'none';
+    }
+
+    _buildTooltipContent(tip, hexLabel) {
+        const hex = this.editor.hexes[hexLabel];
+        if (!hex) return;
+
+        const mkLabel = (text) => {
+            const s = document.createElement('span');
+            s.style.cssText = 'color:#aaa;font-size:11px';
+            s.textContent = text;
+            return s;
+        };
+
+        const mkMeta = (lore, parent) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'font-size:11px;color:#888;margin-bottom:4px';
+            row.append(mkLabel('Trigger: '), lore.trigger, '  ',
+                       mkLabel('Receiver: '), lore.receiver, '  ',
+                       mkLabel('Ping: '), lore.ping, '  ',
+                       mkLabel('Persist: '), lore.persistance);
+            parent.appendChild(row);
+        };
+
+        const mkCopyBtn = (label, onClick) => {
+            const btn = document.createElement('button');
+            btn.textContent = label;
+            btn.style.cssText = 'padding:2px 8px;font-size:11px;cursor:pointer;' +
+                'border:1px solid #666;border-radius:3px;background:#2c2c3e;color:#ccc;margin:2px 2px 4px 0';
+            btn.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+            return btn;
+        };
+
+        // Header
+        const header = document.createElement('div');
+        header.style.cssText = 'font-weight:bold;margin-bottom:8px;border-bottom:1px solid #444;padding-bottom:4px';
+        header.textContent = `Hex ${hexLabel}`;
+        tip.appendChild(header);
+
+        // System lore
+        if (hex.systemLore && this.hasNonEmptyLore(hex.systemLore)) {
+            const title = document.createElement('div');
+            title.style.cssText = 'color:#4CAF50;font-weight:bold;margin-bottom:4px';
+            title.textContent = 'System Lore';
+            tip.appendChild(title);
+
+            if (hex.systemLore.loreText?.trim()) {
+                const t = document.createElement('div');
+                t.style.marginBottom = '4px';
+                t.textContent = hex.systemLore.loreText.trim();
+                tip.appendChild(t);
+            }
+            if (hex.systemLore.footerText?.trim()) {
+                const f = document.createElement('div');
+                f.style.cssText = 'font-style:italic;color:#bbb;margin-bottom:4px';
+                f.textContent = hex.systemLore.footerText.trim();
+                tip.appendChild(f);
+            }
+            mkMeta(hex.systemLore, tip);
+            tip.appendChild(mkCopyBtn('Copy System Lore', () => this._copyLore(hexLabel, 'system', null)));
+        }
+
+        // Planet lore
+        if (hex.planetLore) {
+            Object.entries(hex.planetLore).forEach(([idx, lore]) => {
+                if (!this.hasNonEmptyLore(lore)) return;
+                const planetIdx = parseInt(idx);
+                const planet = hex.planets?.[planetIdx];
+                const planetName = planet?.name || planet?.planetID || `Planet ${planetIdx + 1}`;
+
+                const sep = document.createElement('div');
+                sep.style.cssText = 'border-top:1px solid #333;margin:6px 0 4px';
+                tip.appendChild(sep);
+
+                const ptitle = document.createElement('div');
+                ptitle.style.cssText = 'color:#FF9800;font-weight:bold;margin-bottom:4px';
+                ptitle.textContent = planetName;
+                tip.appendChild(ptitle);
+
+                if (lore.loreText?.trim()) {
+                    const t = document.createElement('div');
+                    t.style.marginBottom = '4px';
+                    t.textContent = lore.loreText.trim();
+                    tip.appendChild(t);
+                }
+                if (lore.footerText?.trim()) {
+                    const f = document.createElement('div');
+                    f.style.cssText = 'font-style:italic;color:#bbb;margin-bottom:4px';
+                    f.textContent = lore.footerText.trim();
+                    tip.appendChild(f);
+                }
+                mkMeta(lore, tip);
+                tip.appendChild(mkCopyBtn(`Copy ${planetName} Lore`, () => this._copyLore(hexLabel, 'planet', planetIdx)));
+            });
+        }
+
+        // Paste button (shown whenever clipboard has data)
+        if (this._clipboard) {
+            const sep = document.createElement('div');
+            sep.style.cssText = 'border-top:1px solid #444;margin:6px 0 4px';
+            tip.appendChild(sep);
+
+            const cb = this._clipboard;
+            const pasteLabel = cb.type === 'system'
+                ? `Paste System Lore (from ${cb.sourceLabel})`
+                : `Paste Planet Lore (from ${cb.sourceLabel})`;
+            tip.appendChild(mkCopyBtn(pasteLabel, () => this._pasteLore(hexLabel)));
+        }
+    }
+
+    _copyLore(hexLabel, type, planetIndex) {
+        const hex = this.editor.hexes[hexLabel];
+        if (!hex) return;
+
+        if (type === 'system' && hex.systemLore) {
+            this._clipboard = { type: 'system', data: { ...hex.systemLore }, sourceLabel: hexLabel, planetIndex: null };
+        } else if (type === 'planet' && hex.planetLore?.[planetIndex]) {
+            this._clipboard = { type: 'planet', data: { ...hex.planetLore[planetIndex] }, sourceLabel: hexLabel, planetIndex };
+        } else {
+            return;
+        }
+
+        this._updateClipboardBadge();
+
+        // Rebuild tooltip to show Paste button immediately
+        const tip = document.getElementById('lore-icon-tooltip');
+        if (tip && tip.style.display !== 'none') {
+            tip.innerHTML = '';
+            this._buildTooltipContent(tip, hexLabel);
+        }
+    }
+
+    _pasteLore(targetLabel) {
+        if (!this._clipboard) return;
+        const hex = this.editor.hexes[targetLabel];
+        if (!hex) return;
+
+        const loreData = { ...this._clipboard.data };
+
+        // Update tile_name references in footerText for the target hex
+        if (loreData.footerText?.includes('tile_name:')) {
+            loreData.footerText = loreData.footerText.replace(/tile_name:\w+/g, `tile_name:${hex.label}`);
+
+            if (this._clipboard.type === 'planet' && this._clipboard.planetIndex !== null) {
+                const planet = hex.planets?.[this._clipboard.planetIndex];
+                if (planet) {
+                    const pName = (planet.name || planet.planetID || planet.id || '').replace(/\s+/g, '');
+                    if (pName) loreData.footerText = loreData.footerText.replace(/planet:\w+/g, `planet:${pName}`);
+                }
+            }
+        }
+
+        this.editor.saveState(targetLabel);
+        if (this._clipboard.type === 'system') {
+            hex.systemLore = loreData;
+        } else {
+            if (!hex.planetLore) hex.planetLore = {};
+            hex.planetLore[this._clipboard.planetIndex] = loreData;
+        }
+
+        this.refresh();
+
+        // Rebuild tooltip to reflect updated lore on the target
+        const tip = document.getElementById('lore-icon-tooltip');
+        if (tip && tip.style.display !== 'none') {
+            tip.innerHTML = '';
+            this._buildTooltipContent(tip, targetLabel);
         }
     }
 
@@ -60,35 +294,15 @@ class LoreOverlay {
         // Clear existing indicators
         this.overlayGroup.innerHTML = '';
 
-        console.log('LoreOverlay: render() called, checking hexes:', Object.keys(this.editor.hexes).length);
-
-        // Check each hex for lore data
-        let indicatorCount = 0;
         Object.keys(this.editor.hexes).forEach(hexLabel => {
             const hex = this.editor.hexes[hexLabel];
-            if (!hex || !hex.center) {
-                if (hexLabel === '101') {
-                    console.log(`LoreOverlay: Hex 101 MISSING center! hex:`, hex);
-                }
-                return;
-            }
+            if (!hex || !hex.center) return;
 
             const loreData = this.getLoreData(hexLabel);
-            
-            // Special logging for hex 101
-            if (hexLabel === '101') {
-                console.log(`LoreOverlay: SPECIAL CHECK - Hex 101 lore data:`, loreData);
-                console.log(`LoreOverlay: Hex 101 center:`, hex.center);
-            }
-            
             if (loreData.hasSystemLore || loreData.hasPlanetLore) {
-                console.log(`LoreOverlay: Creating indicator for hex ${hexLabel}`, loreData);
-                this.createLoreIndicator(hex, loreData);
-                indicatorCount++;
+                this.createLoreIndicator(hex, loreData, hexLabel);
             }
         });
-
-        console.log(`LoreOverlay: Created ${indicatorCount} indicators`);
     }
 
     getLoreData(hexLabel) {
@@ -98,31 +312,18 @@ class LoreOverlay {
             planetCount: 0
         };
 
-        // Get the hex object directly from the editor
         const hex = this.editor.hexes[hexLabel];
-        if (!hex) {
-            console.log(`LoreOverlay: Hex ${hexLabel} not found in editor.hexes`);
-            return result;
-        }
+        if (!hex) return result;
 
-        console.log(`LoreOverlay: Checking hex ${hexLabel} for lore:`, {
-            systemLore: hex.systemLore,
-            planetLore: hex.planetLore
-        });
-
-        // Check for system lore
         if (hex.systemLore && this.hasNonEmptyLore(hex.systemLore)) {
             result.hasSystemLore = true;
-            console.log(`LoreOverlay: Found system lore for hex ${hexLabel}`);
         }
 
-        // Check for planet lore
         if (hex.planetLore) {
             Object.keys(hex.planetLore).forEach(planetIndex => {
                 if (this.hasNonEmptyLore(hex.planetLore[planetIndex])) {
                     result.hasPlanetLore = true;
                     result.planetCount++;
-                    console.log(`LoreOverlay: Found planet lore for hex ${hexLabel}, planet ${planetIndex}`);
                 }
             });
         }
@@ -131,52 +332,43 @@ class LoreOverlay {
     }
 
     hasNonEmptyLore(loreObj) {
-        if (!loreObj) {
-            console.log('LoreOverlay: loreObj is null/undefined');
-            return false;
-        }
-        
-        const hasContent = (loreObj.loreText && loreObj.loreText.trim()) ||
-               (loreObj.footerText && loreObj.footerText.trim()) ||
-               (loreObj.receiver && loreObj.receiver.trim()) ||
-               (loreObj.trigger && loreObj.trigger.trim()) ||
-               (loreObj.ping && loreObj.ping.trim()) ||
-               (loreObj.persistance && loreObj.persistance.trim());
-        
-        console.log('LoreOverlay: hasNonEmptyLore check:', loreObj, 'result:', hasContent);
-        return hasContent;
+        if (!loreObj) return false;
+        // Only treat actual text content as meaningful — enum fields always have defaults
+        return !!(
+            (loreObj.loreText && loreObj.loreText.trim()) ||
+            (loreObj.footerText && loreObj.footerText.trim())
+        );
     }
 
-    createLoreIndicator(hex, loreData) {
+    createLoreIndicator(hex, loreData, hexLabel) {
         const x = hex.center.x;
         const y = hex.center.y;
         const hexRadius = this.editor.hexRadius;
 
-        // Create container group for this hex's indicators
         const hexGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         hexGroup.setAttribute('class', 'lore-hex-indicator');
+        hexGroup.style.pointerEvents = 'all';
+        hexGroup.style.cursor = 'help';
         this.overlayGroup.appendChild(hexGroup);
 
-        // Show only one indicator per hex with priority: Combined > System > Planet
         if (loreData.hasSystemLore && loreData.hasPlanetLore) {
-            // Combined indicator (star icon) - bigger and slightly above center
             this.createStarIcon(hexGroup, x, y - hexRadius * 0.3, '#9C27B0', `System & Planet Lore (${loreData.planetCount} planets)`);
         } else if (loreData.hasSystemLore) {
-            // System lore indicator (book icon) - slightly above center
             this.createBookIcon(hexGroup, x, y - hexRadius * 0.3, '#4CAF50', 'System Lore');
         } else if (loreData.hasPlanetLore) {
-            // Planet lore indicator (scroll icon) - slightly above center
             this.createScrollIcon(hexGroup, x, y - hexRadius * 0.3, '#FF9800', `Planet Lore (${loreData.planetCount} planets)`);
         }
+
+        hexGroup.addEventListener('mouseenter', (e) => this._showTooltip(hexLabel, e));
+        hexGroup.addEventListener('mousemove',  (e) => this._positionTooltip(e));
+        hexGroup.addEventListener('mouseleave', ()  => this._scheduleHideTooltip());
     }
 
     createBookIcon(group, x, y, color, title) {
-        // Bigger book icon using rectangles
         const iconGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         iconGroup.setAttribute('transform', `translate(${x}, ${y})`);
         group.appendChild(iconGroup);
 
-        // Book cover (bigger)
         const bookCover = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         bookCover.setAttribute('x', '-12');
         bookCover.setAttribute('y', '-9');
@@ -188,7 +380,6 @@ class LoreOverlay {
         bookCover.setAttribute('rx', '3');
         iconGroup.appendChild(bookCover);
 
-        // Book spine (bigger)
         const bookSpine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         bookSpine.setAttribute('x1', '-6');
         bookSpine.setAttribute('y1', '-9');
@@ -198,19 +389,16 @@ class LoreOverlay {
         bookSpine.setAttribute('stroke-width', '2');
         iconGroup.appendChild(bookSpine);
 
-        // Add title for tooltip
         const titleElement = document.createElementNS('http://www.w3.org/2000/svg', 'title');
         titleElement.textContent = title;
         iconGroup.appendChild(titleElement);
     }
 
     createScrollIcon(group, x, y, color, title) {
-        // Bigger scroll icon using path
         const iconGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         iconGroup.setAttribute('transform', `translate(${x}, ${y})`);
         group.appendChild(iconGroup);
 
-        // Scroll background (bigger)
         const scrollBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         scrollBg.setAttribute('x', '-12');
         scrollBg.setAttribute('y', '-9');
@@ -222,7 +410,6 @@ class LoreOverlay {
         scrollBg.setAttribute('rx', '3');
         iconGroup.appendChild(scrollBg);
 
-        // Scroll lines (bigger spacing)
         [-4, 0, 4].forEach(offset => {
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             line.setAttribute('x1', '-9');
@@ -234,19 +421,16 @@ class LoreOverlay {
             iconGroup.appendChild(line);
         });
 
-        // Add title for tooltip
         const titleElement = document.createElementNS('http://www.w3.org/2000/svg', 'title');
         titleElement.textContent = title;
         iconGroup.appendChild(titleElement);
     }
 
     createStarIcon(group, x, y, color, title) {
-        // Bigger star icon
         const iconGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         iconGroup.setAttribute('transform', `translate(${x}, ${y})`);
         group.appendChild(iconGroup);
 
-        // Star shape using polygon (bigger)
         const starPath = this.createStarPath(10);
         const star = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         star.setAttribute('d', starPath);
@@ -255,7 +439,6 @@ class LoreOverlay {
         star.setAttribute('stroke-width', '2');
         iconGroup.appendChild(star);
 
-        // Add title for tooltip
         const titleElement = document.createElementNS('http://www.w3.org/2000/svg', 'title');
         titleElement.textContent = title;
         iconGroup.appendChild(titleElement);
@@ -265,7 +448,7 @@ class LoreOverlay {
         const points = [];
         const numPoints = 5;
         const innerRadius = radius * 0.4;
-        
+
         for (let i = 0; i < numPoints * 2; i++) {
             const r = (i % 2 === 0) ? radius : innerRadius;
             const angle = (i * Math.PI) / numPoints - Math.PI / 2;
@@ -273,29 +456,219 @@ class LoreOverlay {
             const y = Math.sin(angle) * r;
             points.push(`${x},${y}`);
         }
-        
+
         return `M${points.join('L')}Z`;
     }
 
-    // Update overlay when lore data changes
     refresh() {
+        // Re-initialize if the SVG was rebuilt (generateMap wipes all children)
+        if (this.overlayGroup && !this.overlayGroup.isConnected) {
+            this.overlayGroup = null;
+        }
         if (this.isActive) {
-            this.render();
+            this.show();
         }
     }
 
-    // Clean up
     destroy() {
         if (this.overlayGroup) {
             this.overlayGroup.remove();
         }
+        this._detachCtrlClickHandler();
+        document.getElementById('lore-icon-tooltip')?.remove();
+        document.getElementById('lore-clipboard-badge')?.remove();
+        document.getElementById('lore-planet-picker')?.remove();
         this.isActive = false;
+    }
+
+    // ── Ctrl+click paste ─────────────────────────────────────────
+
+    _attachCtrlClickHandler() {
+        if (this._ctrlClickBound) return;
+        this._ctrlClickBound = (e) => {
+            if (!e.ctrlKey && !e.metaKey) return;
+            if (!this._clipboard) return;
+
+            const hexEl = e.target.closest('[data-label]');
+            if (!hexEl) return;
+            const hexLabel = hexEl.getAttribute('data-label');
+            if (!hexLabel) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (this._clipboard.type === 'planet') {
+                const planetCount = this.editor.hexes[hexLabel]?.planets?.length || 0;
+                if (planetCount === 0) {
+                    this._updateClipboardBadge(`⚠ Hex ${hexLabel} has no planets — nothing pasted`);
+                    clearTimeout(this._badgeRevertTimer);
+                    this._badgeRevertTimer = setTimeout(() => this._updateClipboardBadge(), 2500);
+                } else if (planetCount === 1) {
+                    this._pasteLoreToIndex(hexLabel, 0);
+                    this._flashBadge(`✓ Pasted to ${hexLabel} planet 1 — Ctrl+click another hex to paste again`);
+                } else {
+                    this._showPlanetPicker(hexLabel, e.clientX, e.clientY);
+                }
+            } else {
+                this._pasteLore(hexLabel);
+                this._flashBadge(`✓ Pasted to ${hexLabel} — Ctrl+click another hex to paste again`);
+            }
+        };
+        this.editor.svg.addEventListener('click', this._ctrlClickBound, true);
+    }
+
+    _flashBadge(message) {
+        this._updateClipboardBadge(message);
+        clearTimeout(this._badgeRevertTimer);
+        this._badgeRevertTimer = setTimeout(() => this._updateClipboardBadge(), 2000);
+    }
+
+    _showPlanetPicker(hexLabel, clientX, clientY) {
+        document.getElementById('lore-planet-picker')?.remove();
+
+        const hex = this.editor.hexes[hexLabel];
+        if (!hex) return;
+
+        const picker = document.createElement('div');
+        picker.id = 'lore-planet-picker';
+        Object.assign(picker.style, {
+            position:     'fixed',
+            zIndex:       '10000',
+            background:   '#1c1c2e',
+            border:       '1px solid #9b59b6',
+            borderRadius: '6px',
+            padding:      '10px',
+            boxShadow:    '0 4px 16px rgba(0,0,0,0.7)',
+            fontSize:     '13px',
+            color:        '#f0f0f0',
+            minWidth:     '180px',
+        });
+
+        const title = document.createElement('div');
+        title.style.cssText = 'font-size:11px;color:#9b59b6;font-weight:bold;margin-bottom:8px';
+        title.textContent = `Paste planet lore to ${hexLabel}:`;
+        picker.appendChild(title);
+
+        (hex.planets || []).forEach((planet, idx) => {
+            const name = planet?.name || planet?.planetID || `Planet ${idx + 1}`;
+            const btn = document.createElement('button');
+            btn.textContent = name;
+            btn.style.cssText = 'display:block;width:100%;text-align:left;padding:5px 10px;' +
+                'margin-bottom:4px;border:1px solid #555;border-radius:4px;' +
+                'background:#2c2c3e;color:#ddd;cursor:pointer;font-size:13px';
+            btn.addEventListener('mouseenter', () => { btn.style.background = '#3c3c5e'; });
+            btn.addEventListener('mouseleave', () => { btn.style.background = '#2c2c3e'; });
+            btn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                picker.remove();
+                document.removeEventListener('click', closeOnOutside, true);
+                this._pasteLoreToIndex(hexLabel, idx);
+                this._flashBadge(`✓ Pasted to ${hexLabel} — ${name} — Ctrl+click another hex to paste again`);
+            });
+            picker.appendChild(btn);
+        });
+
+        const cancel = document.createElement('button');
+        cancel.textContent = 'Cancel';
+        cancel.style.cssText = 'display:block;width:100%;padding:4px 10px;margin-top:2px;' +
+            'border:1px solid #555;border-radius:4px;background:transparent;color:#888;cursor:pointer;font-size:12px';
+        cancel.addEventListener('click', (ev) => { ev.stopPropagation(); picker.remove(); document.removeEventListener('click', closeOnOutside, true); });
+        picker.appendChild(cancel);
+
+        document.body.appendChild(picker);
+
+        // Position near click, clamped to viewport
+        requestAnimationFrame(() => {
+            const pad = 8;
+            let x = clientX + pad;
+            let y = clientY + pad;
+            if (x + picker.offsetWidth  > window.innerWidth)  x = clientX - picker.offsetWidth  - pad;
+            if (y + picker.offsetHeight > window.innerHeight) y = clientY - picker.offsetHeight - pad;
+            picker.style.left = x + 'px';
+            picker.style.top  = y + 'px';
+        });
+
+        // Dismiss on outside click or Escape
+        const closeOnOutside = (ev) => {
+            if (!picker.contains(ev.target)) { picker.remove(); document.removeEventListener('click', closeOnOutside, true); }
+        };
+        setTimeout(() => document.addEventListener('click', closeOnOutside, true), 0);
+
+        const closeOnEsc = (ev) => {
+            if (ev.key === 'Escape') { picker.remove(); document.removeEventListener('keydown', closeOnEsc); }
+        };
+        document.addEventListener('keydown', closeOnEsc);
+    }
+
+    _pasteLoreToIndex(targetLabel, targetPlanetIdx) {
+        if (!this._clipboard) return;
+        const hex = this.editor.hexes[targetLabel];
+        if (!hex) return;
+
+        const loreData = { ...this._clipboard.data };
+
+        if (loreData.footerText?.includes('tile_name:')) {
+            loreData.footerText = loreData.footerText.replace(/tile_name:\w+/g, `tile_name:${hex.label}`);
+            const planet = hex.planets?.[targetPlanetIdx];
+            if (planet) {
+                const pName = (planet.name || planet.planetID || planet.id || '').replace(/\s+/g, '');
+                if (pName) loreData.footerText = loreData.footerText.replace(/planet:\w+/g, `planet:${pName}`);
+            }
+        }
+
+        this.editor.saveState(targetLabel);
+        if (!hex.planetLore) hex.planetLore = {};
+        hex.planetLore[targetPlanetIdx] = loreData;
+
+        this.refresh();
+
+        const tip = document.getElementById('lore-icon-tooltip');
+        if (tip && tip.style.display !== 'none') {
+            tip.innerHTML = '';
+            this._buildTooltipContent(tip, targetLabel);
+        }
+    }
+
+    _detachCtrlClickHandler() {
+        if (!this._ctrlClickBound) return;
+        this.editor.svg.removeEventListener('click', this._ctrlClickBound, true);
+        this._ctrlClickBound = null;
+    }
+
+    // ── Clipboard badge ───────────────────────────────────────────
+
+    _updateClipboardBadge(overrideText) {
+        let badge = document.getElementById('lore-clipboard-badge');
+        if (!this._clipboard || !this.isActive) {
+            if (badge) badge.style.display = 'none';
+            return;
+        }
+        if (!badge) {
+            badge = document.createElement('div');
+            badge.id = 'lore-clipboard-badge';
+            Object.assign(badge.style, {
+                position:      'fixed',
+                bottom:        '24px',
+                left:          '50%',
+                transform:     'translateX(-50%)',
+                padding:       '5px 16px',
+                background:    '#1c1c2e',
+                color:         '#ccc',
+                border:        '1px solid #9b59b6',
+                borderRadius:  '20px',
+                fontSize:      '12px',
+                zIndex:        '8888',
+                pointerEvents: 'none',
+                boxShadow:     '0 2px 10px rgba(0,0,0,0.6)',
+                whiteSpace:    'nowrap',
+            });
+            document.body.appendChild(badge);
+        }
+        const typeLabel = this._clipboard.type === 'system' ? 'System Lore' : 'Planet Lore';
+        badge.textContent = overrideText ||
+            `📋 Clipboard: ${typeLabel} from ${this._clipboard.sourceLabel} — Ctrl+click any hex to paste`;
+        badge.style.display = 'block';
     }
 }
 
-// Export for module usage
 export default LoreOverlay;
-
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = LoreOverlay;
-}

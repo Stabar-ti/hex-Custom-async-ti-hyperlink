@@ -206,7 +206,7 @@ export function initHistory(editor) {
                                   : null,
             planetLore:         hex.planetLore
                                   ? JSON.parse(JSON.stringify(hex.planetLore))
-                                  : {},
+                                  : null,
         };
     };
 
@@ -264,9 +264,8 @@ export function initHistory(editor) {
         hex.systemLore = snap.systemLore
             ? JSON.parse(JSON.stringify(snap.systemLore))
             : null;
-        hex.planetLore = snap.planetLore
-            ? JSON.parse(JSON.stringify(snap.planetLore))
-            : {};
+        if (snap.planetLore) hex.planetLore = JSON.parse(JSON.stringify(snap.planetLore));
+        else delete hex.planetLore;
 
         // 7. Rebuild visual representations
         // _historyLocked is true here so none of these trigger re-saves.
