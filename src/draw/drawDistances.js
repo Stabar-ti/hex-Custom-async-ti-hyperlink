@@ -1,6 +1,5 @@
 // ---- DEBUGGING TOGGLE ----
-const DEBUG_DIST = false; // Set to true to enable verbose pathfinding logs
-const DEBUG_DISTANCES = false; // set to false to disable debug logs
+const DEBUG_DIST = false; // Set to true to enable verbose pathfinding logs (covers BFS + hyperlanes)
 
 function dbg(...args) {
   if (DEBUG_DIST) console.log(...args);
@@ -11,34 +10,30 @@ function dbg(...args) {
 const neighborProviders = [];
 const movementBlockers = [];
 
-// Register a new neighbor provider
 export function registerNeighborProvider(fn) {
   neighborProviders.push(fn);
 }
 
-// Register a new movement blocker
 export function registerMovementBlocker(fn) {
   movementBlockers.push(fn);
 }
 
-// Use all providers to collect neighbors (removes dups)
+// Collect neighbors from all providers, deduplicate by label
 function getNeighbors(editor, hex, currLabel, opts) {
-  let results = [];
+  const results = [];
   for (const provider of neighborProviders) {
     const provided = provider(editor, hex, currLabel, opts);
     dbg(`[getNeighbors] Provider:`, provider.name || 'anonymous', 'from', currLabel, 'results:', provided?.length);
-    results = results.concat(provided);
+    for (const n of provided) results.push(n);
   }
-  // Remove duplicates by label
   const seen = new Set();
   return results.filter(n => !seen.has(n.label) && seen.add(n.label));
 }
 
-// Use all blockers to see if movement should be blocked
+// Return true if any blocker fires
 function isBlocked(editor, fromHex, toHex, context, opts) {
   for (const blocker of movementBlockers) {
-    const result = blocker(editor, fromHex, toHex, context, opts);
-    if (result) {
+    if (blocker(editor, fromHex, toHex, context, opts)) {
       dbg(
         `[BLOCKED] Move from ${context?.fromLabel} to ${context?.toLabel}` +
         (context?.dirIdx !== undefined ? ` (dir ${context.dirIdx})` : ''),
@@ -51,6 +46,11 @@ function isBlocked(editor, fromHex, toHex, context, opts) {
   return false;
 }
 
+// ---- Hyperlane detection helper ----
+function isHyperlane(hex) {
+  return !!(hex?.matrix?.some(row => row.includes(1)));
+}
+
 // ---- Default core neighbor providers ----
 
 // 1. Standard axial neighbors (0..5)
@@ -58,12 +58,9 @@ registerNeighborProvider((editor, hex, currLabel, opts) => {
   const arr = [];
   for (let dirIdx = 0; dirIdx < 6; dirIdx++) {
     const dir = editor.edgeDirections[dirIdx];
-    const q = hex.q + dir.q;
-    const r = hex.r + dir.r;
-    const neighbor = Object.values(editor.hexes).find(h => h.q === q && h.r === r);
-    if (!neighbor) continue;
-    const label = Object.keys(editor.hexes).find(k => editor.hexes[k] === neighbor);
-    arr.push({ label, hex: neighbor, dirIdx });
+    const label = opts?.coordToLabel?.get(`${hex.q + dir.q},${hex.r + dir.r}`);
+    if (!label) continue;
+    arr.push({ label, hex: editor.hexes[label], dirIdx });
   }
   return arr;
 });
@@ -80,17 +77,15 @@ registerNeighborProvider((editor, hex, currLabel, opts) => {
   return arr;
 });
 
-// 3. Wormholes (as extra links)
+// 3. Wormholes — uses pre-indexed wormholeIndex from opts for O(1) lookup
 registerNeighborProvider((editor, hex, currLabel, opts) => {
   if (!hex.wormholes?.size) return [];
   const arr = [];
-  for (const [label, h] of Object.entries(editor.hexes)) {
-    if (h === hex) continue;
-    if (
-      h.wormholes?.size &&
-      [...hex.wormholes].some(type => h.wormholes.has(type))
-    ) {
-      arr.push({ label, hex: h, dirIdx: null, isWormhole: true });
+  for (const type of hex.wormholes) {
+    const matching = opts?.wormholeIndex?.get(type);
+    if (!matching) continue;
+    for (const label of matching) {
+      if (label !== currLabel) arr.push({ label, hex: editor.hexes[label], dirIdx: null, isWormhole: true });
     }
   }
   return arr;
@@ -102,9 +97,7 @@ registerNeighborProvider((editor, hex, currLabel, opts) => {
   const arr = [];
   for (const neighborLabel of Object.values(hex.adjacencyOverrides)) {
     const neighbor = editor.hexes[neighborLabel];
-    if (neighbor) {
-      arr.push({ label: neighborLabel, hex: neighbor, dirIdx: null, isAdjOverride: true });
-    }
+    if (neighbor) arr.push({ label: neighborLabel, hex: neighbor, dirIdx: null, isAdjOverride: true });
   }
   return arr;
 });
@@ -112,25 +105,26 @@ registerNeighborProvider((editor, hex, currLabel, opts) => {
 // ---- Default core movement blockers ----
 
 // 1. Border anomalies (Spatial Tear & Gravity Wave)
+// Stored type may be the ID ("SPATIALTEAR") or the legacy display name ("Spatial Tear") — normalize both.
+function anomalyId(ba) { return (ba?.type ?? '').replace(/\s+/g, '').toUpperCase(); }
+
 registerMovementBlocker((editor, fromHex, toHex, ctx, opts) => {
   if (!opts.useBorderAnomalies) return false;
-  if (!fromHex || !toHex) return false; // <--- fix
-  // dirIdx = direction from fromHex to toHex (if present)
+  if (!fromHex || !toHex) return false;
   const dirIdx = ctx?.dirIdx;
   if (dirIdx == null) return false;
-  // Check spatial tear both ways
+  const oppDir = (dirIdx + 3) % 6;
+
+  // Spatial Tear: blocks both directions. Stored bidirectionally on both hexes.
   if (
-    (fromHex?.borderAnomalies && fromHex.borderAnomalies[dirIdx]?.type === "Spatial Tear") ||
-    (toHex?.borderAnomalies && toHex.borderAnomalies[(dirIdx + 3) % 6]?.type === "Spatial Tear")
-  ) {
-    return true;
-  }
-  if (
-    toHex?.borderAnomalies &&
-    toHex.borderAnomalies[(dirIdx + 3) % 6]?.type === "Gravity Wave"
-  ) {
-    return true;
-  }
+    anomalyId(fromHex.borderAnomalies?.[dirIdx]) === 'SPATIALTEAR' ||
+    anomalyId(toHex.borderAnomalies?.[oppDir]) === 'SPATIALTEAR'
+  ) return true;
+
+  // Gravity Wave: one-way. Stored only on the primary hex (first clicked).
+  // Blocks ships from entering that hex through the wave edge (toHex has GW on its inbound side).
+  if (anomalyId(toHex.borderAnomalies?.[oppDir]) === 'GRAVITYWAVE') return true;
+
   return false;
 });
 
@@ -138,9 +132,8 @@ registerMovementBlocker((editor, fromHex, toHex, ctx, opts) => {
 registerMovementBlocker((editor, fromHex, toHex, ctx, opts) => {
   if (!fromHex || !toHex) return false;
   if (!ctx?.isSource) {
-    if (opts.useSupernova && fromHex.effects?.has('supernova')) return true;
-    if (opts.useAsteroid && fromHex.effects?.has('asteroid')) return true;
-    if (fromHex.baseType === 'supernova' || fromHex.baseType === 'asteroid') return true;
+    if (opts.useSupernova && (fromHex.effects?.has('supernova') || fromHex.baseType === 'supernova')) return true;
+    if (opts.useAsteroid && (fromHex.effects?.has('asteroid') || fromHex.baseType === 'asteroid')) return true;
   }
   return false;
 });
@@ -165,13 +158,13 @@ function isPassable(hex, opts, isSource = false) {
   if (!isSource) {
     if (opts.useSupernova && hex.effects?.has('supernova')) return false;
     if (opts.useAsteroid && hex.effects?.has('asteroid')) return false;
-    // Do NOT block nebula here!
+    // Do NOT block nebula here — nebula only blocks OUT (handled by movement blocker)
   }
   if (hex.baseType === 'void') return false;
   return hex.baseType !== '';
 }
 
-// ---- Main BFS with debug ----
+// ---- Main BFS ----
 
 export function calculateDistancesFrom(
   editor,
@@ -181,37 +174,66 @@ export function calculateDistancesFrom(
 ) {
   dbg('\n========== DISTANCE CALCULATION BEGIN ==========');
   opts = {
-    useCustomLinks: editor.options?.useCustomLinks ?? true,
+    useCustomLinks:     editor.options?.useCustomLinks     ?? true,
     useBorderAnomalies: editor.options?.useBorderAnomalies ?? true,
-    useSupernova: editor.options?.useSupernova ?? true,
-    useRift: editor.options?.useRift ?? true,
-    useNebula: editor.options?.useNebula ?? true,
-    useAsteroid: editor.options?.useAsteroid ?? true,
+    useSupernova:       editor.options?.useSupernova       ?? true,
+    useRift:            editor.options?.useRift            ?? true,
+    useNebula:          editor.options?.useNebula          ?? true,
+    useAsteroid:        editor.options?.useAsteroid        ?? true,
     ...opts,
   };
 
-  // Hyperlane symmetrization (unchanged)
-  for (const hex of Object.values(editor.hexes)) {
-    if (!hex.matrix) continue;
+  // Pre-build coordinate lookup, wormhole index, and symmetrize hyperlane matrices — all in one pass
+  const coordToLabel = new Map();
+  const wormholeIndex = new Map(); // wormhole type → Set<label>
+  for (const [label, h] of Object.entries(editor.hexes)) {
+    coordToLabel.set(`${h.q},${h.r}`, label);
+    if (h.wormholes?.size) {
+      for (const type of h.wormholes) {
+        if (!wormholeIndex.has(type)) wormholeIndex.set(type, new Set());
+        wormholeIndex.get(type).add(label);
+      }
+    }
+    if (!h.matrix) continue;
+    // Symmetrize hyperlane matrices in-place so traversal is bidirectional
     for (let i = 0; i < 6; i++) {
       for (let j = 0; j < 6; j++) {
-        if (hex.matrix[i][j]) hex.matrix[j][i] = 1;
+        if (h.matrix[i][j]) h.matrix[j][i] = 1;
       }
     }
   }
+  opts.coordToLabel = coordToLabel;
+  opts.wormholeIndex = wormholeIndex;
 
   const visited = new Map();
   const sourceHex = editor.hexes[sourceLabel];
   let effectiveMaxDist = maxDist;
   let shouldShift = false;
+  visited.set(sourceLabel, 0);
   if (opts.useRift && sourceHex?.effects?.has('rift')) {
     shouldShift = true;
     effectiveMaxDist = maxDist + 1;
-    visited.set(sourceLabel, 0);
-  } else {
-    visited.set(sourceLabel, 0);
   }
   let currentLayer = new Set([sourceLabel]);
+
+  // Rift cluster flood — defined once here; takes mutable state as parameters
+  // so it doesn't implicitly capture loop-iteration variables.
+  function floodRiftCluster(label, dist, nextLayer, floodedRifts) {
+    const hex = editor.hexes[label];
+    if (!isPassable(hex, opts)) return;
+    if (visited.has(label)) return;
+    dbg(` [RIFT Flood] ${label}`);
+    visited.set(label, dist);
+    nextLayer.add(label);
+    floodedRifts.add(label);
+    for (const { label: nLabel, hex: neighbor, dirIdx } of getNeighbors(editor, hex, label, opts)) {
+      if (neighbor.effects?.has('rift') && !visited.has(nLabel)) {
+        const context = { dirIdx, isSource: false, fromLabel: label, toLabel: nLabel };
+        if (isBlocked(editor, hex, neighbor, context, opts)) continue;
+        floodRiftCluster(nLabel, dist, nextLayer, floodedRifts);
+      }
+    }
+  }
 
   // --- Main BFS ---
   for (let dist = 1; dist <= effectiveMaxDist; dist++) {
@@ -228,55 +250,47 @@ export function calculateDistancesFrom(
         const { label: nLabel, hex: neighbor, dirIdx } = neighborObj;
         if (visited.has(nLabel)) continue;
 
-        // RIFT cluster logic: only flood if passable (not nebula/supernova/asteroid/void)
-        if (
-          opts.useRift &&
-          neighbor.effects?.has('rift') &&
-          isPassable(neighbor, opts)
-        ) {
-          dbg(` [RIFT] Will flood rift at ${nLabel}`);
-          riftToFlood.add(nLabel);
-          continue;
-        }
-
-        // Check movement blockers!
+        // Check movement blockers first — before rift detection, so e.g. Spatial Tears block rift entry
         const context = { dirIdx, isSource, fromLabel: label, toLabel: nLabel, neighborObj };
         if (isBlocked(editor, current, neighbor, context, opts)) {
           dbg(` [Blocked] from ${label} to ${nLabel} (dir ${dirIdx})`);
           continue;
         }
 
-        // Standard BFS: step to passable neighbor or rift bridge
-        const isRiftBridge = current.effects?.has('rift') && neighbor.effects?.has('rift');
-        if (isPassable(neighbor, opts, isSource) || isRiftBridge) {
+        // RIFT cluster: queue for flood (only if passable — not supernova/asteroid/void)
+        if (opts.useRift && neighbor.effects?.has('rift') && isPassable(neighbor, opts)) {
+          dbg(` [RIFT] Will flood rift at ${nLabel}`);
+          riftToFlood.add(nLabel);
+          continue;
+        }
+
+        // Standard step to passable neighbor
+        if (isPassable(neighbor, opts, isSource)) {
           dbg(` [Step] ${label} → ${nLabel} (dir ${dirIdx})`);
           visited.set(nLabel, dist);
           nextLayer.add(nLabel);
         }
-        // Hyperlane expansion: traverse hyperlane connections
-        else if (neighbor.matrix && neighbor.matrix.some(r => r.includes(1)) && dirIdx != null) {
+        // Hyperlane expansion
+        else if (isHyperlane(neighbor) && dirIdx != null) {
           const entryDir = (dirIdx + 3) % 6;
           dbg(` [Hyperlane] Begin expansion from ${nLabel} (entry ${entryDir})`);
-          const endpoints = mapHyperlaneReachables(editor, nLabel, entryDir, opts);
+          const endpoints = mapHyperlaneReachables(nLabel, entryDir);
           for (const { label: dest, fromLabel, entrySide } of endpoints) {
             const destHex = editor.hexes[dest];
             const fromHex = editor.hexes[fromLabel];
             if (!destHex || visited.has(dest) || !isPassable(destHex, opts)) continue;
-            const contextHL = { dirIdx: entrySide, isSource: false, fromLabel, toLabel: dest };
+            // dirIdx = direction from fromHex to dest = opposite of entrySide
+            const contextHL = { dirIdx: (entrySide + 3) % 6, isSource: false, fromLabel, toLabel: dest };
             if (isBlocked(editor, fromHex, destHex, contextHL, opts)) {
-              dbg(`  [Blocked Hyperlane] at ${fromLabel} to ${dest} (entrySide ${entrySide})`);
+              dbg(`  [Blocked Hyperlane] at ${fromLabel} to ${dest}`);
               continue;
             }
-            if (
-              opts.useRift &&
-              destHex.effects?.has('rift') &&
-              isPassable(destHex, opts)
-            ) {
+            if (opts.useRift && destHex.effects?.has('rift') && isPassable(destHex, opts)) {
               dbg(`  [RIFT via HL] Will flood rift at ${dest}`);
               riftToFlood.add(dest);
               continue;
             }
-            dbg(`  [HL Step] from ${fromLabel} to ${dest} (entrySide ${entrySide})`);
+            dbg(`  [HL Step] from ${fromLabel} to ${dest}`);
             visited.set(dest, dist);
             nextLayer.add(dest);
           }
@@ -284,27 +298,13 @@ export function calculateDistancesFrom(
       }
     }
 
-    // RIFT cluster flooding (only if passable)
+    // Flood rift clusters reached this BFS layer
     const floodedRifts = new Set();
-    function floodRiftCluster(label) {
-      const hex = editor.hexes[label];
-      if (!isPassable(hex, opts)) return;
-      if (visited.has(label)) return;
-      dbg(` [RIFT Flood] ${label}`);
-      visited.set(label, dist);
-      nextLayer.add(label);
-      floodedRifts.add(label);
-      for (const { label: nLabel, hex: neighbor } of getNeighbors(editor, hex, label, opts)) {
-        if (neighbor.effects?.has('rift') && !visited.has(nLabel)) {
-          floodRiftCluster(nLabel);
-        }
-      }
-    }
     for (const riftLabel of riftToFlood) {
-      floodRiftCluster(riftLabel);
+      floodRiftCluster(riftLabel, dist, nextLayer, floodedRifts);
     }
 
-    // Outward from rifts
+    // Expand one step outward from each flooded rift
     for (const riftLabel of floodedRifts) {
       const riftHex = editor.hexes[riftLabel];
       for (const { label: outLabel, hex: outNeighbor, dirIdx: outDirIdx } of getNeighbors(editor, riftHex, riftLabel, opts)) {
@@ -319,28 +319,25 @@ export function calculateDistancesFrom(
           visited.set(outLabel, dist);
           nextLayer.add(outLabel);
         }
-        if (outNeighbor.matrix && outNeighbor.matrix.some(r => r.includes(1)) && outDirIdx != null) {
+        if (isHyperlane(outNeighbor) && outDirIdx != null) {
           const entryDir = (outDirIdx + 3) % 6;
           dbg(` [RIFT Hyperlane] from ${outLabel} (entry ${entryDir})`);
-          const endpoints = mapHyperlaneReachables(editor, outLabel, entryDir, opts);
+          const endpoints = mapHyperlaneReachables(outLabel, entryDir);
           for (const { label: dest, fromLabel, entrySide } of endpoints) {
             const destHex = editor.hexes[dest];
             const fromHex = editor.hexes[fromLabel];
             if (!destHex || visited.has(dest) || !isPassable(destHex, opts)) continue;
-            const contextHL = { dirIdx: entrySide, isSource: false, fromLabel, toLabel: dest };
+            // dirIdx = direction from fromHex to dest = opposite of entrySide
+            const contextHL = { dirIdx: (entrySide + 3) % 6, isSource: false, fromLabel, toLabel: dest };
             if (isBlocked(editor, fromHex, destHex, contextHL, opts)) {
-              dbg(`  [Blocked HL from Rift] at ${fromLabel} to ${dest} (entrySide ${entrySide})`);
+              dbg(`  [Blocked HL from Rift] at ${fromLabel} to ${dest}`);
               continue;
             }
-            if (
-              opts.useRift &&
-              destHex.effects?.has('rift') &&
-              isPassable(destHex, opts)
-            ) {
-              floodRiftCluster(dest);
+            if (opts.useRift && destHex.effects?.has('rift') && isPassable(destHex, opts)) {
+              floodRiftCluster(dest, dist, nextLayer, floodedRifts);
               continue;
             }
-            dbg(`  [RIFT HL Step] from ${fromLabel} to ${dest} (entrySide ${entrySide})`);
+            dbg(`  [RIFT HL Step] from ${fromLabel} to ${dest}`);
             visited.set(dest, dist);
             nextLayer.add(dest);
           }
@@ -350,42 +347,42 @@ export function calculateDistancesFrom(
     currentLayer = nextLayer;
   }
 
-  // 6. "One step out" of a rift at max distance
-  for (const [label, distValue] of Object.entries(visited)) {
-    if (distValue !== effectiveMaxDist) continue;
-    const current = editor.hexes[label];
-    for (const { label: nLabel, hex: neighbor, dirIdx } of getNeighbors(editor, current, label, opts)) {
-      if (visited.has(nLabel)) continue;
-      const context = { dirIdx, isSource: false, fromLabel: label, toLabel: nLabel };
-      if (isBlocked(editor, current, neighbor, context, opts)) continue;
-      if (isPassable(neighbor, opts)) {
-        dbg(`[RIFT "One Step Out"] ${label} → ${nLabel}`);
-        visited.set(nLabel, effectiveMaxDist);
+  // "One step out" of a rift at max distance — snapshot visited first to prevent cascading
+  if (opts.useRift) {
+    for (const [label, distValue] of [...visited]) {
+      if (distValue !== effectiveMaxDist) continue;
+      const current = editor.hexes[label];
+      if (!current.effects?.has('rift')) continue;
+      for (const { label: nLabel, hex: neighbor, dirIdx } of getNeighbors(editor, current, label, opts)) {
+        if (visited.has(nLabel)) continue;
+        const context = { dirIdx, isSource: false, fromLabel: label, toLabel: nLabel };
+        if (isBlocked(editor, current, neighbor, context, opts)) continue;
+        if (isPassable(neighbor, opts)) {
+          dbg(`[RIFT "One Step Out"] ${label} → ${nLabel}`);
+          visited.set(nLabel, effectiveMaxDist);
+        }
       }
     }
   }
 
-  // 7. Rift shift
-  const rawDistances = Object.fromEntries(visited);
+  // Rift shift: source-is-rift adds 1 to effectiveMaxDist, then subtract 1 from all non-zero distances
   if (!shouldShift) {
-    dbg('=== DISTANCE CALC COMPLETE ===', rawDistances);
-    return rawDistances;
+    dbg('=== DISTANCE CALC COMPLETE ===');
+    return Object.fromEntries(visited);
   }
   const shifted = {};
-  for (const [label, d] of Object.entries(rawDistances)) {
+  for (const [label, d] of visited) {
     shifted[label] = d === 0 ? 0 : Math.max(1, d - 1);
   }
-  dbg('=== DISTANCE CALC COMPLETE ===', shifted);
+  dbg('=== DISTANCE CALC COMPLETE (shifted) ===', shifted);
   return shifted;
 
-  // --- Nested helper with debug ---
-  function mapHyperlaneReachables(editor, startLabel, startEntryDir, opts) {
+  // --- Hyperlane traversal helper ---
+  // Finds all regular-tile endpoints reachable by following the hyperlane chain from startLabel/startEntryDir.
+  function mapHyperlaneReachables(startLabel, startEntryDir) {
     const seen = new Set();
     const reachable = [];
     const queue = [{ label: startLabel, entryDir: startEntryDir }];
-
-    // Use the global debug toggle from your script
-    const dbg = (...args) => DEBUG_DISTANCES && console.log('[HL]', ...args);
 
     while (queue.length) {
       const { label, entryDir } = queue.shift();
@@ -395,27 +392,23 @@ export function calculateDistancesFrom(
       if (seen.has(key)) continue;
       seen.add(key);
 
-      // Gather all exits from this entryDir
+      // Self-loop directions at this tile
       const loopDirs = [];
       for (let d = 0; d < 6; d++) {
         if (tile.matrix[d][d] === 1) loopDirs.push(d);
       }
 
-      // Find exits
+      // Find exits from this entryDir
       const exits = [];
       let hasNonLoopExit = false;
       for (let exit = 0; exit < 6; exit++) {
-        if (tile.matrix[entryDir][exit] === 1) {
-          if (exit !== entryDir) {
-            exits.push(exit);
-            hasNonLoopExit = true;
-          }
+        if (tile.matrix[entryDir][exit] === 1 && exit !== entryDir) {
+          exits.push(exit);
+          hasNonLoopExit = true;
         }
       }
       // Special case: only loopback available
-      if (!hasNonLoopExit && tile.matrix[entryDir][entryDir] === 1) {
-        exits.push(entryDir);
-      }
+      if (!hasNonLoopExit && tile.matrix[entryDir][entryDir] === 1) exits.push(entryDir);
 
       // Chain via self-loops
       if (loopDirs.includes(entryDir)) {
@@ -427,49 +420,32 @@ export function calculateDistancesFrom(
         }
       }
 
-      const uniqueExits = Array.from(new Set(exits));
-      for (const exit of uniqueExits) {
+      for (const exit of [...new Set(exits)]) {
         const outDir = editor.edgeDirections[exit];
-        const q2 = tile.q + outDir.q;
-        const r2 = tile.r + outDir.r;
-        const far = Object.values(editor.hexes).find(h => h.q === q2 && h.r === r2);
-        const farLabel = far ? Object.keys(editor.hexes).find(k => editor.hexes[k] === far) : null;
+        const farLabel = coordToLabel.get(`${tile.q + outDir.q},${tile.r + outDir.r}`) ?? null;
+        const far = farLabel ? editor.hexes[farLabel] : null;
         if (!far || !farLabel) continue;
 
-        // -- Border anomaly check --
-        let blocked = false;
-        if (opts?.useBorderAnomalies && far.matrix && far.matrix.some(r => r.includes(1))) {
+        // Border anomaly check for hyperlane-to-hyperlane transitions
+        if (opts?.useBorderAnomalies && isHyperlane(far)) {
           const entrySide = (exit + 3) % 6;
           if (
-            far.borderAnomalies &&
-            (
-              far.borderAnomalies[entrySide]?.type === "Spatial Tear" ||
-              far.borderAnomalies[entrySide]?.type === "Gravity Wave"
-            )
+            anomalyId(far.borderAnomalies?.[entrySide]) === 'SPATIALTEAR' ||
+            anomalyId(far.borderAnomalies?.[entrySide]) === 'GRAVITYWAVE' ||
+            anomalyId(tile.borderAnomalies?.[exit])     === 'SPATIALTEAR' ||
+            anomalyId(tile.borderAnomalies?.[exit])     === 'GRAVITYWAVE'
           ) {
-            dbg(`[HL Blocked] ${label} → ${farLabel} (exit ${exit}) [entrySide ${entrySide}]`);
-            blocked = true;
-          }
-          if (
-            tile.borderAnomalies &&
-            tile.borderAnomalies[exit]?.type === "Spatial Tear"
-          ) {
-            dbg(`[HL Blocked] ${label} → ${farLabel} (exit ${exit}) [Spatial Tear on origin]`);
-            blocked = true;
+            dbg(`[HL Blocked] ${label} → ${farLabel} (exit ${exit})`);
+            continue;
           }
         }
-        if (blocked) continue;
 
-        if (far.matrix && far.matrix.some(r => r.includes(1))) {
+        if (isHyperlane(far)) {
           dbg(`[HL Chain] ${label} → ${farLabel} (exit ${exit})`);
           queue.push({ label: farLabel, entryDir: (exit + 3) % 6 });
         } else if (isPassable(far, opts)) {
           dbg(`[HL End] ${label} → ${farLabel} (exit ${exit})`);
-          reachable.push({
-            label: farLabel,
-            fromLabel: label,
-            entrySide: (exit + 3) % 6
-          });
+          reachable.push({ label: farLabel, fromLabel: label, entrySide: (exit + 3) % 6 });
         }
       }
     }
