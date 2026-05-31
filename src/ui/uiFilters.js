@@ -81,6 +81,7 @@ const FILTERS = [
   { key: 'twoPlanets', label: '2 Planets', defaultOn: false, test(sys, a) { if (!a) return true; return Array.isArray(sys.planets) && sys.planets.length === 2; } },
   { key: 'threePlanets', label: '3 Planets', defaultOn: false, test(sys, a) { if (!a) return true; return Array.isArray(sys.planets) && sys.planets.length === 3; } },
   { key: 'isLegendary', label: 'Legendary', defaultOn: false, test(sys, a) { if (!a) return true; return Array.isArray(sys.planets) && sys.planets.some(p => !!p.legendaryAbilityName); } },
+  { key: 'isFracture', label: 'Fracture', defaultOn: false, test(sys, a) { if (!a) return true; return sys.tileBack === 'fracture'; } },
   { key: 'noFaction', label: 'No Faction', defaultOn: true, test(sys, a) { if (!a) return true; return Array.isArray(sys.planets) && !sys.planets.some(p => !!p.factionHomeworld); } },
   {
     key: 'showHyperlanes',
@@ -124,6 +125,7 @@ const COLUMNS = [
   { key: 'tech', label: 'Tech', defaultVisible: true, width: '50px' },
   { key: 'legendary', label: 'Legend', defaultVisible: true, width: '50px' },
   { key: 'anomalies', label: 'Effect', defaultVisible: true, width: '50px' },
+  { key: 'fracture', label: 'Fracture', defaultVisible: false, width: '50px' },
   { key: 'used', label: 'Used', defaultVisible: false, width: '50px' }
 ];
 
@@ -519,6 +521,11 @@ export function sortSystemsByColumn(systems, column, direction) {
         }
         break;
 
+      case 'fracture':
+        valueA = a.tileBack === 'fracture' ? 1 : 0;
+        valueB = b.tileBack === 'fracture' ? 1 : 0;
+        break;
+
       case 'used':
         valueA = isRealIDUsed(a.id) ? 1 : 0;
         valueB = isRealIDUsed(b.id) ? 1 : 0;
@@ -780,6 +787,13 @@ export function generateSystemRow(system) {
         td.textContent = effects.join(' ');
         td.style.fontSize = '14px'; // Larger for emojis
         td.style.color = effects.length > 0 ? '#fff' : '#ccc';
+        break;
+
+      case 'fracture':
+        const isFracture = system.tileBack === 'fracture';
+        td.textContent = isFracture ? '◈' : '';
+        td.style.color = isFracture ? '#ff8080' : '#ccc';
+        td.title = isFracture ? 'Fracture tile' : '';
         break;
 
       case 'used':
@@ -1093,5 +1107,57 @@ export function getActiveFilterPass(editor) {
     });
   });
 }
+
+/**
+ * Check whether a system passes the Source + exclusion Attribute filters
+ * currently active in the "Search system and add to map" panel.
+ *
+ * Source filters: OR logic (same as search panel).
+ * Attribute filters applied:
+ *   - noFaction : respects current UI state (default on = exclude faction homeworlds)
+ *   - weirdTiles: ALWAYS forced active — weird/blank/broken tiles are never auto-placed
+ *
+ * Falls back to allowing all sources when the filter UI is not yet in the DOM.
+ */
+export function passesAutoMapperFilters(sys) {
+    // 1. Source filters (OR logic)
+    const sourceFilterKeys = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceThundersEdge', 'sourceOthers'];
+    const anySourceExists = sourceFilterKeys.some(k => document.getElementById(`filter-${k}`));
+    if (anySourceExists) {
+        const activeSources = sourceFilterKeys.filter(k =>
+            document.getElementById(`filter-${k}`)?.dataset.active === 'true'
+        );
+        if (activeSources.length === 0) return false;
+        const src = (sys.source || '').toLowerCase();
+        const sourceMatch = activeSources.some(k => {
+            switch (k) {
+                case 'sourceBase':         return src === 'base';
+                case 'sourcePok':          return src === 'pok';
+                case 'sourceDS':           return src === 'ds' || src === 'uncharted_space';
+                case 'sourceEronous':      return src === 'eronous';
+                case 'sourceThundersEdge': return src === 'thunders_edge';
+                case 'sourceOthers':       return ['other', 'draft', 'dane_leaks'].includes(src) ||
+                    (src !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous', 'thunders_edge'].includes(src));
+                default: return false;
+            }
+        });
+        if (!sourceMatch) return false;
+    }
+
+    // 2. noFaction — respect UI state (default: on)
+    const noFactionBtn = document.getElementById('filter-noFaction');
+    const noFactionActive = noFactionBtn ? noFactionBtn.dataset.active === 'true' : true;
+    const noFactionDef = FILTERS.find(f => f.key === 'noFaction');
+    if (noFactionDef && !noFactionDef.test(sys, noFactionActive)) return false;
+
+    // 3. weirdTiles — always active: never auto-place FOW/blank/broken tiles
+    const weirdTilesDef = FILTERS.find(f => f.key === 'weirdTiles');
+    if (weirdTilesDef && !weirdTilesDef.test(sys, true)) return false;
+
+    return true;
+}
+
+/** @deprecated Use passesAutoMapperFilters instead */
+export const passesSourceFilter = passesAutoMapperFilters;
 
 export { FILTERS, COLUMNS };

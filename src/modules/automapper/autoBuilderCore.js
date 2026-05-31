@@ -1,718 +1,379 @@
 /**
- * AutoMapper Core - Core logic for automatic map generation
- * Contains algorithms for balanced map generation and analysis
+ * AutoMapper Core — fills unfilled hexes with real TI4 systems.
+ * "Unfilled" = hex has baseType set (via Draw Helpers) but no realId.
  */
 
-/**
- * Map generation presets
- */
-const MAP_PRESETS = {
-    balanced: {
-        name: 'Balanced',
-        description: 'Well-rounded maps with fair resource distribution',
-        resourceVariance: 0.15,
-        anomalyDensity: 0.12,
-        conflictLevel: 0.5,
-        explorationFactor: 0.3
-    },
-    aggressive: {
-        name: 'Aggressive',
-        description: 'Higher conflict potential with contested areas',
-        resourceVariance: 0.2,
-        anomalyDensity: 0.08,
-        conflictLevel: 0.8,
-        explorationFactor: 0.2
-    },
-    exploration: {
-        name: 'Exploration',
-        description: 'More anomalies and exploration opportunities',
-        resourceVariance: 0.18,
-        anomalyDensity: 0.25,
-        conflictLevel: 0.3,
-        explorationFactor: 0.7
-    },
-    economic: {
-        name: 'Economic',
-        description: 'Resource-focused with high economic potential',
-        resourceVariance: 0.1,
-        anomalyDensity: 0.1,
-        conflictLevel: 0.4,
-        explorationFactor: 0.2
-    }
+import { passesAutoMapperFilters } from '../../ui/uiFilters.js';
+
+// ---- Scoring weights (mirrors miltyBuilderRandomTool DEFAULT_WEIGHTS) ----
+// Open Milty Slice Designer → Weighting Settings to tune these values.
+export const SCORING_WEIGHTS = {
+    supernova: -3, asteroidField: -1, nebula: 0, gravityRift: -2,
+    resourceValue: 1, influenceValue: 1,
+    techSpecialty: 2, legendaryPlanet: 5, wormhole: 1,
+    industrial: 0.5, cultural: 0.5, hazardous: 0.5,
+    resourceInfluenceImbalance: -0.5, lowPlanetCount: -3, highPlanetCount: -1
 };
 
-/**
- * Player count configurations
- */
-const PLAYER_CONFIGS = {
-    3: { rings: 2, homeDistance: 2, totalSystems: 19 },
-    4: { rings: 2, homeDistance: 2, totalSystems: 25 },
-    5: { rings: 3, homeDistance: 2, totalSystems: 31 },
-    6: { rings: 3, homeDistance: 2, totalSystems: 37 },
-    7: { rings: 3, homeDistance: 3, totalSystems: 43 },
-    8: { rings: 3, homeDistance: 3, totalSystems: 49 }
+// ---- System classification (mirrors assignSystem.js) ----
+function classifySystem(sys) {
+    // Fracture is checked first — fracture tiles are a distinct category regardless of planet content
+    if (sys.tileBack === 'fracture') return 'fracture';
+    const planets = Array.isArray(sys.planets) ? sys.planets : [];
+    if (planets.some(p => p.legendaryAbilityName && p.legendaryAbilityText)) return 'legendary planet';
+    if (planets.some(p => p.planetType === 'FACTION')) return 'homesystem';
+    if (planets.length >= 3) return '3 planet';
+    if (planets.length >= 2) return '2 planet';
+    if (planets.length === 1) return '1 planet';
+    if (sys.isAsteroidField || sys.isSupernova || sys.isNebula || sys.isGravityRift) return 'special';
+    return 'empty';
+}
+
+// Returns a Set of effect strings present on a system
+function getSystemEffects(sys) {
+    const e = new Set();
+    if (sys.isNebula)        e.add('nebula');
+    if (sys.isGravityRift)   e.add('rift');
+    if (sys.isSupernova)     e.add('supernova');
+    if (sys.isAsteroidField) e.add('asteroid');
+    return e;
+}
+
+// ---- Utilities ----
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function axialDist(a, b) {
+    const dq = a.q - b.q, dr = a.r - b.r;
+    return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+}
+
+// ---- Downgrade chain: if no systems of required type, try these in order ----
+const DOWNGRADE_CHAIN = {
+    '3 planet':         ['3 planet', '2 planet', '1 planet'],
+    '2 planet':         ['2 planet', '1 planet'],
+    '1 planet':         ['1 planet'],
+    'legendary planet': ['legendary planet', '2 planet', '1 planet'],
+    'special':          ['special'],
+    'empty':            ['empty'],
+    'homesystem':       ['homesystem'],
+    'fracture':         ['fracture'],  // fracture positions only accept fracture tiles — no downgrade
 };
 
-/**
- * System weights for balance calculations
- */
-const SYSTEM_WEIGHTS = {
-    resources: 0.3,
-    influence: 0.25,
-    planets: 0.2,
-    tech: 0.15,
-    strategic: 0.1
-};
+// ---- Data helpers ----
 
-/**
- * Generate a balanced map
- * @param {number} playerCount - Number of players (3-8)
- * @param {string} mapStyle - Map generation style preset
- * @param {string} genMode - Generation mode (optimal, fast, iterative)
- * @returns {Promise<Object>} Generated map result
- */
-export async function generateBalancedMap(playerCount = 6, mapStyle = 'balanced', genMode = 'optimal', progressCallback = null) {
-    const startTime = Date.now();
-
-    try {
-        console.log(`AutoMapper: Generating ${mapStyle} map for ${playerCount} players using ${genMode} mode`);
-
-        if (progressCallback) progressCallback('Initializing generation...', 10);
-
-        // Get configuration
-        const config = PLAYER_CONFIGS[playerCount];
-        const preset = MAP_PRESETS[mapStyle] || MAP_PRESETS.balanced;
-
-        if (!config) {
-            throw new Error(`Unsupported player count: ${playerCount}`);
-        }
-
-        if (progressCallback) progressCallback('Applying generation settings...', 20);
-
-        // Generate map based on mode
-        let mapData;
-        switch (genMode) {
-            case 'fast':
-                mapData = await generateFastMap(config, preset, playerCount, progressCallback);
-                break;
-            case 'iterative':
-                mapData = await generateIterativeMap(config, preset, playerCount, progressCallback);
-                break;
-            case 'optimal':
-            default:
-                mapData = await generateOptimalMap(config, preset, playerCount, progressCallback);
-                break;
-        }
-
-        if (progressCallback) progressCallback('Calculating balance score...', 85);
-
-        // Calculate balance score
-        const balanceScore = calculateBalanceScore(mapData, config, preset);
-
-        if (progressCallback) progressCallback('Generating analysis...', 95);
-
-        // Generate analysis
-        const analysis = generateMapAnalysis(mapData, config, preset);
-
-        const result = {
-            success: true,
-            playerCount,
-            mapStyle,
-            generationMode: genMode,
-            mapData,
-            balanceScore,
-            analysis,
-            generationTime: Date.now() - startTime,
-            timestamp: new Date().toISOString()
-        };
-
-        if (progressCallback) progressCallback('Generation complete!', 100);
-
-        console.log(`AutoMapper: Generated map with balance score ${balanceScore}/100 in ${result.generationTime}ms`);
-        return result;
-
-    } catch (error) {
-        console.error('AutoMapper: Map generation failed:', error);
-        if (progressCallback) progressCallback(`Error: ${error.message}`, 0);
-        throw new Error(`Map generation failed: ${error.message}`);
-    }
+export function getUnfilledHexes(editor, { includeHomeSystems = false } = {}) {
+    return Object.entries(editor.hexes)
+        .filter(([, h]) => {
+            if (!h.baseType || h.baseType === '') return false;
+            if (!includeHomeSystems && h.baseType === 'homesystem') return false;
+            return !h.realId;
+        })
+        .map(([label, hex]) => ({ label, hex }));
 }
 
-/**
- * Generate map using fast algorithm
- */
-async function generateFastMap(config, preset, playerCount, progressCallback) {
-    console.log('AutoMapper: Using fast generation algorithm');
+export function getAvailableSystems(editor, { includeWormholes = false } = {}) {
+    const allSystems = editor.allSystems;
+    if (!allSystems?.length) return [];
 
-    if (progressCallback) progressCallback('Fast generation - Setting up systems...', 30);
-    await sleep(200);
+    const usedIds = new Set(
+        Object.values(editor.hexes)
+            .filter(h => h.realId)
+            .map(h => h.realId.toString().toUpperCase())
+    );
 
-    if (progressCallback) progressCallback('Fast generation - Placing home systems...', 50);
-    await sleep(200);
-
-    if (progressCallback) progressCallback('Fast generation - Adding planets...', 70);
-    await sleep(100);
-
-    return generateMockMapData(config, preset, playerCount, 'fast');
-}
-
-/**
- * Generate map using iterative algorithm
- */
-async function generateIterativeMap(config, preset, playerCount, progressCallback) {
-    console.log('AutoMapper: Using iterative generation algorithm');
-
-    let bestMap = null;
-    let bestScore = 0;
-    const iterations = 3; // Reduced from 5 to prevent timeout
-
-    for (let i = 0; i < iterations; i++) {
-        const progress = 30 + ((i + 1) / iterations) * 40; // 30-70%
-        if (progressCallback) progressCallback(`Iterative generation - Attempt ${i + 1}/${iterations}...`, progress);
-
-        console.log(`AutoMapper: Iteration ${i + 1}/${iterations}`);
-
-        await sleep(150); // Reduced sleep time
-        const mapData = generateMockMapData(config, preset, playerCount, 'iterative');
-        const score = calculateBalanceScore(mapData, config, preset);
-
-        if (score > bestScore) {
-            bestScore = score;
-            bestMap = mapData;
-        }
-    }
-
-    if (progressCallback) progressCallback('Iterative generation - Selecting best result...', 75);
-    await sleep(100);
-
-    return bestMap;
-}
-
-/**
- * Generate map using optimal algorithm
- */
-async function generateOptimalMap(config, preset, playerCount, progressCallback) {
-    console.log('AutoMapper: Using optimal generation algorithm');
-
-    if (progressCallback) progressCallback('Optimal generation - Analyzing constraints...', 30);
-    await sleep(300);
-
-    if (progressCallback) progressCallback('Optimal generation - Calculating optimal positions...', 45);
-    await sleep(400);
-
-    if (progressCallback) progressCallback('Optimal generation - Balancing resources...', 60);
-    await sleep(300);
-
-    if (progressCallback) progressCallback('Optimal generation - Finalizing layout...', 75);
-    await sleep(200);
-
-    return generateMockMapData(config, preset, playerCount, 'optimal');
-}
-
-/**
- * Generate mock map data for demonstration
- */
-function generateMockMapData(config, preset, playerCount, mode) {
-    const mapData = {
-        systems: [],
-        homePositions: [],
-        centerSystem: null,
-        hyperlanes: [],
-        metadata: {
-            rings: config.rings,
-            totalSystems: config.totalSystems,
-            preset: preset.name,
-            mode,
-            playerCount
-        }
-    };
-
-    // Calculate hex positions for player home systems
-    const homeHexes = calculateHomePositions(playerCount);
-
-    // Generate home positions - FIX: Use the playerCount parameter properly
-    for (let i = 0; i < playerCount; i++) {
-        mapData.homePositions.push({
-            player: i + 1,
-            hexId: homeHexes[i],
-            position: `home_${i + 1}`,
-            resources: 4 + Math.floor(Math.random() * 2),
-            influence: 2 + Math.floor(Math.random() * 2),
-            planets: 2,
-            systemData: generateHomeSystem(i + 1)
-        });
-    }
-
-    // Generate center system (Mecatol Rex)
-    mapData.centerSystem = {
-        hexId: '000', // Center hex
-        id: 'mecatol_rex',
-        name: 'Mecatol Rex',
-        resources: 1,
-        influence: 6,
-        planets: 1,
-        type: 'legendary'
-    };
-
-    // Generate other systems based on preset - FIX: Ensure we don't create too many systems
-    const systemCount = Math.min(config.totalSystems - mapData.homePositions.length - 1, 25); // Cap at 25 systems
-    const availableHexes = getAvailableHexes(homeHexes);
-
-    for (let i = 0; i < systemCount && i < availableHexes.length; i++) {
-        const system = generateRandomSystem(i, preset, mode);
-        system.hexId = availableHexes[i];
-        mapData.systems.push(system);
-    }
-
-    return mapData;
-}
-
-/**
- * Calculate optimal home system positions for given player count
- */
-function calculateHomePositions(playerCount) {
-    // Using only ring 1 positions that definitely exist (101-106)
-    const positions = {
-        3: ['101', '103', '105'],  // Ring 1, positions 1, 3, 5
-        4: ['101', '102', '104', '105'],  // Ring 1, positions 1, 2, 4, 5
-        5: ['101', '102', '103', '104', '105'],  // Ring 1, positions 1-5
-        6: ['101', '102', '103', '104', '105', '106'],  // Ring 1, all positions
-        7: ['101', '102', '103', '104', '105', '106', '000'],  // Ring 1 + center (temporary)
-        8: ['101', '102', '103', '104', '105', '106', '000', '000']  // Ring 1 + centers (temporary)
-    };
-
-    return positions[playerCount] || positions[6]; // Default to 6-player positions
-}
-
-/**
- * Get available hex positions (excluding home positions and center)
- */
-function getAvailableHexes(excludeHexes) {
-    // Generate a list of available hex positions using only ring 1 initially
-    const allHexes = [];
-
-    // Ring 1 (6 positions: 101-106) - these should always exist
-    for (let i = 1; i <= 6; i++) {
-        allHexes.push(`1${String(i).padStart(2, '0')}`);
-    }
-
-    // Only add ring 2 if it likely exists (for larger maps)
-    for (let i = 1; i <= 12; i++) {
-        allHexes.push(`2${String(i).padStart(2, '0')}`);
-    }
-
-    // Filter out excluded hexes and center, return only first few to avoid overwhelming
-    const available = allHexes.filter(hex => !excludeHexes.includes(hex) && hex !== '000');
-    return available.slice(0, 10); // Limit to first 10 available hexes
-}
-
-/**
- * Generate a home system for a player
- */
-function generateHomeSystem(playerNumber) {
-    return {
-        id: `home_${playerNumber}`,
-        name: `Player ${playerNumber} Home`,
-        planets: [
-            {
-                name: `Home Planet ${playerNumber}`,
-                resources: 4,
-                influence: 2,
-                planetType: 'FACTION'
-            }
-        ],
-        wormholes: [],
-        isHomesystem: true
-    };
-}
-
-/**
- * Generate a random system based on preset parameters
- */
-function generateRandomSystem(id, preset, mode) {
-    // Try to use real systems if available
-    if (typeof window !== 'undefined' && window.editor && window.editor.sectorIDLookup) {
-        const realSystem = selectRandomRealSystem(preset, mode);
-        if (realSystem) {
-            return {
-                ...realSystem,
-                id: realSystem.id,
-                type: classifySystemType(realSystem)
-            };
-        }
-    }
-
-    // Fallback to generated system
-    const systemTypes = ['normal', 'anomaly', 'empty', 'special'];
-    const weights = mode === 'optimal' ? [0.6, 0.15, 0.15, 0.1] : [0.7, 0.1, 0.15, 0.05];
-
-    const type = weightedRandom(systemTypes, weights);
-
-    const system = {
-        id: `gen_system_${id}`,
-        type,
-        planets: [],
-        anomalies: [],
-        wormholes: []
-    };
-
-    switch (type) {
-        case 'normal':
-            system.planets = generatePlanets(1 + Math.floor(Math.random() * 3), preset);
-            break;
-        case 'anomaly':
-            system.anomalies = [generateAnomaly()];
-            if (Math.random() < 0.4) {
-                system.planets = generatePlanets(1, preset);
-            }
-            break;
-        case 'empty':
-            // No planets or anomalies
-            break;
-        case 'special':
-            system.planets = generatePlanets(1, preset);
-            system.special = generateSpecialFeature();
-            break;
-    }
-
-    return system;
-}
-
-/**
- * Select a random real system from the database
- */
-function selectRandomRealSystem(preset, mode) {
-    const sectorLookup = window.editor.sectorIDLookup;
-    if (!sectorLookup) return null;
-
-    // Get all non-home systems (filter out home systems and Mecatol Rex)
-    const availableSystems = Object.values(sectorLookup).filter(sys => {
-        if (!sys || !sys.id) return false;
-
-        // Skip home systems
-        if (sys.planets && sys.planets.some(p => p.planetType === 'FACTION')) return false;
-
-        // Skip Mecatol Rex
-        if (sys.id.toString() === '18') return false;
-
-        // Skip hyperlane tiles for regular system generation
-        if (sys.isHyperlane) return false;
-
+    const seen = new Set();
+    return allSystems.filter(sys => {
+        const id = sys.id?.toString().toUpperCase();
+        if (!id || seen.has(id) || usedIds.has(id)) return false;
+        seen.add(id);
+        if (sys.isHyperlane) return false;                            // never use hyperlanes
+        if (!includeWormholes && sys.wormholes?.length) return false; // skip wormholes unless toggled
+        if (!passesAutoMapperFilters(sys)) return false;              // source + attribute filters from search panel
+        // Mecatol Rex is always pre-placed at center — never auto-assign it
+        if (sys.id?.toString() === '18' ||
+            sys.name?.toLowerCase().includes('mecatol') ||
+            sys.planets?.some(p => p.name?.toLowerCase().includes('mecatol'))) return false;
         return true;
     });
-
-    if (availableSystems.length === 0) return null;
-
-    // Select based on preset preferences
-    const filteredSystems = filterSystemsByPreset(availableSystems, preset, mode);
-
-    if (filteredSystems.length === 0) {
-        // Fallback to any available system
-        return availableSystems[Math.floor(Math.random() * availableSystems.length)];
-    }
-
-    return filteredSystems[Math.floor(Math.random() * filteredSystems.length)];
 }
 
-/**
- * Filter systems based on preset preferences
- */
-function filterSystemsByPreset(systems, preset, mode) {
-    if (preset.name === 'aggressive') {
-        // Prefer systems with more resources or special features
-        return systems.filter(sys => {
-            const totalRes = sys.planets ? sys.planets.reduce((sum, p) => sum + (p.resources || 0), 0) : 0;
-            return totalRes >= 2 || sys.isNebula || sys.isGravityRift;
-        });
-    } else if (preset.name === 'exploration') {
-        // Prefer systems with anomalies or wormholes
-        return systems.filter(sys =>
-            sys.isNebula || sys.isAsteroidField || sys.isGravityRift ||
-            (sys.wormholes && sys.wormholes.length > 0)
-        );
-    } else if (preset.name === 'economic') {
-        // Prefer systems with multiple planets or high resource value
-        return systems.filter(sys => {
-            const planetCount = sys.planets ? sys.planets.length : 0;
-            const totalRes = sys.planets ? sys.planets.reduce((sum, p) => sum + (p.resources || 0), 0) : 0;
-            return planetCount >= 2 || totalRes >= 3;
-        });
-    }
+// ---- Pool building ----
 
-    // Balanced - return all systems
-    return systems;
+/**
+ * Builds typed pools.
+ * Pool keys:
+ *   'TYPE'                  — systems with NO effects (clean)
+ *   'TYPE|eff1,eff2,...'    — systems whose effects EXACTLY match the sorted set
+ *
+ * Using sorted combined-effect keys ensures a rift+asteroid system can never land
+ * on a rift-only hex (fix 3): keys only match when the effect sets are identical.
+ */
+function buildPools(systems) {
+    const pools = {};
+    function push(key, sys) {
+        if (!pools[key]) pools[key] = [];
+        pools[key].push(sys);
+    }
+    for (const sys of systems) {
+        const type = classifySystem(sys);
+        if (type === 'homesystem') continue;
+        const effects = getSystemEffects(sys);
+        if (effects.size === 0) {
+            push(type, sys);
+        } else {
+            const effectKey = [...effects].sort().join(',');
+            push(`${type}|${effectKey}`, sys);
+        }
+    }
+    return pools;
 }
 
-/**
- * Classify a real system's type
- */
-function classifySystemType(system) {
-    if (system.isNebula || system.isAsteroidField || system.isGravityRift || system.isSupernova) {
-        return 'anomaly';
-    } else if (!system.planets || system.planets.length === 0) {
-        return 'empty';
-    } else if (system.planets.some(p => p.legendaryAbilityName)) {
-        return 'special';
-    } else {
-        return 'normal';
-    }
+// Make a shuffled deep-copy of pools for one assignment attempt
+function copyShuffled(pools) {
+    const copy = {};
+    for (const [k, arr] of Object.entries(pools)) copy[k] = shuffle([...arr]);
+    return copy;
 }
 
+// ---- Assignment engine ----
+
 /**
- * Generate planets for a system
+ * One assignment attempt. Returns:
+ *   assignments:      [{label, sys}]
+ *   tokenPlacements:  [{label, effects: []}]  — apply effects via applyEffect after assignSystem
+ *   downgrades:       [{label, from, to}]
+ *   unmatched:        [label]
  */
-function generatePlanets(count, preset) {
-    const planets = [];
+function tryAssign(unfilled, pools) {
+    const p = copyShuffled(pools);
 
-    for (let i = 0; i < count; i++) {
-        const planet = {
-            name: `Planet_${Math.random().toString(36).substr(2, 8)}`,
-            resources: Math.floor(Math.random() * 4),
-            influence: Math.floor(Math.random() * 4),
-            type: weightedRandom(['cultural', 'industrial', 'hazardous'], [0.33, 0.33, 0.34]),
-            traits: []
-        };
+    const assignments = [];
+    const tokenPlacements = [];
+    const downgrades = [];
+    const unmatched = [];
 
-        // Add tech specialties based on preset
-        if (Math.random() < 0.2) {
-            planet.tech = weightedRandom(['red', 'yellow', 'green', 'blue'], [0.25, 0.25, 0.25, 0.25]);
+    for (const { label, hex } of unfilled) {
+        const reqType = hex.baseType;
+        const reqEffects = hex.effects?.size ? Array.from(hex.effects) : [];
+
+        // 1. Try exact-effect-matched system first.
+        // Key is sorted so a hex requiring {rift} only matches systems with EXACTLY {rift},
+        // never a combined rift+asteroid system (fix 3).
+        let assigned = null;
+        if (reqEffects.length > 0) {
+            const effectKey = [...reqEffects].sort().join(',');
+            const key = `${reqType}|${effectKey}`;
+            if (p[key]?.length) assigned = { sys: p[key].pop(), usedEffect: effectKey };
         }
 
-        planets.push(planet);
+        // 2. Fall back to clean system + note token placement (req 4)
+        if (!assigned) {
+            const chain = DOWNGRADE_CHAIN[reqType] || [reqType];
+            for (const tryType of chain) {
+                if (p[tryType]?.length) {
+                    assigned = { sys: p[tryType].pop(), usedEffect: null };
+                    if (tryType !== reqType) downgrades.push({ label, from: reqType, to: tryType });
+                    break;
+                }
+            }
+        }
+
+        if (!assigned) { unmatched.push(label); continue; }
+
+        assignments.push({ label, sys: assigned.sys });
+
+        // If effects were requested but we used a clean system, place effect tokens (req 4)
+        if (reqEffects.length > 0 && !assigned.usedEffect) {
+            tokenPlacements.push({ label, effects: reqEffects });
+        }
     }
 
-    return planets;
+    return { assignments, tokenPlacements, downgrades, unmatched };
+}
+
+// ---- Scoring (same logic as miltyBuilderRandomTool calculateSliceScore) ----
+
+function scoreSlice(systems, weights) {
+    let res = 0, inf = 0, legends = 0;
+    const techs = [], wormholes = [], anomalies = [];
+    let industrialCount = 0, culturalCount = 0, hazardousCount = 0;
+
+    for (const sys of systems) {
+        for (const p of (sys.planets || [])) {
+            res += p.resources || 0;
+            inf += p.influence || 0;
+            if (p.legendaryAbilityName) legends++;
+            if (p.techSpecialty) techs.push(p.techSpecialty);
+            if (p.planetType === 'INDUSTRIAL') industrialCount++;
+            else if (p.planetType === 'CULTURAL') culturalCount++;
+            else if (p.planetType === 'HAZARDOUS') hazardousCount++;
+        }
+        if (sys.wormholes?.length) wormholes.push(...sys.wormholes);
+        if (sys.isSupernova)     anomalies.push('supernova');
+        if (sys.isAsteroidField) anomalies.push('asteroidField');
+        if (sys.isNebula)        anomalies.push('nebula');
+        if (sys.isGravityRift)   anomalies.push('gravityRift');
+    }
+
+    const planetCount = systems.reduce((s, sys) => s + (sys.planets?.length || 0), 0);
+    const imbalance = Math.abs(res - inf);
+    const w = weights;
+
+    let score = 0;
+    score += res * w.resourceValue;
+    score += inf * w.influenceValue;
+    score += imbalance * w.resourceInfluenceImbalance;
+    score += legends * w.legendaryPlanet;
+    score += techs.length * w.techSpecialty;
+    score += wormholes.length * w.wormhole;
+    score += industrialCount * w.industrial;
+    score += culturalCount  * w.cultural;
+    score += hazardousCount * w.hazardous;
+    for (const a of anomalies) score += (w[a] || 0);
+    if (planetCount < 3) score += w.lowPlanetCount;
+    if (planetCount > 5) score += w.highPlanetCount;
+
+    return score;
 }
 
 /**
- * Generate anomaly
+ * Score by std-dev of slice scores across home systems.
+ * Also penalises slices that fall below milty's min R/I thresholds (from settings).
+ * Only considers assigned hexes within balanceRange of each home. (req 9)
  */
-function generateAnomaly() {
-    const anomalies = ['asteroid-field', 'nebula', 'supernova', 'gravity-rift'];
+function scoreAssignments(assignments, editor, { balanceRange = 2, weights = SCORING_WEIGHTS, settings = null } = {}) {
+    const homes = Object.values(editor.hexes).filter(h => h.baseType === 'homesystem');
+    if (homes.length < 2) return 0;
+
+    // Bucket systems by nearest home within balanceRange
+    const sliceData = new Map(homes.map(h => [h, { systems: [], res: 0, inf: 0 }]));
+
+    for (const { label, sys } of assignments) {
+        const hex = editor.hexes[label];
+        if (!hex) continue;
+        let nearest = homes[0], nearestDist = axialDist(hex, homes[0]);
+        for (const h of homes) {
+            const d = axialDist(hex, h);
+            if (d < nearestDist) { nearest = h; nearestDist = d; }
+        }
+        if (nearestDist <= balanceRange) {
+            const s = sliceData.get(nearest);
+            s.systems.push(sys);
+            for (const p of (sys.planets || [])) {
+                s.res += p.resources || 0;
+                s.inf += p.influence || 0;
+            }
+        }
+    }
+
+    // Min R/I thresholds from milty settings (req 8)
+    const minRes   = settings?.sliceGeneration?.minOptimalResources ?? 0;
+    const minInf   = settings?.sliceGeneration?.minOptimalInfluence ?? 0;
+    const minTotal = settings?.sliceGeneration?.minOptimalTotal     ?? 0;
+    const maxTotal = settings?.sliceGeneration?.maxOptimalTotal     ?? Infinity;
+
+    const scores = [];
+    for (const { systems, res, inf } of sliceData.values()) {
+        let score = scoreSlice(systems, weights);
+        // Penalty for falling below milty minimums (large weight so optimizer avoids them)
+        if (res   < minRes)   score -= (minRes   - res)   * 10;
+        if (inf   < minInf)   score -= (minInf   - inf)   * 10;
+        if (res + inf < minTotal) score -= (minTotal - (res + inf)) * 5;
+        if (res + inf > maxTotal) score -= ((res + inf) - maxTotal) * 3;
+        scores.push(score);
+    }
+
+    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const variance = scores.reduce((s, v) => s + (v - mean) ** 2, 0) / scores.length;
+    return Math.sqrt(variance); // lower = better
+}
+
+// ---- Public API ----
+
+/**
+ * @param {Object} editor
+ * @param {Object} opts
+ * @param {boolean} opts.balanced           Run multiple shuffles, keep best resource spread
+ * @param {number}  opts.iterations         How many attempts in balanced mode (req 10)
+ * @param {number}  opts.balanceRange       Axial distance from home systems to consider (req 9)
+ * @param {boolean} opts.includeHomeSystems Include HS tiles in fill (req 1)
+ * @param {boolean} opts.includeWormholes   Include wormhole systems in pool (req 3)
+ * @param {Object}  opts.weights            Score weights (from milty if available) (req 8)
+ * @returns {{ assignments, tokenPlacements, downgrades, unmatched, score }}
+ */
+export function fillRemaining(editor, {
+    balanced = false,
+    iterations = 8,
+    balanceRange = 2,
+    includeHomeSystems = false,
+    includeWormholes = false,
+    weights = SCORING_WEIGHTS,
+    settings = null,   // milty getCurrentSettings() for R/I min/max constraints
+} = {}) {
+    const unfilled = getUnfilledHexes(editor, { includeHomeSystems });
+    if (!unfilled.length) return { assignments: [], tokenPlacements: [], downgrades: [], unmatched: [], score: null, info: 'No unfilled hexes found.' };
+
+    const available = getAvailableSystems(editor, { includeWormholes });
+    if (!available.length) return { assignments: [], tokenPlacements: [], downgrades: [], unmatched: unfilled.map(h => h.label), score: null, info: 'No available systems found.' };
+
+    const pools = buildPools(available);
+
+    if (!balanced) {
+        return { ...tryAssign(unfilled, pools), score: null };
+    }
+
+    let best = null, bestScore = Infinity;
+    for (let i = 0; i < iterations; i++) {
+        const result = tryAssign(unfilled, pools);
+        const score = scoreAssignments(result.assignments, editor, { balanceRange, weights, settings });
+        if (score < bestScore) { bestScore = score; best = result; }
+    }
+    return { ...best, score: bestScore };
+}
+
+/**
+ * Analysis snapshot for the UI — what types are needed and available.
+ */
+export function analyzeMap(editor, { includeHomeSystems = false, includeWormholes = false } = {}) {
+    const unfilled = getUnfilledHexes(editor, { includeHomeSystems });
+    const available = getAvailableSystems(editor, { includeWormholes });
+    const pools = buildPools(available);
+
+    const neededByType = {};
+    const effectsNeeded = {}; // which hexes need specific effects
+    for (const { hex } of unfilled) {
+        neededByType[hex.baseType] = (neededByType[hex.baseType] || 0) + 1;
+        if (hex.effects?.size) {
+            for (const eff of hex.effects) {
+                const key = `${hex.baseType}|${eff}`;
+                effectsNeeded[key] = (effectsNeeded[key] || 0) + 1;
+            }
+        }
+    }
+
+    const typeStatus = {};
+    for (const type of Object.keys(neededByType)) {
+        const need = neededByType[type];
+        // "have" = clean pool + all effect pools of that type
+        const have = Object.entries(pools)
+            .filter(([k]) => k === type || k.startsWith(type + '|'))
+            .reduce((s, [, arr]) => s + arr.length, 0);
+        typeStatus[type] = { need, have, ok: have >= need };
+    }
+
     return {
-        type: weightedRandom(anomalies, [0.3, 0.3, 0.2, 0.2]),
-        effect: 'Various effects based on type'
+        totalUnfilled: unfilled.length,
+        totalAvailable: available.length,
+        typeStatus,
+        effectsNeeded,
+        canFill: unfilled.length > 0,
+        hasHomeSystems: Object.values(editor.hexes).some(h => h.baseType === 'homesystem'),
+        systemsLoaded: !!(editor.allSystems?.length),
     };
-}
-
-/**
- * Generate special feature
- */
-function generateSpecialFeature() {
-    const features = ['wormhole', 'legendary', 'faction-home'];
-    return {
-        type: weightedRandom(features, [0.5, 0.3, 0.2]),
-        description: 'Special system feature'
-    };
-}
-
-/**
- * Calculate balance score for generated map
- */
-function calculateBalanceScore(mapData, config, preset) {
-    if (!mapData || !mapData.homePositions) {
-        return 0;
-    }
-
-    let totalScore = 0;
-    const factors = [];
-
-    // Resource balance factor
-    const resourceBalance = calculateResourceBalance(mapData);
-    factors.push({ name: 'Resource Balance', score: resourceBalance, weight: 0.3 });
-
-    // Position fairness factor  
-    const positionFairness = calculatePositionFairness(mapData, config);
-    factors.push({ name: 'Position Fairness', score: positionFairness, weight: 0.25 });
-
-    // Strategic diversity factor
-    const strategicDiversity = calculateStrategicDiversity(mapData, preset);
-    factors.push({ name: 'Strategic Diversity', score: strategicDiversity, weight: 0.2 });
-
-    // Anomaly distribution factor
-    const anomalyDistribution = calculateAnomalyDistribution(mapData, preset);
-    factors.push({ name: 'Anomaly Distribution', score: anomalyDistribution, weight: 0.15 });
-
-    // Connectivity factor
-    const connectivity = calculateConnectivity(mapData);
-    factors.push({ name: 'Connectivity', score: connectivity, weight: 0.1 });
-
-    // Calculate weighted score
-    factors.forEach(factor => {
-        totalScore += factor.score * factor.weight;
-    });
-
-    return Math.round(Math.max(0, Math.min(100, totalScore)));
-}
-
-/**
- * Calculate resource balance between starting positions
- */
-function calculateResourceBalance(mapData) {
-    if (!mapData.homePositions || mapData.homePositions.length === 0) {
-        return 50;
-    }
-
-    const resources = mapData.homePositions.map(pos => pos.resources || 0);
-    const influences = mapData.homePositions.map(pos => pos.influence || 0);
-
-    const resourceVariance = calculateVariance(resources);
-    const influenceVariance = calculateVariance(influences);
-
-    // Lower variance = better balance
-    const resourceScore = Math.max(0, 100 - (resourceVariance * 25));
-    const influenceScore = Math.max(0, 100 - (influenceVariance * 25));
-
-    return (resourceScore + influenceScore) / 2;
-}
-
-/**
- * Calculate position fairness
- */
-function calculatePositionFairness(mapData, config) {
-    // In a real implementation, this would analyze proximity to center,
-    // neighboring systems, chokepoints, etc.
-    return 75 + Math.random() * 20; // Mock score
-}
-
-/**
- * Calculate strategic diversity
- */
-function calculateStrategicDiversity(mapData, preset) {
-    // Analyze variety of system types, tech specialties, planet types
-    const systemTypes = new Set();
-    let techPlanets = 0;
-
-    mapData.systems.forEach(system => {
-        systemTypes.add(system.type);
-        if (system.planets) {
-            techPlanets += system.planets.filter(p => p.tech).length;
-        }
-    });
-
-    const diversityScore = (systemTypes.size / 4) * 50; // Max 4 system types
-    const techScore = Math.min(50, (techPlanets / mapData.systems.length) * 100);
-
-    return diversityScore + techScore;
-}
-
-/**
- * Calculate anomaly distribution
- */
-function calculateAnomalyDistribution(mapData, preset) {
-    const anomalySystems = mapData.systems.filter(s => s.anomalies && s.anomalies.length > 0);
-    const actualDensity = anomalySystems.length / mapData.systems.length;
-    const targetDensity = preset.anomalyDensity;
-
-    const densityDiff = Math.abs(actualDensity - targetDensity);
-    return Math.max(0, 100 - (densityDiff * 200));
-}
-
-/**
- * Calculate connectivity score
- */
-function calculateConnectivity(mapData) {
-    // In a real implementation, this would analyze hyperlane connectivity
-    return 80 + Math.random() * 15; // Mock score
-}
-
-/**
- * Calculate current map balance
- * @returns {Promise<Object>} Analysis of current map
- */
-export async function calculateMapBalance() {
-    console.log('AutoMapper: Analyzing current map balance');
-
-    // Simulate analysis time
-    await sleep(800);
-
-    // In a real implementation, this would analyze the actual hex editor state
-    // For now, return mock analysis data
-
-    const mockAnalysis = {
-        balanceRating: 72 + Math.floor(Math.random() * 20),
-        fairnessIndex: 0.75 + Math.random() * 0.2,
-        competitiveLevel: 'High',
-        playerAnalysis: [
-            { position: 1, summary: 'Strong economic position with good tech access' },
-            { position: 2, summary: 'Balanced position with moderate resources' },
-            { position: 3, summary: 'Aggressive position near conflict zones' },
-            { position: 4, summary: 'Exploration-focused with anomaly access' },
-            { position: 5, summary: 'Resource-rich but isolated position' },
-            { position: 6, summary: 'Centrally located with good connectivity' }
-        ].slice(0, Math.floor(Math.random() * 6) + 3),
-        mapFeatures: 'Well-distributed anomalies with balanced resource allocation. Some chokepoints present for strategic control.',
-        recommendations: [
-            'Consider adjusting resource distribution in outer rim',
-            'Add more wormhole connections for better mobility',
-            'Balance tech planet distribution'
-        ]
-    };
-
-    return mockAnalysis;
-}
-
-/**
- * Get available map generation presets
- * @returns {Object} Available presets
- */
-export function getMapGenerationPresets() {
-    return { ...MAP_PRESETS };
-}
-
-/**
- * Generate map analysis details
- */
-function generateMapAnalysis(mapData, config, preset) {
-    const analysis = {
-        resourceBalance: 'Resources are well distributed across starting positions',
-        strategicPositions: `${config.playerCount} strategic starting positions optimized for ${preset.name} gameplay`,
-        recommendations: []
-    };
-
-    // Add recommendations based on balance score
-    const score = calculateBalanceScore(mapData, config, preset);
-
-    if (score < 70) {
-        analysis.recommendations.push('Consider regenerating for better balance');
-    }
-    if (score >= 85) {
-        analysis.recommendations.push('Excellent balance achieved - map ready for competitive play');
-    }
-
-    analysis.recommendations.push(`Optimized for ${preset.description.toLowerCase()}`);
-
-    return analysis;
-}
-
-/**
- * Utility functions
- */
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function weightedRandom(items, weights) {
-    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-    let random = Math.random() * totalWeight;
-
-    for (let i = 0; i < items.length; i++) {
-        random -= weights[i];
-        if (random <= 0) {
-            return items[i];
-        }
-    }
-
-    return items[items.length - 1];
-}
-
-function calculateVariance(numbers) {
-    if (numbers.length === 0) return 0;
-
-    const mean = numbers.reduce((sum, num) => sum + num, 0) / numbers.length;
-    const squaredDiffs = numbers.map(num => Math.pow(num - mean, 2));
-    const variance = squaredDiffs.reduce((sum, diff) => sum + diff, 0) / numbers.length;
-
-    return Math.sqrt(variance);
 }

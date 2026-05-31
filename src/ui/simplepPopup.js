@@ -406,10 +406,11 @@ export function showLayoutOptionsPopup() {
                                     { mode: '3 planet', label: '3 Planet', cls: 'btn-3' },
                                     { mode: 'legendary planet', label: 'Legendary', cls: 'btn-legendary' },
                                     { mode: 'empty', label: 'Empty', cls: 'btn-empty' },
-                                    { mode: 'special', label: 'Special', cls: 'btn-special' }
+                                    { mode: 'special', label: 'Special', cls: 'btn-special' },
+                                    { mode: 'fracture', label: 'Fracture', cls: 'btn-fracture', color: '#ffb3b3' }
                                 ];
 
-                                drawHelpers.forEach(({ mode, label, cls }) => {
+                                drawHelpers.forEach(({ mode, label, cls, color }) => {
                                     const btn = document.createElement('button');
                                     btn.textContent = label;
                                     btn.className = `mode-button ${cls}`;
@@ -418,26 +419,26 @@ export function showLayoutOptionsPopup() {
                                     btn.style.padding = '8px 12px';
                                     btn.style.fontSize = '0.9em';
                                     btn.style.fontWeight = 'bold';
-                                    btn.style.maxWidth = '120px'; // Fixed max size for compact grid
-                                    btn.style.height = '35px'; // Fixed height
+                                    btn.style.maxWidth = '120px';
+                                    btn.style.height = '35px';
                                     btn.style.overflow = 'hidden';
                                     btn.style.textOverflow = 'ellipsis';
                                     btn.style.whiteSpace = 'nowrap';
+                                    if (color) { btn.style.background = color; btn.style.color = '#333'; }
                                     btn.addEventListener('click', (e) => {
-                                        // Clear active from draw helpers popup buttons
                                         content.querySelectorAll('.mode-button').forEach(b => {
                                             b.classList.remove('active');
-                                            b.style.background = '';
-                                            b.style.color = '';
+                                            b.style.background = b._baseColor || '';
+                                            b.style.color = b._baseColor ? '#333' : '';
                                             b.style.fontWeight = 'bold';
                                         });
-                                        // Set active state on clicked button
                                         e.currentTarget.classList.add('active');
                                         e.currentTarget.style.background = '#666';
                                         e.currentTarget.style.color = '#fff';
                                         e.currentTarget.style.fontWeight = 'bold';
                                         window.editor.setMode(mode);
                                     });
+                                    btn._baseColor = color || '';
                                     content.appendChild(btn);
                                 });
 

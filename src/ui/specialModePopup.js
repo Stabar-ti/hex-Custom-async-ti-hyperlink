@@ -20,7 +20,7 @@ export function showSpecialModePopup() {
         <div style="margin: 18px 0; display: grid; gap: 12px;">
             <button id="miltySliceDesignerBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">🎲 Milty Slice Designer</button>
             <button id="miltyRandomGeneratorBtn" class="mode-button" style="font-size:16px;padding:10px 28px;display:none;">🎯 Milty Random Generator</button>
-            <button id="autoMapBuilderBtn" class="mode-button" style="font-size:16px;padding:10px 28px;display:none;">🤖 AutoMapper - Intelligent Map Builder</button>
+            <button id="autoMapBuilderBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">🤖 AutoMapper - Fill Remaining Tiles</button>
             <button id="loreModuleBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">📚 Lore Module</button>
         </div>
         <hr>

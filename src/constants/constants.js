@@ -94,6 +94,7 @@ export const sectorColors = {
   'nebula': '#e6ccff',
   'asteroid': '#d9d9d9',
   'special': '#ff83a0',
+  'fracture': '#ffb3b3',        // Light red — fracture tile back
   'homesystem': '#059f00',
   'void': '#2b2b2b'
 };
