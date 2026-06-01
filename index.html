@@ -2,6 +2,11 @@
 <html lang="en">
 
 <head>
+  <!-- =============================================
+       APP VERSION — bump this on every deploy
+       ============================================= -->
+  <script>window.APP_VERSION = '2.1.0.0.1';</script>
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy"
@@ -50,7 +55,8 @@
       <button id="featuresToggle" class="mode-button">Features</button>
     </div>
 
-    <div id="versionTag">v2.0</div>
+    <div id="versionTag">v2.1</div>
+    <script>document.getElementById('versionTag').textContent = 'v' + (window.APP_VERSION || '2.1');</script>
   </div>
 
   <!-- The movable popup for GUI options, hidden by default -->
@@ -575,9 +581,25 @@
   <!-- Invisible Cloudflare Turnstile widget -->
   <div class="cf-turnstile" data-sitekey="0x4AAAAAAB7Xo7ZilyUzi6KU" data-size="invisible"></div>
 
-  <!-- Application script -->
-  <!--<script src="app.js" defer></script> -->
-  <!-- <script type="module" src="src/main.js"></script> -->
+  <!-- Cache-buster: reads APP_VERSION from top of file — no other place to update -->
+  <script>
+    (function () {
+      var v = window.APP_VERSION || '';
+      try {
+        var prev = localStorage.getItem('appVersion');
+        if (prev !== null && prev !== v) {
+          // Version changed — navigate to ?_v=<version> so the browser discards
+          // its in-memory module graph and all JS is fetched fresh.
+          localStorage.setItem('appVersion', v);
+          var url = new URL(location.href);
+          url.searchParams.set('_v', v);
+          location.replace(url.toString());
+          // page reloads here — nothing below runs
+        }
+        localStorage.setItem('appVersion', v);
+      } catch (e) { /* localStorage unavailable — ignore */ }
+    })();
+  </script>
   <script type="module" src="src/main.js"></script>
 </body>
 

@@ -7,7 +7,7 @@ const EXCLUDED_TILE_IDS = [
     '84b', '84b60', '84b120', '84b180', '84b240', '84b300',
     '85a', '85a60', '85a120', '85a180', '85a240', '85a300',
     '85b', '82', '82b', '82a', '18', '82ah', '82h', 'c41', '81', 'rexmex',
-    'd35a', 'd35b', 'd36', 'm28'
+    'd35a', 'd35b', 'd36', 'm28', "s11", "s12", "s13", "silver_flame"
     // Add more as needed
 ];
 // src/modules/Milty/miltyBuilderRandomTool.js
@@ -53,10 +53,11 @@ const DEFAULT_SETTINGS = {
         targetRatio: 0.75
     },
     sources: {
-        base: true, // Base Game
-        pokCodex: true, // Prophecy of Kings + Codex
-        dsUncharted: false, // Discordant Stars / Uncharted Space
-        eronous: false // Eronous / Lost_star_charts_of_Ixth / somno
+        base: true,          // Base Game
+        pokCodex: true,      // Prophecy of Kings + Codex
+        thundersEdge: false,  // Thunders Edge
+        dsUncharted: false,  // Discordant Stars / Uncharted Space
+        eronous: false      // Eronous / Lost_star_charts_of_Ixth / somno
     }
 };
 
@@ -377,6 +378,7 @@ function updateSettingsFromUI() {
     currentSettings.sources.pokCodex = document.getElementById('sourcePokCodex')?.checked || false;
     currentSettings.sources.dsUncharted = document.getElementById('sourceDSUncharted')?.checked || false;
     currentSettings.sources.eronous = document.getElementById('sourceEronous')?.checked || false;
+    currentSettings.sources.thundersEdge = document.getElementById('sourceThundersEdge')?.checked || false;
 
 
 
@@ -437,7 +439,8 @@ function getAvailableSystems() {
     const hasAnySource = currentSettings.sources.base ||
         currentSettings.sources.pokCodex ||
         currentSettings.sources.dsUncharted ||
-        currentSettings.sources.eronous;
+        currentSettings.sources.eronous ||
+        currentSettings.sources.thundersEdge;
 
     if (!hasAnySource) {
         console.warn('No sources selected, defaulting to base and PoK+Codex');
@@ -466,11 +469,18 @@ function getAvailableSystems() {
         }
         // Strict source filtering: only include if the system's source matches a selected source
         const source = getSystemSource(system);
+        // Exclude fracture tiles — they are TE special tiles not suited for normal slices
+        if (system.tileBack === 'fracture') {
+            if (debugMode) console.log(`Excluding system ${system.id} - fracture tile`);
+            return false;
+        }
+
         if (
             (source === 'base' && currentSettings.sources.base) ||
             (source === 'pokCodex' && currentSettings.sources.pokCodex) ||
             (source === 'dsUncharted' && currentSettings.sources.dsUncharted) ||
-            (source === 'eronous' && currentSettings.sources.eronous)
+            (source === 'eronous' && currentSettings.sources.eronous) ||
+            (source === 'thundersEdge' && currentSettings.sources.thundersEdge)
         ) {
             // Exclude home systems and special tiles that shouldn't be in slices
             const numId = parseInt(system.id);
@@ -537,6 +547,7 @@ function getSystemSource(system) {
     if (src === 'pok' || src === 'codex') return 'pokCodex';
     if (src === 'ds' || src === 'uncharted_space' || src === 'discordant stars/uncharted space') return 'dsUncharted';
     if (src === 'eronous' || src === 'lost_star_charts_of_ixth' || src === 'somno' || src === 'eronous/lost_star_charts_of_ixth/somno') return 'eronous';
+    if (src === 'thunders_edge' || src === 'thundersedge' || src === 'te') return 'thundersEdge';
     // Dane leaks, draft, or other unknowns can be handled as needed
     return src;
 }

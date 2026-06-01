@@ -172,6 +172,9 @@ export function createGeneratorPopupContent() {
                         <input type="checkbox" id="sourcePokCodex" style="margin-right: 8px;" checked> PoK + Codex
                     </label>
                     <label style="display: block; cursor: pointer;">
+                        <input type="checkbox" id="sourceThundersEdge" style="margin-right: 8px;" checked> Thunders Edge
+                    </label>
+                    <label style="display: block; cursor: pointer;">
                         <input type="checkbox" id="sourceDSUncharted" style="margin-right: 8px;"> Discordant Stars / Uncharted Space
                     </label>
                     <label style="display: block; cursor: pointer;">
@@ -705,10 +708,11 @@ export async function updateSettingsFromUI(moduleInstance = null) {
             maximum: parseInt(document.getElementById('maxLegendaries')?.value) || 6
         },
         sources: {
-            base: document.getElementById('sourceBase')?.checked || false,
-            pokCodex: document.getElementById('sourcePokCodex')?.checked || false,
-            dsUncharted: document.getElementById('sourceDSUncharted')?.checked || false,
-            eronous: document.getElementById('sourceEronous')?.checked || false
+            base:         document.getElementById('sourceBase')?.checked         || false,
+            pokCodex:     document.getElementById('sourcePokCodex')?.checked     || false,
+            dsUncharted:  document.getElementById('sourceDSUncharted')?.checked  || false,
+            eronous:      document.getElementById('sourceEronous')?.checked      || false,
+            thundersEdge: document.getElementById('sourceThundersEdge')?.checked || false
         },
         sliceGeneration: {
             minOptimalInfluence: parseFloat(document.getElementById('minOptimalInfluence')?.value) || 4,
