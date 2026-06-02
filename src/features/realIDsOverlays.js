@@ -40,55 +40,69 @@ export function drawPlanetTypeLayer(editor) {
             const x = cx + (r - 17) * Math.cos(θ);
             const y = cy + (r - 17) * Math.sin(θ);
 
-            // Determine planet type (support both single and array)
-            let type;
-            if (typeof p.planetType === "string" && p.planetType) {
-                type = p.planetType;
-            } else if (Array.isArray(p.planetTypes) && p.planetTypes.length > 0) {
-                type = p.planetTypes[0];
+            // Collect all planet types (support legacy single string and new array)
+            const allTypes = [];
+            if (typeof p.planetType === 'string' && p.planetType) {
+                allTypes.push(p.planetType.toUpperCase());
+            } else if (Array.isArray(p.planetTypes)) {
+                p.planetTypes.forEach(t => { if (t) allTypes.push(t.toUpperCase()); });
+            }
+
+            const fillMap = { CULTURAL: 'blue', HAZARDOUS: 'red', INDUSTRIAL: 'green' };
+            const getPlanetFill = t => fillMap[t] || 'gray';
+
+            if (allTypes.length >= 2) {
+                // Split circle: left half = first type, right half = second type
+                const f0 = getPlanetFill(allTypes[0]);
+                const f1 = getPlanetFill(allTypes[1]);
+                // Left semicircle: arc counterclockwise from top to bottom
+                const left = document.createElementNS(SVG_NS, 'path');
+                left.setAttribute('d', `M ${x},${y - 10} A 10,10 0 0 0 ${x},${y + 10} Z`);
+                left.setAttribute('fill', f0);
+                left.setAttribute('stroke', 'none');
+                layer.appendChild(left);
+                // Right semicircle: arc clockwise from top to bottom
+                const right = document.createElementNS(SVG_NS, 'path');
+                right.setAttribute('d', `M ${x},${y - 10} A 10,10 0 0 1 ${x},${y + 10} Z`);
+                right.setAttribute('fill', f1);
+                right.setAttribute('stroke', 'none');
+                layer.appendChild(right);
+                // Outline ring
+                const ring = document.createElementNS(SVG_NS, 'circle');
+                ring.setAttribute('cx', x); ring.setAttribute('cy', y); ring.setAttribute('r', 10);
+                ring.setAttribute('fill', 'none');
+                ring.setAttribute('stroke', 'black'); ring.setAttribute('stroke-width', '1');
+                layer.appendChild(ring);
             } else {
-                type = undefined;
+                // Single type — original circle
+                const fill = getPlanetFill(allTypes[0]);
+                const circ = document.createElementNS(SVG_NS, 'circle');
+                circ.setAttribute('cx', x); circ.setAttribute('cy', y); circ.setAttribute('r', 10);
+                circ.setAttribute('fill', fill);
+                circ.setAttribute('stroke', 'black'); circ.setAttribute('stroke-width', '1');
+                layer.appendChild(circ);
             }
 
-            // Color by type (CULTURAL=blue, HAZARDOUS=red, INDUSTRIAL=green, else gray)
-            const fillMap = {
-                CULTURAL: 'blue',
-                HAZARDOUS: 'red',
-                INDUSTRIAL: 'green'
-            };
-            const fill = fillMap[type && type.toUpperCase()] || 'gray';
-
-            // Draw circle for the planet type
-            const circ = document.createElementNS(SVG_NS, 'circle');
-            circ.setAttribute('cx', x);
-            circ.setAttribute('cy', y);
-            circ.setAttribute('r', 10);
-            circ.setAttribute('fill', fill);
-            circ.setAttribute('stroke', 'black');
-            circ.setAttribute('stroke-width', '1');
-            layer.appendChild(circ);
-
-            // Tech specialty mapping (Y/G/R/B for techs, S for any other string)
+            // Collect all tech specialties (allow duplicates for double-skip planets like Tiamat)
             const techMap = { CYBERNETIC: 'Y', BIOTIC: 'G', WARFARE: 'R', PROPULSION: 'B' };
-            let specialty;
-            if (typeof p.techSpecialty === "string" && p.techSpecialty) {
-                specialty = p.techSpecialty;
-            } else if (Array.isArray(p.techSpecialties) && p.techSpecialties.length > 0) {
-                specialty = p.techSpecialties[0];
+            const allSpecialties = [];
+            if (typeof p.techSpecialty === 'string' && p.techSpecialty) {
+                allSpecialties.push(p.techSpecialty.toUpperCase());
+            } else if (Array.isArray(p.techSpecialties)) {
+                p.techSpecialties.forEach(s => { if (s) allSpecialties.push(s.toUpperCase()); });
             }
-            const letter = techMap[specialty] || (specialty ? 'S' : '');
+            const techStr = allSpecialties.map(s => techMap[s] || s.charAt(0)).join('');
 
-            // Draw tech specialty letter if any
-            if (letter) {
+            // Draw tech specialty letters (YY for double skip, GR for mixed, etc.)
+            if (techStr) {
                 const txt = document.createElementNS(SVG_NS, 'text');
                 txt.setAttribute('x', x);
                 txt.setAttribute('y', y + 4);
                 txt.setAttribute('text-anchor', 'middle');
-                txt.setAttribute('font-size', '10');
-                if (fill === 'blue') {
-                    txt.setAttribute('fill', 'white');
-                }
-                txt.textContent = letter;
+                txt.setAttribute('font-size', techStr.length > 1 ? '7' : '10');
+                txt.setAttribute('fill', (allTypes[0] === 'CULTURAL') ? 'white' : 'black');
+                txt.setAttribute('stroke', 'none');
+                txt.textContent = techStr;
                 layer.appendChild(txt);
             }
         });

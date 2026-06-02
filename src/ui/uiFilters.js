@@ -391,7 +391,7 @@ export function sortSystemsByColumn(systems, column, direction) {
               if (typeof p.planetType === "string" && p.planetType) {
                 type = p.planetType;
               } else if (Array.isArray(p.planetTypes) && p.planetTypes.length > 0) {
-                type = p.planetTypes[0];
+                p.planetTypes.forEach(t => { if (t) types.add(t.toUpperCase()); });
               }
 
               if (type) {
@@ -615,64 +615,34 @@ export function generateSystemRow(system) {
         break;
 
       case 'planetTypes':
-        td.innerHTML = ''; // Clear content to add spans
-        const planetTypes = new Set();
-        let hasUnTypedPlanets = false;
-
+        td.innerHTML = '';
         if (system.planets && system.planets.length > 0) {
-          system.planets.forEach(p => {
-            let type;
-            if (typeof p.planetType === "string" && p.planetType) {
-              type = p.planetType;
-            } else if (Array.isArray(p.planetTypes) && p.planetTypes.length > 0) {
-              type = p.planetTypes[0];
-            }
-
-            if (type) {
-              planetTypes.add(type.toUpperCase());
-            } else {
-              hasUnTypedPlanets = true;
-            }
-          });
-
-          // Build the display spans
+          const typeColorMap = { CULTURAL: 'blue', HAZARDOUS: 'red', INDUSTRIAL: 'green' };
+          const typeLabelMap = { CULTURAL: 'C', HAZARDOUS: 'H', INDUSTRIAL: 'I' };
           const typeSpans = [];
+          let hasUnTyped = false;
 
-          // Add specific planet types
-          Array.from(planetTypes).forEach(type => {
-            let color = '#ccc';
-            let label = '';
-
-            switch (type) {
-              case 'CULTURAL':
-                color = 'blue';
-                label = 'C';
-                break;
-              case 'HAZARDOUS':
-                color = 'red';
-                label = 'H';
-                break;
-              case 'INDUSTRIAL':
-                color = 'green';
-                label = 'I';
-                break;
-              default:
-                color = 'gray';
-                label = 'N'; // Neutral for unknown types
-                break;
+          system.planets.forEach(p => {
+            // Collect ALL types for this planet (full array, not just first)
+            const types = [];
+            if (typeof p.planetType === 'string' && p.planetType) {
+              types.push(p.planetType.toUpperCase());
+            } else if (Array.isArray(p.planetTypes) && p.planetTypes.length > 0) {
+              p.planetTypes.forEach(t => { if (t) types.push(t.toUpperCase()); });
             }
 
-            typeSpans.push(`<span style="color: ${color}; font-weight: bold; margin-right: 2px;" title="${type}">${label}</span>`);
+            if (types.length === 0) { hasUnTyped = true; return; }
+
+            types.forEach(type => {
+              const color = typeColorMap[type] || 'gray';
+              const label = typeLabelMap[type] || 'N';
+              typeSpans.push(`<span style="color:${color};font-weight:bold;margin-right:1px;" title="${type}">${label}</span>`);
+            });
           });
 
-          // Add neutral for untyped planets (only if there are planets without types)
-          if (hasUnTypedPlanets) {
-            typeSpans.push(`<span style="color: gray; font-weight: bold; margin-right: 2px;" title="Neutral">N</span>`);
-          }
-
+          if (hasUnTyped) typeSpans.push(`<span style="color:gray;font-weight:bold;" title="Neutral">N</span>`);
           td.innerHTML = typeSpans.join('');
         } else {
-          // No planets at all - leave empty
           td.textContent = '';
         }
         break;
@@ -736,39 +706,37 @@ export function generateSystemRow(system) {
         break;
 
       case 'tech':
-        td.innerHTML = ''; // Clear content to add spans
-        const techSpecialties = new Set();
+        td.innerHTML = '';
+        {
+          const techLetterMap = { CYBERNETIC: 'Y', BIOTIC: 'G', WARFARE: 'R', PROPULSION: 'B' };
+          // Collect ALL techs including duplicates (e.g. Tiamat has two CYBERNETIC)
+          const allTechs = [];
+          if (system.planets) {
+            system.planets.forEach(p => {
+              if (Array.isArray(p.techSpecialties)) {
+                p.techSpecialties.forEach(t => { if (t) allTechs.push(t.toUpperCase()); });
+              } else if (p.techSpecialty) {
+                allTechs.push(p.techSpecialty.toUpperCase());
+              }
+            });
+          }
 
-        if (system.planets) {
-          system.planets.forEach(p => {
-            if (Array.isArray(p.techSpecialties)) {
-              p.techSpecialties.forEach(tech => techSpecialties.add(tech));
-            } else if (p.techSpecialty) {
-              techSpecialties.add(p.techSpecialty);
-            }
-          });
-        }
+          if (allTechs.length > 0) {
+            // Count occurrences of each type
+            const counts = {};
+            allTechs.forEach(t => { counts[t] = (counts[t] || 0) + 1; });
 
-        if (techSpecialties.size > 0) {
-          const techSpans = Array.from(techSpecialties).map(tech => {
-            const techUpper = tech.toUpperCase();
-            let color = techSpecialtyColors[techUpper] || '#9C27B0';
-            let label = '';
-
-            switch (techUpper) {
-              case 'CYBERNETIC': label = 'Y'; break;
-              case 'BIOTIC': label = 'G'; break;
-              case 'WARFARE': label = 'R'; break;
-              case 'PROPULSION': label = 'B'; break;
-              default: label = tech.charAt(0).toUpperCase(); break;
-            }
-
-            return `<span style="color: ${color}; font-weight: bold; margin-right: 2px;" title="${tech}">${label}</span>`;
-          }).join('');
-          td.innerHTML = techSpans;
-        } else {
-          td.textContent = '';
-          td.style.color = '#ccc';
+            const spans = Object.entries(counts).map(([tech, count]) => {
+              const color = techSpecialtyColors[tech] || '#9C27B0';
+              const letter = techLetterMap[tech] || tech.charAt(0);
+              const label = count > 1 ? `${count}${letter}` : letter;
+              return `<span style="color:${color};font-weight:bold;margin-right:1px;" title="${tech}${count > 1 ? ' ×' + count : ''}">${label}</span>`;
+            }).join('');
+            td.innerHTML = spans;
+          } else {
+            td.textContent = '';
+            td.style.color = '#ccc';
+          }
         }
         break;
 
