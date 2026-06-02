@@ -24,12 +24,12 @@ if ('requestIdleCallback' in window) {
 }
 
 // Minimal DOM check
-document.addEventListener('DOMContentLoaded', () => {
+const _checkWidget = () => {
     const widget = document.querySelector('.cf-turnstile');
-    if (!widget) {
-        console.warn('Cloudflare.js: Turnstile widget not found in DOM');
-    }
-});
+    if (!widget) console.warn('Cloudflare.js: Turnstile widget not found in DOM');
+};
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _checkWidget);
+else _checkWidget();
 
 /**
  * Get a one-time Turnstile token for verification

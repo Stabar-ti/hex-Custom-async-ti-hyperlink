@@ -72,6 +72,15 @@ export function drawSlicePositionOverlays(editor, show = true) {
         layer.appendChild(text);
     }
     console.log(`Added ${sectors.length} slice position overlays and ${sliceLetters.length} slice letter overlays to layer`);
+
+    // Apply milty display: hide unused hexes and labels after a short delay so all
+    // async visual updates from importFullState have finished first.
+    setTimeout(() => {
+        import('./miltyBuilderCore.js?v=' + Date.now()).then(({ applyMiltyDisplay }) => {
+            console.log('[MiltyDraw] Calling applyMiltyDisplay');
+            applyMiltyDisplay();
+        }).catch(e => console.error('[MiltyDraw] applyMiltyDisplay error:', e));
+    }, 200);
 }
 
 // Draws black borders around each slice (A-F) to show slice boundaries

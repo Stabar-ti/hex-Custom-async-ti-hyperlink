@@ -386,6 +386,63 @@ function clearHex(hexId) {
 }
 
 // Update visual elements after slice operations
+export function applyMiltyDisplay() {
+    const editor = window.editor;
+    if (!editor) { console.warn('[MiltyDisplay] No editor'); return; }
+
+    // Set synchronously so assignSystem / updateTileImageLayer called by any
+    // subsequent operation immediately picks up the correct state.
+    editor.showTileImages = true;
+
+    // Build the exact set of hex IDs that belong to the milty grid
+    const miltyHexIds = new Set();
+    Object.values(defaultSlices).forEach(positions =>
+        positions.forEach(id => miltyHexIds.add(String(id)))
+    );
+    Object.values(slotPositions).forEach(positions =>
+        positions.forEach(id => miltyHexIds.add(String(id)))
+    );
+
+    // Debug: sample of actual hex labels vs expected set
+    const allLabels = Object.keys(editor.hexes);
+    const sampleLabels = allLabels.slice(0, 5);
+    console.log('[MiltyDisplay] Total hexes in editor:', allLabels.length);
+    console.log('[MiltyDisplay] miltyHexIds size:', miltyHexIds.size);
+    console.log('[MiltyDisplay] Sample hex labels:', sampleLabels);
+    console.log('[MiltyDisplay] Sample in miltyHexIds:', sampleLabels.map(l => `${l}:${miltyHexIds.has(l)}`));
+
+    let hidden = 0, shown = 0, labelsHidden = 0, labelsNotFound = 0;
+
+    Object.entries(editor.hexes).forEach(([label, hex]) => {
+        const inGrid = miltyHexIds.has(label);
+
+        if (hex.polygon) {
+            hex.polygon.style.visibility = inGrid ? 'visible' : 'hidden';
+            hex.polygon.style.opacity    = inGrid ? ''        : '0';
+            inGrid ? shown++ : hidden++;
+        }
+
+        const labelEl = document.getElementById(`label-${label}`);
+        if (labelEl) { labelEl.style.visibility = 'hidden'; labelsHidden++; }
+        else labelsNotFound++;
+    });
+
+    console.log(`[MiltyDisplay] Shown: ${shown}, Hidden: ${hidden}, Labels hidden: ${labelsHidden}, Labels not found: ${labelsNotFound}`);
+
+    // Enable tile images and hide R/I overlays for the milty draft view
+    Promise.all([
+        import('../../features/realIDsOverlays.js'),
+        import('../../features/imageSystemsOverlay.js'),
+    ]).then(([{ updateLayerVisibility }, { updateTileImageLayer }]) => {
+        updateLayerVisibility(editor, 'resInfLayer',  false);
+        updateLayerVisibility(editor, 'idealRILayer', false);
+        editor.showResInf  = false;
+        editor.showIdealRI = false;
+        // showTileImages already set synchronously above
+        updateTileImageLayer(editor);
+    }).catch(() => {});
+}
+
 function updateVisualElements() {
     if (typeof window.editor?.redrawAllRealIDOverlays === 'function') window.editor.redrawAllRealIDOverlays(window.editor);
     if (typeof window.renderSystemList === 'function') window.renderSystemList();
@@ -397,11 +454,15 @@ function updateVisualElements() {
         console.warn('Could not update wormhole visibility:', err);
     });
 
-    // Update tile image layer for visual consistency
+    // Update tile image layer for visual consistency, then apply milty display
+    // IMPORTANT: applyMiltyDisplay must run AFTER all async visual updates to avoid being overridden
     import('../../features/imageSystemsOverlay.js').then(({ updateTileImageLayer }) => {
         updateTileImageLayer(window.editor);
+        // Delay slightly so any remaining async overlays also finish before we hide
+        setTimeout(applyMiltyDisplay, 150);
     }).catch(err => {
         console.warn('Could not update tile image layer:', err);
+        setTimeout(applyMiltyDisplay, 150);
     });
 
     // Update border anomalies overlay if active
@@ -414,15 +475,6 @@ function updateVisualElements() {
         refreshSystemList();
     }).catch(err => {
         console.warn('Could not refresh system list filters:', err);
-    });
-
-    // Enforce SVG layer order to ensure planets and overlays appear correctly
-    import('../../draw/enforceSvgLayerOrder.js').then(({ enforceSvgLayerOrder }) => {
-        if (window.editor?.svg) {
-            enforceSvgLayerOrder(window.editor.svg);
-        }
-    }).catch(err => {
-        console.warn('Could not enforce SVG layer order:', err);
     });
 }
 
@@ -626,15 +678,13 @@ export function importSlices(slicesString, updateStatusMsg) {
             import('../../draw/customLinksDraw.js'),
             import('../../draw/borderAnomaliesDraw.js'),
             import('../../features/baseOverlays.js'),
-            import('../../features/imageSystemsOverlay.js'),
-            import('../../draw/enforceSvgLayerOrder.js')
+            import('../../features/imageSystemsOverlay.js')
         ]).then(([
             { redrawAllRealIDOverlays },
             { drawCustomAdjacencyLayer },
             { drawBorderAnomaliesLayer },
             { updateEffectsVisibility, updateWormholeVisibility },
-            { updateTileImageLayer },
-            { enforceSvgLayerOrder }
+            { updateTileImageLayer }
         ]) => {
             // Execute in the exact same order as importFullState
             redrawAllRealIDOverlays(window.editor);

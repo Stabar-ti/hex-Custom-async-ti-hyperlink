@@ -5,7 +5,7 @@
   <!-- =============================================
        APP VERSION — bump this on every deploy
        ============================================= -->
-  <script>window.APP_VERSION = '2.1.0.2.2';</script>
+  <script>window.APP_VERSION = '2.1.0.8';</script>
 
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -581,15 +581,14 @@
   <!-- Invisible Cloudflare Turnstile widget -->
   <div class="cf-turnstile" data-sitekey="0x4AAAAAAB7Xo7ZilyUzi6KU" data-size="invisible"></div>
 
-  <!-- Cache-buster: reads APP_VERSION from top of file — no other place to update -->
+  <!-- Cache-buster: reads APP_VERSION from top of file — no other place to update.
+       Also injects main.js with ?v= so Chrome's bytecode cache never serves stale code. -->
   <script>
     (function () {
       var v = window.APP_VERSION || '';
       try {
         var prev = localStorage.getItem('appVersion');
         if (prev !== null && prev !== v) {
-          // Version changed — navigate to ?_v=<version> so the browser discards
-          // its in-memory module graph and all JS is fetched fresh.
           localStorage.setItem('appVersion', v);
           var url = new URL(location.href);
           url.searchParams.set('_v', v);
@@ -598,9 +597,15 @@
         }
         localStorage.setItem('appVersion', v);
       } catch (e) { /* localStorage unavailable — ignore */ }
+
+      // Inject main.js with the version in the URL so Chrome never serves a
+      // bytecode-cached copy from a previous version.
+      var s = document.createElement('script');
+      s.type = 'module';
+      s.src = './src/main.js' + (v ? '?v=' + v : '');
+      document.body.appendChild(s);
     })();
   </script>
-  <script type="module" src="src/main.js"></script>
 </body>
 
 </html>

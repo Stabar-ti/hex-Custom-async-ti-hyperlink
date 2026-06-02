@@ -73,8 +73,8 @@ export function showSpecialModePopup() {
                 designerContent.style.flexDirection = 'column';
                 designerContent.style.padding = '16px';
                 designerContent.style.boxSizing = 'border-box';
-                // Use miltyBuilder.js for the UI, with added debugging and error handling
-                import('../modules/Milty/miltyBuilder.js').then(mod => {
+                // Use miltyBuilder.js for the UI — cache buster ensures miltyBuilderUI.js and its deps load fresh
+                import('../modules/Milty/miltyBuilder.js?v=' + Date.now()).then(mod => {
                     console.log('Milty Builder module loaded:', mod); // Debug: See the loaded module
                     const showUI = mod.showMiltyBuilderUI || (mod.default && mod.default.showMiltyBuilderUI);
 
@@ -250,8 +250,10 @@ export function showSpecialModePopup() {
 // Attach to button if loaded directly
 if (typeof window !== 'undefined') {
     window.showSpecialModePopup = showSpecialModePopup;
-    document.addEventListener('DOMContentLoaded', () => {
+    const _wireBtn = () => {
         const btn = document.getElementById('specialModesBtn');
         if (btn) btn.addEventListener('click', showSpecialModePopup);
-    });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _wireBtn);
+    else _wireBtn();
 }

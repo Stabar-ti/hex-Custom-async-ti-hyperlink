@@ -467,7 +467,17 @@ if (resetPopupBtn) {
 
 
 
-document.addEventListener('DOMContentLoaded', () => {
+// Dynamically injected module scripts are async — DOMContentLoaded may have already
+// fired by the time this module executes. Guard against that here.
+function _onDOMReady(fn) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', fn);
+  } else {
+    fn();
+  }
+}
+
+_onDOMReady(() => {
   setupTileCopySingleButtonAndPopup();
 
   // Controls Panel Hide/Show Arrow Buttons

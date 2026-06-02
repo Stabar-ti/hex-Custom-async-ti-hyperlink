@@ -147,7 +147,13 @@ export function showMiltyBuilderUI(container) {
                     importFullState(window.editor, jsonText);
 
                     // Draw slice overlays after map is loaded
-                    setTimeout(() => {
+                    // Dynamic import with cache buster guarantees fresh miltyBuilderCore is used
+                    setTimeout(async () => {
+                        try {
+                            const cb = '?v=' + Date.now();
+                            const { applyMiltyDisplay } = await import('./miltyBuilderCore.js' + cb);
+                            applyMiltyDisplay();
+                        } catch(e) { console.error('[Milty] applyMiltyDisplay failed:', e); }
                         drawSlicePositionOverlays(window.editor);
                         sliceNumbersVisible = true;
                         const numbersBtn = container.querySelector('#toggleSliceNumbersBtn');
@@ -158,7 +164,7 @@ export function showMiltyBuilderUI(container) {
                         }
                         updateSliceButtonColors();
                         console.log('Slice overlays drawn after MiltyBuilder.json load');
-                    }, 500);
+                    }, 800);
 
                     // Enable all other buttons after loading
                     [

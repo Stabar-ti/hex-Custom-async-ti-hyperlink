@@ -90,8 +90,9 @@ function makeModalDraggableByHeader(modalId, handleSelector = '.draggable-handle
 // Enable draggable headers for select modals on page load
 // (Add more calls here to enable dragging for additional modals.)
 // ───────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
+const _initModals = () => {
   makeModalDraggableByHeader('systemLookupModal');
   makeModalDraggableByHeader('optionsModal');
-  // makeModalDraggableByHeader('anotherModal'); // etc...
-});
+};
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initModals);
+else _initModals();

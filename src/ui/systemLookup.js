@@ -704,9 +704,16 @@ export function refreshSystemList() {
 }
 
 // 9) When the page is ready, initialize the system lookup.
-window.addEventListener('DOMContentLoaded', () => {
-    initSystemLookup(window.editor);
-});
+// initSystemLookup needs window.editor which is set in main.js's module body.
+// Static imports evaluate before the parent module body, so we must defer until
+// after all synchronous module initialization completes.
+const _initLookup = () => initSystemLookup(window.editor);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initLookup);
+} else {
+    // DOM already loaded — defer one tick so main.js module body has run first
+    setTimeout(_initLookup, 0);
+}
 
 function showRandomTilePopup(sys, editor, onAssign) {
     hidePopup('random-tile-popup');
