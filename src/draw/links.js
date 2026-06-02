@@ -87,26 +87,26 @@ export function drawCurveLink(svg, hex, entry, exit, viaLabel, radius = 40) {
 }
 
 /**
- * Draws a straight "loopback" (self-loop) curve from one side towards the center of the hex.
+ * Draws a straight "loopback" (self-loop) line from a hex edge inward toward the center.
  *
  * @param {SVGElement} svg
  * @param {object} hex
  * @param {number} entry     - Which edge (0..5) is the loopback
  * @param {string} viaLabel  - Hex label for data-attribute
- * @param {number} radius    - Length of the loop arm (default 14)
+ * @param {number} armLength - How far the line extends inward from the edge (default 14)
  * @returns {SVGLineElement}
  */
-export function drawLoopbackCurve(svg, hex, entry, viaLabel, radius = 14) {
+export function drawLoopbackCurve(svg, hex, entry, viaLabel, armLength = 14) {
   const center = hex.center;
-  const start = edgeMid(center, entry, hex.radius || 40); // outer edge
+  const start = edgeMid(center, entry, 40); // 40 = standard hex radius for edge midpoint
 
   // Compute vector from edge toward center
   const dx = center.x - start.x;
   const dy = center.y - start.y;
   const len = Math.sqrt(dx * dx + dy * dy);
 
-  // Move inward by 'radius' along this vector
-  const t = radius / len;
+  // Move inward by 'armLength' along this vector
+  const t = armLength / len;
   const endX = center.x - dx * t;
   const endY = center.y - dy * t;
 

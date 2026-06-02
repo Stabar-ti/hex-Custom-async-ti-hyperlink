@@ -50,7 +50,13 @@ export function bindHyperlaneEditing(editor) {
     const A = p[p.length - 3], B = p[p.length - 2], C = p[p.length - 1];
     const via = this.hexes[B];
     const entry = getDirIndex(via, this.hexes[A]);
-    const exit = getDirIndex(via, this.hexes[C]);
+    const exit  = getDirIndex(via, this.hexes[C]);
+    // Guard: non-neighbours in path should never occur (enforced by _selectHex),
+    // but abort cleanly rather than silently corrupt the matrix with -1 indices.
+    if (entry < 0 || exit < 0) {
+      this.selectedPath = [];
+      return;
+    }
     this.saveState(B);
 
     if (A === C && A !== B) {
@@ -81,7 +87,7 @@ export function bindHyperlaneEditing(editor) {
   editor._drawLoop = function (A, B) {
     const via = this.hexes[B];
     const from = this.hexes[A];
-    this.saveState(B);
+    // saveState already called by _tryDrawLink before this is invoked
     const entry = getDirIndex(via, from);
     if (entry < 0 || via.matrix[entry][entry]) return; // Already exists or invalid
     // Draw both the loop arc and circular node
@@ -100,7 +106,7 @@ export function bindHyperlaneEditing(editor) {
    */
   editor._unlink = function (A, B, C) {
     const via = this.hexes[B];
-    this.saveState(B);
+    // saveState already called by _tryDrawLink before this is invoked
     const ent = getDirIndex(via, this.hexes[A]);
     const ext = getDirIndex(via, this.hexes[C]);
     if (via.matrix[ent][ext]) {
@@ -123,20 +129,22 @@ export function bindHyperlaneEditing(editor) {
    * Removes segments from the SVG and resets the hex's matrix.
    */
   editor.deleteAllSegments = function (label) {
-    this.saveState(label); // <--- Add this line!
+    this.saveState(label);
 
+    // Remove SVG elements first (may exist even if the hex object is gone)
     this.drawnSegments = this.drawnSegments.filter(seg => {
       if (seg.dataset.via === label) {
-        this.svg.removeChild(seg);
+        seg.parentNode?.removeChild(seg);
         return false;
       }
       return true;
     });
+
+    // Matrix reset and deselect require the hex object — guard before access
     const hex = this.hexes[label];
     if (!hex) return;
-    // Clear the segment connection matrix for this hex
     hex.matrix.forEach((row, i) => row.forEach((_, j) => hex.matrix[i][j] = 0));
-    hex.polygon.classList.remove('selected');
+    hex.polygon?.classList.remove('selected');
   };
 }
 
@@ -152,19 +160,31 @@ export function drawMatrixLinks(editor, label, matrix) {
   const hex = editor.hexes[label];
   if (!hex) return;
 
+  // Track normalised pair keys to avoid drawing duplicate SVG elements when the
+  // matrix is symmetric (entry→exit and exit→entry both set to 1 after symmetrisation).
+  // Self-loops use key "l{entry}"; regular segments use "{min},{max}".
+  const drawnPairs = new Set();
+
   for (let entry = 0; entry < 6; entry++) {
     for (let exit = 0; exit < 6; exit++) {
-      if (matrix[entry][exit] === 1) {
-        if (entry === exit) {
-          // Loopback: draw both circle and curve for self-loop
-          const circ = drawLoopCircle(editor.svg, hex.center.x, hex.center.y, label);
-          const arc = drawLoopbackCurve(editor.svg, hex, entry, label, 15);
-          editor.drawnSegments.push(circ, arc);
-        } else {
-          // Normal segment: draw curve
-          const seg = drawCurveLink(editor.svg, hex, entry, exit, label, editor.hexRadius);
-          editor.drawnSegments.push(seg);
-        }
+      if (matrix[entry][exit] !== 1) continue;
+
+      if (entry === exit) {
+        // Self-loop: keyed by direction so each arm is drawn once
+        const key = `l${entry}`;
+        if (drawnPairs.has(key)) continue;
+        drawnPairs.add(key);
+        const circ = drawLoopCircle(editor.svg, hex.center.x, hex.center.y, label);
+        const arc  = drawLoopbackCurve(editor.svg, hex, entry, label);
+        editor.drawnSegments.push(circ, arc);
+      } else {
+        // Regular segment: normalise so {3,5} and {5,3} map to the same key,
+        // preventing the same curve from being drawn twice on symmetric matrices.
+        const key = `${Math.min(entry, exit)},${Math.max(entry, exit)}`;
+        if (drawnPairs.has(key)) continue;
+        drawnPairs.add(key);
+        const seg = drawCurveLink(editor.svg, hex, entry, exit, label, editor.hexRadius);
+        editor.drawnSegments.push(seg);
       }
     }
   }
