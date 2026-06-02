@@ -138,6 +138,9 @@ export function createGeneratorPopupContent() {
                 <label style="display: block; margin-bottom: 8px; cursor: pointer;">
                     <input type="checkbox" id="forceGamma" style="margin-right: 8px;"> Force one Gamma wormhole in slices
                 </label>
+                <label style="display: block; margin-bottom: 8px; cursor: pointer;">
+                    <input type="checkbox" id="onlyAlphaBetaGamma" style="margin-right: 8px;" checked> Only use Alpha, Beta &amp; Gamma wormholes (exclude Eta, Theta, etc.)
+                </label>
                 <div style="margin-top: 10px;">
                     <label style="display: flex; align-items: center; gap: 8px;">
                         <span style="min-width: 160px;">Abundance Weight:</span>
@@ -261,10 +264,10 @@ export function createGeneratorPopupContent() {
 export function showWeightingSettingsPopup() {
     const cacheBuster = '?v=' + Date.now();
     import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
-        const { saveWeightingSettings, resetWeightingSettings } = module;
+        const { saveWeightingSettings, resetWeightingSettings, createWeightingPopupContent: buildContent } = module;
 
         showPopup({
-            content: createWeightingPopupContent(),
+            content: buildContent(),  // called from the freshly-loaded module, never stale
             actions: [
                 { label: 'Save Settings', action: saveWeightingSettings },
                 { label: 'Reset to Defaults', action: resetWeightingSettings }
@@ -298,9 +301,13 @@ export function createWeightingPopupContent() {
         resourceValue: 1.0,
         influenceValue: 1.0,
         resourceInfluenceImbalance: -0.5,
-        legendaryPlanet: 5.0,
+        legendaryPlanet: 1.5,
+        legendaryIndustrex: 2.5,
+        legendaryEmelpar: 3.0,
         techSpecialty: 2.0,
-        wormhole: 1.0,
+        wormhole: 0.5,
+        gammaWormhole: 1.5,
+        tradeStation: 0.5,
         industrial: 0.5,
         cultural: 0.5,
         hazardous: 0.5,
@@ -308,6 +315,7 @@ export function createWeightingPopupContent() {
         asteroidField: -1.0,
         nebula: 0.0,
         gravityRift: 0.5,
+        entropicScar: 1.0,
         lowPlanetCount: -3.0,
         highPlanetCount: -2.0
     };
@@ -336,9 +344,13 @@ export function createWeightingPopupContent() {
             resourceInfluenceImbalance: 'Resource/Influence Imbalance (penalty)'
         },
         'Special Features': {
-            legendaryPlanet: 'Legendary Planet',
-            techSpecialty: 'Tech Specialty',
-            wormhole: 'Wormhole'
+            legendaryPlanet:    'Legendary Planet (base)',
+            legendaryIndustrex: 'Legendary: Industrex (TE)',
+            legendaryEmelpar:   'Legendary: Emelpar (TE)',
+            techSpecialty:      'Tech Specialty',
+            wormhole:           'Wormhole (non-Gamma)',
+            gammaWormhole:      'Wormhole (Gamma)',
+            tradeStation:       'Trade Station (TE)',
         },
         'Planet Types': {
             industrial: 'Industrial Planet',
@@ -349,7 +361,8 @@ export function createWeightingPopupContent() {
             supernova: 'Supernova',
             asteroidField: 'Asteroid Field',
             nebula: 'Nebula',
-            gravityRift: 'Gravity Rift'
+            gravityRift: 'Gravity Rift',
+            entropicScar: 'Entropic Scar (TE)'
         },
         'Planet Count': {
             lowPlanetCount: 'Low Planet Count (< 3, penalty)',
@@ -701,7 +714,8 @@ export async function updateSettingsFromUI(moduleInstance = null) {
             includeAlphaBeta: document.getElementById('includeAlphaBeta')?.checked || false,
             maxPerSlice: document.getElementById('maxOneWormhole')?.checked ? 1 : 2,
             abundanceWeight: parseFloat(document.getElementById('wormholeAbundanceWeight')?.value) || 1.0,
-            forceGamma: document.getElementById('forceGamma')?.checked || false
+            forceGamma:         document.getElementById('forceGamma')?.checked         || false,
+            onlyAlphaBetaGamma: document.getElementById('onlyAlphaBetaGamma')?.checked ?? true
         },
         legendaries: {
             minimum: parseInt(document.getElementById('minLegendaries')?.value) || 0,

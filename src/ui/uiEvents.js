@@ -33,9 +33,9 @@ export function registerClickHandler(editor) {
       return;
     }
 
-    // 3. Effect overlays (nebula, rift, etc.)
+    // 3. Effect overlays (nebula, rift, asteroid, supernova, scar)
     // applyEffect should save history
-    if (["nebula", "rift", "asteroid", "supernova"].includes(this.mode)) {
+    if (["nebula", "rift", "asteroid", "supernova", "scar"].includes(this.mode)) {
       this.applyEffect(label, this.mode);
       return;
     }

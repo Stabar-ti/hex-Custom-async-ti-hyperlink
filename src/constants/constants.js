@@ -55,10 +55,11 @@ export const effectIconPositions = [
  * Maps effect type (as string) to emoji for overlay display.
  */
 export const effectEmojiMap = {
-  nebula: '☁️',
-  supernova: '☀️',
-  asteroid: '🪨',
-  rift: '🕳️',
+  nebula:     '☁️',
+  supernova:  '☀️',
+  asteroid:   '🪨',
+  rift:       '🕳️',
+  scar:       '☄️',  // Thunders Edge: Entropic Scar
   homesystem: '★'
 };
 

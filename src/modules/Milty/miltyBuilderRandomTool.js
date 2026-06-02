@@ -7,8 +7,8 @@ const EXCLUDED_TILE_IDS = [
     '84b', '84b60', '84b120', '84b180', '84b240', '84b300',
     '85a', '85a60', '85a120', '85a180', '85a240', '85a300',
     '85b', '82', '82b', '82a', '18', '82ah', '82h', 'c41', '81', 'rexmex',
-    'd35a', 'd35b', 'd36', 'm28', "s11", "s12", "s13", "silver_flame"
-    // Add more as needed
+    'd35a', 'd35b', 'd36', 'm28', "s11", "s12", "s13", "silver_flame",
+    '94'  // TE faction-specific tile — not suitable for general slice use
 ];
 // src/modules/Milty/miltyBuilderRandomTool.js
 // Milty Draft Slice Generation Tool - Core Logic
@@ -30,8 +30,9 @@ const DEFAULT_SETTINGS = {
     wormholes: {
         includeAlphaBeta: true,
         maxPerSlice: 1,
-        abundanceWeight: 1.0, // 1.0 = equal probability, >1.0 = favor abundant types, <1.0 = favor rare types
-        forceGamma: false // Force one gamma wormhole in one of the slices
+        abundanceWeight: 1.0,
+        forceGamma: false,
+        onlyAlphaBetaGamma: true // Exclude tiles with non-standard wormhole types (eta, theta, etc.)
     },
     legendaries: {
         minimum: 0,
@@ -67,16 +68,21 @@ const DEFAULT_WEIGHTS = {
     supernova: -3,
     asteroidField: -1,
     nebula: 0,
-    gravityRift: -2,
+    gravityRift: -1,
+    entropicScar: 1,
 
     // Resources/Influence
-    resourceValue: 1,
+    resourceValue: 0.9,
     influenceValue: 1,
 
     // Special features
     techSpecialty: 2,
-    legendaryPlanet: 5,
-    wormhole: 1,
+    legendaryPlanet: 1.5,     // base legendary value
+    legendaryIndustrex: 2.5,  // Industrex (TE)
+    legendaryEmelpar: 3,      // Emelpar (TE)
+    wormhole: 0.5,            // non-gamma wormholes
+    gammaWormhole: 1.5,       // gamma wormhole
+    tradeStation: 0.5,        // trade station bonus
 
     // Planet types
     industrial: 0.5,
@@ -203,7 +209,7 @@ console.log('📦 All functions exported from miltyBuilderRandomTool.js');
 /**
  * Creates the weighting settings popup content
  */
-function createWeightingPopupContent() {
+export function createWeightingPopupContent() {
     return `
         <div style="padding: 20px; line-height: 1.5; max-height: 60vh; overflow-y: auto;">
             <p style="color: #ccc; margin-bottom: 20px;">
@@ -229,9 +235,13 @@ function createWeightingPopupContent() {
                     <label>Gravity Rift</label>
                     <input type="number" id="weight_gravityRift" value="${currentWeights.gravityRift}" step="0.5"
                            style="padding: 4px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
+
+                    <label>Entropic Scar (TE)</label>
+                    <input type="number" id="weight_entropicScar" value="${currentWeights.entropicScar ?? 1}" step="0.5"
+                           style="padding: 4px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
                 </div>
             </div>
-            
+
             <!-- Resources & Influence -->
             <div style="margin-bottom: 25px; padding: 15px; background: #3a3a3a; border-radius: 6px; border: 1px solid #555;">
                 <h4 style="color: #4CAF50; margin: 0 0 15px 0;">Resources & Influence</h4>
@@ -258,12 +268,28 @@ function createWeightingPopupContent() {
                     <input type="number" id="weight_techSpecialty" value="${currentWeights.techSpecialty}" step="0.5"
                            style="padding: 4px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
                     
-                    <label>Legendary Planet</label>
+                    <label>Legendary Planet (base)</label>
                     <input type="number" id="weight_legendaryPlanet" value="${currentWeights.legendaryPlanet}" step="0.5"
                            style="padding: 4px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
-                    
-                    <label>Wormhole</label>
+
+                    <label>Legendary: Industrex (TE)</label>
+                    <input type="number" id="weight_legendaryIndustrex" value="${currentWeights.legendaryIndustrex ?? 2.5}" step="0.5"
+                           style="padding: 4px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
+
+                    <label>Legendary: Emelpar (TE)</label>
+                    <input type="number" id="weight_legendaryEmelpar" value="${currentWeights.legendaryEmelpar ?? 3}" step="0.5"
+                           style="padding: 4px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
+
+                    <label>Wormhole (non-Gamma)</label>
                     <input type="number" id="weight_wormhole" value="${currentWeights.wormhole}" step="0.5"
+                           style="padding: 4px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
+
+                    <label>Wormhole (Gamma)</label>
+                    <input type="number" id="weight_gammaWormhole" value="${currentWeights.gammaWormhole ?? 1.5}" step="0.5"
+                           style="padding: 4px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
+
+                    <label>Trade Station (TE)</label>
+                    <input type="number" id="weight_tradeStation" value="${currentWeights.tradeStation ?? 0.5}" step="0.5"
                            style="padding: 4px; border: 1px solid #666; border-radius: 3px; background: #2a2a2a; color: #fff;">
                 </div>
             </div>
@@ -370,7 +396,8 @@ function updateSettingsFromUI() {
     currentSettings.wormholes.includeAlphaBeta = document.getElementById('includeAlphaBeta')?.checked || false;
     currentSettings.wormholes.maxPerSlice = document.getElementById('maxOneWormhole')?.checked ? 1 : 2;
     currentSettings.wormholes.abundanceWeight = parseFloat(document.getElementById('wormholeAbundanceWeight')?.value) || 1.0;
-    currentSettings.wormholes.forceGamma = document.getElementById('forceGamma')?.checked || false;
+    currentSettings.wormholes.forceGamma          = document.getElementById('forceGamma')?.checked          || false;
+    currentSettings.wormholes.onlyAlphaBetaGamma  = document.getElementById('onlyAlphaBetaGamma')?.checked  ?? true;
     currentSettings.legendaries.minimum = parseInt(document.getElementById('minLegendaries')?.value) || 0;
     currentSettings.legendaries.maximum = parseInt(document.getElementById('maxLegendaries')?.value) || 6;
 
@@ -466,6 +493,21 @@ function getAvailableSystems() {
         if (system.isHyperlane === true) {
             if (debugMode) console.log(`Excluding system ${system.id} - marked as hyperlane`);
             return false;
+        }
+
+        // Always exclude epsilon wormhole tiles
+        if (system.wormholes?.some(wh => wh?.toLowerCase() === 'epsilon')) {
+            if (debugMode) console.log(`Excluding system ${system.id} - has epsilon wormhole`);
+            return false;
+        }
+
+        // Optionally restrict to alpha, beta, gamma only (excludes eta, theta, kappa, etc.)
+        if (currentSettings.wormholes.onlyAlphaBetaGamma && system.wormholes?.length) {
+            const ALLOWED = new Set(['alpha', 'beta', 'gamma']);
+            if (system.wormholes.some(wh => wh && !ALLOWED.has(wh.toLowerCase()))) {
+                if (debugMode) console.log(`Excluding system ${system.id} - non-standard wormhole type`);
+                return false;
+            }
         }
         // Strict source filtering: only include if the system's source matches a selected source
         const source = getSystemSource(system);
@@ -905,6 +947,8 @@ function generateSingleSlice(availableSystems, usedSystems, wormholeTracker, cur
             optimalInfluence: 0,
             wormholes: [],
             legendaries: 0,
+            legendaryNames: [],
+            tradeStations: 0,
             techSpecialties: [],
             anomalies: [],
             score: 0
@@ -1199,6 +1243,8 @@ function calculateSliceProperties(slice) {
     slice.optimalInfluence = 0;
     slice.wormholes = [];
     slice.legendaries = 0;
+    slice.legendaryNames = [];
+    slice.tradeStations = 0;
     slice.techSpecialties = [];
     slice.anomalies = [];
 
@@ -1222,9 +1268,15 @@ function calculateSliceProperties(slice) {
                     slice.optimalInfluence += inf;
                 }
 
-                // Count legendaries
+                // Count legendaries and track names for per-planet scoring
                 if (planet.legendaryAbilityName) {
                     slice.legendaries++;
+                    slice.legendaryNames.push((planet.name || '').toLowerCase());
+                }
+
+                // Trade stations
+                if (planet.isStation === true || (planet.name || '').toLowerCase().includes('station')) {
+                    slice.tradeStations++;
                 }
 
                 // Collect tech specialties
@@ -1244,6 +1296,7 @@ function calculateSliceProperties(slice) {
         if (system.isAsteroidField) slice.anomalies.push('asteroidField');
         if (system.isNebula) slice.anomalies.push('nebula');
         if (system.isGravityRift) slice.anomalies.push('gravityRift');
+        if (system.isScar) slice.anomalies.push('entropicScar');
     });
 }
 
@@ -1274,12 +1327,16 @@ function validateSliceConstraints(slice, wormholeTracker, currentLegendaryCount)
         console.log('Generated slice with no planets (all anomalies/empty systems):', slice.systems.map(s => s.id));
     }
 
-    // Check wormhole constraints
-    if (currentSettings.wormholes.maxPerSlice === 1 && slice.wormholes.length > 1) return false;
+    // Check wormhole constraints — count SYSTEMS with wormholes, not individual wormhole type strings,
+    // so a single system with multiple wormhole types (e.g. TE tiles) doesn't incorrectly fail.
+    const wormholeSystems = slice.systems.filter(sys =>
+        sys.wormholes?.some(w => w && w.toString().trim())
+    );
+    if (currentSettings.wormholes.maxPerSlice === 1 && wormholeSystems.length > 1) return false;
 
-    // Check for duplicate wormholes in slice
-    const wormholeSet = new Set(slice.wormholes);
-    if (wormholeSet.size !== slice.wormholes.length) return false;
+    // Check for duplicate wormhole TYPES across systems in the slice
+    const wormholeSet = new Set(slice.wormholes.filter(Boolean));
+    if (wormholeSet.size !== slice.wormholes.filter(Boolean).length) return false;
 
     return true;
 }
@@ -1323,6 +1380,20 @@ function validateSliceSet(slices) {
             console.log(`✅ Wormhole constraint satisfied: ${typeA}=${countA}, ${typeB}=${countB}`);
         }
     }
+
+    // Force-gamma check: if a gamma system was pre-selected, it must appear in the final set
+    if (currentSettings.wormholes.forceGamma && currentSettings.wormholes._gammaSystem) {
+        const gammaId = currentSettings.wormholes._gammaSystem.id;
+        const gammaPlaced = slices.some(slice =>
+            slice.systems.some(sys => sys.id === gammaId)
+        );
+        if (!gammaPlaced) {
+            if (debugMode) console.log('❌ Force-gamma constraint failed: gamma system not in any slice');
+            return false;
+        }
+        if (debugMode) console.log(`✅ Force-gamma satisfied: gamma system ${gammaId} placed`);
+    }
+
     return true;
 }
 
@@ -1340,10 +1411,27 @@ function calculateSliceScore(slice) {
     const imbalance = Math.abs(slice.totalResources - slice.totalInfluence);
     score += imbalance * currentWeights.resourceInfluenceImbalance;
 
-    // Special features
-    score += slice.legendaries * currentWeights.legendaryPlanet;
+    // Legendaries — specific TE planets score differently
+    if (slice.legendaryNames && slice.legendaryNames.length > 0) {
+        slice.legendaryNames.forEach(name => {
+            if (name.includes('industrex')) score += currentWeights.legendaryIndustrex ?? 2.5;
+            else if (name.includes('emelpar')) score += currentWeights.legendaryEmelpar ?? 3;
+            else score += currentWeights.legendaryPlanet;
+        });
+    } else {
+        score += slice.legendaries * currentWeights.legendaryPlanet;
+    }
+
     score += slice.techSpecialties.length * currentWeights.techSpecialty;
-    score += slice.wormholes.length * currentWeights.wormhole;
+
+    // Wormholes — gamma scores higher than alpha/beta/other
+    const gammaCount = slice.wormholes.filter(w => (w || '').toLowerCase() === 'gamma').length;
+    const nonGammaCount = slice.wormholes.length - gammaCount;
+    score += nonGammaCount * currentWeights.wormhole;
+    score += gammaCount * (currentWeights.gammaWormhole ?? 1.5);
+
+    // Trade station bonus
+    score += (slice.tradeStations || 0) * (currentWeights.tradeStation ?? 0.5);
 
     // Planet type bonuses
     let industrialCount = 0;

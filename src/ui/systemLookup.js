@@ -10,7 +10,6 @@
 import { loadSystemInfo } from '../data/import.js';
 import {
     initFilters,
-    markRealIDUsed,
     isRealIDUsed,
     getActiveFilterPass,
     unmarkRealIDUsed,
@@ -45,9 +44,6 @@ export default async function initSystemLookup(editor) {
     // Sorting state
     let sortColumn = null;
     let sortDirection = null;
-
-    // Global cache for failed image loads to prevent repeated 404s
-    const failedImages = new Set();
 
     /**
      * Creates and shows the system lookup popup
@@ -407,10 +403,11 @@ export default async function initSystemLookup(editor) {
 
         // Anomalies/Effects
         const effects = [];
-        if (system.isNebula) effects.push('☁️ Nebula');
-        if (system.isGravityRift) effects.push('🕳️ Gravity Rift');
-        if (system.isSupernova) effects.push('☀️ Supernova');
+        if (system.isNebula)        effects.push('☁️ Nebula');
+        if (system.isGravityRift)   effects.push('🕳️ Gravity Rift');
+        if (system.isSupernova)     effects.push('☀️ Supernova');
         if (system.isAsteroidField) effects.push('🪨 Asteroid Field');
+        if (system.isScar)          effects.push('☄️ Entropic Scar');
         if (effects.length > 0) {
             content += `<div style="margin: 4px 0;"><strong>Effects:</strong> ${effects.join(', ')}</div>`;
         }
@@ -736,10 +733,11 @@ function showRandomTilePopup(sys, editor, onAssign) {
         return `<span style="color:${color};font-weight:bold;">${label}</span>`;
     }).join(' ');
     const effs = [];
-    if (sys.isNebula) effs.push('☁️ Nebula');
-    if (sys.isGravityRift) effs.push('🕳️ Gravity Rift');
-    if (sys.isSupernova) effs.push('☀️ Supernova');
+    if (sys.isNebula)        effs.push('☁️ Nebula');
+    if (sys.isGravityRift)   effs.push('🕳️ Gravity Rift');
+    if (sys.isSupernova)     effs.push('☀️ Supernova');
     if (sys.isAsteroidField) effs.push('🪨 Asteroid Field');
+    if (sys.isScar)          effs.push('☄️ Entropic Scar');
     const effectsSummary = effs.join(', ');
     const legend = (sys.planets || []).some(p => p.legendaryAbilityName) ? '⭐ Legendary' : '';
 

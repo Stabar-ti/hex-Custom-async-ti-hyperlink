@@ -367,7 +367,7 @@ export function showLayoutOptionsPopup() {
         if (drawHelpersBtn) {
             drawHelpersBtn.onclick = () => {
                 // Import the sector controls function and get the draw helpers functionality
-                import('./uisectorControls.js').then(module => {
+                import('./uisectorControls.js').then(() => {
                     if (window.editor) {
                         // Trigger the draw helpers popup directly
                         showPopup({
@@ -459,10 +459,11 @@ export function showLayoutOptionsPopup() {
                                 content.appendChild(effectsLabel);
 
                                 const effects = [
-                                    { mode: 'nebula', label: 'Nebula', cls: 'btn-nebula' },
-                                    { mode: 'rift', label: 'Rift', cls: 'btn-rift' },
-                                    { mode: 'asteroid', label: 'Asteroid', cls: 'btn-asteroid' },
-                                    { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova' }
+                                    { mode: 'nebula',    label: 'Nebula',    cls: 'btn-nebula' },
+                                    { mode: 'rift',      label: 'Rift',      cls: 'btn-rift' },
+                                    { mode: 'asteroid',  label: 'Asteroid',  cls: 'btn-asteroid' },
+                                    { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova' },
+                                    { mode: 'scar',      label: 'Scar ☄️',   cls: 'btn-scar' }
                                 ];
 
                                 effects.forEach(({ mode, label, cls }) => {
@@ -496,6 +497,53 @@ export function showLayoutOptionsPopup() {
                                     });
                                     content.appendChild(btn);
                                 });
+
+                                // AutoMapper button
+                                const amSeparator = document.createElement('div');
+                                amSeparator.style.gridColumn = '1 / -1';
+                                amSeparator.style.borderTop = '1px solid #666';
+                                amSeparator.style.margin = '10px 0';
+                                content.appendChild(amSeparator);
+
+                                const amBtn = document.createElement('button');
+                                amBtn.textContent = '🤖 AutoMapper';
+                                amBtn.className = 'mode-button';
+                                amBtn.style.gridColumn = '1 / -1';
+                                amBtn.style.width = '100%';
+                                amBtn.style.padding = '8px 12px';
+                                amBtn.style.fontSize = '0.9em';
+                                amBtn.style.fontWeight = 'bold';
+                                amBtn.style.border = '1px solid #00d4ff';
+                                amBtn.style.borderRadius = '4px';
+                                amBtn.style.cursor = 'pointer';
+                                amBtn.onclick = () => {
+                                    import('../modules/automapper/autoBuilder.js').then(mod => {
+                                        const autoMapperContent = document.createElement('div');
+                                        autoMapperContent.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;';
+                                        const showUI = mod.showAutoBuilderUI;
+                                        if (typeof showUI === 'function') showUI(autoMapperContent);
+                                        import('./popupUI.js').then(({ showPopup }) => {
+                                            showPopup({
+                                                id: 'automapper-popup',
+                                                title: '🤖 AutoMapper',
+                                                content: autoMapperContent,
+                                                draggable: true,
+                                                dragHandleSelector: '.popup-ui-titlebar',
+                                                scalable: true,
+                                                rememberPosition: true,
+                                                style: {
+                                                    minWidth: '380px', maxWidth: '700px',
+                                                    border: '2px solid #00d4ff',
+                                                    borderRadius: '10px',
+                                                    boxShadow: '0 8px 40px #000a',
+                                                    padding: '16px',
+                                                    zIndex: 10012
+                                                }
+                                            });
+                                        });
+                                    }).catch(err => console.error('Failed to load AutoMapper:', err));
+                                };
+                                content.appendChild(amBtn);
 
                                 return content;
                             })()

@@ -587,7 +587,7 @@ export function startCopyPasteWizard(editor, cut = false) {
                 continue;
             }
             const noPlanets = !(info.planets || []).length;
-            const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift;
+            const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift || info.isScar;
             if (noPlanets && special || h.baseType === "special") {
                 editor.setSectorType(id, 'special');
             } else if ((info.planets || []).some(p => p.legendaryAbilityName?.trim()) || h.baseType === "legendary planet") {
@@ -605,10 +605,11 @@ export function startCopyPasteWizard(editor, cut = false) {
             }
 
             // Effects from SystemInfo
-            if (info.isNebula) editor.applyEffect(id, 'nebula');
-            if (info.isGravityRift) editor.applyEffect(id, 'rift');
-            if (info.isSupernova) editor.applyEffect(id, 'supernova');
+            if (info.isNebula)        editor.applyEffect(id, 'nebula');
+            if (info.isGravityRift)   editor.applyEffect(id, 'rift');
+            if (info.isSupernova)     editor.applyEffect(id, 'supernova');
             if (info.isAsteroidField) editor.applyEffect(id, 'asteroid');
+            if (info.isScar)          editor.applyEffect(id, 'scar');
 
             // ---- LORE DATA: Restore system and planet lore ----
             if (h.systemLore !== undefined) {

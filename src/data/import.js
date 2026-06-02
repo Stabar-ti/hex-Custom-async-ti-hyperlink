@@ -218,7 +218,7 @@ export function importSectorTypes(editor, tokenString) {
         continue;
       }
       const noPlanets = !(info.planets || []).length;
-      const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift;
+      const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift || info.isScar;
       const hasWormholes = hex.wormholes && hex.wormholes.size > 0;
       const hasBorderAnomalies = hex.borderAnomalies && Object.keys(hex.borderAnomalies).length > 0;
 
@@ -236,10 +236,11 @@ export function importSectorTypes(editor, tokenString) {
       }
 
       // Effects
-      if (info.isNebula) editor.applyEffect(id, 'nebula');
-      if (info.isGravityRift) editor.applyEffect(id, 'rift');
-      if (info.isSupernova) editor.applyEffect(id, 'supernova');
+      if (info.isNebula)        editor.applyEffect(id, 'nebula');
+      if (info.isGravityRift)   editor.applyEffect(id, 'rift');
+      if (info.isSupernova)     editor.applyEffect(id, 'supernova');
       if (info.isAsteroidField) editor.applyEffect(id, 'asteroid');
+      if (info.isScar)          editor.applyEffect(id, 'scar');
     }
 
 
@@ -480,7 +481,7 @@ export function importFullState(editor, jsonText) {
         return;
       }
       const noPlanets = !(info.planets || []).length;
-      const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift;
+      const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift || info.isScar;
       const hasWormholes = hex.wormholes && hex.wormholes.size > 0;
       const hasBorderAnomalies = hex.borderAnomalies && Object.keys(hex.borderAnomalies).length > 0;
 
@@ -498,10 +499,11 @@ export function importFullState(editor, jsonText) {
       }
 
       // Effects from SystemInfo
-      if (info.isNebula) editor.applyEffect(id, 'nebula');
-      if (info.isGravityRift) editor.applyEffect(id, 'rift');
-      if (info.isSupernova) editor.applyEffect(id, 'supernova');
+      if (info.isNebula)        editor.applyEffect(id, 'nebula');
+      if (info.isGravityRift)   editor.applyEffect(id, 'rift');
+      if (info.isSupernova)     editor.applyEffect(id, 'supernova');
       if (info.isAsteroidField) editor.applyEffect(id, 'asteroid');
+      if (info.isScar)          editor.applyEffect(id, 'scar');
     });
 
     // ---- 6. Restore any extra hexes (e.g. corners: tl, tr, bl, br) ----
@@ -1078,7 +1080,7 @@ export async function importMapInfo(editor, jsonData) {
         // Classify based on planets and system info
         const planetCount = hex.planets?.length || 0;
         const hasLegendary = info.planets?.some(p => p.legendaryAbilityName?.trim());
-        const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift;
+        const special = info.isAsteroidField || info.isSupernova || info.isNebula || info.isGravityRift || info.isScar;
         const hasWormholes = hex.wormholes && hex.wormholes.size > 0;
         const hasBorderAnomalies = hex.borderAnomalies && Object.keys(hex.borderAnomalies).length > 0;
 
@@ -1099,10 +1101,11 @@ export async function importMapInfo(editor, jsonData) {
         }
 
         // Apply effects from system info
-        if (info.isNebula) editor.applyEffect(position, 'nebula');
-        if (info.isGravityRift) editor.applyEffect(position, 'rift');
-        if (info.isSupernova) editor.applyEffect(position, 'supernova');
+        if (info.isNebula)        editor.applyEffect(position, 'nebula');
+        if (info.isGravityRift)   editor.applyEffect(position, 'rift');
+        if (info.isSupernova)     editor.applyEffect(position, 'supernova');
         if (info.isAsteroidField) editor.applyEffect(position, 'asteroid');
+        if (info.isScar)          editor.applyEffect(position, 'scar');
       }
     }
 

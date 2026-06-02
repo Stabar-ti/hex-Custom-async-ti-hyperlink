@@ -71,7 +71,7 @@ export function assignSystem(editor, sys, hexID) {
     baseType = '2 planet';
   } else if (planets.length >= 1) {
     baseType = '1 planet';
-  } else if (sys.isAsteroidField || sys.isSupernova || sys.isNebula || sys.isGravityRift) {
+  } else if (sys.isAsteroidField || sys.isSupernova || sys.isNebula || sys.isGravityRift || sys.isScar) {
     baseType = 'special';
   } else {
     baseType = 'empty';
@@ -79,10 +79,11 @@ export function assignSystem(editor, sys, hexID) {
   editor.setSectorType(hexID, baseType, { skipSave: true });
 
   // 7. Effects overlays
-  if (sys.isNebula) editor.applyEffect(hexID, 'nebula');
-  if (sys.isGravityRift) editor.applyEffect(hexID, 'rift');
-  if (sys.isSupernova) editor.applyEffect(hexID, 'supernova');
+  if (sys.isNebula)        editor.applyEffect(hexID, 'nebula');
+  if (sys.isGravityRift)   editor.applyEffect(hexID, 'rift');
+  if (sys.isSupernova)     editor.applyEffect(hexID, 'supernova');
   if (sys.isAsteroidField) editor.applyEffect(hexID, 'asteroid');
+  if (sys.isScar)          editor.applyEffect(hexID, 'scar');
 
   // 8. Inherent wormholes (always lowercase for key)
   // Only set inherentWormholes from system data. Clear customWormholes to prevent carry-over.

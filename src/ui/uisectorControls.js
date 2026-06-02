@@ -359,10 +359,11 @@ function createSectorControlsContent(editor) {
         content.appendChild(effectsLabel);
 
         const effects = [
-          { mode: 'nebula', label: 'Nebula', cls: 'btn-nebula' },
-          { mode: 'rift', label: 'Rift', cls: 'btn-rift' },
-          { mode: 'asteroid', label: 'Asteroid', cls: 'btn-asteroid' },
-          { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova' }
+          { mode: 'nebula',    label: 'Nebula',    cls: 'btn-nebula' },
+          { mode: 'rift',      label: 'Rift',      cls: 'btn-rift' },
+          { mode: 'asteroid',  label: 'Asteroid',  cls: 'btn-asteroid' },
+          { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova' },
+          { mode: 'scar',      label: 'Scar ☄️',   cls: 'btn-scar' }
         ];
 
         effects.forEach(({ mode, label, cls }) => {
@@ -401,6 +402,45 @@ function createSectorControlsContent(editor) {
           });
           content.appendChild(btn);
         });
+
+        // AutoMapper shortcut
+        const amSeparator = document.createElement('div');
+        amSeparator.style.gridColumn = '1 / -1';
+        amSeparator.style.borderTop = '1px solid #444';
+        amSeparator.style.margin = '10px 0';
+        content.appendChild(amSeparator);
+
+        const amBtn = document.createElement('button');
+        amBtn.textContent = '🤖 AutoMapper';
+        amBtn.className = 'mode-button';
+        amBtn.style.cssText = 'grid-column:1/-1;width:100%;padding:8px 12px;font-size:0.9em;font-weight:bold;border:1px solid #00d4ff;border-radius:4px;cursor:pointer;';
+        amBtn.onclick = () => {
+          import('../modules/automapper/autoBuilder.js').then(mod => {
+            const amContent = document.createElement('div');
+            amContent.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;';
+            if (typeof mod.showAutoBuilderUI === 'function') mod.showAutoBuilderUI(amContent);
+            import('./popupUI.js').then(({ showPopup }) => {
+              showPopup({
+                id: 'automapper-popup',
+                title: '🤖 AutoMapper',
+                content: amContent,
+                draggable: true,
+                dragHandleSelector: '.popup-ui-titlebar',
+                scalable: true,
+                rememberPosition: true,
+                style: {
+                  minWidth: '380px', maxWidth: '700px',
+                  border: '2px solid #00d4ff',
+                  borderRadius: '10px',
+                  boxShadow: '0 8px 40px #000a',
+                  padding: '16px',
+                  zIndex: 10012
+                }
+              });
+            });
+          }).catch(err => console.error('Failed to load AutoMapper:', err));
+        };
+        content.appendChild(amBtn);
 
         return content;
       })()

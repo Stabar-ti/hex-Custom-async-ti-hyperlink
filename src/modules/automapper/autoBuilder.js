@@ -314,6 +314,7 @@ export function showAutoBuilderUI(container) {
             rift:      'gravityrift',
             supernova: 'supernova',
             asteroid:  'asteroids',
+            scar:      'entropicscar',
         };
         const tm = editor.tokenManager;
         for (const { label, effects } of (tokenPlacements || [])) {
@@ -369,6 +370,7 @@ function getEffectTag(sys) {
     if (sys.isGravityRift)   tags.push('rift');
     if (sys.isSupernova)     tags.push('SN');
     if (sys.isAsteroidField) tags.push('ast');
+    if (sys.isScar)          tags.push('scar');
     if (sys.wormholes?.length) tags.push(sys.wormholes.join('+'));
     return tags.length ? ' ' + tags.join(',') : '';
 }

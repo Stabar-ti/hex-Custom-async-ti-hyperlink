@@ -66,7 +66,8 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
                 isNebula: hex.isNebula,
                 isGravityRift: hex.isGravityRift,
                 isSupernova: hex.isSupernova,
-                isAsteroidField: hex.isAsteroidField
+                isAsteroidField: hex.isAsteroidField,
+                isScar: hex.isScar
             });
         } else {
             sourceData.push(null);
@@ -95,7 +96,7 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
     for (let j = 1; j < minLen; ++j) {
         const srcData = sourceData[j];
         const tgtHexId = targetHexes[j];
-        if (srcData && tgtHexId && (srcData.realId || srcData.baseType || srcData.isHyperlane || srcData.isNebula || srcData.isGravityRift || srcData.isSupernova || srcData.isAsteroidField)) {
+        if (srcData && tgtHexId && (srcData.realId || srcData.baseType || srcData.isHyperlane || srcData.isNebula || srcData.isGravityRift || srcData.isSupernova || srcData.isAsteroidField || srcData.isScar)) {
             const tgtHex = window.editor?.hexes?.[tgtHexId];
             if (tgtHex) {
                 applyHexData(srcData, tgtHex, tgtHexId);
@@ -129,6 +130,7 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
                 srcHex.isGravityRift = false;
                 srcHex.isSupernova = false;
                 srcHex.isAsteroidField = false;
+                srcHex.isScar = false;
                 srcHex.isHyperlane = false;
 
                 // Remove wormhole overlays
@@ -184,11 +186,12 @@ function applyHexData(srcData, tgtHex, tgtHexId) {
         tgtHex.customWormholes = new Set(Array.from(srcData.customWormholes || []).filter(Boolean).map(w => w.toLowerCase()));
         tgtHex.wormholes = new Set([...tgtHex.inherentWormholes, ...tgtHex.customWormholes]);
 
-        tgtHex.isHyperlane = srcData.isHyperlane;
-        tgtHex.isNebula = srcData.isNebula;
-        tgtHex.isGravityRift = srcData.isGravityRift;
-        tgtHex.isSupernova = srcData.isSupernova;
-        tgtHex.isAsteroidField = srcData.isAsteroidField;
+        tgtHex.isHyperlane    = srcData.isHyperlane;
+        tgtHex.isNebula       = srcData.isNebula;
+        tgtHex.isGravityRift  = srcData.isGravityRift;
+        tgtHex.isSupernova    = srcData.isSupernova;
+        tgtHex.isAsteroidField= srcData.isAsteroidField;
+        tgtHex.isScar         = srcData.isScar;
 
         // Apply effects
         if (srcData.effects && srcData.effects.length > 0) {
@@ -203,15 +206,16 @@ function applyHexData(srcData, tgtHex, tgtHexId) {
         setSectorType(srcData, tgtHexId);
 
         // Apply effects from SystemInfo
-        if (info.isNebula) window.editor.applyEffect(tgtHexId, 'nebula');
-        if (info.isGravityRift) window.editor.applyEffect(tgtHexId, 'rift');
-        if (info.isSupernova) window.editor.applyEffect(tgtHexId, 'supernova');
+        if (info.isNebula)        window.editor.applyEffect(tgtHexId, 'nebula');
+        if (info.isGravityRift)   window.editor.applyEffect(tgtHexId, 'rift');
+        if (info.isSupernova)     window.editor.applyEffect(tgtHexId, 'supernova');
         if (info.isAsteroidField) window.editor.applyEffect(tgtHexId, 'asteroid');
+        if (info.isScar)          window.editor.applyEffect(tgtHexId, 'scar');
 
         // Create wormhole overlays
         createWormholeOverlays(tgtHex);
 
-    } else if (srcData.baseType || srcData.isHyperlane || srcData.isNebula || srcData.isGravityRift || srcData.isSupernova || srcData.isAsteroidField) {
+    } else if (srcData.baseType || srcData.isHyperlane || srcData.isNebula || srcData.isGravityRift || srcData.isSupernova || srcData.isAsteroidField || srcData.isScar) {
         // For special hexes without realId
         tgtHex.baseType = srcData.baseType;
         tgtHex.planets = Array.isArray(srcData.planets) ? JSON.parse(JSON.stringify(srcData.planets)) : [];
@@ -220,11 +224,12 @@ function applyHexData(srcData, tgtHex, tgtHexId) {
         tgtHex.customWormholes = new Set(Array.from(srcData.customWormholes || []).filter(Boolean).map(w => w.toLowerCase()));
         tgtHex.wormholes = new Set([...tgtHex.inherentWormholes, ...tgtHex.customWormholes]);
 
-        tgtHex.isHyperlane = srcData.isHyperlane;
-        tgtHex.isNebula = srcData.isNebula;
-        tgtHex.isGravityRift = srcData.isGravityRift;
-        tgtHex.isSupernova = srcData.isSupernova;
-        tgtHex.isAsteroidField = srcData.isAsteroidField;
+        tgtHex.isHyperlane    = srcData.isHyperlane;
+        tgtHex.isNebula       = srcData.isNebula;
+        tgtHex.isGravityRift  = srcData.isGravityRift;
+        tgtHex.isSupernova    = srcData.isSupernova;
+        tgtHex.isAsteroidField= srcData.isAsteroidField;
+        tgtHex.isScar         = srcData.isScar;
 
         // Apply effects
         if (srcData.effects && srcData.effects.length > 0) {

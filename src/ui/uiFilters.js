@@ -76,6 +76,7 @@ const FILTERS = [
   { key: 'hasNebula', label: 'Has Nebula', defaultOn: false, test(sys, a) { if (!a) return true; return sys.isNebula === true; } },
   { key: 'hasAsteroids', label: 'Has Asteroids', defaultOn: false, test(sys, a) { if (!a) return true; return sys.isAsteroidField === true; } },
   { key: 'hasSupernova', label: 'Has Supernova', defaultOn: false, test(sys, a) { if (!a) return true; return sys.isSupernova === true; } },
+  { key: 'hasScar', label: 'Has Scar', defaultOn: false, test(sys, a) { if (!a) return true; return sys.isScar === true; } },
   { key: 'noPlanets', label: 'No Planets', defaultOn: false, test(sys, a) { if (!a) return true; return !Array.isArray(sys.planets) || sys.planets.length === 0; } },
   { key: 'onePlanet', label: '1 Planet', defaultOn: false, test(sys, a) { if (!a) return true; return Array.isArray(sys.planets) && sys.planets.length === 1; } },
   { key: 'twoPlanets', label: '2 Planets', defaultOn: false, test(sys, a) { if (!a) return true; return Array.isArray(sys.planets) && sys.planets.length === 2; } },
@@ -499,21 +500,23 @@ export function sortSystemsByColumn(systems, column, direction) {
         // Sort by number of anomalies, then by type priority
         let anomaliesA = [];
         let anomaliesB = [];
-        if (a.isSupernova) anomaliesA.push('supernova');
-        if (a.isGravityRift) anomaliesA.push('gravity');
-        if (a.isNebula) anomaliesA.push('nebula');
-        if (a.isAsteroidField) anomaliesA.push('asteroid');
-        if (b.isSupernova) anomaliesB.push('supernova');
-        if (b.isGravityRift) anomaliesB.push('gravity');
-        if (b.isNebula) anomaliesB.push('nebula');
-        if (b.isAsteroidField) anomaliesB.push('asteroid');
+        if (a.isSupernova)    anomaliesA.push('supernova');
+        if (a.isGravityRift)  anomaliesA.push('gravity');
+        if (a.isNebula)       anomaliesA.push('nebula');
+        if (a.isAsteroidField)anomaliesA.push('asteroid');
+        if (a.isScar)         anomaliesA.push('scar');
+        if (b.isSupernova)    anomaliesB.push('supernova');
+        if (b.isGravityRift)  anomaliesB.push('gravity');
+        if (b.isNebula)       anomaliesB.push('nebula');
+        if (b.isAsteroidField)anomaliesB.push('asteroid');
+        if (b.isScar)         anomaliesB.push('scar');
 
         if (anomaliesA.length !== anomaliesB.length) {
           valueA = anomaliesA.length;
           valueB = anomaliesB.length;
         } else {
           // Same count, sort by anomaly type priority
-          const anomalyPriority = { 'supernova': 1, 'gravity': 2, 'nebula': 3, 'asteroid': 4 };
+          const anomalyPriority = { 'supernova': 1, 'gravity': 2, 'nebula': 3, 'asteroid': 4, 'scar': 5 };
           const priorityA = anomaliesA.reduce((sum, anomaly) => sum + (anomalyPriority[anomaly] || 5), 0);
           const priorityB = anomaliesB.reduce((sum, anomaly) => sum + (anomalyPriority[anomaly] || 5), 0);
           valueA = priorityA;
@@ -748,10 +751,11 @@ export function generateSystemRow(system) {
 
       case 'anomalies':
         const effects = [];
-        if (system.isSupernova) effects.push(effectEmojiMap.supernova || '☀️');
-        if (system.isAsteroidField) effects.push(effectEmojiMap.asteroid || '🪨');
-        if (system.isNebula) effects.push(effectEmojiMap.nebula || '☁️');
-        if (system.isGravityRift) effects.push(effectEmojiMap.rift || '🕳️');
+        if (system.isSupernova)    effects.push(effectEmojiMap.supernova  || '☀️');
+        if (system.isAsteroidField)effects.push(effectEmojiMap.asteroid   || '🪨');
+        if (system.isNebula)       effects.push(effectEmojiMap.nebula     || '☁️');
+        if (system.isGravityRift)  effects.push(effectEmojiMap.rift       || '🕳️');
+        if (system.isScar)         effects.push(effectEmojiMap.scar       || '⚡');
         td.textContent = effects.join(' ');
         td.style.fontSize = '14px'; // Larger for emojis
         td.style.color = effects.length > 0 ? '#fff' : '#ccc';

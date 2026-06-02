@@ -8,7 +8,7 @@ import { passesAutoMapperFilters } from '../../ui/uiFilters.js';
 // ---- Scoring weights (mirrors miltyBuilderRandomTool DEFAULT_WEIGHTS) ----
 // Open Milty Slice Designer → Weighting Settings to tune these values.
 export const SCORING_WEIGHTS = {
-    supernova: -3, asteroidField: -1, nebula: 0, gravityRift: -2,
+    supernova: -3, asteroidField: -1, nebula: 0, gravityRift: -2, entropicScar: 1,
     resourceValue: 1, influenceValue: 1,
     techSpecialty: 2, legendaryPlanet: 5, wormhole: 1,
     industrial: 0.5, cultural: 0.5, hazardous: 0.5,
@@ -25,7 +25,7 @@ function classifySystem(sys) {
     if (planets.length >= 3) return '3 planet';
     if (planets.length >= 2) return '2 planet';
     if (planets.length === 1) return '1 planet';
-    if (sys.isAsteroidField || sys.isSupernova || sys.isNebula || sys.isGravityRift) return 'special';
+    if (sys.isAsteroidField || sys.isSupernova || sys.isNebula || sys.isGravityRift || sys.isScar) return 'special';
     return 'empty';
 }
 
@@ -36,6 +36,7 @@ function getSystemEffects(sys) {
     if (sys.isGravityRift)   e.add('rift');
     if (sys.isSupernova)     e.add('supernova');
     if (sys.isAsteroidField) e.add('asteroid');
+    if (sys.isScar)          e.add('scar');
     return e;
 }
 
@@ -219,6 +220,7 @@ function scoreSlice(systems, weights) {
         if (sys.isAsteroidField) anomalies.push('asteroidField');
         if (sys.isNebula)        anomalies.push('nebula');
         if (sys.isGravityRift)   anomalies.push('gravityRift');
+        if (sys.isScar)          anomalies.push('entropicScar');
     }
 
     const planetCount = systems.reduce((s, sys) => s + (sys.planets?.length || 0), 0);
