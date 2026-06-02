@@ -83,17 +83,27 @@ export function drawHex(editor, q, r, label) {
   svg.appendChild(txt);
 
   // Track the hex object in editor.hexes for later reference
-  editor.hexes[label] = {
-    label, q, r, center, polygon: poly, baseType: '',
-    effects: new Set(), overlays: [],
+  editor.hexes[label] = { ...createHexData(label, q, r), center, polygon: poly };
+}
+
+/**
+ * Returns a fully-initialised hex data object (without SVG-specific fields).
+ * Used by both drawHex and HexEditor.ensureHex so every hex — regardless of
+ * how it was created — has the same complete set of properties.
+ */
+export function createHexData(label, q, r) {
+  return {
+    label, q, r,
+    baseType: '',
+    effects: new Set(),
+    overlays: [],
     matrix: Array.from({ length: 6 }, () => Array(6).fill(0)),
-    wormholes: new Set(), wormholeOverlays: [],
-    // Lore properties
-    systemLore: null,  // System-level lore object
-    planetLore: [],    // Array of planet lore objects
-    // Token properties
-    systemTokens: [],  // Array of token IDs for system-level tokens
-    planetTokens: {}   // Object mapping planet index to array of token IDs: { 0: ['token1'], 1: ['token2'] }
+    wormholes: new Set(),
+    wormholeOverlays: [],
+    systemLore: null,
+    planetLore: [],
+    systemTokens: [],
+    planetTokens: {}
   };
 }
 
@@ -200,25 +210,13 @@ export function drawCornerHex(editor, x, y, label) {
   txt.textContent = label;
   svg.appendChild(txt);
 
-  // Track the corner hex in the editor, but mark as isCorner
-  //const old = editor.hexes[label] || {};
+  // Corner hexes share the same full data structure as regular hexes (via createHexData)
+  // so every part of the system (tokens, lore, etc.) can safely access the same fields.
   editor.hexes[label] = {
-    q: null,
-    r: null,
+    ...createHexData(label, null, null),
     center: { x, y },
     polygon: poly,
-    baseType: '',
-    effects: new Set(),
-    overlays: [],
-    matrix: Array.from({ length: 6 }, () => Array(6).fill(0)),
-    wormholes: new Set(),
-    wormholeOverlays: [],
     isCorner: true,
-    planets: [],
-    realId: null,
-    // Lore properties
-    systemLore: null,  // System-level lore object
-    planetLore: []     // Array of planet lore objects
   };
 }
 

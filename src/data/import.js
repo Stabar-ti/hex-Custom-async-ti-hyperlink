@@ -40,6 +40,7 @@ export function importMap(editor, dataText) {
  * Populates .sectorIDLookup for fast lookups by ID or alias.
  */
 export async function loadSystemInfo(editor) {
+  if (editor.sectorIDLookup && Object.keys(editor.sectorIDLookup).length > 0) return; // already loaded
   try {
     const res = await fetch(window.location.pathname.replace(/\/[^/]*$/, '/public/data/SystemInfo.json'))
     // if (!res.ok) throw new Error(`HTTP ${res.status}`);

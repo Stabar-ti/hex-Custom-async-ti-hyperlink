@@ -14,20 +14,7 @@ import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 
 export function registerClickHandler(editor) {
   editor._onHexClick = function (e, label) {
-    // 1. System assign (always grouped for undo)
-    if (this._pendingSystem) {
-      this.beginUndoGroup();
-      this.saveState(label);
-      assignSystem(this, this._pendingSystem, label); // helper manages all mutations
-      this.commitUndoGroup();
-      delete this._pendingSystem;
-      if (typeof window.redrawAllRealIDOverlays === "function") {
-        window.redrawAllRealIDOverlays(this);
-      }
-      return;
-    }
-
-    // 2. Lore selection mode: ignore and let custom handler deal with it
+    // 1. Lore selection mode: ignore and let custom handler deal with it
     if (this.mode === 'lore-selection') {
       return; // Let the lore selection handler process the click
     }

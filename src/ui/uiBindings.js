@@ -31,7 +31,7 @@ export function bindUI(editor) {
     updateLayerVisibility(editor, 'planetTypeLayer', editor.showPlanetTypes);
     btnPlanetTypes.classList.toggle('active', editor.showPlanetTypes);
     // Ensure correct SVG layering after toggling
-    enforceSVGLayerOrder(editor.svg);
+    enforceSvgLayerOrder(editor.svg);
   });
 
   const btnResInf = document.getElementById('toggleResInf');
@@ -40,7 +40,7 @@ export function bindUI(editor) {
     updateLayerVisibility(editor, 'resInfLayer', editor.showResInf);
     btnResInf.classList.toggle('active', editor.showResInf);
     // Ensure correct SVG layering after toggling
-    enforceSVGLayerOrder(editor.svg);
+    enforceSvgLayerOrder(editor.svg);
   });
 
   const btnIdealRI = document.getElementById('toggleIdealRI');
@@ -49,7 +49,7 @@ export function bindUI(editor) {
     updateLayerVisibility(editor, 'idealRILayer', editor.showIdealRI);
     btnIdealRI.classList.toggle('active', editor.showIdealRI);
     // Ensure correct SVG layering after toggling
-    enforceSVGLayerOrder(editor.svg);
+    enforceSvgLayerOrder(editor.svg);
   });
 
   const btnRealID = document.getElementById('toggleRealID');
@@ -58,7 +58,7 @@ export function bindUI(editor) {
     updateLayerVisibility(editor, 'realIDLabelLayer', editor.showRealID);
     btnRealID.classList.toggle('active', editor.showRealID);
     // Ensure correct SVG layering after toggling
-    enforceSVGLayerOrder(editor.svg);
+    enforceSvgLayerOrder(editor.svg);
   });
 
   // IDs for all toggles of each overlay
@@ -70,14 +70,14 @@ export function bindUI(editor) {
     toggleBorderAnomaliesOverlay(editor);  // This toggles editor.showBorderAnomalies and SVG
     syncToggleButtons(borderAnomalyBtnIds, editor.showBorderAnomalies);
     // Ensure correct SVG layering after toggling
-    enforceSVGLayerOrder(editor.svg);
+    enforceSvgLayerOrder(editor.svg);
   }
   function toggleCustomLinksAll() {
     editor.showCustomLinks = !editor.showCustomLinks;
     toggleCustomLinksOverlay(editor);
     syncToggleButtons(customLinksBtnIds, editor.showCustomLinks);
     // Ensure correct SVG layering after toggling
-    enforceSVGLayerOrder(editor.svg);
+    enforceSvgLayerOrder(editor.svg);
   }
 
   // Attach all buttons (repeat if you add more UI for these overlays)

@@ -14,6 +14,11 @@
 export const MAX_MAP_RINGS = 15;
 
 /**
+ * Labels for the four special corner hexes used in TI4 map layouts.
+ */
+export const CORNER_LABELS = ['TL', 'TR', 'BL', 'BR'];
+
+/**
  * The 6 edge directions for moving on a hex grid (axial coordinates).
  * Used for pathfinding, neighbor logic, etc.
  */

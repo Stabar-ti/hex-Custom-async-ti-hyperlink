@@ -16,7 +16,7 @@ import { bindUI } from '../ui/uiBindings.js';
 // Mouse/touch/keyboard events for SVG map itself (pan, zoom, right-click, etc.)
 import { bindSvgHandlers } from '../ui/svgBindings.js';
 // Core drawing: generate grid, draw hexes, special tiles, etc.
-import { drawHexGrid, drawHex, drawSpecialHexes, generateRings, autoscaleView, clearSpecialCorners } from '../draw/drawHexes.js';
+import { drawHexGrid, drawHex, drawSpecialHexes, generateRings, autoscaleView, clearSpecialCorners, createHexData } from '../draw/drawHexes.js';
 // Exporting helpers for map, hyperlane tiles, wormholes
 import { exportMap, exportHyperlaneTilePositions, exportWormholePositions } from '../data/export.js';
 // Importers for map string (hyperlanes) and sector types
@@ -26,7 +26,7 @@ import { toggleWormhole, removeWormholeOverlay, redrawWormholeOverlays, updateHe
 // Hex-grid geometry math utilities (distance, neighbors)
 import { hexDistance, getNeighbors } from '../utils/geometry.js';
 // Common constants: directions, colors, icon offsets, etc.
-import { edgeDirections, ringDirections, effectIconPositions, sectorColors, controlPositions, MAX_MAP_RINGS, wormholeTypes } from '../constants/constants.js';
+import { edgeDirections, ringDirections, effectIconPositions, sectorColors, controlPositions, MAX_MAP_RINGS, wormholeTypes, CORNER_LABELS } from '../constants/constants.js';
 // Logic to add/remove overlays (nebula, asteroid, etc.)
 import { applyEffectToHex, clearAllEffects, refreshEffectsOverlays } from '../features/effects.js';
 // Change sector fill and type (e.g., planet, void, etc.)
@@ -46,7 +46,7 @@ import { unmarkRealIDUsed, clearRealIDUsage } from '../ui/uiFilters.js';
 // RealID/overlay features (sector ID overlays, toggles, etc.)
 import { initRealIDFeatures, updateLayerVisibility, redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 // Loads system data for all tiles (names, IDs, etc.)
-import { loadSystemInfo } from '../data/import.js';
+import { loadSystemInfo, loadHyperlaneMatrices } from '../data/import.js';
 import { updateEffectsVisibility, updateWormholeVisibility, createWormholeOverlay } from '../features/baseOverlays.js'
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
@@ -121,15 +121,13 @@ export default class HexEditor {
 
     // ─── DEFERRED: Wait for system info to load before generating grid ───
     // This ensures all system/sector metadata is ready before drawing.
-    loadSystemInfo(this)
+    Promise.all([loadSystemInfo(this), loadHyperlaneMatrices(this)])
       .then(() => {
         this.generateMap();
         console.log("HexEditor fully initialized.");
       })
       .catch(err => {
-        console.error("Could not load system info:", err);
-        // Optionally fallback to a blank map if data load fails:
-        // this.generateMap();
+        console.error("Could not load system/hyperlane info:", err);
       });
   }
 
@@ -250,12 +248,7 @@ export default class HexEditor {
    */
   ensureHex(label, q, r) {
     if (!this.hexes[label]) {
-      this.hexes[label] = {
-        label,
-        q,
-        r,
-        matrix: Array(6).fill(0).map(() => Array(6).fill(0))
-      };
+      this.hexes[label] = createHexData(label, q, r);
     }
   }
 
@@ -386,7 +379,7 @@ export default class HexEditor {
     for (const label of oldLabels) {
       if (
         !newLabels.has(label) &&
-        !['TL', 'TR', 'BL', 'BR'].includes(label)
+        !CORNER_LABELS.includes(label)
       ) {
         this.clearAll(label);
         this.clearCustomAdjencies(label);
@@ -410,20 +403,25 @@ export default class HexEditor {
     // --- Preserve corner hex data, then redraw special corners ---
     // Save corner hex data before clearing
     const cornerData = {};
-    ['TL', 'TR', 'BL', 'BR'].forEach(label => {
+    CORNER_LABELS.forEach(label => {
       if (this.hexes[label]) {
+        const h = this.hexes[label];
         cornerData[label] = {
-          baseType: this.hexes[label].baseType,
-          effects: new Set(this.hexes[label].effects),
-          wormholes: new Set(this.hexes[label].wormholes),
-          customWormholes: new Set(this.hexes[label].customWormholes || []),
-          inherentWormholes: new Set(this.hexes[label].inherentWormholes || []),
-          planets: [...(this.hexes[label].planets || [])],
-          realId: this.hexes[label].realId,
-          matrix: this.hexes[label].matrix ? this.hexes[label].matrix.map(row => [...row]) : null,
-          customAdjacents: this.hexes[label].customAdjacents ? [...this.hexes[label].customAdjacents] : undefined,
-          adjacencyOverrides: this.hexes[label].adjacencyOverrides ? { ...this.hexes[label].adjacencyOverrides } : undefined,
-          borderAnomalies: this.hexes[label].borderAnomalies ? { ...this.hexes[label].borderAnomalies } : undefined
+          baseType: h.baseType,
+          effects: new Set(h.effects),
+          wormholes: new Set(h.wormholes),
+          customWormholes: new Set(h.customWormholes || []),
+          inherentWormholes: new Set(h.inherentWormholes || []),
+          planets: [...(h.planets || [])],
+          realId: h.realId,
+          matrix: h.matrix ? h.matrix.map(row => [...row]) : null,
+          customAdjacents: h.customAdjacents ? [...h.customAdjacents] : undefined,
+          adjacencyOverrides: h.adjacencyOverrides ? { ...h.adjacencyOverrides } : undefined,
+          borderAnomalies: h.borderAnomalies ? { ...h.borderAnomalies } : undefined,
+          systemLore: h.systemLore ?? null,
+          planetLore: Array.isArray(h.planetLore) ? [...h.planetLore] : [],
+          systemTokens: Array.isArray(h.systemTokens) ? [...h.systemTokens] : [],
+          planetTokens: h.planetTokens ? { ...h.planetTokens } : {}
         };
       }
     });
@@ -432,7 +430,7 @@ export default class HexEditor {
     drawSpecialHexes(this);
 
     // Restore corner hex data
-    ['TL', 'TR', 'BL', 'BR'].forEach(label => {
+    CORNER_LABELS.forEach(label => {
       if (cornerData[label] && this.hexes[label]) {
         const hex = this.hexes[label];
         const data = cornerData[label];
@@ -447,6 +445,10 @@ export default class HexEditor {
         if (data.customAdjacents) hex.customAdjacents = data.customAdjacents;
         if (data.adjacencyOverrides) hex.adjacencyOverrides = data.adjacencyOverrides;
         if (data.borderAnomalies) hex.borderAnomalies = data.borderAnomalies;
+        hex.systemLore   = data.systemLore   ?? null;
+        hex.planetLore   = data.planetLore   ?? [];
+        hex.systemTokens = data.systemTokens ?? [];
+        hex.planetTokens = data.planetTokens ?? {};
 
         // Update hex.wormholes to be the union of inherentWormholes and customWormholes
         updateHexWormholes(hex);
@@ -466,7 +468,7 @@ export default class HexEditor {
     redrawAllRealIDOverlays(this);
 
     // Redraw overlays for corner hexes at their new positions
-    ['TL', 'TR', 'BL', 'BR'].forEach(label => {
+    CORNER_LABELS.forEach(label => {
       if (cornerData[label] && this.hexes[label]) {
 
         // Refresh effects overlays at new position
@@ -523,6 +525,9 @@ export default class HexEditor {
     enforceSvgLayerOrder(this.svg);
     // Update wormhole visibility AFTER all redrawing operations are complete
     updateWormholeVisibility(this);
+    // Redraw token overlays at the new corner positions
+    this.tokenOverlay?.refresh();
+    this.loreOverlay?.refresh();
   }
 
 
@@ -644,7 +649,7 @@ export default class HexEditor {
     const hex = this.hexes[label];
     if (hex) {
       // remove any existing wormhole overlays
-      hex.wormholeOverlays.forEach(o => {
+      hex.wormholeOverlays?.forEach(o => {
         if (o.parentNode === this.svg) this.svg.removeChild(o);
         // Also remove from wormholeIconLayer if present
         const wormholeIconLayer = this.svg.querySelector('#wormholeIconLayer');
@@ -783,69 +788,6 @@ export default class HexEditor {
   /**
    * Draw a "loopback" curve (entry→entry) on the hex.
    */
-  /**
-   * Test function to add border anomalies for debugging
-   */
-  async addTestBorderAnomalies() {
-    console.log('Adding test border anomalies...');
-    const hexLabels = Object.keys(this.hexes);
-    if (hexLabels.length < 2) {
-      console.log('Not enough hexes to create border anomalies');
-      return;
-    }
-
-    // Find first two adjacent hexes for testing
-    const firstHex = hexLabels[0];
-    const neighbors = getNeighbors(this.hexes[firstHex]);
-    const secondHex = neighbors.find(n => this.hexes[n]);
-
-    if (!secondHex) {
-      console.log('No neighbor found for first hex');
-      return;
-    }
-
-    // Add asteroid field border anomaly
-    if (!this.hexes[firstHex].borderAnomalies) {
-      this.hexes[firstHex].borderAnomalies = {};
-    }
-
-    // Find which side connects to the neighbor
-    const dirs = [
-      { q: 0, r: -1 }, // 0: NW
-      { q: 1, r: -1 }, // 1: NE  
-      { q: 1, r: 0 },  // 2: E
-      { q: 0, r: 1 },  // 3: SE
-      { q: -1, r: 1 }, // 4: SW
-      { q: -1, r: 0 }  // 5: W
-    ];
-
-    const firstCoords = this.hexes[firstHex];
-    const secondCoords = this.hexes[secondHex];
-    const dq = secondCoords.q - firstCoords.q;
-    const dr = secondCoords.r - firstCoords.r;
-
-    let side = -1;
-    for (let i = 0; i < 6; i++) {
-      if (dirs[i].q === dq && dirs[i].r === dr) {
-        side = i;
-        break;
-      }
-    }
-
-    if (side === -1) {
-      console.log('Could not determine side between hexes');
-      return;
-    }
-
-    // Add asteroid field anomaly
-    this.hexes[firstHex].borderAnomalies[side] = { type: 'Asteroid Field' };
-    console.log(`Added Asteroid Field border anomaly between ${firstHex} and ${secondHex} on side ${side}`);
-
-    // Redraw border anomalies
-    const { drawBorderAnomaliesLayer } = await import('../draw/borderAnomaliesDraw.js');
-    drawBorderAnomaliesLayer(this);
-  }
-
   drawLoopbackCurve(label, entry) {
     const hex = this.hexes[label];
     if (hex) {

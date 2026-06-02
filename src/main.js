@@ -15,7 +15,7 @@ import { exportFullState, exportMapInfo } from './data/export.js';
 import { importFullState } from './data/import.js';
 import { initHistory } from './features/history.js';
 import { showModal, closeModal } from './ui/uiModals.js';
-import { loadSystemInfo, loadHyperlaneMatrices } from './data/import.js';
+import { loadSystemInfo } from './data/import.js';
 import { assignSystem } from './features/assignSystem.js';
 import './ui/systemLookup.js'; // Adds system search modal
 import { redrawAllRealIDOverlays } from './features/realIDsOverlays.js';
@@ -24,7 +24,6 @@ import { markRealIDUsed } from './ui/uiFilters.js';
 import { openCalcSlicePopup } from './features/calcSlice.js';
 import { installCustomLinksUI } from './ui/customLinksUI.js';
 import { installBorderAnomaliesUI } from './ui/borderAnomaliesUI.js';
-import { redrawBorderAnomaliesOverlay } from './features/borderAnomaliesOverlay.js';
 import { loadBorderAnomalyTypes } from './constants/borderAnomalies.js';
 import { overlayDefaults } from './config/toggleSettings.js';
 import { updateTileImageLayer } from './features/imageSystemsOverlay.js';
@@ -264,12 +263,6 @@ if (importMapInfoBtn) {
   });
 }
 
-// ───── Load system reference data (ID/name/aliases) ─────
-(async () => {
-  await loadSystemInfo(editor);
-  await loadHyperlaneMatrices(editor);
-})();
-
 // ───── Show Import modal for full map JSON ─────
 const importBtn = document.getElementById('importFullBtn');
 if (importBtn) {
@@ -373,22 +366,6 @@ if (btnTileImages) {
     enforceSvgLayerOrder(editor.svg); // <--- ENSURE PROPER LAYER ORDER
   });
 }
-
-// ───── Collapse/Expand Import/Export panel ─────
-const toggleControlsBtn = document.getElementById('toggleControlsBtn');
-const controlsPanel = document.getElementById('controlsPanel');
-const controlsPanelOpenBtn = document.getElementById('controlsPanelOpenBtn');
-
-toggleControlsBtn?.addEventListener('click', () => {
-  controlsPanel.classList.toggle('collapsed');
-  const isCollapsed = controlsPanel.classList.contains('collapsed');
-  toggleControlsBtn.textContent = isCollapsed
-    ? 'Show Im/Export & mapGen'
-    : 'hide Im/Export & mapGen';
-  if (controlsPanelOpenBtn) {
-    controlsPanelOpenBtn.style.display = isCollapsed ? 'block' : 'none';
-  }
-});
 
 // Enable keyboard focus for global hotkeys
 document.body.tabIndex = -1;
@@ -558,11 +535,5 @@ if (sanityCheckBtn) {
   sanityCheckBtn.onclick = () => showSanityCheckPopup();
 }
 
-// ───── Add test functions to global window for debugging ─────
 window.editor = editor;
-window.testBorderAnomalies = () => editor.addTestBorderAnomalies();
-window.redrawBorderAnomalies = async () => {
-  const { drawBorderAnomaliesLayer } = await import('./draw/borderAnomaliesDraw.js');
-  drawBorderAnomaliesLayer(editor);
-};
 
