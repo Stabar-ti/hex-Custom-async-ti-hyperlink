@@ -201,6 +201,7 @@ export function initHistory(editor) {
             planetTokens:       hex.planetTokens
                                   ? JSON.parse(JSON.stringify(hex.planetTokens))
                                   : {},
+            valueTarget:        hex.valueTarget ?? null,
             systemLore:         hex.systemLore
                                   ? JSON.parse(JSON.stringify(hex.systemLore))
                                   : null,
@@ -259,6 +260,7 @@ export function initHistory(editor) {
         hex.planetTokens = snap.planetTokens
             ? JSON.parse(JSON.stringify(snap.planetTokens))
             : {};
+        hex.valueTarget  = snap.valueTarget ?? null;
 
         // 6. Restore lore state
         hex.systemLore = snap.systemLore
@@ -283,4 +285,11 @@ function _rebuildOverlays(editor) {
     editor.tokenOverlay?.refresh();
     editor.loreOverlay?.refresh();
     refreshSystemList();
+    // Refresh value-target badges and value overlay if active
+    import('./valueOverlay.js').then(({ drawValueTargetLayer, drawValueOverlay, getFactors, isValueOverlayActive }) => {
+        drawValueTargetLayer(editor);
+        if (isValueOverlayActive(editor)) {
+            drawValueOverlay(editor, false, false, false);
+        }
+    }).catch(() => {});
 }

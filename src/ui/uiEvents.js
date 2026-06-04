@@ -46,6 +46,30 @@ export function registerClickHandler(editor) {
       return;
     }
 
+    // 4b. Value target painting
+    if (this.mode === 'value-target-apply' || this.mode === 'value-target-clear') {
+      this.saveState(label);
+      const hex = this.hexes[label];
+      if (hex) {
+        if (this.mode === 'value-target-clear') {
+          hex.valueTarget = null;
+        } else {
+          // Stamp the current configuration from the Draw Helpers UI
+          const cfg = this._valuePaintConfig;
+          if (cfg) {
+            hex.valueTarget = { tier: cfg.tier || null, r: !!cfg.r, i: !!cfg.i, t: !!cfg.t };
+            // Normalise — if everything is falsy/null, treat as cleared
+            const vt = hex.valueTarget;
+            if (!vt.tier && !vt.r && !vt.i && !vt.t) hex.valueTarget = null;
+          }
+        }
+        import('../features/valueOverlay.js').then(({ drawValueTargetLayer }) => {
+          drawValueTargetLayer(this);
+        }).catch(() => {});
+      }
+      return;
+    }
+
     // 5. Sector type fill (for all other modes): snapshot BEFORE clearAll wipes the hex,
     // then lock history so setSectorType doesn't double-save.
     this.saveState(label);

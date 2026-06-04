@@ -65,11 +65,16 @@ export function showAutoBuilderUI(container) {
 
     // ---- State ----
     let opts = {
-        balanced:           false,
-        iterations:         8,
-        balanceRange:       2,
-        includeHomeSystems: false,
-        includeWormholes:   false,
+        balanced:               false,
+        iterations:             8,
+        balanceRange:           2,
+        includeHomeSystems:     false,
+        includeWormholes:       false,
+        allowDuplicatesNoPlanet:false,
+        sources:                null, // null = use DOM source filters from search panel
+        valueROn:               false,
+        valueIOn:               false,
+        valueTOn:               false,
     };
     let lastResult  = null;
     let justApplied = false; // true after a successful apply → shows Undo button
@@ -133,11 +138,47 @@ export function showAutoBuilderUI(container) {
         const { wrap: hsWrap } = toggle('Include HS tiles', opts.includeHomeSystems, v => { opts.includeHomeSystems = v; render(); }, 'Home system tiles are skipped by default');
         row1.appendChild(hsWrap);
 
-        // Include wormholes toggle (req 3)
+        // Include wormholes toggle
         const { wrap: whWrap } = toggle('Include wormhole systems', opts.includeWormholes, v => { opts.includeWormholes = v; render(); }, 'Wormhole systems are excluded by default');
         row1.appendChild(whWrap);
 
+        // Allow duplicate no-planet systems (req 7)
+        const { wrap: dupWrap } = toggle('Duplicate empty/anomaly systems', opts.allowDuplicatesNoPlanet, v => { opts.allowDuplicatesNoPlanet = v; }, 'Allow the same no-planet system (empty, anomaly) to be placed more than once');
+        row1.appendChild(dupWrap);
+
         optsPanel.appendChild(row1);
+
+        // Source selection (req 3)
+        const srcPanel = el('div', S.panel + 'margin-top:4px;');
+        srcPanel.appendChild(el('span', S.label + 'margin-bottom:3px;', 'Sources (leave all off to use the Search panel filter):'));
+        const srcRow = el('div', S.row + 'flex-wrap:wrap;gap:4px;');
+        const SRC_DEFS = [
+            { key: 'base',    label: 'Base' },
+            { key: 'pok',     label: 'PoK' },
+            { key: 'te',      label: 'Thunders Edge' },
+            { key: 'ds',      label: 'DS/Uncharted' },
+            { key: 'eronous', label: 'Eronous' },
+            { key: 'others',  label: 'Others' },
+        ];
+        SRC_DEFS.forEach(({ key, label }) => {
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.style.marginRight = '3px';
+            const checked = opts.sources ? !!opts.sources[key] : false;
+            cb.checked = checked;
+            cb.onchange = () => {
+                if (!opts.sources) opts.sources = {};
+                opts.sources[key] = cb.checked;
+                // If all unchecked, reset to null (use DOM filters)
+                const anyOn = SRC_DEFS.some(d => opts.sources[d.key]);
+                if (!anyOn) opts.sources = null;
+            };
+            const lbl = el('label', 'display:flex;align-items:center;font-size:11px;cursor:pointer;white-space:nowrap;');
+            lbl.appendChild(cb); lbl.append(label);
+            srcRow.appendChild(lbl);
+        });
+        srcPanel.appendChild(srcRow);
+        container.appendChild(srcPanel);
 
         const row2 = el('div', S.row + 'margin-top:6px;');
 
@@ -158,6 +199,27 @@ export function showAutoBuilderUI(container) {
         row2.appendChild(brLabel);
 
         optsPanel.appendChild(row2);
+
+        // Value-tier weighting (mirrors Draw Helpers V1–V5 targets)
+        const row3 = el('div', S.row + 'margin-top:6px;');
+        const vtInfo = el('span', 'font-size:11px;color:#888;margin-right:6px;', 'Value-target bias:');
+        row3.appendChild(vtInfo);
+
+        function makeVtToggle(label, color, key, title) {
+            const b = el('button', `padding:3px 8px;border:1px solid #555;border-radius:3px;font-size:11px;font-weight:bold;cursor:pointer;color:${color};`, label);
+            b.title = title;
+            b.onclick = () => {
+                opts[key] = !opts[key];
+                b.style.background = opts[key] ? color : '';
+                b.style.color      = opts[key] ? '#111' : color;
+                b.style.border     = opts[key] ? `1px solid ${color}` : '1px solid #555';
+            };
+            return b;
+        }
+        row3.appendChild(makeVtToggle('R', '#f5a623', 'valueROn', 'Boost resource weight when selecting tier-matched systems'));
+        row3.appendChild(makeVtToggle('I', '#7ecfff', 'valueIOn', 'Boost influence weight when selecting tier-matched systems'));
+        row3.appendChild(makeVtToggle('T', '#b07cff', 'valueTOn', 'Boost tech-skip weight when selecting tier-matched systems'));
+        optsPanel.appendChild(row3);
 
         // Links (req 5, req 8)
         const linkRow = el('div', 'margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;');
@@ -361,6 +423,78 @@ export function showAutoBuilderUI(container) {
     }
 
     render();
+}
+
+export function showAutoMapperHelp() {
+    import('../../ui/popupUI.js').then(({ showPopup }) => {
+        showPopup({
+            id: 'automapper-help-popup',
+            title: '🤖 AutoMapper & Draw Helpers — Help',
+            content: `<div style="line-height:1.6;font-size:13px;max-height:70vh;overflow-y:auto;padding-right:8px;">
+
+<h3 style="color:#2ecc40;margin:0 0 8px 0;">Draw Helpers</h3>
+<p>Open from <b>Layout Options → Draw Helpers</b>. Paint tile properties directly onto hexes without searching for specific systems.</p>
+
+<h4 style="color:#ffe066;margin:8px 0 4px 0;">Tile types</h4>
+<p>Click a type button, then click hexes: <b>1/2/3 Planet</b>, <b>Legendary</b>, <b>Empty</b>, <b>Special</b> (anomaly), <b>Fracture</b> (Thunders Edge).</p>
+<p>A <b>Special</b> tile with no effects painted acts the same as <b>Empty</b>.</p>
+
+<h4 style="color:#ffe066;margin:8px 0 4px 0;">Effects</h4>
+<p>Paint an anomaly overlay on top of a hex: <b>Nebula ☁️</b>, <b>Rift 🕳️</b>, <b>Asteroid 🪨</b>, <b>Supernova ☀️</b>, <b>Scar ☄️</b>.</p>
+<p>If a system with that exact effect isn't available, an <b>anomaly token</b> is placed instead.</p>
+
+<hr style="border-color:#333;margin:10px 0;">
+<h3 style="color:#2ecc40;margin:0 0 8px 0;">🤖 AutoMapper</h3>
+<p>After painting tile types with Draw Helpers, AutoMapper fills those hexes with real systems.</p>
+
+<h4 style="color:#ffe066;margin:8px 0 4px 0;">Workflow</h4>
+<ol style="margin:0 0 8px 16px;padding:0;">
+  <li>Paint tile types on hexes using Draw Helpers.</li>
+  <li>Open AutoMapper — the <b>Type breakdown</b> table shows how many hexes need filling and how many matching systems are available.</li>
+  <li>Choose options and click <b>Fill Remaining</b>.</li>
+  <li>Review the preview — click <b>Reshuffle</b> for a different arrangement.</li>
+  <li>Click <b>Apply to Map</b>. One Ctrl+Z undoes the entire fill.</li>
+</ol>
+
+<h4 style="color:#ffe066;margin:8px 0 4px 0;">Options</h4>
+<ul style="margin:0 0 8px 16px;padding:0;">
+  <li><b>Balanced</b> — runs multiple shuffles, keeps the assignment with the most even resource spread across player slices.</li>
+  <li><b>Iterations</b> — how many shuffles balanced mode tries.</li>
+  <li><b>Balance range</b> — how many hexes from each home system to consider for scoring.</li>
+  <li><b>Include HS tiles</b> — allows filling home-system hexes (off by default).</li>
+  <li><b>Include wormhole systems</b> — adds wormhole tiles to the pool.</li>
+  <li><b>Duplicate empty/anomaly systems</b> — allows the same no-planet system to be placed multiple times.</li>
+  <li><b>Sources</b> — restrict the pool to specific expansions. Leave all unchecked to use the active Search panel filter.</li>
+</ul>
+
+<h4 style="color:#ffe066;margin:8px 0 4px 0;">Value hints</h4>
+<p>Use <b>V1–V5</b> to paint a target value tier on a hex. Use <b>R / I / T</b> to request high resources, influence, or tech skips. These are preferences — AutoMapper picks the best available match, falling back gracefully if unavailable.</p>
+<p>Tiers are relative within each planet-count group: V5 on a 2-planet hex means "best 2-planet system available", not "best overall".</p>
+
+<h4 style="color:#ffe066;margin:8px 0 4px 0;">Value overlay</h4>
+<p>After filling, click <b>📊 Show Value Overlay</b> to see T1–T5 tier badges on placed systems (relative to their type group). Toggle R/I/T to see how different weightings would rank the systems.</p>
+
+<h4 style="color:#ffe066;margin:8px 0 4px 0;">Preview colours</h4>
+<ul style="margin:0 0 8px 16px;padding:0;">
+  <li><span style="color:#2ecc40">■</span> <b>Green</b> — matched correctly with a real system.</li>
+  <li><span style="color:#ffb347">■</span> <b>Orange</b> — no matching system found; will use an anomaly token for effects, or a downgraded/fallback system.</li>
+</ul>
+
+</div>`,
+            draggable: true,
+            dragHandleSelector: '.popup-ui-titlebar',
+            scalable: true,
+            rememberPosition: true,
+            style: {
+                minWidth: '440px', maxWidth: '640px',
+                border: '2px solid #2ecc40',
+                borderRadius: '10px',
+                boxShadow: '0 8px 40px #000a',
+                padding: '20px',
+            },
+            actions: [{ label: 'Close', action: () => import('../../ui/popupUI.js').then(({ hidePopup }) => hidePopup('automapper-help-popup')) }],
+        });
+    });
 }
 
 // Returns a short effect tag string for the preview list

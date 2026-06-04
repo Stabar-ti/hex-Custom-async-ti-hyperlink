@@ -118,4 +118,6 @@ export function assignSystem(editor, sys, hexID) {
   updateTileImageLayer(editor);
   enforceSvgLayerOrder(editor.svg);
 
+  // Refresh value overlay if it is currently active
+  editor._refreshValueOverlay?.();
 }

@@ -120,6 +120,11 @@ export function showOverlayOptionsPopup() {
         <button id="toggleCustomLinks" class="mode-button">Custom Links Overlay</button>
         <button id="linkWormholesBtn" class="mode-button">Link Wormholes</button>
       </div>
+      <div class="popup-section-label">Value Overlays</div>
+      <div class="popup-btn-grid">
+        <button id="toggleValueTargetLayer" class="mode-button">Value Hints (V·R·I·T)</button>
+        <button id="toggleValueOverlay" class="mode-button">Value Tiers (T1–T5)</button>
+      </div>
     `;
 
     // Debug: log when popup is about to be shown
@@ -280,6 +285,42 @@ export function showOverlayOptionsPopup() {
                         editor.clearWormholeLinks();
                     }
                 }
+            };
+        }
+
+        // Value overlay toggle — use wrapper.querySelector to avoid stale getElementById hits
+        const voBtn = wrapper.querySelector('#toggleValueOverlay');
+        if (voBtn) {
+            const active = () => !!editor.svg?.querySelector('#valueOverlayLayer');
+            voBtn.classList.toggle('active', active());
+            voBtn.onclick = () => {
+                import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
+                    if (isValueOverlayActive(editor)) {
+                        clearValueOverlay(editor);
+                        voBtn.classList.remove('active');
+                    } else {
+                        drawValueOverlay(editor, false, false, false);
+                        voBtn.classList.add('active');
+                    }
+                }).catch(console.error);
+            };
+        }
+
+        // Value target layer toggle (V1–V5 tier badges + R/I/T skew dots)
+        const vtBtn = wrapper.querySelector('#toggleValueTargetLayer');
+        if (vtBtn) {
+            const targetActive = () => !!editor.svg?.querySelector('#valueTargetLayer');
+            vtBtn.classList.toggle('active', targetActive());
+            vtBtn.onclick = () => {
+                import('../features/valueOverlay.js').then(({ drawValueTargetLayer, clearValueTargetLayer }) => {
+                    if (targetActive()) {
+                        clearValueTargetLayer(editor);
+                        vtBtn.classList.remove('active');
+                    } else {
+                        drawValueTargetLayer(editor);
+                        vtBtn.classList.add('active');
+                    }
+                }).catch(console.error);
             };
         }
 

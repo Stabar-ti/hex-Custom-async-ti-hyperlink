@@ -103,7 +103,8 @@ export function createHexData(label, q, r) {
     systemLore: null,
     planetLore: [],
     systemTokens: [],
-    planetTokens: {}
+    planetTokens: {},
+    valueTarget: null,
   };
 }
 

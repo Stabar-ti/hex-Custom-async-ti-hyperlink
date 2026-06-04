@@ -264,6 +264,9 @@ export function exportFullState(editor) {
       h.st = hex.systemTokens;
     }
 
+    // Value target (Draw Helpers V1–V5 painting)
+    if (hex.valueTarget) h.vt = hex.valueTarget;
+
     // Add planet tokens if they exist
     if (hex.planetTokens && Object.keys(hex.planetTokens).length > 0) {
       h.pt = {};

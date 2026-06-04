@@ -450,6 +450,9 @@ export function importFullState(editor, jsonText) {
         hex.systemTokens = [];
       }
 
+      // ---- Import value target (Draw Helpers V1–V5)
+      hex.valueTarget = h.vt || null;
+
       // ---- Import planet tokens
       if (h.pt && Object.keys(h.pt).length > 0) {
         hex.planetTokens = {};
@@ -611,6 +614,7 @@ export function importFullState(editor, jsonText) {
     updateWormholeVisibility(editor);
     updateTileImageLayer(editor);
     editor.loreOverlay?.refresh();
+    import('../features/valueOverlay.js').then(({ drawValueTargetLayer }) => drawValueTargetLayer(editor)).catch(() => {});
 
   } catch (err) {
     console.error(err);
@@ -1148,6 +1152,7 @@ export async function importMapInfo(editor, jsonData) {
     updateWormholeVisibility(editor);
     updateTileImageLayer(editor);
     editor.loreOverlay?.refresh();
+    import('../features/valueOverlay.js').then(({ drawValueTargetLayer }) => drawValueTargetLayer(editor)).catch(() => {});
 
     console.log('importMapInfo: Import completed successfully');
 
