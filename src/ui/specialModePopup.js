@@ -21,6 +21,7 @@ export function showSpecialModePopup() {
             <button id="miltySliceDesignerBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">🎲 Milty Slice Designer</button>
             <button id="miltyRandomGeneratorBtn" class="mode-button" style="font-size:16px;padding:10px 28px;display:none;">🎯 Milty Random Generator</button>
             <button id="autoMapBuilderBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">🤖 AutoMapper - Fill Remaining Tiles</button>
+            <button id="spinToWinBtn" class="mode-button" style="font-size:16px;padding:10px 28px;border:2px solid #e67e22;color:#e67e22;">⚙️ Spin-To-Win</button>
         </div>
         <hr>
         <p style="font-size: 14px; color: #888; margin-top: 16px;">Advanced tools for competitive and casual play setup.</p>
@@ -61,6 +62,7 @@ export function showSpecialModePopup() {
         const miltyBtn = document.getElementById('miltySliceDesignerBtn');
         const generatorBtn = document.getElementById('miltyRandomGeneratorBtn');
         const autoMapperBtn = document.getElementById('autoMapBuilderBtn');
+        const spinBtn = document.getElementById('spinToWinBtn');
 
         if (miltyBtn) {
             miltyBtn.onclick = () => {
@@ -239,6 +241,38 @@ export function showSpecialModePopup() {
                         content: autoMapperContent,
                         actions: [{ label: 'Close', onClick: () => hidePopup('automapper-popup') }]
                     });
+                });
+            };
+        }
+
+        // Spin-To-Win button handler
+        if (spinBtn) {
+            spinBtn.onclick = () => {
+                const spinContent = document.createElement('div');
+                spinContent.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;';
+                import('../modules/SpinToWin/spinToWin.js').then(mod => {
+                    mod.showSpinToWinUI(spinContent);
+                    showPopup({
+                        id: 'spin-to-win-popup',
+                        title: '⚙️ Spin-To-Win',
+                        content: spinContent,
+                        draggable: true,
+                        dragHandleSelector: '.popup-ui-titlebar',
+                        scalable: true,
+                        rememberPosition: true,
+                        showHelp: true,
+                        onHelp: () => import('../modules/SpinToWin/spinToWin.js').then(m => m.showSpinToWinHelp?.()),
+                        style: {
+                            minWidth: '420px', maxWidth: '700px',
+                            border: '2px solid #e67e22',
+                            borderRadius: '10px',
+                            boxShadow: '0 8px 40px #000a',
+                            padding: '16px',
+                            zIndex: 10012
+                        }
+                    });
+                }).catch(err => {
+                    console.error('Failed to load SpinToWin module:', err);
                 });
             };
         }

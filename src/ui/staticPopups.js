@@ -181,6 +181,7 @@ export function showFeaturesPopup() {
     <ul style="margin:0 0 8px 16px;padding:0;">
       <li>Milty Slice Designer — drag A–F slices to draft slots 1–12</li>
       <li>Milty Draft Generator — auto-generates balanced slices with weighted scoring (incl. Thunders Edge)</li>
+      <li>Spin-To-Win — configure ring spins for the AsyncTI4 bot, visualise with glow overlays and movement arrows, test per ring or per trigger phase, apply with full undo support, and export <code style="color:#2ecc40;">/spin add</code> commands</li>
     </ul>
 
     <h4 style="color:#ffe066;margin:6px 0 4px 0;">💾 Import / Export</h4>
