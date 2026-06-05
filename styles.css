@@ -1502,11 +1502,12 @@ Layout butoons and other Popup & Buttons
 ──────────────────────────────────────────────────────────────────────────────*/
 
 /* ── Custom scrollbars (Webkit/Blink) ─────────────────────────────────────── */
-::-webkit-scrollbar               { width: 6px; height: 6px; }
-::-webkit-scrollbar-track         { background: transparent; }
-::-webkit-scrollbar-thumb         { background: var(--surface-5); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover   { background: #888; }
-::-webkit-scrollbar-corner        { background: transparent; }
+::-webkit-scrollbar               { width: 10px; height: 10px; }
+::-webkit-scrollbar-track         { background: var(--surface-3); border-radius: 4px; }
+::-webkit-scrollbar-thumb         { background: #666; border-radius: 4px;
+                                    border: 2px solid var(--surface-3); }
+::-webkit-scrollbar-thumb:hover   { background: #999; }
+::-webkit-scrollbar-corner        { background: var(--surface-3); }
 
 /* ── Button hover — subtle background tint instead of just font-weight ─────── */
 .mode-button:hover,
