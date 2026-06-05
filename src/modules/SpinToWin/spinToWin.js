@@ -917,7 +917,7 @@ The restore is itself undoable (Ctrl+Z) so you can go back even from a restore.<
 </div>`,
             draggable: true, dragHandleSelector: '.popup-ui-titlebar',
             scalable: true, rememberPosition: true,
-            style: { minWidth: '400px', maxWidth: '600px', border: '2px solid #e67e22', borderRadius: '10px', padding: '20px' },
+            style: { minWidth: '400px', maxWidth: '600px', border: '2px solid var(--popup-border-spin)', borderRadius: '10px', padding: '20px' },
             actions: [{ label: 'Close', action: () => import('../../ui/popupUI.js').then(({ hidePopup }) => hidePopup('spin-help-popup')) }],
         });
     });

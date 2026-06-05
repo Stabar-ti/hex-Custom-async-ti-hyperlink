@@ -91,7 +91,7 @@ export function installCustomLinksUI(editor) {
                 maxHeight: '800px',
                 //background: '#222',
                 color: '#fff',
-                border: '2px solid #ffe066',
+                border: '2px solid var(--popup-border-layout)',
                 boxShadow: '0 8px 40px #000a',
                 padding: '18px 0 18px 0'
             },
@@ -112,7 +112,7 @@ export function installCustomLinksUI(editor) {
                     style: {
                         //       background: '#222',
                         color: '#fff',
-                        border: '2px solid #2ecc40',
+                        border: '2px solid var(--popup-border-special)',
                         borderRadius: '10px',
                         boxShadow: '0 8px 40px #000a',
                         minWidth: '340px',
@@ -165,7 +165,7 @@ export function installCustomLinksUI(editor) {
             style: {
                 //     background: '#222',
                 color: '#fff',
-                border: '2px solid #ff9800',
+                border: '2px solid var(--popup-border-warning)',
                 borderRadius: '14px',
                 boxShadow: '0 8px 40px #000a',
                 minWidth: '340px',

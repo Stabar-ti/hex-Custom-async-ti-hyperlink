@@ -376,7 +376,7 @@ export function installBorderAnomaliesUI(editor) {
                 maxHeight: '800px',
                 // background intentionally omitted to allow .popup-ui CSS to apply transparency
                 // color intentionally omitted to allow .popup-ui CSS to apply
-                border: '2px solid #ffe066',
+                border: '2px solid var(--popup-border-layout)',
                 boxShadow: '0 8px 40px #000a',
                 padding: '18px 0 18px 0'
             },
@@ -401,7 +401,7 @@ export function installBorderAnomaliesUI(editor) {
                     style: {
                         // background intentionally omitted
                         // color intentionally omitted
-                        border: '2px solid #2ecc40',
+                        border: '2px solid var(--popup-border-special)',
                         borderRadius: '10px',
                         boxShadow: '0 8px 40px #000a',
                         minWidth: '340px',
@@ -434,7 +434,7 @@ export function installBorderAnomaliesUI(editor) {
             style: {
                 //    background: '#222',
                 color: '#fff',
-                border: '2px solid #ff9800',
+                border: '2px solid var(--popup-border-warning)',
                 borderRadius: '12px',
                 boxShadow: '0 8px 40px #000a',
                 minWidth: '320px',
@@ -740,7 +740,7 @@ export function installBorderAnomaliesUI(editor) {
                 maxWidth: '800px',
                 minHeight: '300px',
                 maxHeight: '600px',
-                border: '2px solid #4CAF50',
+                border: '2px solid var(--popup-border-special)',
                 boxShadow: '0 8px 40px #000a',
                 padding: '20px'
             },

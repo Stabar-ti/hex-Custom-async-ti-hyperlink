@@ -71,7 +71,7 @@ export function showLorePopup() {
             maxWidth: '800px',
             minHeight: '300px',
             maxHeight: '700px',
-            border: '2px solid #9b59b6',
+            border: '2px solid var(--popup-border-lore)',
             boxShadow: '0 8px 40px #000a',
             padding: '20px'
         },
@@ -1183,7 +1183,7 @@ function showLoreHelp() {
             maxWidth: '640px',
             maxHeight: '80vh',
             overflowY: 'auto',
-            border: '2px solid #9b59b6'
+            border: '2px solid var(--popup-border-lore)'
         }
     });
 }

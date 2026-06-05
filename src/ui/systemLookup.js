@@ -196,7 +196,7 @@ export default async function initSystemLookup(editor) {
                         maxWidth: '800px',
                         minHeight: '200px',
                         maxHeight: '800px',
-                        border: '2px solid #2ecc40',
+                        border: '2px solid var(--popup-border-special)',
                         borderRadius: '10px',
                         boxShadow: '0 8px 40px #000a',
                         padding: '24px'

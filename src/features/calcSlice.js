@@ -70,7 +70,7 @@ function showCalcSliceHelpPopup() {
         style: {
             minWidth: '340px',
             maxWidth: '600px',
-            border: '2px solid #2196f3',
+            border: '2px solid var(--popup-border-default)',
             borderRadius: '14px',
             boxShadow: '0 8px 40px #000a',
             zIndex: 2100

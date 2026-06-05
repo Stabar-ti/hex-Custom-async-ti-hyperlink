@@ -43,7 +43,7 @@ export function openSectorControlsPopup(editor) {
       minHeight: '200px',
       maxHeight: '800px',
       color: '#fff',
-      border: '2px solid #4a9eff',
+      border: '2px solid var(--popup-border-sector)',
       boxShadow: '0 8px 40px #000a',
       padding: '0',
       zIndex: 1200,
@@ -282,7 +282,7 @@ function createSectorControlsContent(editor) {
         minHeight: '120px',
         maxHeight: '600px',
         color: '#fff',
-        border: '2px solid #66ff66',
+        border: '2px solid var(--popup-border-special)',
         boxShadow: '0 8px 40px #000a',
         padding: '0 0 18px 0',
         zIndex: 1300
@@ -564,7 +564,7 @@ function createSectorControlsContent(editor) {
                 onHelp: () => import('../modules/automapper/autoBuilder.js').then(m => m.showAutoMapperHelp?.()),
                 style: {
                   minWidth: '380px', maxWidth: '700px',
-                  border: '2px solid #2ecc40',
+                  border: '2px solid var(--popup-border-special)',
                   borderRadius: '10px',
                   boxShadow: '0 8px 40px #000a',
                   padding: '16px',
@@ -715,7 +715,7 @@ function createSectorControlsContent(editor) {
         minHeight: '120px',
         maxHeight: '600px',
         color: '#fff',
-        border: '2px solid #ffe066',
+        border: '2px solid var(--popup-border-layout)',
         boxShadow: '0 8px 40px #000a',
         padding: '0 0 18px 0',
         zIndex: 1300

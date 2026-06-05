@@ -487,7 +487,7 @@ export function showAutoMapperHelp() {
             rememberPosition: true,
             style: {
                 minWidth: '440px', maxWidth: '640px',
-                border: '2px solid #2ecc40',
+                border: '2px solid var(--popup-border-special)',
                 borderRadius: '10px',
                 boxShadow: '0 8px 40px #000a',
                 padding: '20px',

@@ -67,7 +67,7 @@ export function showTokenPopup(hexLabel) {
             maxWidth: '800px',
             minHeight: '400px',
             maxHeight: '700px',
-            border: '2px solid #3498db',
+            border: '2px solid var(--popup-border-token)',
             boxShadow: '0 8px 40px #000a',
             padding: '20px'
         },
@@ -850,7 +850,7 @@ function showTokenHelp() {
         style: {
             minWidth: '400px',
             maxWidth: '600px',
-            border: '2px solid #3498db'
+            border: '2px solid var(--popup-border-token)'
         }
     });
 }
