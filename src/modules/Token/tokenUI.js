@@ -175,7 +175,7 @@ function createHeaderSection(hex) {
     
     // If no realID, show warning border
     if (!hasRealId) {
-        header.style.border = '2px solid #e74c3c';
+        header.style.border = '2px solid var(--color-danger)';
         header.style.backgroundColor = '#3d2020';
     }
     
@@ -197,7 +197,7 @@ function createCategoryTabs() {
     tabContainer.id = 'tokenCategoryTabs';
     tabContainer.style.display = 'flex';
     tabContainer.style.gap = '4px';
-    tabContainer.style.borderBottom = '2px solid #555';
+    tabContainer.style.borderBottom = '2px solid var(--modal-border)';
     tabContainer.style.paddingBottom = '8px';
     tabContainer.style.flexWrap = 'wrap';
 

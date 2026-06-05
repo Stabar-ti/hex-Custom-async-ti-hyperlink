@@ -1,6 +1,8 @@
 // src/modules/Milty/miltyBuilderDraw.js
 // Drawing and visual overlay functions for Milty Slice Designer
 
+import { COLORS } from '../../constants/designTokens.js';
+
 // Draws red number overlays (1-12) in specified sectors
 export function drawSlicePositionOverlays(editor, show = true) {
     if (!editor || !editor.hexes || !editor.svg) {
@@ -38,7 +40,7 @@ export function drawSlicePositionOverlays(editor, show = true) {
         text.setAttribute('text-anchor', 'middle');
         text.setAttribute('font-size', '32');
         text.setAttribute('font-weight', 'bold');
-        text.setAttribute('fill', 'red');
+        text.setAttribute('fill', COLORS.danger);
         text.setAttribute('stroke', 'white');
         text.setAttribute('stroke-width', '1');
         text.setAttribute('pointer-events', 'none');
@@ -63,7 +65,7 @@ export function drawSlicePositionOverlays(editor, show = true) {
         text.setAttribute('text-anchor', 'middle');
         text.setAttribute('font-size', '32');
         text.setAttribute('font-weight', 'bold');
-        text.setAttribute('fill', 'green');
+        text.setAttribute('fill', COLORS.success);
         text.setAttribute('stroke', 'white');
         text.setAttribute('stroke-width', '1');
         text.setAttribute('pointer-events', 'none');

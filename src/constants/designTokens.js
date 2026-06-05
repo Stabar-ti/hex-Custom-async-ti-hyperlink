@@ -32,6 +32,18 @@ export const COLORS = {
   surface5:             '#666666',
   surfaceHeader:        'rgba(48, 48, 48, 0.85)',
 
+  // Text utility
+  textMuted:            '#888888',
+
+  // AutoMapper-specific (blue-tinted dark panel palette)
+  autoPanelBg:          '#1a2535',
+  autoBtnBlue:          '#0099cc',
+  autoBtnGrey:          '#3a4a5a',
+  autoBtnLink:          '#00aaff',
+  autoWarnText:         '#ff9900',
+  autoInputBg:          '#2a3a4a',
+  autoInputBorder:      '#445566',
+
   // SVG overlays — used with setAttribute, must be plain hex/named values
   linkLine:             '#1fa3ff',
   distanceNumber:       '#ffd700',

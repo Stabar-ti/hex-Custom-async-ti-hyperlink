@@ -1467,6 +1467,36 @@ Layout butoons and other Popup & Buttons
   padding-left: 4px;
 }
 
+/*──────────────────────────────────────────────────────────────────────────────
+  Utility classes (Phase 4) — replace the most common inline style patterns
+──────────────────────────────────────────────────────────────────────────────*/
+
+/* Dark panel — replaces background:#2c3e50 / #1a2535 panel pattern */
+.panel-dark {
+  background: var(--surface-2);
+  border-radius: 6px;
+  border: 1px solid var(--surface-5);
+  padding: 12px;
+}
+
+/* Dark input — replaces background:#34495e/color:#fff/border:#666 pattern */
+.input-dark {
+  background: var(--surface-3);
+  color: var(--text-color);
+  border: 1px solid var(--surface-5);
+  border-radius: 4px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+/* Status text utilities */
+.text-accent  { color: var(--color-accent); }
+.text-muted   { color: #888888; }
+.text-success { color: var(--color-success); }
+.text-danger  { color: var(--color-danger); }
+.text-warning { color: var(--color-warning); }
+.text-primary { color: var(--color-primary); }
+
 /* Make the controls panel close and open buttons yellow, round, and accessible, with hover/focus states */
 #controlsPanelCloseBtn,
 #controlsPanelOpenBtn {

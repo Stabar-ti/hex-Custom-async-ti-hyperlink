@@ -518,7 +518,7 @@ function createSectorControlsContent(editor) {
         vtClearBtn.textContent   = '✕ Clear';
         vtClearBtn.className     = 'mode-button';
         vtClearBtn.title         = 'Remove all value hints from a hex (click hex after)';
-        vtClearBtn.style.cssText = 'flex:0 0 54px;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid #666;border-radius:4px;color:#aaa;cursor:pointer;';
+        vtClearBtn.style.cssText = 'flex:0 0 54px;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid var(--surface-5);border-radius:4px;color:#aaa;cursor:pointer;';
         vtClearBtn.addEventListener('click', () => {
           // Activate clear mode regardless of config state
           content.querySelectorAll('.mode-button').forEach(b => {
@@ -545,7 +545,7 @@ function createSectorControlsContent(editor) {
         const amBtn = document.createElement('button');
         amBtn.textContent = '🤖 Open AutoMapper';
         amBtn.className = 'mode-button';
-        amBtn.style.cssText = 'width:100%;padding:8px 12px;font-size:0.9em;font-weight:bold;border:2px solid #2ecc40;border-radius:4px;cursor:pointer;color:#2ecc40;background:#0a1a0a;';
+        amBtn.style.cssText = 'width:100%;padding:8px 12px;font-size:0.9em;font-weight:bold;border:2px solid var(--popup-border-special);border-radius:4px;cursor:pointer;color:var(--popup-border-special);background:#0a1a0a;';
         amBtn.onclick = () => {
           import('../modules/automapper/autoBuilder.js').then(mod => {
             const amContent = document.createElement('div');

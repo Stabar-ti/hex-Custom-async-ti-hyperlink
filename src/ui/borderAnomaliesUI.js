@@ -58,10 +58,10 @@ export function installBorderAnomaliesUI(editor) {
 
             // Add scripted indicator
             if (isScripted) {
-                btn.style.border = '2px solid #4CAF50';
+                btn.style.border = '2px solid var(--color-success)';
                 btn.style.boxShadow = '0 0 4px rgba(76, 175, 80, 0.3)';
             } else {
-                btn.style.border = '2px solid #FF9800';
+                btn.style.border = '2px solid var(--color-warning)';
                 btn.style.boxShadow = '0 0 4px rgba(255, 152, 0, 0.3)';
             }
 
@@ -176,7 +176,7 @@ export function installBorderAnomaliesUI(editor) {
         removeBtn.style.minWidth = '110px';
         removeBtn.style.backgroundColor = '#ff4444';
         removeBtn.style.color = 'white';
-        removeBtn.style.border = '2px solid #cc0000';
+        removeBtn.style.border = '2px solid var(--color-danger)';
         removeBtn.style.fontWeight = 'bold';
         removeBtn.style.padding = '10px 12px';
         removeBtn.style.borderRadius = '6px';
