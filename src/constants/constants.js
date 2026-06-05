@@ -102,7 +102,8 @@ export const sectorColors = {
   'special': '#ff83a0',
   'fracture': '#ffb3b3',        // Light red — fracture tile back
   'homesystem': '#059f00',
-  'void': '#2b2b2b'
+  'void': '#2b2b2b',
+  'hyperlane': '#d8d8d8'            // Blank hex with drawn hyperlane connections
 };
 
 /**

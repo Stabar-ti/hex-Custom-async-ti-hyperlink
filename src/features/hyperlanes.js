@@ -9,6 +9,23 @@
 // ───────────────────────────────────────────────────────────────
 
 import { drawCurveLink, drawLoopCircle, drawLoopbackCurve, getDirIndex } from '../draw/links.js';
+import { sectorColors } from '../constants/constants.js';
+
+/**
+ * Sets baseType to 'hyperlane' (darker gray) when the hex has active connections,
+ * or back to '' (default gray) when cleared. Does not touch undo history.
+ */
+function updateHyperlaneBaseType(hex) {
+  if (!hex?.polygon) return;
+  const hasHL = hex.matrix?.some(row => row.some(cell => cell !== 0));
+  if (hasHL && hex.baseType === '') {
+    hex.baseType = 'hyperlane';
+    hex.polygon.setAttribute('fill', sectorColors['hyperlane']);
+  } else if (!hasHL && hex.baseType === 'hyperlane') {
+    hex.baseType = '';
+    hex.polygon.setAttribute('fill', sectorColors['']);
+  }
+}
 
 /**
  * Adds hyperlane editing methods to the editor instance, enabling path selection,
@@ -74,6 +91,7 @@ export function bindHyperlaneEditing(editor) {
     const seg = drawCurveLink(this.svg, via, entry, exit, B, this.hexRadius);
     this.drawnSegments.push(seg);
     via.matrix[entry][exit] = 1;
+    updateHyperlaneBaseType(via);
 
     // Remove "selected" highlight for just-drawn segment ends
     this.selectedPath.slice(-2).forEach(id => this.hexes[id].polygon.classList.remove('selected'));
@@ -95,6 +113,7 @@ export function bindHyperlaneEditing(editor) {
     const circ = drawLoopCircle(this.svg, via.center.x, via.center.y, B);
     this.drawnSegments.push(arc, circ);
     via.matrix[entry][entry] = 1;
+    updateHyperlaneBaseType(via);
     // Remove all "selected" highlights for these three
     this.selectedPath.slice(-3).forEach(id => this.hexes[id].polygon.classList.remove('selected'));
     this.selectedPath = [];
@@ -112,6 +131,7 @@ export function bindHyperlaneEditing(editor) {
     if (via.matrix[ent][ext]) {
       // Clear matrix and remove matching SVG curve
       via.matrix[ent][ext] = 0;
+      updateHyperlaneBaseType(via);
       const idx = this.drawnSegments.findIndex(seg => seg.dataset.via === B && +seg.dataset.entry === ent && +seg.dataset.exit === ext);
       if (idx >= 0) {
         this.svg.removeChild(this.drawnSegments[idx]);
@@ -144,6 +164,7 @@ export function bindHyperlaneEditing(editor) {
     const hex = this.hexes[label];
     if (!hex) return;
     hex.matrix.forEach((row, i) => row.forEach((_, j) => hex.matrix[i][j] = 0));
+    updateHyperlaneBaseType(hex);
     hex.polygon?.classList.remove('selected');
   };
 }
@@ -188,4 +209,5 @@ export function drawMatrixLinks(editor, label, matrix) {
       }
     }
   }
+  updateHyperlaneBaseType(hex);
 }

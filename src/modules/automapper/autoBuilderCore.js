@@ -73,6 +73,7 @@ export function getUnfilledHexes(editor, { includeHomeSystems = false } = {}) {
     return Object.entries(editor.hexes)
         .filter(([, h]) => {
             if (!h.baseType || h.baseType === '') return false;
+            if (h.baseType === 'hyperlane') return false;
             if (!includeHomeSystems && h.baseType === 'homesystem') return false;
             return !h.realId;
         })

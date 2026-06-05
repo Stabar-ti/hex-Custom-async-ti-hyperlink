@@ -1593,6 +1593,7 @@ select:focus {
   letter-spacing: 0.04em;
 }
 
+
 /* Make the controls panel close and open buttons yellow, round, and accessible, with hover/focus states */
 #controlsPanelCloseBtn,
 #controlsPanelOpenBtn {
