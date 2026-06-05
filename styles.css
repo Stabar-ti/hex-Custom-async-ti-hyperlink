@@ -21,8 +21,8 @@
   /* ── Design tokens (Phase 1) ────────────────────────────────── */
 
   /* Fonts */
-  --font-ui:   "Segoe UI", Arial, sans-serif;
-  --font-mono: "Courier New", monospace;
+  --font-ui:   "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", "Courier New", monospace;
   --font-icon: "Segoe UI Symbol", "Noto Emoji";
 
   /* Surface layers (dark bg hierarchy) */
@@ -1496,6 +1496,93 @@ Layout butoons and other Popup & Buttons
 .text-danger  { color: var(--color-danger); }
 .text-warning { color: var(--color-warning); }
 .text-primary { color: var(--color-primary); }
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Visual modernisation (Phase 6)
+──────────────────────────────────────────────────────────────────────────────*/
+
+/* ── Custom scrollbars (Webkit/Blink) ─────────────────────────────────────── */
+::-webkit-scrollbar               { width: 6px; height: 6px; }
+::-webkit-scrollbar-track         { background: transparent; }
+::-webkit-scrollbar-thumb         { background: var(--surface-5); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover   { background: #888; }
+::-webkit-scrollbar-corner        { background: transparent; }
+
+/* ── Button hover — subtle background tint instead of just font-weight ─────── */
+.mode-button:hover,
+.primary-button:hover {
+  background-color: color-mix(in srgb, currentColor 10%, var(--btn-bg-light));
+  font-weight: bold;
+}
+
+body.dark .mode-button:hover,
+body.dark .primary-button:hover {
+  background-color: color-mix(in srgb, var(--color-accent) 10%, var(--btn-bg-dark));
+  font-weight: bold;
+}
+
+/* ── Top bar — glass border instead of flat line ──────────────────────────── */
+#topBar {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Popups — depth shadow + glass border ─────────────────────────────────── */
+.popup-ui,
+.popup-ui-info,
+.wizard-main-popup {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.popup-ui-titlebar {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Controls panel — glass border ────────────────────────────────────────── */
+body.dark #controlsPanel {
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Smoother transitions across interactive elements ─────────────────────── */
+.mode-button,
+.primary-button,
+.filter-button,
+.wizard-btn {
+  transition: background 0.15s ease, color 0.15s ease,
+              box-shadow 0.15s ease, outline-color 0.15s ease;
+}
+
+/* ── Input fields — consistent dark styling ───────────────────────────────── */
+input[type="text"],
+input[type="number"],
+input[type="search"],
+textarea,
+select {
+  background: var(--surface-3);
+  color: var(--text-color);
+  border: 1px solid var(--surface-5);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-family: var(--font-ui);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="search"]:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-glow);
+}
+
+/* ── Version tag — pill style ─────────────────────────────────────────────── */
+#versionTag {
+  border-radius: 20px;
+  letter-spacing: 0.04em;
+}
 
 /* Make the controls panel close and open buttons yellow, round, and accessible, with hover/focus states */
 #controlsPanelCloseBtn,
