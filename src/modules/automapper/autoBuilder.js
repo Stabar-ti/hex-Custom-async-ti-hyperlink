@@ -62,7 +62,7 @@ export function showAutoBuilderUI(container) {
         return;
     }
 
-    container.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:4px;font-family:"Segoe UI",Arial,sans-serif;color:#eee;min-width:360px;';
+    container.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:4px;font-family:var(--font-ui);color:#eee;min-width:360px;';
 
     // ---- State ----
     let opts = {

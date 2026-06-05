@@ -73,7 +73,7 @@ body {
   margin: 0;
   padding-top: 60px;
   /* height of topBar */
-  font-family: sans-serif;
+  font-family: var(--font-ui);
   background-color: var(--bg-color);
   color: var(--text-color);
   /* let modals escape */
