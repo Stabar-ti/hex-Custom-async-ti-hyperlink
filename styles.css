@@ -18,8 +18,6 @@
   --topbar-btn-bg: #f0f0f0;
   --topbar-btn-text: #000;
 
-  /* ── Design tokens (Phase 1) ────────────────────────────────── */
-
   /* Fonts */
   --font-ui:   "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
   --font-mono: "Cascadia Code", "Consolas", "Courier New", monospace;
@@ -195,7 +193,7 @@ svg text {
 }
 
 .hex-overlay {
-  font-family: "Segoe UI Symbol", "Noto Emoji";
+  font-family: var(--font-icon);
   font-size: 16px;
   fill: var(--text-color);
   pointer-events: none;
@@ -233,7 +231,6 @@ body.dark .mode-button,
 body.dark .primary-button {
   background-color: var(--btn-bg-dark);
   color: var(--text-color);
-  border: #808080;
   border-radius: 1px;
 }
 
@@ -283,8 +280,6 @@ body.dark .dropdown-toggle:hover,
 body.dark .dropdown-toggle:focus {
   background-color: #828282;
   font-weight: bold;
-  border: #430000;
-  /* background-color: var(--btn-bg-light); */
 }
 
 /*──────────────────────────────────────────────────────────────────────────────
@@ -396,7 +391,7 @@ body.dark #controlsPanel {
 
 #controlsPanelCloseBtn:hover {
   color: #222;
-  background: #ffe066;
+  background: var(--color-accent);
   border-radius: 50%;
 }
 
@@ -404,11 +399,10 @@ body.dark #controlsPanel {
   display: none;
   position: fixed;
   top: 90px;
-  /* Adjust to match controlsPanel vertical position */
   left: 0;
   z-index: 101;
   font-size: 1.3em;
-  background: #ffe066;
+  background: var(--color-accent);
   border: none;
   border-radius: 0 8px 8px 0;
   padding: 6px 10px;
@@ -419,7 +413,7 @@ body.dark #controlsPanel {
 }
 
 #controlsPanelOpenBtn:hover {
-  background: #ffd700;
+  background: var(--color-accent-outline);
   color: #222;
 }
 
@@ -564,17 +558,16 @@ body.dark #effectsToggleBtn {
 }
 
 #effectsToggleBtn.active {
-  background-color: #ffe464;
-  /* Pick your toggled color */
+  background-color: var(--color-accent-bg);
   color: #000;
-  border-color: #ffb800;
+  border-color: var(--color-accent-outline);
   font-weight: bold;
 }
 
 body.dark #effectsToggleBtn.active {
-  background-color: #cc8c00;
+  background-color: var(--color-accent-active);
   color: #ffffff;
-  border-color: #ffd47f;
+  border-color: var(--color-accent-outline-dark);
 }
 
 /*──────────────────────────────────────────────────────────────────────────────
@@ -622,12 +615,15 @@ body.dark .mode-button.btn-lookup-id:focus {
   border: 1px solid var(--modal-border);
   box-shadow: 0 8px 18px #222a;
   border-radius: 10px;
-  padding: 10px 0 10px 0;
+  padding: 10px 0;
   z-index: 500;
   animation: popupFadeIn 0.13s;
+  resize: both;
+  overflow: auto;
+  max-width: 90vw;
+  max-height: 90vh;
 }
 
-/* Show the panel when parent has .open */
 .popup-group.open .popup-panel {
   display: block;
 }
@@ -663,7 +659,7 @@ body.dark .mode-button.btn-lookup-id:focus {
 
 .popup-panel .mode-button:hover,
 .popup-panel button:hover {
-  background: #ffe464;
+  background: var(--color-accent-bg);
   color: #222;
   font-weight: bold;
 }
@@ -689,31 +685,6 @@ body.dark .popup-panel .divider {
 /*──────────────────────────────────────────────────────────────────────────────
   Wormhole toggle
 ──────────────────────────────────────────────────────────────────────────────*/
-.popup-group {
-  position: relative;
-}
-
-.popup-panel {
-  display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  background: var(--btn-bg-dark);
-  border: 1px solid var(--modal-border);
-  padding: 5px;
-  z-index: 10;
-  resize: both;
-  overflow: auto;
-  /* required so content scrolls when you shrink it */
-  max-width: 90vw;
-  /* don’t let them drag you off-screen */
-  max-height: 90vh;
-}
-
-.popup-group.open .popup-panel {
-  display: block;
-}
-
 .wormhole-button.active {
   outline: 3px solid var(--text-color);
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
@@ -802,14 +773,11 @@ body.dark .filter-button.active {
   padding: 1em;
   border: 1px solid var(--modal-border);
   z-index: 1000;
-  max-width: 80%;
+  max-width: 90vw;
+  max-height: 90vh;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
   resize: both;
   overflow: auto;
-  /* required so content scrolls when you shrink it */
-  max-width: 90vw;
-  /* don’t let them drag you off-screen */
-  max-height: 90vh;
 }
 
 .modal textarea {
@@ -822,7 +790,7 @@ body.dark .filter-button.active {
 
 .modal-header.draggable-handle {
   cursor: move;
-  background: #222;
+  background: var(--surface-2);
   color: #fff;
   padding: 0.1em;
   user-select: none;
@@ -989,25 +957,11 @@ body.dark .mode-button.btn-special {
 .border-anomalies-popup {
   position: absolute;
   background: rgba(32, 32, 32, 0.89);
-  /* match .popup-ui */
-  /*background: var(--modal-bg);*/
-  border: 2px solid #e32b2b;
+  border: 2px solid var(--popup-border-danger);
   border-radius: 10px;
   padding: 12px 14px 12px 10px;
   z-index: 1000;
   min-width: 180px;
-  color: var(--text-color);
-}
-
-body.dark .border-anomalies-popup {
-  background: var(--modal-bg);
-  border-color: #e32b2b;
-  color: var(--text-color);
-}
-
-body.light .border-anomalies-popup {
-  background: var(--modal-bg);
-  border-color: #c02b2b;
   color: var(--text-color);
 }
 
@@ -1046,7 +1000,6 @@ body.light .border-anomalies-popup {
 }
 
 .border-anomalies-popup,
-.border-anomalies-popup,
 .popup-panel,
 .popup-panel * {
   user-select: none;
@@ -1055,7 +1008,7 @@ body.light .border-anomalies-popup {
 
 
 /*──────────────────────────────────────────────────────────────────────────────
-Layout butoons and other Popup & Buttons
+  Layout options and popup buttons
 ──────────────────────────────────────────────────────────────────────────────*/
 
 .layout-options-popup {
