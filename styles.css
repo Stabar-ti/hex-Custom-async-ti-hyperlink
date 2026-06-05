@@ -1120,8 +1120,11 @@ Layout butoons and other Popup & Buttons
 }
 
 .popup-section-label {
-  font-size: 1em;
-  font-weight: 600;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--surface-5);
   margin: 12px 0 4px 2px;
 }
 
@@ -1504,10 +1507,15 @@ Layout butoons and other Popup & Buttons
 /* ── Custom scrollbars (Webkit/Blink) ─────────────────────────────────────── */
 ::-webkit-scrollbar               { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track         { background: var(--surface-3); border-radius: 4px; }
-::-webkit-scrollbar-thumb         { background: #666; border-radius: 4px;
+::-webkit-scrollbar-thumb         { background: var(--color-primary); border-radius: 4px;
                                     border: 2px solid var(--surface-3); }
-::-webkit-scrollbar-thumb:hover   { background: #999; }
+::-webkit-scrollbar-thumb:hover   { background: color-mix(in srgb, var(--color-primary) 80%, #fff); }
 ::-webkit-scrollbar-corner        { background: var(--surface-3); }
+
+/* Keep scrollbar track away from popup rounded corners */
+.popup-ui::-webkit-scrollbar-track,
+.popup-ui-info::-webkit-scrollbar-track,
+.wizard-main-popup::-webkit-scrollbar-track  { margin-top: 16px; margin-bottom: 16px; }
 
 /* ── Button hover — subtle background tint instead of just font-weight ─────── */
 .mode-button:hover,

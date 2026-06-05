@@ -142,11 +142,11 @@ function createSectorControlsContent(editor) {
   container.style.flexDirection = 'column';
   container.style.minWidth = '0'; // Prevent flex items from growing beyond container
 
-  // ───────────── Async Tiles Button ─────────────
+  // ───────────── System Tiles Button ─────────────
   const realIdBtn = document.createElement('button');
   realIdBtn.id = 'jumpToSystemBtn';
   realIdBtn.className = 'mode-button btn-lookup-id';
-  realIdBtn.textContent = 'Async Tiles';
+  realIdBtn.textContent = 'System Tiles';
   realIdBtn.title = 'Choose Async Tile';
   realIdBtn.style.width = '100%';
   realIdBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
@@ -178,6 +178,17 @@ function createSectorControlsContent(editor) {
     }
   });
   container.appendChild(realIdBtn);
+
+  // ── separator + section label ──
+  const sep0 = document.createElement('div');
+  sep0.style.borderTop = '1px solid #555';
+  sep0.style.margin = '10px 0 6px 0';
+  container.appendChild(sep0);
+
+  const drawLabel = document.createElement('div');
+  drawLabel.className = 'popup-section-label';
+  drawLabel.textContent = 'Draw your design';
+  container.appendChild(drawLabel);
 
   // ───────────── Essential System Types ─────────────
   const essentialSystemTypes = [
@@ -657,11 +668,16 @@ function createSectorControlsContent(editor) {
   };
   container.appendChild(drawHelpersBtn);
 
-  // Add a visual separator
+  // ── separator + section label ──
   const separator1 = document.createElement('div');
-  separator1.style.borderTop = '1px solid #666';
-  separator1.style.margin = '12px 0';
+  separator1.style.borderTop = '1px solid #555';
+  separator1.style.margin = '10px 0 6px 0';
   container.appendChild(separator1);
+
+  const advLabel = document.createElement('div');
+  advLabel.className = 'popup-section-label';
+  advLabel.textContent = 'Advanced map tools';
+  container.appendChild(advLabel);
 
   // ───────────── Wormholes Modal Launcher ─────────────
   const wormholesBtn = document.createElement('button');
@@ -981,7 +997,7 @@ function deactivateLoreMode() {
     btn.style.background = '';
     btn.style.color = '';
     btn.style.fontWeight = '';
-    btn.textContent = 'Add Lore';
+    btn.textContent = 'Add Lore...';
   }
   disableLoreHexSelection();
 }
