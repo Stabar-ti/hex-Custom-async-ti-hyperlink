@@ -43,7 +43,7 @@ export function openSectorControlsPopup(editor) {
       minHeight: '200px',
       maxHeight: '800px',
       color: '#fff',
-      border: '2px solid #4a9eff',
+      border: '2px solid var(--popup-border-sector)',
       boxShadow: '0 8px 40px #000a',
       padding: '0',
       zIndex: 1200,
@@ -142,11 +142,11 @@ function createSectorControlsContent(editor) {
   container.style.flexDirection = 'column';
   container.style.minWidth = '0'; // Prevent flex items from growing beyond container
 
-  // ───────────── Async Tiles Button ─────────────
+  // ───────────── System Tiles Button ─────────────
   const realIdBtn = document.createElement('button');
   realIdBtn.id = 'jumpToSystemBtn';
   realIdBtn.className = 'mode-button btn-lookup-id';
-  realIdBtn.textContent = 'Async Tiles';
+  realIdBtn.textContent = 'System Tiles';
   realIdBtn.title = 'Choose Async Tile';
   realIdBtn.style.width = '100%';
   realIdBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
@@ -178,6 +178,17 @@ function createSectorControlsContent(editor) {
     }
   });
   container.appendChild(realIdBtn);
+
+  // ── separator + section label ──
+  const sep0 = document.createElement('div');
+  sep0.style.borderTop = '1px solid #555';
+  sep0.style.margin = '10px 0 6px 0';
+  container.appendChild(sep0);
+
+  const drawLabel = document.createElement('div');
+  drawLabel.className = 'popup-section-label';
+  drawLabel.textContent = 'Draw your design';
+  container.appendChild(drawLabel);
 
   // ───────────── Essential System Types ─────────────
   const essentialSystemTypes = [
@@ -282,7 +293,7 @@ function createSectorControlsContent(editor) {
         minHeight: '120px',
         maxHeight: '600px',
         color: '#fff',
-        border: '2px solid #66ff66',
+        border: '2px solid var(--popup-border-special)',
         boxShadow: '0 8px 40px #000a',
         padding: '0 0 18px 0',
         zIndex: 1300
@@ -518,7 +529,7 @@ function createSectorControlsContent(editor) {
         vtClearBtn.textContent   = '✕ Clear';
         vtClearBtn.className     = 'mode-button';
         vtClearBtn.title         = 'Remove all value hints from a hex (click hex after)';
-        vtClearBtn.style.cssText = 'flex:0 0 54px;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid #666;border-radius:4px;color:#aaa;cursor:pointer;';
+        vtClearBtn.style.cssText = 'flex:0 0 54px;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid var(--surface-5);border-radius:4px;color:#aaa;cursor:pointer;';
         vtClearBtn.addEventListener('click', () => {
           // Activate clear mode regardless of config state
           content.querySelectorAll('.mode-button').forEach(b => {
@@ -545,7 +556,7 @@ function createSectorControlsContent(editor) {
         const amBtn = document.createElement('button');
         amBtn.textContent = '🤖 Open AutoMapper';
         amBtn.className = 'mode-button';
-        amBtn.style.cssText = 'width:100%;padding:8px 12px;font-size:0.9em;font-weight:bold;border:2px solid #2ecc40;border-radius:4px;cursor:pointer;color:#2ecc40;background:#0a1a0a;';
+        amBtn.style.cssText = 'width:100%;padding:8px 12px;font-size:0.9em;font-weight:bold;border:2px solid var(--popup-border-special);border-radius:4px;cursor:pointer;color:var(--popup-border-special);background:#0a1a0a;';
         amBtn.onclick = () => {
           import('../modules/automapper/autoBuilder.js').then(mod => {
             const amContent = document.createElement('div');
@@ -564,7 +575,7 @@ function createSectorControlsContent(editor) {
                 onHelp: () => import('../modules/automapper/autoBuilder.js').then(m => m.showAutoMapperHelp?.()),
                 style: {
                   minWidth: '380px', maxWidth: '700px',
-                  border: '2px solid #2ecc40',
+                  border: '2px solid var(--popup-border-special)',
                   borderRadius: '10px',
                   boxShadow: '0 8px 40px #000a',
                   padding: '16px',
@@ -657,11 +668,16 @@ function createSectorControlsContent(editor) {
   };
   container.appendChild(drawHelpersBtn);
 
-  // Add a visual separator
+  // ── separator + section label ──
   const separator1 = document.createElement('div');
-  separator1.style.borderTop = '1px solid #666';
-  separator1.style.margin = '12px 0';
+  separator1.style.borderTop = '1px solid #555';
+  separator1.style.margin = '10px 0 6px 0';
   container.appendChild(separator1);
+
+  const advLabel = document.createElement('div');
+  advLabel.className = 'popup-section-label';
+  advLabel.textContent = 'Advanced map tools';
+  container.appendChild(advLabel);
 
   // ───────────── Wormholes Modal Launcher ─────────────
   const wormholesBtn = document.createElement('button');
@@ -715,7 +731,7 @@ function createSectorControlsContent(editor) {
         minHeight: '120px',
         maxHeight: '600px',
         color: '#fff',
-        border: '2px solid #ffe066',
+        border: '2px solid var(--popup-border-layout)',
         boxShadow: '0 8px 40px #000a',
         padding: '0 0 18px 0',
         zIndex: 1300
@@ -981,7 +997,7 @@ function deactivateLoreMode() {
     btn.style.background = '';
     btn.style.color = '';
     btn.style.fontWeight = '';
-    btn.textContent = 'Add Lore';
+    btn.textContent = 'Add Lore...';
   }
   disableLoreHexSelection();
 }

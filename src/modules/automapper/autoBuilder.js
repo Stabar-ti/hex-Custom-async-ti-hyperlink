@@ -10,20 +10,21 @@ import { refreshSystemList } from '../../ui/uiFilters.js';
 import { redrawAllRealIDOverlays } from '../../features/realIDsOverlays.js';
 import { updateWormholeVisibility } from '../../features/baseOverlays.js';
 import { toggleWormhole } from '../../features/wormholes.js';
+import { COLORS } from '../../constants/designTokens.js';
 
 // ---- Styles ----
 const S = {
-    panel:   'background:#1a2535;border-radius:6px;padding:10px 12px;',
-    label:   'display:block;color:#00d4ff;font-weight:600;font-size:12px;margin-bottom:5px;',
+    panel:   `background:${COLORS.autoPanelBg};border-radius:6px;padding:10px 12px;`,
+    label:   `display:block;color:${COLORS.popupAutomapper};font-weight:600;font-size:12px;margin-bottom:5px;`,
     row:     'display:flex;gap:8px;align-items:center;flex-wrap:wrap;',
-    btnBlue: 'padding:7px 16px;background:#0099cc;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;',
-    btnGreen:'padding:7px 16px;background:#27ae60;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;',
-    btnGrey: 'padding:7px 14px;background:#3a4a5a;color:#ccc;border:none;border-radius:4px;font-size:12px;cursor:pointer;',
-    btnLink: 'padding:4px 8px;background:none;color:#00aaff;border:none;font-size:11px;cursor:pointer;text-decoration:underline;',
-    warn:    'color:#f90;font-size:12px;',
-    ok:      'color:#2ecc40;font-size:12px;',
-    muted:   'color:#888;font-size:11px;',
-    input:   'width:54px;padding:4px 6px;background:#2a3a4a;border:1px solid #445;border-radius:3px;color:#eee;font-size:12px;',
+    btnBlue: `padding:7px 16px;background:${COLORS.autoBtnBlue};color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;`,
+    btnGreen:`padding:7px 16px;background:${COLORS.success};color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;`,
+    btnGrey: `padding:7px 14px;background:${COLORS.autoBtnGrey};color:#ccc;border:none;border-radius:4px;font-size:12px;cursor:pointer;`,
+    btnLink: `padding:4px 8px;background:none;color:${COLORS.autoBtnLink};border:none;font-size:11px;cursor:pointer;text-decoration:underline;`,
+    warn:    `color:${COLORS.autoWarnText};font-size:12px;`,
+    ok:      `color:${COLORS.popupSpecial};font-size:12px;`,
+    muted:   `color:${COLORS.textMuted};font-size:11px;`,
+    input:   `width:54px;padding:4px 6px;background:${COLORS.autoInputBg};border:1px solid ${COLORS.autoInputBorder};border-radius:3px;color:#eee;font-size:12px;`,
 };
 
 function el(tag, style, html) {
@@ -61,7 +62,7 @@ export function showAutoBuilderUI(container) {
         return;
     }
 
-    container.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:4px;font-family:"Segoe UI",Arial,sans-serif;color:#eee;min-width:360px;';
+    container.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:4px;font-family:var(--font-ui);color:#eee;min-width:360px;';
 
     // ---- State ----
     let opts = {
@@ -487,7 +488,7 @@ export function showAutoMapperHelp() {
             rememberPosition: true,
             style: {
                 minWidth: '440px', maxWidth: '640px',
-                border: '2px solid #2ecc40',
+                border: '2px solid var(--popup-border-special)',
                 borderRadius: '10px',
                 boxShadow: '0 8px 40px #000a',
                 padding: '20px',

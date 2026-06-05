@@ -147,7 +147,7 @@ export function showOverlayOptionsPopup() {
             top: '86px',
             minWidth: '240px',
             // background and color intentionally omitted to allow CSS to apply
-            border: '2px solid #ffe066',
+            border: '2px solid var(--popup-border-layout)',
             boxShadow: '0 8px 40px #000a',
             zIndex: 1200
         }
@@ -359,7 +359,7 @@ export function showLayoutOptionsPopup() {
             top: '80px',
             minWidth: '240px',
             // background and color intentionally omitted to allow CSS to apply
-            border: '2px solid #ffe066',
+            border: '2px solid var(--popup-border-layout)',
             boxShadow: '0 8px 40px #000a',
             zIndex: 1200
         }
@@ -427,7 +427,7 @@ export function showLayoutOptionsPopup() {
                                 minHeight: '120px',
                                 maxHeight: '600px',
                                 color: '#fff',
-                                border: '2px solid #66ff66',
+                                border: '2px solid var(--popup-border-special)',
                                 boxShadow: '0 8px 40px #000a',
                                 padding: '0 0 18px 0',
                                 zIndex: 1300
@@ -574,7 +574,7 @@ export function showLayoutOptionsPopup() {
                                                 rememberPosition: true,
                                                 style: {
                                                     minWidth: '380px', maxWidth: '700px',
-                                                    border: '2px solid #00d4ff',
+                                                    border: '2px solid var(--popup-border-automapper)',
                                                     borderRadius: '10px',
                                                     boxShadow: '0 8px 40px #000a',
                                                     padding: '16px',

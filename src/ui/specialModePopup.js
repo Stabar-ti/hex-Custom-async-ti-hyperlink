@@ -21,7 +21,7 @@ export function showSpecialModePopup() {
             <button id="miltySliceDesignerBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">🎲 Milty Slice Designer</button>
             <button id="miltyRandomGeneratorBtn" class="mode-button" style="font-size:16px;padding:10px 28px;display:none;">🎯 Milty Random Generator</button>
             <button id="autoMapBuilderBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">🤖 AutoMapper - Fill Remaining Tiles</button>
-            <button id="spinToWinBtn" class="mode-button" style="font-size:16px;padding:10px 28px;border:2px solid #e67e22;color:#e67e22;">⚙️ Spin-To-Win</button>
+            <button id="spinToWinBtn" class="mode-button" style="font-size:16px;padding:10px 28px;border:2px solid var(--popup-border-spin);color:var(--popup-border-spin);">⚙️ Spin-To-Win</button>
         </div>
         <hr>
         <p style="font-size: 14px; color: #888; margin-top: 16px;">Advanced tools for competitive and casual play setup.</p>
@@ -49,7 +49,7 @@ export function showSpecialModePopup() {
             maxWidth: '600px',
             minHeight: '200px',
             maxHeight: '800px',
-            border: '2px solid #2ecc40',
+            border: '2px solid var(--popup-border-special)',
             borderRadius: '10px',
             boxShadow: '0 8px 40px #000a',
             padding: '24px',
@@ -124,7 +124,7 @@ export function showSpecialModePopup() {
                             maxWidth: '700px',
                             minHeight: '200px',
                             maxHeight: '800px',
-                            border: '2px solid #2ecc40',
+                            border: '2px solid var(--popup-border-special)',
                             borderRadius: '10px',
                             boxShadow: '0 8px 40px #000a',
                             padding: '24px',
@@ -225,7 +225,7 @@ export function showSpecialModePopup() {
                             maxWidth: '800px',
                             minHeight: '300px',
                             maxHeight: '90vh',
-                            border: '2px solid #00d4ff',
+                            border: '2px solid var(--popup-border-automapper)',
                             borderRadius: '10px',
                             boxShadow: '0 8px 40px #000a',
                             padding: '24px',
@@ -264,7 +264,7 @@ export function showSpecialModePopup() {
                         onHelp: () => import('../modules/SpinToWin/spinToWin.js').then(m => m.showSpinToWinHelp?.()),
                         style: {
                             minWidth: '420px', maxWidth: '700px',
-                            border: '2px solid #e67e22',
+                            border: '2px solid var(--popup-border-spin)',
                             borderRadius: '10px',
                             boxShadow: '0 8px 40px #000a',
                             padding: '16px',

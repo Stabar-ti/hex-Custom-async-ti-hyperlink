@@ -17,6 +17,46 @@
   --info-color: #555;
   --topbar-btn-bg: #f0f0f0;
   --topbar-btn-text: #000;
+
+  /* ── Design tokens (Phase 1) ────────────────────────────────── */
+
+  /* Fonts */
+  --font-ui:   "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", "Courier New", monospace;
+  --font-icon: "Segoe UI Symbol", "Noto Emoji";
+
+  /* Surface layers (dark bg hierarchy) */
+  --surface-1: #121212;
+  --surface-2: #1e1e1e;
+  --surface-3: #2a2a2a;
+  --surface-4: #444444;
+  --surface-5: #666666;
+  --surface-header: rgba(48, 48, 48, 0.85);
+
+  /* Semantic colours */
+  --color-accent:          #ffe066;
+  --color-accent-bg:       #ffe464;
+  --color-accent-outline:  #ffb800;
+  --color-accent-active:   #cc8c00;
+  --color-accent-outline-dark: #ffd47f;
+  --color-primary:         #1fa3ff;
+  --color-primary-glow:    rgba(31, 163, 255, 0.4);
+  --color-success:         #27ae60;
+  --color-danger:          #e74c3c;
+  --color-warning:         #f39c12;
+  --color-info:            #3498db;
+
+  /* Popup border identities */
+  --popup-border-default:    #2196f3;
+  --popup-border-layout:     #ffe066;
+  --popup-border-sector:     #4a9eff;
+  --popup-border-automapper: #00d4ff;
+  --popup-border-lore:       #9b59b6;
+  --popup-border-token:      #3498db;
+  --popup-border-special:    #2ecc40;
+  --popup-border-spin:       #e67e22;
+  --popup-border-warning:    #ff9800;
+  --popup-border-danger:     #e32b2b;
 }
 
 body.dark {
@@ -33,7 +73,7 @@ body {
   margin: 0;
   padding-top: 60px;
   /* height of topBar */
-  font-family: sans-serif;
+  font-family: var(--font-ui);
   background-color: var(--bg-color);
   color: var(--text-color);
   /* let modals escape */
@@ -142,7 +182,7 @@ svg text {
 
 #hexMap:focus {
   outline: none;
-  box-shadow: 0 0 6px rgba(0, 0, 255, 0.4);
+  box-shadow: 0 0 6px var(--color-primary-glow);
 }
 
 /*──────────────────────────────────────────────────────────────────────────────
@@ -167,7 +207,7 @@ svg text {
 }
 
 .link-line {
-  stroke: blue;
+  stroke: var(--color-primary);
   stroke-width: 2;
   fill: none;
 }
@@ -197,17 +237,10 @@ body.dark .primary-button {
   border-radius: 1px;
 }
 
-/* Active style remains */
-.mode-button.active {
-  outline: 3px solid var(--text-color);
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-  font-weight: bold;
-}
-
 .primary-button {
   font-size: 1.05em;
   font-weight: bold;
-  background-color: #1fa3ff;
+  background-color: var(--color-primary);
   color: #fff;
 }
 
@@ -218,17 +251,17 @@ body.dark .primary-button {
 
 .mode-button.active,
 .primary-button.active {
-  background: #ffe464;
+  background: var(--color-accent-bg);
   color: #000;
-  outline: 3px solid #ffb800;
+  outline: 3px solid var(--color-accent-outline);
   font-weight: bold;
 }
 
 body.dark .mode-button.active,
 body.dark .primary-button.active {
-  background: #cc8c00;
+  background: var(--color-accent-active);
   color: #fff;
-  outline: 3px solid #ffd47f;
+  outline: 3px solid var(--color-accent-outline-dark);
 }
 
 /* make most top-bar buttons white in dark mode, except dropdown toggles */
@@ -290,12 +323,12 @@ body.dark .dropdown-toggle:focus {
   position: absolute;
   top: 10px;
   right: 15px;
-  background: #444;
+  background: var(--surface-4);
   color: #fff;
   font-size: 0.85em;
   padding: 4px 10px;
   border-radius: 4px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   z-index: 200;
 }
 
@@ -1087,8 +1120,11 @@ Layout butoons and other Popup & Buttons
 }
 
 .popup-section-label {
-  font-size: 1em;
-  font-weight: 600;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--surface-5);
   margin: 12px 0 4px 2px;
 }
 
@@ -1259,9 +1295,9 @@ Layout butoons and other Popup & Buttons
 
 .wizard-btn:hover,
 .wizard-btn:focus {
-  background: #444;
-  color: #ffe066;
-  border-color: #ffe066;
+  background: var(--surface-4);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .wizard-popup {
@@ -1382,7 +1418,7 @@ Layout butoons and other Popup & Buttons
 .wizard-main-popup {
   background: rgba(32, 32, 32, 0.89);
   color: #f0f0f0;
-  border: 2px solid #2196f3;
+  border: 2px solid var(--popup-border-default);
   box-shadow: 0 0 0 3px #2196f355, 0 4px 24px rgba(0, 0, 0, 0.18);
   border-radius: 16px;
   max-width: 95vw;
@@ -1408,14 +1444,14 @@ Layout butoons and other Popup & Buttons
 
 .wizard-info-header,
 .modal-header {
-  background: rgba(48, 48, 48, 0.85);
-  color: #ffe066;
-  border-bottom: 1px solid #444;
+  background: var(--surface-header);
+  color: var(--color-accent);
+  border-bottom: 1px solid var(--surface-4);
 }
 
 .popup-ui-close {
-  background: rgba(48, 48, 48, 0.85);
-  color: #ffe066;
+  background: var(--surface-header);
+  color: var(--color-accent);
 }
 
 /* Popup wizard content indentation */
@@ -1429,9 +1465,132 @@ Layout butoons and other Popup & Buttons
   flex: 1;
   font-weight: bold;
   font-size: 1.1em;
-  color: #ffe066;
+  color: var(--color-accent);
   text-align: left;
   padding-left: 4px;
+}
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Utility classes (Phase 4) — replace the most common inline style patterns
+──────────────────────────────────────────────────────────────────────────────*/
+
+/* Dark panel — replaces background:#2c3e50 / #1a2535 panel pattern */
+.panel-dark {
+  background: var(--surface-2);
+  border-radius: 6px;
+  border: 1px solid var(--surface-5);
+  padding: 12px;
+}
+
+/* Dark input — replaces background:#34495e/color:#fff/border:#666 pattern */
+.input-dark {
+  background: var(--surface-3);
+  color: var(--text-color);
+  border: 1px solid var(--surface-5);
+  border-radius: 4px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+/* Status text utilities */
+.text-accent  { color: var(--color-accent); }
+.text-muted   { color: #888888; }
+.text-success { color: var(--color-success); }
+.text-danger  { color: var(--color-danger); }
+.text-warning { color: var(--color-warning); }
+.text-primary { color: var(--color-primary); }
+
+/*──────────────────────────────────────────────────────────────────────────────
+  Visual modernisation (Phase 6)
+──────────────────────────────────────────────────────────────────────────────*/
+
+/* ── Custom scrollbars (Webkit/Blink) ─────────────────────────────────────── */
+::-webkit-scrollbar               { width: 10px; height: 10px; }
+::-webkit-scrollbar-track         { background: var(--surface-3); border-radius: 4px; }
+::-webkit-scrollbar-thumb         { background: var(--color-primary); border-radius: 4px;
+                                    border: 2px solid var(--surface-3); }
+::-webkit-scrollbar-thumb:hover   { background: color-mix(in srgb, var(--color-primary) 80%, #fff); }
+::-webkit-scrollbar-corner        { background: var(--surface-3); }
+
+/* Keep scrollbar track away from popup rounded corners */
+.popup-ui::-webkit-scrollbar-track,
+.popup-ui-info::-webkit-scrollbar-track,
+.wizard-main-popup::-webkit-scrollbar-track  { margin-top: 16px; margin-bottom: 16px; }
+
+/* ── Button hover — subtle background tint instead of just font-weight ─────── */
+.mode-button:hover,
+.primary-button:hover {
+  background-color: color-mix(in srgb, currentColor 10%, var(--btn-bg-light));
+  font-weight: bold;
+}
+
+body.dark .mode-button:hover,
+body.dark .primary-button:hover {
+  background-color: color-mix(in srgb, var(--color-accent) 10%, var(--btn-bg-dark));
+  font-weight: bold;
+}
+
+/* ── Top bar — glass border instead of flat line ──────────────────────────── */
+#topBar {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Popups — depth shadow + glass border ─────────────────────────────────── */
+.popup-ui,
+.popup-ui-info,
+.wizard-main-popup {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.popup-ui-titlebar {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Controls panel — glass border ────────────────────────────────────────── */
+body.dark #controlsPanel {
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Smoother transitions across interactive elements ─────────────────────── */
+.mode-button,
+.primary-button,
+.filter-button,
+.wizard-btn {
+  transition: background 0.15s ease, color 0.15s ease,
+              box-shadow 0.15s ease, outline-color 0.15s ease;
+}
+
+/* ── Input fields — consistent dark styling ───────────────────────────────── */
+input[type="text"],
+input[type="number"],
+input[type="search"],
+textarea,
+select {
+  background: var(--surface-3);
+  color: var(--text-color);
+  border: 1px solid var(--surface-5);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-family: var(--font-ui);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="search"]:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-glow);
+}
+
+/* ── Version tag — pill style ─────────────────────────────────────────────── */
+#versionTag {
+  border-radius: 20px;
+  letter-spacing: 0.04em;
 }
 
 /* Make the controls panel close and open buttons yellow, round, and accessible, with hover/focus states */

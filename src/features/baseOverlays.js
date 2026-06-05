@@ -1,4 +1,5 @@
 import { effectIconPositions, effectEmojiMap, fallbackEffectEmoji, wormholeTypes } from '../constants/constants.js';
+import { COLORS } from '../constants/designTokens.js';
 
 
 /**
@@ -126,9 +127,9 @@ export function showDistanceOverlays(editor, result) {
     text.setAttribute('y', hex.center.y - 15);
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('font-size', '24');
-    text.setAttribute('fill', '#ffd700'); // dark yellow
+    text.setAttribute('fill', COLORS.distanceNumber);
     text.setAttribute('font-weight', 'bold');
-    text.setAttribute('stroke', '#222');
+    text.setAttribute('stroke', COLORS.distanceStroke);
     text.setAttribute('stroke-width', '1');
     text.textContent = dist;
     text.classList.add('distance-overlay');
