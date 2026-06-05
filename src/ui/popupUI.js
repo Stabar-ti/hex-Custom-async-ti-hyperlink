@@ -152,7 +152,7 @@ export function showPopup({
             titleBar.style.position = 'sticky';
             titleBar.style.top = '0';
             titleBar.style.zIndex = '2';
-            titleBar.style.background = '#444'; // Lighter gray background for title bar
+            titleBar.style.background = 'var(--surface-4)'; // Lighter gray background for title bar
             titleBar.style.userSelect = 'none';
             titleBar.style.padding = '0 8px 0 8px';
             titleBar.style.marginBottom = '8px';
@@ -165,7 +165,7 @@ export function showPopup({
                 titleText.style.flex = '1';
                 titleText.style.fontWeight = 'bold';
                 titleText.style.fontSize = '1.1em';
-                titleText.style.color = '#ffe066';
+                titleText.style.color = 'var(--color-accent)';
                 titleBar.appendChild(titleText);
             }
             popup.insertBefore(titleBar, popup.firstChild);
@@ -199,7 +199,7 @@ export function showPopup({
             helpBtn.className = 'popup-ui-help wizard-btn';
             helpBtn.innerHTML = '?';
             helpBtn.title = 'Help';
-            helpBtn.style.background = '#2ecc40'; // Green
+            helpBtn.style.background = 'var(--popup-border-special)'; // Green
             helpBtn.style.color = '#fff';
             helpBtn.style.fontWeight = 'bold';
             helpBtn.style.fontSize = '1.1rem';
@@ -212,7 +212,7 @@ export function showPopup({
             helpBtn.style.alignItems = 'center';
             helpBtn.style.justifyContent = 'center';
             helpBtn.style.borderRadius = '0'; // Force square appearance
-            helpBtn.style.border = '1px solid #2ecc40'; // Consistent border
+            helpBtn.style.border = '1px solid var(--popup-border-special)'; // Consistent border
             helpBtn.onclick = () => {
                 if (typeof onHelp === 'function') {
                     onHelp();

@@ -12,6 +12,7 @@
 // ───────────────────────────────────────────────────────────────
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+import { COLORS } from '../constants/designTokens.js';
 
 /**
  * Draws planet type icons (CULTURAL/INDUSTRIAL/HAZARDOUS) and tech specialties (Y/G/R/B)
@@ -48,8 +49,12 @@ export function drawPlanetTypeLayer(editor) {
                 p.planetTypes.forEach(t => { if (t) allTypes.push(t.toUpperCase()); });
             }
 
-            const fillMap = { CULTURAL: 'blue', HAZARDOUS: 'red', INDUSTRIAL: 'green' };
-            const getPlanetFill = t => fillMap[t] || 'gray';
+            const fillMap = {
+                CULTURAL:   COLORS.planetCultural,
+                HAZARDOUS:  COLORS.planetHazardous,
+                INDUSTRIAL: COLORS.planetIndustrial,
+            };
+            const getPlanetFill = t => fillMap[t] || COLORS.planetUnknown;
 
             if (allTypes.length >= 2) {
                 // Split circle: left half = first type, right half = second type
