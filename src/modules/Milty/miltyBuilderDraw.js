@@ -2,6 +2,7 @@
 // Drawing and visual overlay functions for Milty Slice Designer
 
 import { COLORS } from '../../constants/designTokens.js';
+import { defaultSlices, applyMiltyDisplay } from './miltyBuilderCore.js';
 
 // Draws red number overlays (1-12) in specified sectors
 export function drawSlicePositionOverlays(editor, show = true) {
@@ -75,14 +76,7 @@ export function drawSlicePositionOverlays(editor, show = true) {
     }
     console.log(`Added ${sectors.length} slice position overlays and ${sliceLetters.length} slice letter overlays to layer`);
 
-    // Apply milty display: hide unused hexes and labels after a short delay so all
-    // async visual updates from importFullState have finished first.
-    setTimeout(() => {
-        import('./miltyBuilderCore.js?v=' + Date.now()).then(({ applyMiltyDisplay }) => {
-            console.log('[MiltyDraw] Calling applyMiltyDisplay');
-            applyMiltyDisplay();
-        }).catch(e => console.error('[MiltyDraw] applyMiltyDisplay error:', e));
-    }, 200);
+    setTimeout(() => applyMiltyDisplay(), 200);
 }
 
 // Draws black borders around each slice (A-F) to show slice boundaries
@@ -106,16 +100,6 @@ export function drawSliceBordersOverlay(editor, show = true) {
     const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     layer.setAttribute('id', 'sliceBordersOverlayLayer');
     editor.svg.appendChild(layer);
-
-    // Default slice definitions
-    const defaultSlices = {
-        A: [530, 401, 424, 529, 301, 318],
-        B: [403, 303, 302, 402, 202, 201],
-        C: [204, 103, 102, 203, '000', 101],
-        D: [208, 209, 105, 104, 210, 106],
-        E: [419, 420, 315, 314, 316, 211],
-        F: [527, 528, 422, 421, 423, 317]
-    };
 
     const sliceColors = {
         A: '#ff0000', // Red

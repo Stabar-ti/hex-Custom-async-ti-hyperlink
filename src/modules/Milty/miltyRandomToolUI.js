@@ -107,13 +107,8 @@ export function showMiltyDraftGeneratorPopup() {
         }
     });
 
-    // Initialize the popup after DOM is ready
-    const cacheBuster = '?v=' + Date.now();
-    import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
-        setTimeout(() => {
-            module.initializeGeneratorPopup();
-        }, 0);
-    });
+    // showPopup is synchronous — DOM is ready before it returns
+    initializeGeneratorPopup();
 }
 
 /**
@@ -264,7 +259,7 @@ export function createGeneratorPopupContent() {
 export function showWeightingSettingsPopup() {
     const cacheBuster = '?v=' + Date.now();
     import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
-        const { saveWeightingSettings, resetWeightingSettings, createWeightingPopupContent: buildContent } = module;
+        const { createWeightingPopupContent: buildContent } = module;
 
         showPopup({
             content: buildContent(),  // called from the freshly-loaded module, never stale

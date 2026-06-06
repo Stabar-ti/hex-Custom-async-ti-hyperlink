@@ -446,6 +446,10 @@ export function applyMiltyDisplay() {
 function updateVisualElements() {
     if (typeof window.editor?.redrawAllRealIDOverlays === 'function') window.editor.redrawAllRealIDOverlays(window.editor);
     if (typeof window.renderSystemList === 'function') window.renderSystemList();
+    // Dynamic import breaks circular dependency (miltyHomeOverlay imports slotPositions from here)
+    import('./miltyHomeOverlay.js').then(({ drawMiltyHomeOverlay }) => {
+        drawMiltyHomeOverlay(window.editor);
+    }).catch(() => {});
 
     // Update visual overlays for effects and wormholes
     import('../../features/baseOverlays.js').then(({ updateWormholeVisibility }) => {
@@ -554,7 +558,9 @@ export function generateOutputString() {
     }
     return {
         outputString: fullyOccupiedSlices.join(';'),
-        sliceDetails: sliceDetails
+        sliceDetails,
+        completedSlots: sliceDetails.map(d => d.slotNum),
+        totalSlices: sliceDetails.length
     };
 }
 

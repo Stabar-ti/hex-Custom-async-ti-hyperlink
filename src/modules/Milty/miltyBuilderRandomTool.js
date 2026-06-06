@@ -8,21 +8,15 @@ const EXCLUDED_TILE_IDS = [
     '85a', '85a60', '85a120', '85a180', '85a240', '85a300',
     '85b', '82', '82b', '82a', '18', '82ah', '82h', 'c41', '81', 'rexmex',
     'd35a', 'd35b', 'd36', 'm28', "s11", "s12", "s13", "silver_flame",
-    '94'  // TE faction-specific tile — not suitable for general slice use
+    '94', '112'  // TE faction-specific tile — not suitable for general slice use
 ];
 // src/modules/Milty/miltyBuilderRandomTool.js
 // Milty Draft Slice Generation Tool - Core Logic
 // UI functions have been moved to miltyRandomToolUI.js for better separation of concerns
 
-console.log('🚀 miltyBuilderRandomTool.js module is loading...');
-
 import { assignSystem } from '../../features/assignSystem.js';
 import { markRealIDUsed, unmarkRealIDUsed } from '../../ui/uiFilters.js';
 import { slotPositions } from './miltyBuilderCore.js';
-
-console.log('✅ All imports loaded successfully in miltyBuilderRandomTool.js');
-
-// No UI imports needed - the UI module will handle all UI calls
 
 // Default generation settings
 const DEFAULT_SETTINGS = {
@@ -96,7 +90,12 @@ const DEFAULT_WEIGHTS = {
 };
 
 let currentSettings = { ...DEFAULT_SETTINGS };
-let currentWeights = { ...DEFAULT_WEIGHTS };
+
+// Weights persist across cache-busted module reloads via window global (same pattern as miltyDebugState)
+if (!window._miltyCurrentWeights) {
+    window._miltyCurrentWeights = { ...DEFAULT_WEIGHTS };
+}
+let currentWeights = window._miltyCurrentWeights;
 
 // Debug settings - store in global scope to persist across module reloads
 let debugMode = false;
@@ -152,7 +151,8 @@ function syncDebugState() {
 
 // Export accessor functions for UI module
 export function getCurrentWeights() {
-    return { ...currentWeights };
+    // Always read from the global so any module instance sees weights set by others
+    return { ...(window._miltyCurrentWeights || DEFAULT_WEIGHTS) };
 }
 
 export function setCurrentSettings(settings) {
@@ -172,12 +172,12 @@ export function getCurrentSettings() {
 
 export function setCurrentWeights(weights) {
     currentWeights = { ...weights };
-    console.log('🎛️ Weights updated:', currentWeights);
+    window._miltyCurrentWeights = currentWeights;
 }
 
 export function resetWeightsToDefault() {
     currentWeights = { ...DEFAULT_WEIGHTS };
-    console.log('🔄 Weights reset to default');
+    window._miltyCurrentWeights = currentWeights;
 }
 
 export function getDebugDetails() {
@@ -203,8 +203,6 @@ export { calculateSliceScore };
 
 // Simple test export to verify module loading
 export const moduleTest = 'Module loaded successfully!';
-
-console.log('📦 All functions exported from miltyBuilderRandomTool.js');
 
 /**
  * Creates the weighting settings popup content
@@ -330,23 +328,6 @@ export function createWeightingPopupContent() {
 }
 
 /**
- * Initialize event handlers for the generator popup
- */
-export function initializeGeneratorPopup() {
-    // Advanced settings toggle
-    const toggleBtn = document.getElementById('toggleAdvanced');
-    const advancedDiv = document.getElementById('advancedSettings');
-
-    if (toggleBtn && advancedDiv) {
-        toggleBtn.onclick = () => {
-            const isHidden = advancedDiv.style.display === 'none';
-            advancedDiv.style.display = isHidden ? 'block' : 'none';
-            toggleBtn.textContent = isHidden ? 'Hide Advanced Settings' : 'Advanced Settings';
-        };
-    }
-}
-
-/**
  * Generate Milty slices based on current settings
  * This is the core generation function without UI calls
  */
@@ -386,47 +367,6 @@ export async function generateMiltySlices() {
     await placeSlicesOnMap(slices);
 
     return slices; // Return the slices for UI to handle
-}
-
-/**
- * Update current settings from UI inputs
- */
-function updateSettingsFromUI() {
-    currentSettings.sliceCount = parseInt(document.getElementById('sliceCount')?.value) || 6;
-    currentSettings.wormholes.includeAlphaBeta = document.getElementById('includeAlphaBeta')?.checked || false;
-    currentSettings.wormholes.maxPerSlice = document.getElementById('maxOneWormhole')?.checked ? 1 : 2;
-    currentSettings.wormholes.abundanceWeight = parseFloat(document.getElementById('wormholeAbundanceWeight')?.value) || 1.0;
-    currentSettings.wormholes.forceGamma          = document.getElementById('forceGamma')?.checked          || false;
-    currentSettings.wormholes.onlyAlphaBetaGamma  = document.getElementById('onlyAlphaBetaGamma')?.checked  ?? true;
-    currentSettings.legendaries.minimum = parseInt(document.getElementById('minLegendaries')?.value) || 0;
-    currentSettings.legendaries.maximum = parseInt(document.getElementById('maxLegendaries')?.value) || 6;
-
-    currentSettings.sources.base = document.getElementById('sourceBase')?.checked || false;
-    currentSettings.sources.pokCodex = document.getElementById('sourcePokCodex')?.checked || false;
-    currentSettings.sources.dsUncharted = document.getElementById('sourceDSUncharted')?.checked || false;
-    currentSettings.sources.eronous = document.getElementById('sourceEronous')?.checked || false;
-    currentSettings.sources.thundersEdge = document.getElementById('sourceThundersEdge')?.checked || false;
-
-
-
-    currentSettings.sliceGeneration.minOptimalInfluence = parseFloat(document.getElementById('minOptimalInfluence')?.value) || 4;
-    currentSettings.sliceGeneration.minOptimalResources = parseFloat(document.getElementById('minOptimalResources')?.value) || 2.5;
-    currentSettings.sliceGeneration.minOptimalTotal = parseFloat(document.getElementById('minOptimalTotal')?.value) || 9;
-    currentSettings.sliceGeneration.maxOptimalTotal = parseFloat(document.getElementById('maxOptimalTotal')?.value) || 13;
-    currentSettings.sliceGeneration.minPlanetSystems = parseInt(document.getElementById('minPlanetSystems')?.value) || 3;
-    currentSettings.sliceGeneration.maxPlanetSystems = parseInt(document.getElementById('maxPlanetSystems')?.value) || 4;
-
-    currentSettings.scoreBalancing.enabled = document.getElementById('enableScoreBalancing')?.checked || false;
-    // Read target ratio percent and convert to decimal
-    const ratioInput = document.getElementById('targetRatioPercent');
-    let ratioValue = parseFloat(ratioInput?.value);
-    if (isNaN(ratioValue) || ratioValue < 50 || ratioValue > 100) ratioValue = 75;
-    currentSettings.scoreBalancing.targetRatio = ratioValue / 100;
-
-    debugMode = document.getElementById('enableDebugMode')?.checked || false;
-
-    console.log('Updated settings:', currentSettings);
-    console.log('Debug mode:', debugMode ? 'ENABLED' : 'DISABLED');
 }
 
 /**
@@ -1279,9 +1219,10 @@ function calculateSliceProperties(slice) {
                     slice.tradeStations++;
                 }
 
-                // Collect tech specialties
-                if (planet.techSpecialty) {
-                    slice.techSpecialties.push(planet.techSpecialty);
+                // Collect tech specialties — data uses techSpecialties (array) universally
+                if (planet.techSpecialty) slice.techSpecialties.push(planet.techSpecialty);
+                if (Array.isArray(planet.techSpecialties)) {
+                    planet.techSpecialties.forEach(t => { if (t) slice.techSpecialties.push(t); });
                 }
             });
         }
@@ -1433,7 +1374,7 @@ function calculateSliceScore(slice) {
     // Trade station bonus
     score += (slice.tradeStations || 0) * (currentWeights.tradeStation ?? 0.5);
 
-    // Planet type bonuses
+    // Planet type bonuses — data uses planetType (string) or planetTypes (array)
     let industrialCount = 0;
     let culturalCount = 0;
     let hazardousCount = 0;
@@ -1441,9 +1382,12 @@ function calculateSliceScore(slice) {
     slice.systems.forEach(system => {
         if (system.planets && Array.isArray(system.planets)) {
             system.planets.forEach(planet => {
-                if (planet.planetType === 'INDUSTRIAL') industrialCount++;
-                else if (planet.planetType === 'CULTURAL') culturalCount++;
-                else if (planet.planetType === 'HAZARDOUS') hazardousCount++;
+                const types = [];
+                if (typeof planet.planetType === 'string' && planet.planetType) types.push(planet.planetType.toUpperCase());
+                if (Array.isArray(planet.planetTypes)) planet.planetTypes.forEach(t => { if (t) types.push(t.toUpperCase()); });
+                if (types.includes('INDUSTRIAL')) industrialCount++;
+                if (types.includes('CULTURAL'))   culturalCount++;
+                if (types.includes('HAZARDOUS'))   hazardousCount++;
             });
         }
     });
@@ -1541,48 +1485,58 @@ async function balanceSliceScores(slices) {
 
         let swapMade = false;
 
-        // Try direct swaps between weakest and strongest slices
-        for (let i = 0; i < weakestSlice.systems.length && !swapMade; i++) {
-            for (let j = 0; j < strongestSlice.systems.length && !swapMade; j++) {
-                const weakSystem = weakestSlice.systems[i];
-                const strongSystem = strongestSlice.systems[j];
+        // Scan all pairs between weakest and strongest — apply the single best swap
+        let bestDirectSwap = null;
+        let bestDirectRatio = currentRatio;
 
-                if (weakSystem.id === strongSystem.id) continue;
-
-                // Test the swap
-                if (testSystemSwap(weakestSlice, strongestSlice, i, j, scores)) {
-                    // Make the swap
-                    weakestSlice.systems[i] = strongSystem;
-                    strongestSlice.systems[j] = weakSystem;
-
-                    calculateSliceProperties(weakestSlice);
-                    calculateSliceProperties(strongestSlice);
-
-                    swapMade = true;
-                    improvementsMade++;
-                    consecutiveFailures = 0;
-
-                    if (debugMode) {
-                        debugDetails.successfulSwaps++;
-                        debugDetails.swapTypes.direct++;
-                        syncDebugState(); // Keep global state in sync
-                    }
-
-                    const newWeakScore = calculateSliceScore(weakestSlice);
-                    const newStrongScore = calculateSliceScore(strongestSlice);
-
-                    console.log(`Swap ${improvementsMade}: ${weakSystem.id} <-> ${strongSystem.id}`);
-                    console.log(`  Scores: ${minScore.toFixed(1)} -> ${newWeakScore.toFixed(1)}, ${maxScore.toFixed(1)} -> ${newStrongScore.toFixed(1)}`);
-
-                    if (debugMode) {
-                        debugDetails.scoreImprovements.push({
-                            type: 'direct',
-                            improvement: (newWeakScore - minScore) + (newStrongScore - maxScore),
-                            systems: [weakSystem.id, strongSystem.id]
-                        });
-                        syncDebugState(); // Keep global state in sync
-                    }
+        for (let i = 0; i < weakestSlice.systems.length; i++) {
+            for (let j = 0; j < strongestSlice.systems.length; j++) {
+                if (weakestSlice.systems[i].id === strongestSlice.systems[j].id) continue;
+                const newRatio = testSystemSwap(
+                    weakestSlice, strongestSlice, i, j, scores,
+                    weakestSliceIndex, strongestSliceIndex
+                );
+                if (newRatio !== null && newRatio > bestDirectRatio) {
+                    bestDirectRatio = newRatio;
+                    bestDirectSwap = { i, j };
                 }
+            }
+        }
+
+        if (bestDirectSwap) {
+            const { i, j } = bestDirectSwap;
+            const weakSystem  = weakestSlice.systems[i];
+            const strongSystem = strongestSlice.systems[j];
+
+            weakestSlice.systems[i]  = strongSystem;
+            strongestSlice.systems[j] = weakSystem;
+
+            calculateSliceProperties(weakestSlice);
+            calculateSliceProperties(strongestSlice);
+
+            swapMade = true;
+            improvementsMade++;
+            consecutiveFailures = 0;
+
+            if (debugMode) {
+                debugDetails.successfulSwaps++;
+                debugDetails.swapTypes.direct++;
+                syncDebugState();
+            }
+
+            const newWeakScore   = calculateSliceScore(weakestSlice);
+            const newStrongScore = calculateSliceScore(strongestSlice);
+
+            console.log(`Swap ${improvementsMade}: ${weakSystem.id} <-> ${strongSystem.id}`);
+            console.log(`  Scores: ${minScore.toFixed(1)} -> ${newWeakScore.toFixed(1)}, ${maxScore.toFixed(1)} -> ${newStrongScore.toFixed(1)}`);
+
+            if (debugMode) {
+                debugDetails.scoreImprovements.push({
+                    type: 'direct',
+                    improvement: (newWeakScore - minScore) + (newStrongScore - maxScore),
+                    systems: [weakSystem.id, strongSystem.id]
+                });
+                syncDebugState();
             }
         }
 
@@ -1748,26 +1702,26 @@ async function balanceSliceScores(slices) {
 }
 
 /**
- * Test if swapping two systems would improve balance
+ * Test if swapping two systems would improve the global balance ratio.
+ * Returns the new global ratio if the swap improves things, null otherwise.
+ * s1GlobalIdx / s2GlobalIdx are the indices of slice1/slice2 in allScores.
  */
-function testSystemSwap(slice1, slice2, sys1Index, sys2Index, allScores) {
+function testSystemSwap(slice1, slice2, sys1Index, sys2Index, allScores, s1GlobalIdx = -1, s2GlobalIdx = -1) {
     const system1 = slice1.systems[sys1Index];
     const system2 = slice2.systems[sys2Index];
 
     if (debugMode) {
         debugDetails.swapAttempts++;
-        window.miltyDebugState.debugDetails = debugDetails; // Keep global state in sync
+        window.miltyDebugState.debugDetails = debugDetails;
     }
 
     // Create test copies
     const slice1Copy = JSON.parse(JSON.stringify(slice1));
     const slice2Copy = JSON.parse(JSON.stringify(slice2));
 
-    // Perform swap on copies
     slice1Copy.systems[sys1Index] = system2;
     slice2Copy.systems[sys2Index] = system1;
 
-    // Recalculate properties
     calculateSliceProperties(slice1Copy);
     calculateSliceProperties(slice2Copy);
 
@@ -1775,81 +1729,97 @@ function testSystemSwap(slice1, slice2, sys1Index, sys2Index, allScores) {
     if (!validateSliceConstraintsRelaxed(slice1Copy) || !validateSliceConstraintsRelaxed(slice2Copy)) {
         if (debugMode) {
             debugDetails.constraintFailures++;
-            syncDebugState(); // Keep global state in sync
-            console.log(`❌ Constraint failure: ${system1.id} <-> ${system2.id}`);
+            syncDebugState();
         }
-        return false;
+        return null;
     }
 
-    // Calculate new scores
     const newScore1 = calculateSliceScore(slice1Copy);
     const newScore2 = calculateSliceScore(slice2Copy);
 
-    // Check if this improves balance
-    const oldMin = Math.min(slice1.score, slice2.score);
-    const oldMax = Math.max(slice1.score, slice2.score);
-    const newMin = Math.min(newScore1, newScore2);
-    const newMax = Math.max(newScore1, newScore2);
+    // Build the hypothetical global score array, substituting the two new scores
+    const baseScores = allScores.length > 0 ? allScores : [slice1.score, slice2.score];
+    const newAllScores = [...baseScores];
+    if (s1GlobalIdx >= 0 && s1GlobalIdx < newAllScores.length) newAllScores[s1GlobalIdx] = newScore1;
+    if (s2GlobalIdx >= 0 && s2GlobalIdx < newAllScores.length) newAllScores[s2GlobalIdx] = newScore2;
 
-    const oldGap = oldMax - oldMin;
-    const newGap = newMax - newMin;
+    const oldMax = Math.max(...baseScores);
+    const newMax = Math.max(...newAllScores);
+    if (oldMax === 0 || newMax === 0) return null;
 
-    const wouldImprove = newGap < oldGap || (newMin > oldMin + 0.5);
+    const oldRatio = Math.min(...baseScores) / oldMax;
+    const newRatio = Math.min(...newAllScores) / newMax;
 
-    if (debugMode && wouldImprove) {
-        console.log(`✅ Beneficial swap found: ${system1.id} <-> ${system2.id}`);
-        console.log(`   Gap: ${oldGap.toFixed(1)} -> ${newGap.toFixed(1)} (${newGap < oldGap ? 'REDUCED' : 'WEAK IMPROVED'})`);
-        console.log(`   Scores: ${slice1.score.toFixed(1)} -> ${newScore1.toFixed(1)}, ${slice2.score.toFixed(1)} -> ${newScore2.toFixed(1)}`);
+    if (newRatio <= oldRatio) return null;
+
+    if (debugMode) {
+        console.log(`✅ Beneficial swap: ${system1.id} <-> ${system2.id}, ratio ${oldRatio.toFixed(3)} -> ${newRatio.toFixed(3)}`);
     }
 
-    // Accept if gap is reduced or if the weaker slice improves significantly
-    return wouldImprove;
+    return newRatio;
 }
 
 /**
- * Try swaps between any slices, not just weakest/strongest
+ * Try swaps between any slices, not just weakest/strongest.
+ * Scans all bottom-half × top-half pairs and applies the single best swap.
  */
 function tryBroaderSwaps(slices, scores) {
     const sortedIndices = scores.map((score, index) => ({ score, index }))
         .sort((a, b) => a.score - b.score)
         .map(item => item.index);
 
-    // Try swaps between bottom half and top half
     const bottomHalf = sortedIndices.slice(0, Math.ceil(slices.length / 2));
-    const topHalf = sortedIndices.slice(Math.floor(slices.length / 2));
+    const topHalf    = sortedIndices.slice(Math.floor(slices.length / 2));
 
-    for (let bottomIndex of bottomHalf) {
-        for (let topIndex of topHalf) {
+    const currentRatio = Math.min(...scores) / Math.max(...scores);
+    let bestSwap  = null;
+    let bestRatio = currentRatio;
+
+    for (const bottomIndex of bottomHalf) {
+        for (const topIndex of topHalf) {
             const bottomSlice = slices[bottomIndex];
-            const topSlice = slices[topIndex];
-
+            const topSlice    = slices[topIndex];
             for (let i = 0; i < bottomSlice.systems.length; i++) {
                 for (let j = 0; j < topSlice.systems.length; j++) {
-                    if (testSystemSwap(bottomSlice, topSlice, i, j, scores)) {
-                        const system1 = bottomSlice.systems[i];
-                        const system2 = topSlice.systems[j];
-
-                        bottomSlice.systems[i] = system2;
-                        topSlice.systems[j] = system1;
-
-                        calculateSliceProperties(bottomSlice);
-                        calculateSliceProperties(topSlice);
-
-                        console.log(`Broader swap: ${system1.id} <-> ${system2.id} between slices ${bottomIndex} and ${topIndex}`);
-                        return true;
+                    const newRatio = testSystemSwap(
+                        bottomSlice, topSlice, i, j, scores, bottomIndex, topIndex
+                    );
+                    if (newRatio !== null && newRatio > bestRatio) {
+                        bestRatio = newRatio;
+                        bestSwap  = { bottomIndex, topIndex, i, j };
                     }
                 }
             }
         }
     }
 
+    if (bestSwap) {
+        const { bottomIndex, topIndex, i, j } = bestSwap;
+        const bottomSlice = slices[bottomIndex];
+        const topSlice    = slices[topIndex];
+        const system1 = bottomSlice.systems[i];
+        const system2 = topSlice.systems[j];
+
+        bottomSlice.systems[i] = system2;
+        topSlice.systems[j]    = system1;
+
+        calculateSliceProperties(bottomSlice);
+        calculateSliceProperties(topSlice);
+
+        console.log(`Broader swap: ${system1.id} <-> ${system2.id} between slices ${bottomIndex} and ${topIndex}`);
+        return true;
+    }
+
     return false;
 }
 
 /**
- * Try a random swap as a last resort
+ * Try a random swap as a last resort.
+ * Uses real global scores so the improvement criterion is consistent with direct/broader swaps.
  */
 function tryRandomSwap(slices) {
+    const scores = slices.map(s => calculateSliceScore(s));
+
     const slice1Index = Math.floor(Math.random() * slices.length);
     let slice2Index = Math.floor(Math.random() * slices.length);
     while (slice2Index === slice1Index) {
@@ -1858,11 +1828,13 @@ function tryRandomSwap(slices) {
 
     const slice1 = slices[slice1Index];
     const slice2 = slices[slice2Index];
-
     const sys1Index = Math.floor(Math.random() * slice1.systems.length);
     const sys2Index = Math.floor(Math.random() * slice2.systems.length);
 
-    if (testSystemSwap(slice1, slice2, sys1Index, sys2Index, [])) {
+    const newRatio = testSystemSwap(
+        slice1, slice2, sys1Index, sys2Index, scores, slice1Index, slice2Index
+    );
+    if (newRatio !== null) {
         const system1 = slice1.systems[sys1Index];
         const system2 = slice2.systems[sys2Index];
 
@@ -2077,6 +2049,8 @@ function validateSliceConstraintsRelaxed(slice) {
 
         const optimalTotal = slice.optimalResources + slice.optimalInfluence;
         if (optimalTotal < minOptimalTotal) return false;
+        // Hard upper bound — no relaxation; an overpowered slice shouldn't be created
+        if (optimalTotal > currentSettings.sliceGeneration.maxOptimalTotal) return false;
     }
 
     return true;
@@ -2177,6 +2151,52 @@ async function tryUnusedTileSwaps(slices, scores) {
                     unusedSystems.splice(unusedIndex, 1);
                     unusedSystems.push(currentSystem);
 
+                    return true;
+                }
+            }
+        }
+    }
+
+    // --- Weakening pass: pull a high-value system OUT of a strong slice ---
+    // This addresses cases where the max score is the bottleneck, not the min score.
+    const slicesToWeaken = sortedSlices.slice(Math.floor(slices.length / 2)); // top half
+
+    for (const sliceInfo of slicesToWeaken) {
+        const slice      = sliceInfo.slice;
+        const sliceIndex = sliceInfo.index;
+
+        for (let systemIndex = 0; systemIndex < slice.systems.length; systemIndex++) {
+            const currentSystem = slice.systems[systemIndex];
+
+            for (const unusedSystem of unusedSystems) {
+                if (currentSystem.id === unusedSystem.id) continue;
+
+                const testSlice = JSON.parse(JSON.stringify(slice));
+                testSlice.systems[systemIndex] = unusedSystem;
+                calculateSliceProperties(testSlice);
+
+                if (!validateSliceConstraintsRelaxed(testSlice)) continue;
+
+                const newScore  = calculateSliceScore(testSlice);
+                const reduction = slice.score - newScore;
+                if (reduction <= 1.0) continue; // must meaningfully reduce
+
+                // Only accept if global ratio actually improves
+                const newScores = [...scores];
+                newScores[sliceIndex] = newScore;
+                const oldRatio = Math.min(...scores)  / Math.max(...scores);
+                const newRatio = Math.min(...newScores) / Math.max(...newScores);
+
+                if (newRatio > oldRatio) {
+                    console.log(`Unused tile swap (weaken): replacing ${currentSystem.id} with ${unusedSystem.id} in slice ${sliceIndex}`);
+                    console.log(`  Score: ${slice.score.toFixed(1)} -> ${newScore.toFixed(1)} (-${reduction.toFixed(1)})`);
+
+                    slice.systems[systemIndex] = unusedSystem;
+                    calculateSliceProperties(slice);
+                    slice.score = calculateSliceScore(slice);
+
+                    unusedSystems.splice(unusedSystems.indexOf(unusedSystem), 1);
+                    unusedSystems.push(currentSystem);
                     return true;
                 }
             }

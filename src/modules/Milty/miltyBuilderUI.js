@@ -7,11 +7,12 @@
 // - UI helper functions for form creation and DOM manipulation
 // - Reusable UI components moved from miltyBuilderPopups.js for better separation of concerns
 
-import { defaultSlices, slotPositions, moveSlice, analyzeSliceOccupancy, generateOutputString, capitalizeTech } from './miltyBuilderCore.js';
-import { drawSlicePositionOverlays, drawSliceBordersOverlay } from './miltyBuilderDraw.js';
+import { defaultSlices, slotPositions, moveSlice, analyzeSliceOccupancy, generateOutputString, capitalizeTech, applyMiltyDisplay } from './miltyBuilderCore.js';
+import { drawSlicePositionOverlays, drawSliceBordersOverlay, highlightSliceOnMap, clearSliceHighlights, ensureHighlightStyles } from './miltyBuilderDraw.js';
 import { showOutputCopyPopup, showDraftValuesPopup } from './miltyBuilderPopups.js';
 import { showMiltyDraftGeneratorPopup } from './miltyRandomToolUI.js';
 import { showSanityCheckPopup } from '../../ui/simplepPopup.js';
+import { showSliceExportPopup } from './miltyBuilderExport.js';
 
 // Main UI function to create and display the Milty Builder popup
 export function showMiltyBuilderUI(container) {
@@ -34,10 +35,11 @@ export function showMiltyBuilderUI(container) {
                     <button id="loadMiltyJsonBtn" style="all: unset !important; display: inline-block !important; font-size: 28px !important; padding: 22px 60px !important; background: #28a745 !important; color: #fff !important; font-weight: bold !important; border-radius: 12px !important; border: 3px solid #1e7e34 !important; box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important; letter-spacing: 1px !important; cursor: pointer !important; margin: 2px !important; text-align: center !important; font-family: inherit !important;">Load Map</button>
                     <span style="color:#fff;background:#28a745;padding:4px 16px;border-radius:6px;margin-top:10px;font-size:15px;font-weight:bold;box-shadow:0 2px 8px #0003;">You must load the map before using any other features</span>
                 </div>
-                <!-- Row 1: Import, Output -->
+                <!-- Row 1: Import, Output, Export PNG -->
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 10px;">
                     <button id="importSlicesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Import slices</button>
                     <button id="outputCopyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Output slices</button>
+                    <button id="exportSlicesPngBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Download PNG</button>
                 </div>
                 <!-- Row 2: Generate, Analysis, Sanity Check -->
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 10px;">
@@ -45,11 +47,13 @@ export function showMiltyBuilderUI(container) {
                     <button id="calcDraftValuesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Analyse Slices</button>
                     <button id="sanityCheckBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Sanity Check</button>
                 </div>
-                <!-- Row 3: Refresh, Slice Borders, Slice Numbers, Live Slice Analysis -->
+                <!-- Row 3: Refresh, Slice Borders, Slice Numbers, Home Info, Live Slice Analysis -->
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
                     <button id="refreshOccupancyBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Refresh button slice indicators</button>
                     <button id="toggleSliceBordersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Toggle Slice Borders</button>
                     <button id="toggleSliceNumbersBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Toggle Slice Numbers</button>
+                    <button id="toggleHomeInfoBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Home Info</button>
+                    <button id="toggleSplitIdealBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Ideal: Split</button>
                     <label style="display:inline-flex;align-items:center;font-size:13px;margin-left:10px;cursor:pointer;gap:4px;">
                         <input type="checkbox" id="liveSliceAnalysisToggle" style="margin-right:4px;" checked disabled> Live Slice Analysis
                     </label>
@@ -128,6 +132,34 @@ export function showMiltyBuilderUI(container) {
         const { updateHexWormholes } = await import('../../features/wormholes.js');
         let sliceBordersVisible = false;
         let sliceNumbersVisible = false;
+        let homeInfoVisible     = true;   // ON by default
+
+        // Auto-update observer — fires when any hex fill changes (e.g. system assigned).
+        // Only watches .hex polygons to avoid reacting to overlay redraws.
+        let _overlayObserver   = null;
+        let _overlayDebounce   = null;
+
+        function startHomeOverlayObserver() {
+            if (_overlayObserver) return;
+            if (!window.editor?.svg) return;
+            _overlayObserver = new MutationObserver((mutations) => {
+                if (!homeInfoVisible) return;
+                // Only react to fill changes on actual hex polygons
+                const relevant = mutations.some(m => m.target.classList?.contains('hex'));
+                if (!relevant) return;
+                clearTimeout(_overlayDebounce);
+                _overlayDebounce = setTimeout(() => {
+                    import('./miltyHomeOverlay.js').then(({ drawMiltyHomeOverlay }) => {
+                        if (homeInfoVisible) drawMiltyHomeOverlay(window.editor);
+                    });
+                }, 250);
+            });
+            _overlayObserver.observe(window.editor.svg, { subtree: true, attributeFilter: ['fill'] });
+        }
+
+        function stopHomeOverlayObserver() {
+            if (_overlayObserver) { _overlayObserver.disconnect(); _overlayObserver = null; }
+        }
 
         // Status message function
         function updateStatusMsg(msg) {
@@ -147,13 +179,8 @@ export function showMiltyBuilderUI(container) {
                     importFullState(window.editor, jsonText);
 
                     // Draw slice overlays after map is loaded
-                    // Dynamic import with cache buster guarantees fresh miltyBuilderCore is used
-                    setTimeout(async () => {
-                        try {
-                            const cb = '?v=' + Date.now();
-                            const { applyMiltyDisplay } = await import('./miltyBuilderCore.js' + cb);
-                            applyMiltyDisplay();
-                        } catch(e) { console.error('[Milty] applyMiltyDisplay failed:', e); }
+                    setTimeout(() => {
+                        applyMiltyDisplay();
                         drawSlicePositionOverlays(window.editor);
                         sliceNumbersVisible = true;
                         const numbersBtn = container.querySelector('#toggleSliceNumbersBtn');
@@ -170,18 +197,31 @@ export function showMiltyBuilderUI(container) {
                     [
                         '#importSlicesBtn',
                         '#outputCopyBtn',
+                        '#exportSlicesPngBtn',
                         '#generateSlicesBtn',
                         '#calcDraftValuesBtn',
                         '#sanityCheckBtn',
                         '#refreshOccupancyBtn',
                         '#toggleSliceBordersBtn',
                         '#toggleSliceNumbersBtn',
+                        '#toggleHomeInfoBtn',
+                        '#toggleSplitIdealBtn',
                     ].forEach(sel => {
                         const btn = container.querySelector(sel);
                         if (btn) btn.removeAttribute('disabled');
                     });
                     const liveToggle = container.querySelector('#liveSliceAnalysisToggle');
                     if (liveToggle) liveToggle.removeAttribute('disabled');
+
+                    // Home Info is ON by default — apply active style and start observer
+                    const homeInfoBtn = container.querySelector('#toggleHomeInfoBtn');
+                    if (homeInfoBtn) {
+                        homeInfoVisible = true;
+                        homeInfoBtn.textContent = 'Hide Home Info';
+                        homeInfoBtn.style.background = '#4a8a4a';
+                        homeInfoBtn.style.color = '#fff';
+                        startHomeOverlayObserver();
+                    }
 
                     // Remove the green info message
                     const infoMsg = loadBtn.nextElementSibling;
@@ -240,6 +280,46 @@ export function showMiltyBuilderUI(container) {
             };
         }
 
+        // Toggle home info overlay button
+        const homeInfoBtn = container.querySelector('#toggleHomeInfoBtn');
+        if (homeInfoBtn) {
+            homeInfoBtn.onclick = async () => {
+                const { drawMiltyHomeOverlay, clearMiltyHomeOverlay, setHomeOverlayEnabled } =
+                    await import('./miltyHomeOverlay.js');
+                homeInfoVisible = !homeInfoVisible;
+                setHomeOverlayEnabled(homeInfoVisible);
+                if (homeInfoVisible) {
+                    drawMiltyHomeOverlay(window.editor);
+                    homeInfoBtn.textContent = 'Hide Home Info';
+                    homeInfoBtn.style.background = '#4a8a4a';
+                    homeInfoBtn.style.color = '#fff';
+                    startHomeOverlayObserver();
+                } else {
+                    clearMiltyHomeOverlay(window.editor);
+                    homeInfoBtn.textContent = 'Show Home Info';
+                    homeInfoBtn.style.background = '';
+                    homeInfoBtn.style.color = '';
+                    stopHomeOverlayObserver();
+                }
+            };
+        }
+
+        // Toggle split ideal R/I display
+        const splitIdealBtn = container.querySelector('#toggleSplitIdealBtn');
+        if (splitIdealBtn) {
+            let splitEnabled = false;
+            splitIdealBtn.onclick = async () => {
+                const { setIdealSplitEnabled, drawMiltyHomeOverlay } =
+                    await import('./miltyHomeOverlay.js');
+                splitEnabled = !splitEnabled;
+                setIdealSplitEnabled(splitEnabled);
+                drawMiltyHomeOverlay(window.editor);
+                splitIdealBtn.textContent = splitEnabled ? 'Ideal: Split ✓' : 'Ideal: Split';
+                splitIdealBtn.style.background = splitEnabled ? '#4a8a4a' : '';
+                splitIdealBtn.style.color      = splitEnabled ? '#fff'    : '';
+            };
+        }
+
         // Refresh occupancy button
         const refreshBtn = container.querySelector('#refreshOccupancyBtn');
         if (refreshBtn) {
@@ -267,13 +347,17 @@ export function showMiltyBuilderUI(container) {
         }
 
         const outputBtn = container.querySelector('#outputCopyBtn');
-
         if (outputBtn) {
             outputBtn.onclick = () => {
                 import('./miltyBuilderPopups.js').then(mod => {
                     mod.showOutputCopyPopup();
                 });
             };
+        }
+
+        const exportPngBtn = container.querySelector('#exportSlicesPngBtn');
+        if (exportPngBtn) {
+            exportPngBtn.onclick = () => showSliceExportPopup();
         }
 
         // Import button
@@ -291,6 +375,14 @@ export function showMiltyBuilderUI(container) {
         if (generateBtn) {
             generateBtn.onclick = () => {
                 showMiltyDraftGeneratorPopup();
+                // The generator places tiles async — re-draw overlay after it finishes
+                // by listening for the next batch of hex fill changes via the observer.
+                // Also schedule an explicit redraw as a safety net.
+                setTimeout(async () => {
+                    if (!homeInfoVisible) return;
+                    const { drawMiltyHomeOverlay } = await import('./miltyHomeOverlay.js');
+                    drawMiltyHomeOverlay(window.editor);
+                }, 3000);
             };
         }
 
@@ -436,32 +528,7 @@ export function showMiltyBuilderUI(container) {
             }
         }
 
-        // Highlight hexes for a slice on the map
-        function highlightSliceOnMap(hexIds) {
-            clearSliceHighlights();
-            if (!Array.isArray(hexIds)) return;
-            hexIds.forEach(id => {
-                const hexEl = document.querySelector(`[data-hexid="${id}"]`);
-                if (hexEl) {
-                    hexEl.classList.add('milty-slice-highlight');
-                }
-            });
-        }
-
-        // Remove all slice highlights
-        function clearSliceHighlights() {
-            document.querySelectorAll('.milty-slice-highlight').forEach(el => {
-                el.classList.remove('milty-slice-highlight');
-            });
-        }
-
-        // Add CSS for highlight if not present
-        if (!document.getElementById('miltySliceHighlightStyle')) {
-            const style = document.createElement('style');
-            style.id = 'miltySliceHighlightStyle';
-            style.textContent = `.milty-slice-highlight { outline: 3px solid red !important; z-index: 10002 !important; }`;
-            document.head.appendChild(style);
-        }
+        ensureHighlightStyles();
 
         // Clear selection function
         function clearSelection() {
@@ -645,7 +712,7 @@ export function handleSliceImport(slicesData, clearExisting, onProgress, onCompl
     // Clear existing slices if requested
     if (clearExisting) {
         for (let slotNum = 1; slotNum <= 12; slotNum++) {
-            const slotHexes = window.miltyBuilderCore?.slotPositions?.[slotNum] || [];
+            const slotHexes = slotPositions[slotNum] || [];
             for (let j = 1; j < slotHexes.length; j++) {
                 const hexId = slotHexes[j];
                 if (window.editor?.clearAll) {
@@ -711,22 +778,6 @@ export function createOutputDisplayContainer(outputData) {
     header.style.marginTop = '0';
     header.style.color = '#ffe066';
     container.appendChild(header);
-
-    // Slot positions for lookup
-    const slotPositions = {
-        1: [836, 941, 837, 732, 942, 838],
-        2: [624, 625, 521, 520, 626, 522],
-        3: [724, 725, 621, 620, 622, 518],
-        4: [617, 515, 514, 616, 412, 411],
-        5: [510, 408, 509, 611, 407, 508],
-        6: [813, 711, 812, 914, 710, 811],
-        7: [936, 937, 833, 832, 938, 834],
-        8: [1036, 1037, 933, 932, 934, 830],
-        9: [1032, 1033, 929, 928, 930, 826],
-        10: [1028, 926, 925, 1027, 823, 822],
-        11: [1025, 923, 922, 1024, 820, 819],
-        12: [817, 715, 826, 918, 714, 815]
-    };
 
     // Details section
     const detailsDiv = document.createElement('div');
@@ -880,22 +931,6 @@ export function createEmptyStateMessage(message) {
  */
 export function createDraftValuesAnalysisContainer() {
     const container = document.createElement('div');
-
-    // Check if we have any draft slices with systems
-    const slotPositions = {
-        1: [836, 941, 837, 732, 942, 838],
-        2: [624, 625, 521, 520, 626, 522],
-        3: [724, 725, 621, 620, 622, 518],
-        4: [617, 515, 514, 616, 412, 411],
-        5: [510, 408, 509, 611, 407, 508],
-        6: [813, 711, 812, 914, 710, 811],
-        7: [936, 937, 833, 832, 938, 834],
-        8: [1036, 1037, 933, 932, 934, 830],
-        9: [1032, 1033, 929, 928, 930, 826],
-        10: [1028, 926, 925, 1027, 823, 822],
-        11: [1025, 923, 922, 1024, 820, 819],
-        12: [817, 715, 826, 918, 714, 815]
-    };
 
     let hasData = false;
     for (let slotNum = 1; slotNum <= 12; slotNum++) {

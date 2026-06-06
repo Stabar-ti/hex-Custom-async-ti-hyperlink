@@ -7,67 +7,7 @@
 
 import { showPopup } from '../../ui/popupUI.js';
 import { wormholeTypes, planetTypeColors, techSpecialtyColors } from '../../constants/constants.js';
-
-// Help function for tech display
-function capitalizeTech(tech) {
-    if (!tech) return '';
-    const map = {
-        CYBERNETIC: "Cybernetic",
-        BIOTIC: "Biotic",
-        WARFARE: "Warfare",
-        PROPULSION: "Propulsion"
-    };
-    return map[tech.toUpperCase()] || (tech[0].toUpperCase() + tech.slice(1).toLowerCase());
-}
-
-// Generate output string from completed slices
-function generateOutputString() {
-    const slotPositions = {
-        1: [836, 941, 837, 732, 942, 838],
-        2: [624, 625, 521, 520, 626, 522],
-        3: [724, 725, 621, 620, 622, 518],
-        4: [617, 515, 514, 616, 412, 411],
-        5: [510, 408, 509, 611, 407, 508],
-        6: [813, 711, 812, 914, 710, 811],
-        7: [936, 937, 833, 832, 938, 834],
-        8: [1036, 1037, 933, 932, 934, 830],
-        9: [1032, 1033, 929, 928, 930, 826],
-        10: [1028, 926, 925, 1027, 823, 822],
-        11: [1025, 923, 922, 1024, 820, 819],
-        12: [817, 715, 826, 918, 714, 815]
-    };
-
-    const outputs = [];
-    const completedSlots = [];
-
-    for (let slotNum = 1; slotNum <= 12; slotNum++) {
-        const slotHexes = slotPositions[slotNum];
-        if (!slotHexes) continue;
-
-        const sliceIds = [];
-        let allHaveIds = true;
-
-        // Check positions 1-5 (skip homesystem at position 0)
-        for (let i = 1; i < slotHexes.length; i++) {
-            const hexId = slotHexes[i];
-            const hex = window.editor?.hexes?.[hexId];
-
-            if (hex && hex.realId) {
-                sliceIds.push(hex.realId);
-            } else {
-                allHaveIds = false;
-                break;
-            }
-        }
-
-        if (allHaveIds && sliceIds.length === 5) {
-            outputs.push(sliceIds.join(','));
-            completedSlots.push(slotNum);
-        }
-    }
-
-    return { outputString: outputs.join(';'), completedSlots, totalSlices: outputs.length };
-}
+import { slotPositions, capitalizeTech, generateOutputString } from './miltyBuilderCore.js';
 
 // Show output copy popup with generated string and analysis
 export function showOutputCopyPopup() {
@@ -180,7 +120,7 @@ function renderDraftValuesAnalysis(container) {
             return; // No data to analyze
         }
 
-        const { tbody, slotPositions } = analysisData;
+        const { tbody } = analysisData;
 
         // Import constants for formatting
         import('../../constants/constants.js').then(constants => {
