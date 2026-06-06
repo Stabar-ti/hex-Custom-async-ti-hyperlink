@@ -1,4 +1,4 @@
-the// src/modules/Milty/miltyBuilderExport.js
+// src/modules/Milty/miltyBuilderExport.js
 // Per-slice PNG export for the Milty Slice Designer
 
 import { showPopup } from '../../ui/popupUI.js';
@@ -57,7 +57,7 @@ async function exportSliceAsPng(slotNum, options) {
     }
     if (minX === Infinity) throw new Error(`No renderable hexes for slot ${slotNum}`);
 
-    const pad = R * 0.5;
+    const pad = R * 0.15;
     const vx = minX - pad, vy = minY - pad;
     const vw = maxX - minX + pad * 2;
     const vh = maxY - minY + pad * 2;
@@ -134,9 +134,9 @@ async function exportSliceAsPng(slotNum, options) {
     // Only this slot's number is drawn — zero leakage risk.
     if (showSliceNumbers) {
         const S = R / 40;
-        // Centre horizontally in the viewBox, sit in the upper padding band
-        const labelX = vx + vw / 2;
-        const labelY = vy + pad * 0.52;
+        // Top-right gap: ~77% across, ~34% down — centre of the phantom hex
+        const labelX = vx + vw * 0.77;
+        const labelY = vy + vh * 0.34;
         const bw = 24 * S, bh = 14 * S, br = 4 * S;
 
         const badge = document.createElementNS(SVG_NS, 'g');
