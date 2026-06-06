@@ -3,6 +3,7 @@
 // Handles popup, button, toggles, keyboard shortcuts, and visual feedback
 
 import { startCopyPasteWizard } from '../features/tileCopyPasteWizard.js';
+import { startSwapMode, cancelSwapMode } from '../features/tileSwap.js';
 import { showPopup, hidePopup } from './popupUI.js';
 
 // --- Main wizard popup ---
@@ -30,7 +31,7 @@ export function showWizardPopup(message, actions = []) {
         scalable: true,
         rememberPosition: true,
         modal: false,
-        title: 'Copy/Cut Wizard',
+        title: 'Copy/Cut Swap',
         style: {
             borderRadius: '16px'
         },
@@ -50,7 +51,7 @@ export function showWizardPopup(message, actions = []) {
             });
             // Insert the title text before the close button
             const titleText = document.createElement('span');
-            titleText.textContent = 'Copy/Cut Wizard';
+            titleText.textContent = 'Copy/Cut Swap';
             titleText.style.fontSize = '1.1rem';
             titleText.style.fontWeight = 'bold';
             titleText.style.flex = '1';
@@ -208,12 +209,30 @@ export function hideWizardInfoPopup() {
 
 // --- Setup the wizard button and popup logic ---
 export function setupTileCopySingleButtonAndPopup() {
-    // Find the static Copy/Cut Wizard button in the top bar
+    // Find the static Copy/Cut Swap button in the top bar
     const btn = document.getElementById('tileCopySingleBtn');
     if (!btn) return;
     let selectedAction = null;
+
+    // Status updater for swap mode — writes into the wizard message area
+    function swapStatus(msg) {
+        const popup = document.getElementById('wizard-popup');
+        if (!popup) return;
+        let statusEl = popup.querySelector('.swap-status');
+        if (!statusEl) {
+            statusEl = document.createElement('div');
+            statusEl.className = 'swap-status';
+            statusEl.style.cssText = 'margin-top:10px;padding:6px 10px;border-radius:6px;' +
+                'background:rgba(255,224,102,0.12);border:1px solid var(--color-accent);' +
+                'font-size:0.9em;min-height:24px;';
+            popup.appendChild(statusEl);
+        }
+        statusEl.innerHTML = msg;
+        statusEl.style.display = msg ? 'block' : 'none';
+    }
+
     btn.onclick = () => {
-        // Show the base wizard popup with Copy and Cut buttons
+        // Show the base wizard popup with Copy, Cut, and Swap buttons
         function getActions(selected) {
             return [
                 {
@@ -221,14 +240,11 @@ export function setupTileCopySingleButtonAndPopup() {
                     toggled: selected === 'Copy',
                     action: (button) => {
                         selectedAction = 'Copy';
-                        // Update toggled state
+                        cancelSwapMode(window.editor, swapStatus);
                         if (button && button.parentNode) {
-                            Array.from(button.parentNode.children).forEach(b => {
-                                b.classList.remove('toggled');
-                            });
+                            Array.from(button.parentNode.children).forEach(b => b.classList.remove('toggled'));
                             button.classList.add('toggled');
                         }
-                        // Trigger the wizard logic for Copy
                         startCopyPasteWizard(window.editor, false);
                     }
                 },
@@ -237,24 +253,40 @@ export function setupTileCopySingleButtonAndPopup() {
                     toggled: selected === 'Cut',
                     action: (button) => {
                         selectedAction = 'Cut';
+                        cancelSwapMode(window.editor, swapStatus);
                         if (button && button.parentNode) {
-                            Array.from(button.parentNode.children).forEach(b => {
-                                b.classList.remove('toggled');
-                            });
+                            Array.from(button.parentNode.children).forEach(b => b.classList.remove('toggled'));
                             button.classList.add('toggled');
                         }
-                        // Trigger the wizard logic for Cut
                         startCopyPasteWizard(window.editor, true);
                     }
                 },
                 {
+                    label: 'Swap',
+                    toggled: selected === 'Swap',
+                    action: (button) => {
+                        selectedAction = 'Swap';
+                        if (button && button.parentNode) {
+                            Array.from(button.parentNode.children).forEach(b => b.classList.remove('toggled'));
+                            button.classList.add('toggled');
+                        }
+                        startSwapMode(window.editor, swapStatus);
+                    }
+                },
+                {
                     label: 'Cancel',
-                    action: () => hideWizardPopup()
+                    action: () => {
+                        cancelSwapMode(window.editor, swapStatus);
+                        hideWizardPopup();
+                    }
                 }
             ];
         }
         showWizardPopup('Select an operation:', getActions(selectedAction));
     };
+
+    // Expose swapStatus so the Shift+S shortcut can update it
+    window._wizardSwapStatus = swapStatus;
 }
 
 // --- Help Popup Logic ---
@@ -264,14 +296,13 @@ export function showWizardHelpPopup() {
     helpPopup = showPopup({
         id: 'wizard-help-popup',
         className: 'wizard-help-popup',
-        content: `<h2>Copy/Cut/Paste Help</h2>
+        content: `<h2>Copy / Cut Swap Help</h2>
             <ul style="text-align:left;max-width:500px;padding-left:2em;">
                 <li><b>Copy:</b> Select tiles with <b>Shift+Click</b> (connected only), release Shift to finish, then <b>Left Click</b> to paste. You can paste repeatedly.</li>
                 <li><b>Cut:</b> Same as copy, but original tiles are cleared after pasting. Paste mode is released after one paste.</li>
                 <li><b>Rotate:</b> During paste preview, hold <b>Alt</b> and use the <b>Mouse Wheel</b> to rotate the selection by 60°.</li>
-                <li><b>Cancel:</b> Use the <b>Cancel</b> button or <b>Right Click</b> to release paste mode (right click does not close the wizard popup).</li>
-                <li><b>Warnings:</b> Info/warning popups appear for special cases (e.g., copying systems with planets). These close automatically after paste.</li>
-                <li><b>Dark Mode:</b> All popups and overlays support dark mode.</li>
+                <li><b>Swap:</b> Click <b>Swap</b> (or press <b>Shift+S</b>) then click two tiles to exchange their content. Swaps system tile, effects, wormholes, tokens, and lore — but not drawn hyperlane connections. Fully undoable. Press <b>Escape</b> to cancel.</li>
+                <li><b>Cancel:</b> Use the <b>Cancel</b> button or <b>Escape</b> to exit any mode.</li>
             </ul>`,
         actions: [
             { label: 'Close', action: () => hidePopup('wizard-help-popup') }
@@ -281,7 +312,7 @@ export function showWizardHelpPopup() {
         scalable: true,
         rememberPosition: true,
         modal: false,
-        title: 'Copy/Cut Wizard Help',
+        title: 'Copy/Cut Swap Help',
         showHelp: false // Don't show help button in help popup
     });
 }

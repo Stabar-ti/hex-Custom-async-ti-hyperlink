@@ -7,7 +7,8 @@
 // custom right-click actions and manages how the SVG canvas responds
 // to user input. Used by HexEditor to make the map feel like a real app.
 // ───────────────────────────────────────────────────────────────
-import { showDistanceOverlays, clearDistanceOverlays } from '../features/baseOverlays.js'; // adjust path as needed
+import { showDistanceOverlays, clearDistanceOverlays } from '../features/baseOverlays.js';
+import { startSwapMode, cancelSwapMode, isSwapModeActive } from '../features/tileSwap.js';
 
 export function bindSvgHandlers(editor) {
   // Reference to the main SVG map element
@@ -38,6 +39,33 @@ export function bindSvgHandlers(editor) {
       window.shiftDActive = false;
     }
   });
+
+  // Shift+S+click — one-shot swap: the Shift+S+click selects the first hex,
+  // the next plain click selects the second hex, swap executes and mode exits.
+  window.shiftSActive = false;
+  document.addEventListener('keydown', (e) => {
+    if (e.shiftKey && e.key.toLowerCase() === 's' && !e.ctrlKey && !e.metaKey) {
+      window.shiftSActive = true;
+    }
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.key.toLowerCase() === 's' || e.key === 'Shift') {
+      window.shiftSActive = false;
+    }
+  });
+
+  // Capture phase — fires before the polygon's own click handler.
+  // When Shift+S is held and the user clicks a hex, pre-select it as the
+  // first swap tile and start one-shot mode, preventing the normal click action.
+  svg.addEventListener('click', (e) => {
+    if (!window.shiftSActive) return;
+    if (isSwapModeActive()) return; // already waiting for second click — let it through
+    const label = e.target.closest('polygon')?.dataset?.label;
+    if (!label) return;
+    e.stopPropagation(); // prevent the polygon's editor._onHexClick from firing
+    const statusFn = window._wizardSwapStatus || (() => {});
+    startSwapMode(editor, statusFn, { oneShot: true, firstLabel: label });
+  }, true); // true = capture phase
 
   // ────────────── SVG Mouse Handlers ──────────────
 

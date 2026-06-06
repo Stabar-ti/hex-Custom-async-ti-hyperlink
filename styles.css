@@ -1232,6 +1232,13 @@ body.dark .mode-button.btn-special {
   pointer-events: none !important;
 }
 
+/* Swap mode — first selected hex highlight */
+.swap-selected {
+  stroke: var(--color-warning) !important;
+  stroke-width: 5 !important;
+  filter: drop-shadow(0 0 8px var(--color-warning));
+}
+
 /* --- Tile Copy/Cut/Paste Wizard Styles --- */
 
 .wizard-btn {

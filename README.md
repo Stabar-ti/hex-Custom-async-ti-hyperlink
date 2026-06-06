@@ -17,7 +17,7 @@ A web-based editor for **Twilight Imperium 4** maps, with full support for hyper
 - **Border Anomalies** — Spatial Tears, Gravity Waves, and custom edge effects
 - **Custom Adjacency** — Single/double custom links and adjacency overrides
 - **Effect Overlays** — Nebula, Rift, Asteroid Field, Supernova, Entropic Scar
-- **Copy/Cut Wizard** — Select, move, and rotate regions of tiles with full undo support
+- **Copy/Cut Swap** — Select, move, and rotate regions of tiles with full undo support
 
 ### Overlays & Analysis
 - **Tile Images** — Display real system artwork on the hex grid

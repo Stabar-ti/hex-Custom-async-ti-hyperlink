@@ -41,7 +41,7 @@ export function showHelpPopup() {
       <li><strong>Right-click</strong> any tile (while Shift+D active) — Calculate distances from that tile</li>
     </ul>
 
-    <h4 style="color:#ffe066;margin:0 0 6px 0;">✂ Copy/Cut Wizard</h4>
+    <h4 style="color:#ffe066;margin:0 0 6px 0;">✂ Copy/Cut Swap</h4>
     <ul style="margin:0 0 4px 16px;padding:0;">
       <li><strong>Shift+click</strong> — Add connected hex to selection</li>
       <li>Release <strong>Shift</strong> — Enter paste preview mode</li>
@@ -148,7 +148,7 @@ export function showFeaturesPopup() {
       <li>Custom adjacency links and adjacency overrides</li>
       <li>Token placement — system and planet level (attachments)</li>
       <li>Full undo/redo history</li>
-      <li>Copy/Cut Wizard — select and move regions of tiles</li>
+      <li>Copy/Cut Swap — select and move regions of tiles</li>
     </ul>
 
     <h4 style="color:#ffe066;margin:6px 0 4px 0;">🔍 System search & overlays</h4>
