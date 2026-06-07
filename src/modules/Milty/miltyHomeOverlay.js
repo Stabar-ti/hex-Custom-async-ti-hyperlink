@@ -39,7 +39,7 @@ const WORMHOLE_GREEK = {
 };
 
 const PILL_RES = { bg: '#ffe066', text: '#1a1a00' };
-const PILL_INF = { bg: '#1fa3ff', text: '#ffffff' };
+const PILL_INF = { bg: '#0636d4', text: '#ffffff' };
 const PILL_EQ = { bg: '#555555', text: '#eeeeee' };
 
 // ── Data collection ───────────────────────────────────────────────────────────

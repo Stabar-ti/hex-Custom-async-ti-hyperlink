@@ -34,7 +34,10 @@ async function exportSliceAsPng(slotNum, options) {
         showSystemIds = false,
         showWormholes = false,
         showSliceNumbers = true,
-        exportWidth = 1000,
+        sliceTitle    = '',
+        titlePosition = 'bottom',
+        fontFamily    = 'Arial, Helvetica, sans-serif',
+        exportWidth   = 1000,
     } = options;
 
     const editor = window.editor;
@@ -59,9 +62,15 @@ async function exportSliceAsPng(slotNum, options) {
     if (minX === Infinity) throw new Error(`No renderable hexes for slot ${slotNum}`);
 
     const pad = R * 0.15;
-    const vx = minX - pad, vy = minY - pad;
+    const titlePad = sliceTitle ? R * 0.9 : 0;
+    const vx = minX - pad;
+    const vy = minY - pad - (titlePosition === 'top' ? titlePad : 0);
     const vw = maxX - minX + pad * 2;
-    const vh = maxY - minY + pad * 2;
+    const vh = maxY - minY + pad * 2 + titlePad;
+    // Hex cluster bounds within the viewBox — used to anchor elements that must
+    // stay fixed relative to the hexes regardless of title padding.
+    const hexVy = titlePosition === 'top' ? vy + titlePad : vy;
+    const hexVh = maxY - minY + pad * 2;
     const height = Math.round(exportWidth * vh / vw);
 
     // ── 2. Clone and configure the SVG ───────────────────────────────────────
@@ -154,9 +163,10 @@ async function exportSliceAsPng(slotNum, options) {
     // Only this slot's number is drawn — zero leakage risk.
     if (showSliceNumbers) {
         const S = R / 40;
-        // Top-right gap: ~77% across, ~36% down — raised higher in the phantom hex
+        // Top-right gap: ~77% across, ~36% into the hex cluster — anchored to the
+        // hex area so title padding doesn't shift the badge.
         const labelX = vx + vw * 0.77;
-        const labelY = vy + vh * 0.36;
+        const labelY = hexVy + hexVh * 0.36;
         const bw = 24 * S, bh = 14 * S, br = 4 * S;
 
         const badge = document.createElementNS(SVG_NS, 'g');
@@ -188,7 +198,43 @@ async function exportSliceAsPng(slotNum, options) {
         clone.appendChild(badge); // root level — always on top, never clipped
     }
 
-    // ── 5. Inline tile images as base64 so they survive the SVG sandbox ─────────
+    // ── 6. Slice title — centred in the dedicated title padding band ──────────
+    if (sliceTitle) {
+        const titleX = vx + vw / 2;
+        const titleY = titlePosition === 'bottom'
+            ? hexVy + hexVh + titlePad * 0.45  // just below the hex cluster
+            : hexVy - titlePad * 0.35;          // just above the hex cluster
+
+        const titleEl = document.createElementNS(SVG_NS, 'text');
+        titleEl.setAttribute('x', titleX);
+        titleEl.setAttribute('y', titleY);
+        titleEl.setAttribute('text-anchor', 'middle');
+        titleEl.setAttribute('font-size', R * 0.4);
+        titleEl.setAttribute('font-weight', 'bold');
+        titleEl.setAttribute('fill', '#ffffff');
+        titleEl.setAttribute('stroke', 'rgba(0,0,0,0.65)');
+        titleEl.setAttribute('stroke-width', R * 0.05);
+        titleEl.setAttribute('paint-order', 'stroke fill');
+        titleEl.textContent = sliceTitle;
+        clone.appendChild(titleEl); // root level, outside clip
+    }
+
+    // ── 7. Apply chosen font via <style> element ─────────────────────────────────
+    // Using a <style> tag avoids XML-escaping single quotes in font names (e.g.
+    // 'Comic Sans MS') — XMLSerializer would turn them into &apos; which breaks
+    // font resolution in some SVG-to-canvas renderers.
+    {
+        let defs = clone.querySelector('defs');
+        if (!defs) {
+            defs = document.createElementNS(SVG_NS, 'defs');
+            clone.insertBefore(defs, clone.firstChild);
+        }
+        const styleEl = document.createElementNS(SVG_NS, 'style');
+        styleEl.textContent = `text { font-family: ${fontFamily} !important; }`;
+        defs.appendChild(styleEl);
+    }
+
+    // ── 8. Inline tile images as base64 so they survive the SVG sandbox ─────────
     // When SVG is loaded via <img>, the browser blocks external resource loads.
     // Pre-fetching and embedding as data: URLs is the only way to include them.
     if (showTileImages) {
@@ -353,6 +399,49 @@ export function showSliceExportPopup() {
             </label>
         </div>
 
+        <!-- Slice titles -->
+        <div style="margin-bottom:14px; padding:10px; background:#2a2a2a; border-radius:6px; border:1px solid #444;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ccc; font-weight:bold;">
+                    <input type="checkbox" id="opt_showTitles">
+                    Slice titles
+                </label>
+                <span style="display:flex; align-items:center; gap:10px; font-size:12px; color:#aaa;" id="opt_titlePosRow">
+                    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                        <input type="radio" name="titlePos" id="opt_titleTop" value="top"> Top
+                    </label>
+                    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                        <input type="radio" name="titlePos" id="opt_titleBottom" value="bottom" checked> Bottom
+                    </label>
+                </span>
+            </div>
+            <div id="titleInputsGrid" style="display:none; grid-template-columns:1fr 1fr; gap:4px 10px;">
+                ${Array.from({ length: 12 }, (_, i) => {
+        const n = i + 1;
+        return `<label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#bbb;">
+                        <span style="min-width:18px;text-align:right;color:#888;">${n}:</span>
+                        <input type="text" id="title_slot_${n}" placeholder="e.g. Player name"
+                               style="flex:1;padding:3px 6px;background:#333;border:1px solid #555;
+                                      border-radius:3px;color:#fff;font-size:12px;">
+                    </label>`;
+    }).join('')}
+            </div>
+        </div>
+
+        <!-- Font -->
+        <div style="margin-bottom:14px; display:flex; align-items:center; gap:10px; color:#ccc; font-size:13px;">
+            <label for="opt_font" style="white-space:nowrap;">Font:</label>
+            <select id="opt_font" style="flex:1; padding:4px; border:1px solid #555; border-radius:3px;
+                                         background:#2a2a2a; color:#fff; font-size:13px;">
+                <option value="Arial, Helvetica, sans-serif"         style="font-family:Arial;">Default (Arial)</option>
+                <option value="'Segoe UI', Tahoma, sans-serif"       style="font-family:'Segoe UI';">Modern (Segoe UI)</option>
+                <option value="Georgia, 'Times New Roman', serif"    style="font-family:Georgia;">Serif (Georgia)</option>
+                <option value="'Courier New', Courier, monospace"    style="font-family:'Courier New';">Technical (Courier)</option>
+                <option value="Impact, 'Arial Narrow', sans-serif"   style="font-family:Impact;">Bold Condensed (Impact)</option>
+                <option value="'Comic Sans MS', cursive"             style="font-family:'Comic Sans MS';">Silly (Comic Sans)</option>
+            </select>
+        </div>
+
         <!-- Export width -->
         <div style="margin-bottom:14px; display:flex; align-items:center; gap:10px; color:#ccc; font-size:13px;">
             <label for="opt_width" style="white-space:nowrap;">Export width:</label>
@@ -404,6 +493,18 @@ export function showSliceExportPopup() {
         fullCoverageLabel.style.opacity = enabled ? '1' : '0.4';
     });
 
+    // Slice titles: show input grid when toggled on
+    const showTitlesCb = container.querySelector('#opt_showTitles');
+    const titleInputsGrid = container.querySelector('#titleInputsGrid');
+    const titlePosRow = container.querySelector('#opt_titlePosRow');
+
+    showTitlesCb.addEventListener('change', () => {
+        const on = showTitlesCb.checked;
+        titleInputsGrid.style.display = on ? 'grid' : 'none';
+        titlePosRow.style.opacity = on ? '1' : '0.4';
+    });
+    titlePosRow.style.opacity = '0.4'; // greyed out until enabled
+
     // Slot selection helpers
     container.querySelector('#selectCompletedBtn').onclick = () => {
         container.querySelectorAll('.slot-cb').forEach(cb => {
@@ -434,7 +535,14 @@ async function runExport(container) {
         return;
     }
 
-    const options = {
+    const showTitles = container.querySelector('#opt_showTitles').checked;
+    const titlePos = container.querySelector('#opt_titleBottom').checked ? 'bottom' : 'top';
+    const sliceTitles = {};
+    for (let n = 1; n <= 12; n++) {
+        sliceTitles[n] = container.querySelector(`#title_slot_${n}`)?.value?.trim() ?? '';
+    }
+
+    const baseOptions = {
         showHomeOverlay: container.querySelector('#opt_homeOverlay').checked,
         showMiltyScore: container.querySelector('#opt_miltyScore').checked,
         showTileImages: container.querySelector('#opt_tileImages').checked,
@@ -442,8 +550,10 @@ async function runExport(container) {
         showSystemIds: container.querySelector('#opt_systemIds').checked,
         showWormholes: container.querySelector('#opt_wormholes').checked,
         showSliceNumbers: container.querySelector('#opt_sliceNumbers').checked,
-        exportWidth: Math.max(400, Math.min(2400,
-            Number(container.querySelector('#opt_width').value) || 800)),
+        titlePosition: titlePos,
+        fontFamily:    container.querySelector('#opt_font').value,
+        exportWidth:   Math.max(400, Math.min(2400,
+                           Number(container.querySelector('#opt_width').value) || 1000)),
     };
 
     status.style.color = '#ffe066';
@@ -451,6 +561,10 @@ async function runExport(container) {
 
     let done = 0, errors = 0;
     for (const slotNum of selectedSlots) {
+        const options = {
+            ...baseOptions,
+            sliceTitle: showTitles ? (sliceTitles[slotNum] ?? '') : '',
+        };
         try {
             await exportSliceAsPng(slotNum, options);
             done++;
