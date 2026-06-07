@@ -55,11 +55,11 @@ export const effectIconPositions = [
  * Maps effect type (as string) to emoji for overlay display.
  */
 export const effectEmojiMap = {
-  nebula:     '☁️',
-  supernova:  '☀️',
-  asteroid:   '🪨',
-  rift:       '🕳️',
-  scar:       '☄️',  // Thunders Edge: Entropic Scar
+  nebula: '☁️',
+  supernova: '☀️',
+  asteroid: '🪨',
+  rift: '🕳️',
+  scar: '☄️',  // Thunders Edge: Entropic Scar
   homesystem: '★'
 };
 
@@ -101,7 +101,7 @@ export const sectorColors = {
   'asteroid': '#d9d9d9',
   'special': '#ff83a0',
   'fracture': '#ffb3b3',        // Light red — fracture tile back
-  'homesystem': '#059f00',
+  'homesystem': '#068501',
   'void': '#2b2b2b',
   'hyperlane': '#d8d8d8'            // Blank hex with drawn hyperlane connections
 };

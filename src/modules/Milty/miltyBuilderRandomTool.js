@@ -2316,7 +2316,8 @@ async function placeSlicesOnMap(slices) {
         import('../../features/baseOverlays.js'),
         import('../../features/imageSystemsOverlay.js'),
         import('../../draw/enforceSvgLayerOrder.js'),
-        import('../../ui/uiFilters.js')
+        import('../../ui/uiFilters.js'),
+        import('./miltyHomeOverlay.js')
     ]).then(([
         { redrawAllRealIDOverlays },
         { drawCustomAdjacencyLayer },
@@ -2324,7 +2325,8 @@ async function placeSlicesOnMap(slices) {
         { updateEffectsVisibility, updateWormholeVisibility },
         { updateTileImageLayer },
         { enforceSvgLayerOrder },
-        { refreshSystemList }
+        { refreshSystemList },
+        { drawMiltyHomeOverlay }
     ]) => {
         console.log('Executing comprehensive overlay redraw sequence');
 
@@ -2343,6 +2345,10 @@ async function placeSlicesOnMap(slices) {
         if (window.editor?.svg) {
             enforceSvgLayerOrder(window.editor.svg);
         }
+
+        // Redraw the home info overlay LAST so it sits on top of all tiles/overlays.
+        // (Previously this only happened via a flaky 3s setTimeout in the UI.)
+        drawMiltyHomeOverlay(window.editor);
 
         console.log('Overlay redraw sequence complete');
     }).catch(err => {

@@ -10,21 +10,21 @@
 import { slotPositions } from './miltyBuilderCore.js';
 import { getCurrentWeights } from './miltyBuilderRandomTool.js';
 
-const SVG_NS   = 'http://www.w3.org/2000/svg';
+const SVG_NS = 'http://www.w3.org/2000/svg';
 const LAYER_ID = 'miltyHomeOverlayLayer';
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let _enabled    = true;
+let _enabled = true;
 let _idealSplit = false;
 
 export function setHomeOverlayEnabled(val) { _enabled = val; }
-export function setIdealSplitEnabled(val)  { _idealSplit = val; }
+export function setIdealSplitEnabled(val) { _idealSplit = val; }
 
 // ── Colours ───────────────────────────────────────────────────────────────────
 const PLANET_COLOR = { CULTURAL: '#4488ff', INDUSTRIAL: '#44aa44', HAZARDOUS: '#dd4444' };
 const NEUTRAL_COLOR = '#888888';
 
-const TECH_COLOR  = { CYBERNETIC: '#FFD700', BIOTIC: '#44bb44', WARFARE: '#ee4444', PROPULSION: '#00BFFF' };
+const TECH_COLOR = { CYBERNETIC: '#FFD700', BIOTIC: '#44bb44', WARFARE: '#ee4444', PROPULSION: '#00BFFF' };
 const TECH_LETTER = { CYBERNETIC: 'Y', BIOTIC: 'G', WARFARE: 'R', PROPULSION: 'B' };
 
 const WORMHOLE_COLOR = {
@@ -40,7 +40,7 @@ const WORMHOLE_GREEK = {
 
 const PILL_RES = { bg: '#ffe066', text: '#1a1a00' };
 const PILL_INF = { bg: '#1fa3ff', text: '#ffffff' };
-const PILL_EQ  = { bg: '#555555', text: '#eeeeee' };
+const PILL_EQ = { bg: '#555555', text: '#eeeeee' };
 
 // ── Data collection ───────────────────────────────────────────────────────────
 function collectSliceData(editor, hexIds) {
@@ -124,14 +124,14 @@ function collectSliceData(editor, hexIds) {
             else if (Array.isArray(p.planetTypes)) p.planetTypes.forEach(t => { if (t) types.push(t.toUpperCase()); });
             // Planet-type counts for scoring (matches generator: checks each planet's primary type)
             if (types.includes('INDUSTRIAL')) d.industrialCount++;
-            if (types.includes('CULTURAL'))   d.culturalCount++;
-            if (types.includes('HAZARDOUS'))   d.hazardousCount++;
+            if (types.includes('CULTURAL')) d.culturalCount++;
+            if (types.includes('HAZARDOUS')) d.hazardousCount++;
 
             const isSpace = types.some(t => t === 'SPACESTATION');
             d.planets.push({
                 c1: PLANET_COLOR[types[0]] ?? NEUTRAL_COLOR,
                 c2: types[1] ? (PLANET_COLOR[types[1]] ?? NEUTRAL_COLOR) : null,
-                legendary:    !!p.legendaryAbilityName,
+                legendary: !!p.legendaryAbilityName,
                 spaceStation: isSpace,
             });
         }
@@ -178,8 +178,8 @@ function computeSliceScore(d, W = SCORE_WEIGHTS) {
     score += d.tradeStations * (W.tradeStation ?? 0.5);
 
     score += d.industrialCount * W.industrial;
-    score += d.culturalCount   * W.cultural;
-    score += d.hazardousCount  * W.hazardous;
+    score += d.culturalCount * W.cultural;
+    score += d.hazardousCount * W.hazardous;
 
     d.anomalies.forEach(a => { score += W[a] || 0; });
 
@@ -194,7 +194,7 @@ function computeSliceScore(d, W = SCORE_WEIGHTS) {
 function dot(cx, cy, r, fill, stroke = null) {
     const c = document.createElementNS(SVG_NS, 'circle');
     c.setAttribute('cx', cx); c.setAttribute('cy', cy);
-    c.setAttribute('r', r);   c.setAttribute('fill', fill);
+    c.setAttribute('r', r); c.setAttribute('fill', fill);
     if (stroke) {
         c.setAttribute('stroke', stroke);
         c.setAttribute('stroke-width', r * 0.2);
@@ -219,13 +219,13 @@ function pill(cx, cy, value, S, colors, pillW) {
     const g = document.createElementNS(SVG_NS, 'g');
     const rect = document.createElementNS(SVG_NS, 'rect');
     rect.setAttribute('x', cx - w / 2); rect.setAttribute('y', cy - h / 2);
-    rect.setAttribute('width', w);      rect.setAttribute('height', h);
-    rect.setAttribute('rx', rx);        rect.setAttribute('fill', colors.bg);
+    rect.setAttribute('width', w); rect.setAttribute('height', h);
+    rect.setAttribute('rx', rx); rect.setAttribute('fill', colors.bg);
     rect.setAttribute('stroke', 'rgba(0,0,0,0.22)');
     rect.setAttribute('stroke-width', 0.7 * S);
     g.appendChild(rect);
     const t = document.createElementNS(SVG_NS, 'text');
-    t.setAttribute('x', cx); t.setAttribute('y', cy + h * 0.32);
+    t.setAttribute('x', cx); t.setAttribute('y', cy + 2.3 * S); // centred (≈0.35·fontSize)
     t.setAttribute('text-anchor', 'middle');
     t.setAttribute('font-size', 6.5 * S);
     t.setAttribute('font-weight', 'bold');
@@ -259,20 +259,20 @@ function fmt(v) {
 function drawRIRow(g, cx, rowY, S, labelText, idealR, idealI, pureR, pureI, eqVal) {
     const useSplit = _idealSplit && pureR !== undefined && eqVal !== undefined;
 
-    // Pill text baseline is at rowY + 10S*0.32 = rowY + 3.2S
-    const textBaselineY = rowY + 10 * S * 0.32;
+    // Labels positioned higher than before (moved up from 2.3 to 1.0)
+    const textBaselineY = rowY + 1.3 * S;
 
     if (useSplit) {
         // 3-pill layout, centred at cx+4S
         const pw = 13 * S, gap = 1 * S;
         const total3 = 3 * pw + 2 * gap;              // 41S
-        const rowCX  = cx + 4 * S;
-        const rX  = rowCX - total3 / 2 + pw / 2;      // cx - 13.5
-        const iX  = rX + pw + gap;                     // cx + 0.5
+        const rowCX = cx + 4 * S;
+        const rX = rowCX - total3 / 2 + pw / 2;      // cx - 13.5
+        const iX = rX + pw + gap;                     // cx + 0.5
         const eqX = iX + pw + gap;                     // cx + 14.5
         const labelX = rX - pw / 2 - 2.5 * S;         // right anchor
 
-        g.appendChild(txt(labelX, textBaselineY, labelText, 5 * S, '#000000', 'bold', 'end'));
+        g.appendChild(txt(labelX, textBaselineY, labelText, 5 * S, '#e8eef5', 'bold', 'end'));
         g.appendChild(pill(rX, rowY, pureR, S, PILL_RES, pw));
         g.appendChild(pill(iX, rowY, pureI, S, PILL_INF, pw));
         // Always show gray pill in split mode — empty background when no equal planets
@@ -281,12 +281,12 @@ function drawRIRow(g, cx, rowY, S, labelText, idealR, idealI, pureR, pureI, eqVa
         // 2-pill layout, centred at cx+6S
         const pw = 16 * S, gap = 1 * S;
         const total2 = 2 * pw + gap;                   // 33S
-        const rowCX  = cx + 6 * S;
+        const rowCX = cx + 6 * S;
         const rX = rowCX - total2 / 2 + pw / 2;        // cx - 2.5
         const iX = rX + pw + gap;                       // cx + 14.5
         const labelX = rX - pw / 2 - 2.5 * S;         // right anchor
 
-        g.appendChild(txt(labelX, textBaselineY, labelText, 5 * S, '#000000', 'bold', 'end'));
+        g.appendChild(txt(labelX, textBaselineY, labelText, 5 * S, '#e8eef5', 'bold', 'end'));
         g.appendChild(pill(rX, rowY, idealR, S, PILL_RES, pw));
         g.appendChild(pill(iX, rowY, idealI, S, PILL_INF, pw));
     }
@@ -297,9 +297,30 @@ function buildGroup(data, cx, cy, R) {
     const g = document.createElementNS(SVG_NS, 'g');
     const S = R / 40;
 
+    // ── Info-card backdrop ─────────────────────────────────────────
+    // Stack of concentric translucent hexagons (90% → centre). Overlapping
+    // fills accumulate: ~0.20 at the rim → ~0.65 in the centre, giving sharp
+    // faded edges (green disappears quickly). No <defs>/url() so it renders identically in PNG exports.
+    {
+        const LAYERS = 8;
+        for (let k = 0; k < LAYERS; k++) {
+            const t = k / (LAYERS - 1);             // 0 (outer) → 1 (inner)
+            const cardR = R * (0.9 - 0.62 * t);     // 0.9R down to ~0.28R
+            const pts = [];
+            for (let i = 0; i < 6; i++) {
+                const a = Math.PI / 180 * (60 * i - 120); // same orientation as game hexes
+                pts.push(`${(cx + cardR * Math.cos(a)).toFixed(2)},${(cy + cardR * Math.sin(a)).toFixed(2)}`);
+            }
+            const hex = document.createElementNS(SVG_NS, 'polygon');
+            hex.setAttribute('points', pts.join(' '));
+            hex.setAttribute('fill', 'rgba(20,24,34,0.15)');
+            g.appendChild(hex); // first children → drawn behind everything else
+        }
+    }
+
     // ── Icon strip ─────────────────────────────────────────────────
-    const iconY   = cy - 20 * S;
-    const iconR   = 5  * S;
+    const iconY = cy - 20 * S;
+    const iconR = 5 * S;
 
     const icons = [];
     for (const [type, count] of Object.entries(data.techs)) {
@@ -313,9 +334,9 @@ function buildGroup(data, cx, cy, R) {
     // Legendary and space station are shown on the planet balls directly, not in the icon strip
 
     // Auto-compress spacing so strip stays within hex at y=-20S (hex half-width ≈ 28.4S)
-    const maxHalf  = 27 * S;
+    const maxHalf = 27 * S;
     const idealGap = 11 * S;
-    const iconGap  = icons.length > 1
+    const iconGap = icons.length > 1
         ? Math.min(idealGap, (maxHalf * 2) / icons.length)
         : idealGap;
 
@@ -328,7 +349,7 @@ function buildGroup(data, cx, cy, R) {
         }
         // Pure black text, no stroke — legendary uses larger font
         const fs = (icon.fontSize ?? 6) * S;
-        g.appendChild(txt(ix, iconY + iconR * 0.55, icon.letter, fs, icon.textColor, 'bold'));
+        g.appendChild(txt(ix, iconY + iconR * 0.42, icon.letter, fs, icon.textColor, 'bold'));
         ix += iconGap;
     }
 
@@ -355,7 +376,7 @@ function buildGroup(data, cx, cy, R) {
 
         const bg = document.createElementNS(SVG_NS, 'rect');
         bg.setAttribute('x', sbx - bw / 2); bg.setAttribute('y', sby - bh / 2);
-        bg.setAttribute('width', bw);        bg.setAttribute('height', bh);
+        bg.setAttribute('width', bw); bg.setAttribute('height', bh);
         bg.setAttribute('rx', brx);
         bg.setAttribute('fill', 'rgba(210,210,210,0.75)');
         bg.setAttribute('stroke', 'rgba(130,130,130,0.45)');
@@ -369,7 +390,7 @@ function buildGroup(data, cx, cy, R) {
     // ── Planet-type balls (4 × 3 grid) ────────────────────────────
     const ballR = 3.5 * S;
     const colXc = [-10.5, -3.5, 3.5, 10.5].map(f => cx + f * S);
-    const rowY  = [cy + 13 * S, cy + 20.5 * S, cy + 28 * S];
+    const rowY = [cy + 13 * S, cy + 20.5 * S, cy + 28 * S];
 
     for (let i = 0; i < Math.min(data.planets.length, 12); i++) {
         const bx = colXc[i % 4];
@@ -435,15 +456,22 @@ export function drawMiltyHomeOverlay(editor) {
 
     const R = editor.hexRadius || 40;
 
+    let drawn = 0, skippedNoHome = 0, skippedEmpty = 0;
     for (const hexIds of Object.values(slotPositions)) {
         const homeHex = editor.hexes[String(hexIds[0])];
-        if (!homeHex?.center) continue;
-        if (!hexIds.slice(1).some(id => editor.hexes[String(id)]?.realId)) continue;
+        if (!homeHex?.center) { skippedNoHome++; continue; }
+        if (!hexIds.slice(1).some(id => editor.hexes[String(id)]?.realId)) { skippedEmpty++; continue; }
 
-        const data  = collectSliceData(editor, hexIds);
+        const data = collectSliceData(editor, hexIds);
         const group = buildGroup(data, homeHex.center.x, homeHex.center.y, R);
         layer.appendChild(group);
+        drawn++;
     }
+
+    // Debug: confirm the overlay ran and how many slice cards were drawn.
+    // Each drawn card includes 12 backdrop hexagons (.milty-info-card check below).
+    const cardHexes = layer.querySelectorAll('polygon').length;
+    console.log(`[MiltyHomeOverlay] R=${R} drawn=${drawn} skipped(noHome=${skippedNoHome}, empty=${skippedEmpty}) backdropPolygons=${cardHexes}`);
 }
 
 export function clearMiltyHomeOverlay(editor) {
