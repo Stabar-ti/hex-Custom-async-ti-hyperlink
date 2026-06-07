@@ -30,6 +30,7 @@ async function exportSliceAsPng(slotNum, options) {
         showHomeOverlay = true,
         showMiltyScore = false,
         showTileImages = true,
+        fullHexCoverage = false,
         showSystemIds = false,
         showWormholes = false,
         showSliceNumbers = true,
@@ -82,7 +83,26 @@ async function exportSliceAsPng(slotNum, options) {
     // ── 3. Strip UI layers ────────────────────────────────────────────────────
     ALWAYS_REMOVE.forEach(id => clone.querySelector(`#${id}`)?.remove());
 
-    if (!showTileImages) clone.querySelector('#tileImageLayer')?.remove();
+    if (!showTileImages) {
+        clone.querySelector('#tileImageLayer')?.remove();
+    } else if (fullHexCoverage) {
+        // Scale each tile image up so it fills the full hex bounding box (2R wide).
+        // The live layer renders at 1.9R; 2.0R covers the hex with a small bleed
+        // that the per-slice clip path will trim cleanly at the hex edges.
+        const newSize = R * 2.0;
+        clone.querySelectorAll('#tileImageLayer image').forEach(img => {
+            const x = parseFloat(img.getAttribute('x') || 0);
+            const y = parseFloat(img.getAttribute('y') || 0);
+            const w = parseFloat(img.getAttribute('width') || R * 1.9);
+            const h = parseFloat(img.getAttribute('height') || R * 1.9);
+            const cx = x + w / 2;
+            const cy = y + h / 2;
+            img.setAttribute('x', cx - newSize / 2);
+            img.setAttribute('y', cy - newSize / 2);
+            img.setAttribute('width', newSize);
+            img.setAttribute('height', newSize);
+        });
+    }
     if (!showSystemIds) clone.querySelector('#realIDLabelLayer')?.remove();
     if (!showWormholes) clone.querySelector('#wormholeIconLayer')?.remove();
     if (!showHomeOverlay) {
@@ -134,9 +154,9 @@ async function exportSliceAsPng(slotNum, options) {
     // Only this slot's number is drawn — zero leakage risk.
     if (showSliceNumbers) {
         const S = R / 40;
-        // Top-right gap: ~77% across, ~34% down — centre of the phantom hex
+        // Top-right gap: ~77% across, ~36% down — raised higher in the phantom hex
         const labelX = vx + vw * 0.77;
-        const labelY = vy + vh * 0.34;
+        const labelY = vy + vh * 0.36;
         const bw = 24 * S, bh = 14 * S, br = 4 * S;
 
         const badge = document.createElementNS(SVG_NS, 'g');
@@ -154,7 +174,7 @@ async function exportSliceAsPng(slotNum, options) {
 
         const txt = document.createElementNS(SVG_NS, 'text');
         txt.setAttribute('x', labelX);
-        txt.setAttribute('y', labelY + bh * 0.38);
+        txt.setAttribute('y', labelY + bh * 0.23);
         txt.setAttribute('text-anchor', 'middle');
         txt.setAttribute('font-size', 10 * S);
         txt.setAttribute('font-weight', 'bold');
@@ -307,7 +327,7 @@ export function showSliceExportPopup() {
                 Home info overlay (R/I rows, planet balls, tech &amp; wormhole icons)
             </label>
             <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer; color:#ddd; padding-left:22px;" id="opt_scoreLabel">
-                <input type="checkbox" id="opt_miltyScore" checked>
+                <input type="checkbox" id="opt_miltyScore">
                 Milty score badge
             </label>
 
@@ -315,8 +335,12 @@ export function showSliceExportPopup() {
                 <input type="checkbox" id="opt_tileImages" checked>
                 Tile images
             </label>
+            <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer; color:#ddd; padding-left:22px;" id="opt_fullCoverageLabel">
+                <input type="checkbox" id="opt_fullHexCoverage" checked>
+                Full hex coverage
+            </label>
             <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer; color:#ddd;">
-                <input type="checkbox" id="opt_wormholes" checked>
+                <input type="checkbox" id="opt_wormholes">
                 Wormhole icons
             </label>
             <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer; color:#ddd;">
@@ -332,7 +356,7 @@ export function showSliceExportPopup() {
         <!-- Export width -->
         <div style="margin-bottom:14px; display:flex; align-items:center; gap:10px; color:#ccc; font-size:13px;">
             <label for="opt_width" style="white-space:nowrap;">Export width:</label>
-            <input id="opt_width" type="number" min="400" max="2400" step="100" value="800"
+            <input id="opt_width" type="number" min="400" max="2400" step="100" value="1000"
                    style="width:80px; padding:4px; border:1px solid #555; border-radius:3px;
                           background:#2a2a2a; color:#fff;">
             <span>px</span>
@@ -369,6 +393,17 @@ export function showSliceExportPopup() {
         scoreLabel.style.opacity = enabled ? '1' : '0.4';
     });
 
+    // Full hex coverage disabled when tile images is off
+    const tileImagesCb = container.querySelector('#opt_tileImages');
+    const fullCoverageCb = container.querySelector('#opt_fullHexCoverage');
+    const fullCoverageLabel = container.querySelector('#opt_fullCoverageLabel');
+
+    tileImagesCb.addEventListener('change', () => {
+        const enabled = tileImagesCb.checked;
+        fullCoverageCb.disabled = !enabled;
+        fullCoverageLabel.style.opacity = enabled ? '1' : '0.4';
+    });
+
     // Slot selection helpers
     container.querySelector('#selectCompletedBtn').onclick = () => {
         container.querySelectorAll('.slot-cb').forEach(cb => {
@@ -403,6 +438,7 @@ async function runExport(container) {
         showHomeOverlay: container.querySelector('#opt_homeOverlay').checked,
         showMiltyScore: container.querySelector('#opt_miltyScore').checked,
         showTileImages: container.querySelector('#opt_tileImages').checked,
+        fullHexCoverage: container.querySelector('#opt_fullHexCoverage').checked,
         showSystemIds: container.querySelector('#opt_systemIds').checked,
         showWormholes: container.querySelector('#opt_wormholes').checked,
         showSliceNumbers: container.querySelector('#opt_sliceNumbers').checked,
