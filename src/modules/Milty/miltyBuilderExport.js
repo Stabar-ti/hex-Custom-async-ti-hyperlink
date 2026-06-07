@@ -439,6 +439,8 @@ export function showSliceExportPopup() {
                 <option value="'Courier New', Courier, monospace"    style="font-family:'Courier New';">Technical (Courier)</option>
                 <option value="Impact, 'Arial Narrow', sans-serif"   style="font-family:Impact;">Bold Condensed (Impact)</option>
                 <option value="'Comic Sans MS', cursive"             style="font-family:'Comic Sans MS';">Silly (Comic Sans)</option>
+                <option value="Papyrus, fantasy"                     style="font-family:Papyrus;">Ancient (Papyrus)</option>
+                <option value="Wingdings"                            style="font-family:Wingdings;">☠ Chaos (Wingdings — unreadable)</option>
             </select>
         </div>
 
