@@ -74,6 +74,9 @@ export function getUnfilledHexes(editor, { includeHomeSystems = false } = {}) {
         .filter(([, h]) => {
             if (!h.baseType || h.baseType === '') return false;
             if (h.baseType === 'hyperlane') return false;
+            // Void means "intentionally blank" — never a candidate for filling, so it
+            // must never show up as a downgrade/failure in the AutoMapper preview.
+            if (h.baseType === 'void') return false;
             if (!includeHomeSystems && h.baseType === 'homesystem') return false;
             return !h.realId;
         })
@@ -160,7 +163,6 @@ function buildPools(systems) {
     }
     for (const sys of systems) {
         const type = classifySystem(sys);
-        if (type === 'homesystem') continue;
         const effects = getSystemEffects(sys);
         if (effects.size === 0) {
             push(type, sys);
@@ -282,8 +284,19 @@ function tryAssign(unfilled, pools, valueTierMap = null) {
         // 3. Token-only fallback: if no system of any suitable type is available,
         //    use any remaining system and cover the missing effects with tokens.
         //    This ensures effects are always represented even when pool is exhausted.
+        //    Prefer a system whose own inherent effects don't exceed what was
+        //    requested — otherwise the hex could end up showing anomalies the
+        //    map designer never asked for (e.g. a leftover supernova system
+        //    used to fill a plain "empty" hex).
         if (!assigned && anyPool.length > 0) {
-            const sys = anyPool.pop();
+            const reqEffectSet = new Set(reqEffects);
+            let idx = anyPool.findIndex(s => {
+                const se = getSystemEffects(s);
+                for (const e of se) if (!reqEffectSet.has(e)) return false;
+                return true;
+            });
+            if (idx === -1) idx = anyPool.length - 1; // nothing clean left — last resort
+            const sys = anyPool.splice(idx, 1)[0];
             assigned = { sys, usedEffect: null };
             downgrades.push({ label, from: hex.baseType, to: 'token-fallback' });
         }

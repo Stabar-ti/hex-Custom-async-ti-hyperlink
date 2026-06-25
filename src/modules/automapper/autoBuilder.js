@@ -89,7 +89,12 @@ export function showAutoBuilderUI(container) {
             return;
         }
 
-        const analysis = analyzeMap(editor, { includeHomeSystems: opts.includeHomeSystems, includeWormholes: opts.includeWormholes });
+        const analysis = analyzeMap(editor, {
+            includeHomeSystems: opts.includeHomeSystems,
+            includeWormholes: opts.includeWormholes,
+            allowDuplicatesNoPlanet: opts.allowDuplicatesNoPlanet,
+            sources: opts.sources,
+        });
 
         // --- Status ---
         const status = el('div', S.panel);
@@ -144,7 +149,7 @@ export function showAutoBuilderUI(container) {
         row1.appendChild(whWrap);
 
         // Allow duplicate no-planet systems (req 7)
-        const { wrap: dupWrap } = toggle('Duplicate empty/anomaly systems', opts.allowDuplicatesNoPlanet, v => { opts.allowDuplicatesNoPlanet = v; }, 'Allow the same no-planet system (empty, anomaly) to be placed more than once');
+        const { wrap: dupWrap } = toggle('Duplicate empty/anomaly systems', opts.allowDuplicatesNoPlanet, v => { opts.allowDuplicatesNoPlanet = v; render(); }, 'Allow the same no-planet system (empty, anomaly) to be placed more than once');
         row1.appendChild(dupWrap);
 
         optsPanel.appendChild(row1);
@@ -173,6 +178,7 @@ export function showAutoBuilderUI(container) {
                 // If all unchecked, reset to null (use DOM filters)
                 const anyOn = SRC_DEFS.some(d => opts.sources[d.key]);
                 if (!anyOn) opts.sources = null;
+                render();
             };
             const lbl = el('label', 'display:flex;align-items:center;font-size:11px;cursor:pointer;white-space:nowrap;');
             lbl.appendChild(cb); lbl.append(label);
