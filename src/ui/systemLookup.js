@@ -12,8 +12,7 @@ import {
     initFilters,
     isRealIDUsed,
     getActiveFilterPass,
-    unmarkRealIDUsed,
-    usedRealIDs,
+    clearRealIDUsage,
     generateTableHeader,
     generateSystemRow,
     applyColumnVisibilityToTable,
@@ -623,7 +622,7 @@ export default async function initSystemLookup(editor) {
 
     // When generating a new map, clear all "used" system IDs
     genMapBtn?.addEventListener('click', () => {
-        Array.from(usedRealIDs).forEach(id => unmarkRealIDUsed(id));
+        clearRealIDUsage();
         if (currentPopup) {
             refreshSystemList();
             // Clear selection status

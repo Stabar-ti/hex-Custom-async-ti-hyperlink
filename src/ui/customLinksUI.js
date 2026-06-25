@@ -44,8 +44,8 @@ export function installCustomLinksUI(editor) {
             btn.title = title;
             btn.style.margin = '2px 4px 2px 0';
             btn.onclick = () => {
+                const turningOff = btn.classList.contains('active');
                 Array.from(btnRow.querySelectorAll('.mode-button')).forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
                 if (editor._pendingCustomAdj) {
                     const prev = editor._pendingCustomAdj;
                     if (editor.hexes[prev] && editor.hexes[prev].polygon)
@@ -63,7 +63,12 @@ export function installCustomLinksUI(editor) {
                 }
                 overrideState = { step: 0, start: null, dir: null };
 
-                editor.setMode(mode);
+                if (turningOff) {
+                    editor.setMode('none');
+                } else {
+                    btn.classList.add('active');
+                    editor.setMode(mode);
+                }
             };
             return btn;
         }

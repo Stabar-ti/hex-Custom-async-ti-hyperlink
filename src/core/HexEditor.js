@@ -102,12 +102,21 @@ export default class HexEditor {
       this.generateMap();
     };
 
-    // ─── Global escape key handler for clearing overlays and links ───
+    // ─── Global escape key handler for clearing overlays, links, and any active cursor mode ───
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.clearWormholeLinks();
         if (typeof this.clearDistanceOverlays === 'function') {
           this.clearDistanceOverlays();
+        }
+        // Re-click any currently-active mode/tool button so it runs its own
+        // "turning off" logic (clears its highlight + calls setMode('none')),
+        // then fall back to clearing the mode directly in case nothing was active.
+        const activeButtons = document.querySelectorAll('.mode-button.active');
+        if (activeButtons.length > 0) {
+          activeButtons.forEach(btn => btn.click());
+        } else if (typeof this.setMode === 'function') {
+          this.setMode('none');
         }
       }
     });

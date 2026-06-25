@@ -12,7 +12,9 @@ import { wormholeTypes, techSpecialtyColors, effectEmojiMap } from '../constants
 
 // ▶︎ A Set of all realIDs that have already been assigned to hexes on the map.
 //    This helps prevent duplicate assignments.
-export const usedRealIDs = new Set();
+// Maps realID -> reference count, so a duplicate tile placed twice stays "used"
+// until *both* copies are removed, not just one.
+export const usedRealIDs = new Map();
 
 // ▶︎ Batch mode flag: when true, disables auto-refresh (useful for import).
 let _batchMode = false;
@@ -930,19 +932,27 @@ export function applyFilters(editor, onResults) {
 // Mark/unmark/check realID usage (unique system tiles)
 // ─────────────────────────────-
 /**
- * Mark a realID as used. If not batching, also trigger a refresh.
+ * Mark a realID as used (incrementing its reference count, so duplicate
+ * placements of the same tile are tracked correctly). If not batching, also
+ * trigger a refresh.
  */
 export function markRealIDUsed(id) {
-  usedRealIDs.add(id);
+  usedRealIDs.set(id, (usedRealIDs.get(id) || 0) + 1);
   //  console.log('realIDmarked')
   if (!_batchMode) refreshSystemList();
 }
 
 /**
- * Remove a realID from the used set.
+ * Decrement a realID's reference count, only clearing it from the used set
+ * once the last copy of that tile is removed from the map.
  */
 export function unmarkRealIDUsed(id) {
-  usedRealIDs.delete(id);
+  const count = usedRealIDs.get(id) || 0;
+  if (count <= 1) {
+    usedRealIDs.delete(id);
+  } else {
+    usedRealIDs.set(id, count - 1);
+  }
   if (!_batchMode) refreshSystemList();
 }
 

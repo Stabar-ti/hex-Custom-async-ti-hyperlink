@@ -140,10 +140,10 @@ export class LoreManager {
     validateLoreData(loreData) {
         if (!loreData || typeof loreData !== 'object') return false;
         
-        const validReceivers = ['CURRENT', 'ADJACENT', 'ALL', 'GM'];
-        const validTriggers = ['CONTROLLED', 'ACTIVATED', 'MOVED'];
-        const validPings = ['YES', 'NO'];
-        const validPersistance = ['ONCE', 'ALWAYS'];
+        const validReceivers = LORE_RECEIVERS;
+        const validTriggers = LORE_TRIGGERS;
+        const validPings = LORE_PINGS;
+        const validPersistance = LORE_PERSISTANCE;
         
         // Check length constraints
         const loreTextLength = (loreData.loreText || '').length;
@@ -223,13 +223,108 @@ export class LoreManager {
                     loreData[label].systemLore = hex.systemLore;
                 }
                 
-                if (hex.planetLore && hex.planetLore.some(lore => lore !== null)) {
+                if (hex.planetLore && Object.values(hex.planetLore).some(lore => lore != null)) {
                     loreData[label].planetLore = hex.planetLore;
                 }
             }
         }
         
         return loreData;
+    }
+
+    /**
+     * Export lore in the bot's wire format: "target;loreText;footerText;receiver;trigger;ping;persistance"
+     * entries joined by "|". System lore targets are the hex label; planet lore targets are the planet's
+     * identifier (matching Mapper.getPlanet on the bot side), since the bot keys all lore by a flat
+     * target string rather than by hex+slot like this editor does.
+     */
+    exportWireFormat() {
+        const entries = [];
+
+        for (const [label, hex] of Object.entries(this.editor.hexes)) {
+            if (hex.systemLore) {
+                entries.push(this._loreEntryToWireString(label, hex.systemLore));
+            }
+
+            if (hex.planetLore) {
+                for (const [idx, lore] of Object.entries(hex.planetLore)) {
+                    if (!lore) continue;
+                    const planet = hex.planets?.[idx];
+                    const target = (planet && (planet.planetID || planet.id || planet.name))
+                        || `${label}_planet${Number(idx) + 1}`;
+                    entries.push(this._loreEntryToWireString(target, lore));
+                }
+            }
+        }
+
+        return entries.join('|');
+    }
+
+    _loreEntryToWireString(target, lore) {
+        const clean = (s) => (s || '').replace(/;/g, '').replace(/\|/g, '');
+        return [
+            clean(target), clean(lore.loreText), clean(lore.footerText),
+            lore.receiver, lore.trigger, lore.ping, lore.persistance
+        ].join(';');
+    }
+
+    /**
+     * Import lore from the bot's wire format. Each target is matched against hex labels (system lore)
+     * and against every hex's planet identifiers (planet lore) — entries that match neither are skipped
+     * and reported back to the caller.
+     */
+    importWireFormat(wireString) {
+        const result = { systemCount: 0, planetCount: 0, skipped: [] };
+        if (!wireString || typeof wireString !== 'string') return result;
+
+        // Build a target -> {hexLabel, planetIndex} lookup for planet identifiers
+        const planetTargets = new Map();
+        for (const [label, hex] of Object.entries(this.editor.hexes)) {
+            (hex.planets || []).forEach((planet, idx) => {
+                const id = planet && (planet.planetID || planet.id || planet.name);
+                if (id) planetTargets.set(id, { hexLabel: label, planetIndex: idx });
+            });
+        }
+
+        for (const raw of wireString.split('|')) {
+            if (!raw.trim()) continue;
+            const fields = raw.split(';');
+            if (fields.length < 2) {
+                result.skipped.push(raw);
+                continue;
+            }
+
+            const target = fields[0].trim();
+            const loreData = {
+                loreText: fields[1] ?? '',
+                footerText: fields[2] ?? '',
+                receiver: LORE_RECEIVERS.includes(fields[3]) ? fields[3] : 'CURRENT',
+                trigger: LORE_TRIGGERS.includes(fields[4]) ? fields[4] : 'CONTROLLED',
+                ping: LORE_PINGS.includes(fields[5]) ? fields[5] : 'NO',
+                persistance: LORE_PERSISTANCE.includes(fields[6]) ? fields[6] : 'ONCE'
+            };
+
+            if (this.editor.hexes[target]) {
+                if (this.setSystemLore(target, loreData)) result.systemCount++;
+                else result.skipped.push(raw);
+                continue;
+            }
+
+            const planetMatch = planetTargets.get(target);
+            if (planetMatch) {
+                if (this.addPlanetLore(planetMatch.hexLabel, planetMatch.planetIndex, loreData)) result.planetCount++;
+                else result.skipped.push(raw);
+                continue;
+            }
+
+            result.skipped.push(raw);
+        }
+
+        if (this.editor && this.editor.loreOverlay) {
+            this.editor.loreOverlay.refresh();
+        }
+
+        return result;
     }
 
     /**
@@ -280,7 +375,31 @@ export function createLoreManager(editor) {
     return new LoreManager(editor);
 }
 
-export const LORE_RECEIVERS = ['CURRENT', 'ADJACENT', 'ALL', 'GM'];
-export const LORE_TRIGGERS = ['CONTROLLED', 'ACTIVATED', 'MOVED'];
+export const LORE_RECEIVERS = ['CURRENT', 'ADJACENT', 'ALL', 'GM', 'CARDS', 'WINNER', 'LOSER'];
+export const LORE_TRIGGERS = ['CONTROLLED', 'ACTIVATED', 'MOVED', 'SPACE_BATTLE', 'GROUND_BATTLE'];
 export const LORE_PINGS = ['YES', 'NO'];
-export const LORE_PERSISTANCE = ['ONCE', 'ALWAYS'];
+export const LORE_PERSISTANCE = ['ONCE', 'ALWAYS', 'ONCE_PER_PLAYER'];
+
+export const LORE_RECEIVER_LABELS = {
+    CURRENT: 'Current Player',
+    ADJACENT: 'Adjacent Players',
+    ALL: 'All Players',
+    GM: 'GM',
+    CARDS: 'Private Card Thread',
+    WINNER: 'Battle Winner',
+    LOSER: 'Battle Loser'
+};
+
+export const LORE_TRIGGER_LABELS = {
+    CONTROLLED: 'Target is in control',
+    ACTIVATED: 'Target is activated',
+    MOVED: 'Units are moved in',
+    SPACE_BATTLE: 'A space battle was fought here',
+    GROUND_BATTLE: 'A ground battle was fought here'
+};
+
+export const LORE_PERSISTANCE_LABELS = {
+    ONCE: 'Once',
+    ALWAYS: 'Every time',
+    ONCE_PER_PLAYER: 'Once per player'
+};

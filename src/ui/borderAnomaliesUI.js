@@ -127,6 +127,8 @@ export function installBorderAnomaliesUI(editor) {
             }
 
             btn.onclick = () => {
+                const turningOff = btn.classList.contains('active');
+
                 // Clear active state from all border anomaly buttons (in both sections)
                 Array.from(content.querySelectorAll('.border-anomaly-tool-btn')).forEach(b => {
                     b.classList.remove('active');
@@ -137,6 +139,16 @@ export function installBorderAnomaliesUI(editor) {
                         b.style.boxShadow = 'none';
                     }
                 });
+                if (editor._pendingBorderAnomaly) {
+                    editor.hexes[editor._pendingBorderAnomaly]?.polygon?.classList.remove('selected');
+                }
+                editor._pendingBorderAnomaly = null;
+
+                if (turningOff) {
+                    editor.setMode('none');
+                    return;
+                }
+
                 btn.classList.add('active');
                 if (drawStyle) {
                     btn.style.backgroundColor = `${drawStyle.color}40`; // More opaque when active
@@ -145,10 +157,6 @@ export function installBorderAnomaliesUI(editor) {
                 }
                 editor.setMode(bidirectional ? 'border-anomaly-double' : 'border-anomaly-single');
                 editor._selectedAnomalyType = anomalyId;
-                if (editor._pendingBorderAnomaly) {
-                    editor.hexes[editor._pendingBorderAnomaly]?.polygon?.classList.remove('selected');
-                }
-                editor._pendingBorderAnomaly = null;
             };
             return btn;
         }
@@ -200,6 +208,8 @@ export function installBorderAnomaliesUI(editor) {
             }
         });
         removeBtn.onclick = () => {
+            const turningOff = removeBtn.classList.contains('active');
+
             // Clear active state from all border anomaly buttons (in both sections)
             Array.from(content.querySelectorAll('.border-anomaly-tool-btn')).forEach(b => {
                 b.classList.remove('active');
@@ -211,6 +221,19 @@ export function installBorderAnomaliesUI(editor) {
                     b.style.boxShadow = 'none';
                 }
             });
+            removeBtn.style.backgroundColor = '#ff4444';
+            removeBtn.style.transform = 'translateY(0)';
+            removeBtn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+            if (editor._pendingBorderAnomaly) {
+                editor.hexes[editor._pendingBorderAnomaly]?.polygon?.classList.remove('selected');
+            }
+            editor._pendingBorderAnomaly = null;
+
+            if (turningOff) {
+                editor.setMode('none');
+                return;
+            }
+
             removeBtn.classList.add('active');
             removeBtn.style.backgroundColor = '#cc0000';
             removeBtn.style.transform = 'translateY(-1px)';
@@ -218,10 +241,6 @@ export function installBorderAnomaliesUI(editor) {
 
             editor.setMode('border-anomaly-remove');
             editor._selectedAnomalyType = 'REMOVE';
-            if (editor._pendingBorderAnomaly) {
-                editor.hexes[editor._pendingBorderAnomaly]?.polygon?.classList.remove('selected');
-            }
-            editor._pendingBorderAnomaly = null;
         };
 
         // Scripted border anomalies section

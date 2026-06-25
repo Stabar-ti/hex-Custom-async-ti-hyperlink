@@ -3,7 +3,43 @@
  */
 
 import { showPopup } from '../../ui/popupUI.js';
-import { LoreManager, LORE_RECEIVERS, LORE_TRIGGERS, LORE_PINGS, LORE_PERSISTANCE } from './loreCore.js';
+import {
+    LoreManager, LORE_RECEIVERS, LORE_TRIGGERS, LORE_PINGS, LORE_PERSISTANCE,
+    LORE_RECEIVER_LABELS, LORE_TRIGGER_LABELS, LORE_PERSISTANCE_LABELS
+} from './loreCore.js';
+import { EFFECT_VERBS, isChoiceGated, getDisplayFooter, validateLoreEffects } from './loreEffects.js';
+import {
+    openNumberPicker, openUnitPicker, openTokenPicker, openTargetPicker, openSwapPicker
+} from './loreEffectPickers.js';
+
+// Verbs whose footer-DSL semantics are "amount only" — clicking shows a quick -3..+3
+// (or positive-only) number picker instead of inserting a fixed template.
+const NUMERIC_PICKER_RANGES = {
+    tg: { min: -3, max: 3 },
+    fleet: { min: -3, max: 3 },
+    tactic: { min: -3, max: 3 },
+    strategy: { min: -3, max: 3 },
+    comms: { min: -3, max: 3 },
+    ac: { min: 1, max: 3 },
+    so: { min: 1, max: 3 }
+};
+
+// Verbs that resolve against a board target, so the "Target" control's @ref is meaningful for them.
+const TARGET_AWARE_VERBS = new Set(['unit', 'plastic', 'removeunit', 'token', 'removetoken']);
+
+// Per-prefix ("system" / "planet0" / ...) state for the optional @target redirect.
+const effectTargetState = new Map();
+
+/** Token Add/Remove should offer space tokens for a system holder, planet tokens/attachments
+ *  for a planet holder — following the @target redirect when one is set, since that's the
+ *  holder the effect will actually resolve against, not necessarily this lore's own location. */
+function resolveTokenScope(prefix) {
+    const target = effectTargetState.get(prefix);
+    if (target) {
+        return loreManager.editor.hexes[target] ? 'space' : 'planet';
+    }
+    return prefix === 'system' ? 'space' : 'planet';
+}
 
 let loreManager = null;
 
@@ -292,14 +328,12 @@ function createLoreForm(type, planetIndex = null) {
     footerTextLabel.style.color = '#fff';
     footerTextLabel.style.fontWeight = 'bold';
     
-    // Quick insert buttons
-    const loreType = planetIndex !== null ? 'planet' : 'system';
-    const quickInsertButtons = createQuickInsertButtons(`${prefix}FooterText`, loreType, '', null);
-    
-    const footerInput = document.createElement('input');
-    footerInput.type = 'text';
+    const footerInput = document.createElement('textarea');
+    footerInput.rows = 3;
     footerInput.id = `${prefix}FooterText`;
     footerInput.style.width = '100%';
+    footerInput.style.resize = 'vertical';
+    footerInput.style.fontFamily = 'inherit';
     footerInput.style.padding = '6px';
     footerInput.style.border = '1px solid #666';
     footerInput.style.borderRadius = '4px';
@@ -349,8 +383,12 @@ function createLoreForm(type, planetIndex = null) {
         } else {
             footerTextCounter.style.color = '#888';
         }
+        updateEffectsPreview(prefix);
     });
-    
+
+    // Effects builder (mirrors the bot's "!verb args" footer DSL)
+    const effectsSection = createEffectsSection(prefix);
+
     // Options row
     const optionsRow = document.createElement('div');
     optionsRow.style.display = 'flex';
@@ -358,16 +396,16 @@ function createLoreForm(type, planetIndex = null) {
     optionsRow.style.flexWrap = 'wrap';
     
     // Receiver
-    optionsRow.appendChild(createSelectField(`${prefix}Receiver`, 'Receiver:', LORE_RECEIVERS));
-    
+    optionsRow.appendChild(createSelectField(`${prefix}Receiver`, 'Receiver:', LORE_RECEIVERS, LORE_RECEIVER_LABELS));
+
     // Trigger
-    optionsRow.appendChild(createSelectField(`${prefix}Trigger`, 'Trigger:', LORE_TRIGGERS));
-    
+    optionsRow.appendChild(createSelectField(`${prefix}Trigger`, 'Trigger:', LORE_TRIGGERS, LORE_TRIGGER_LABELS));
+
     // Ping
     optionsRow.appendChild(createSelectField(`${prefix}Ping`, 'Ping:', LORE_PINGS));
-    
+
     // Persistence
-    optionsRow.appendChild(createSelectField(`${prefix}Persistance`, 'Persistence:', LORE_PERSISTANCE));
+    optionsRow.appendChild(createSelectField(`${prefix}Persistance`, 'Persistence:', LORE_PERSISTANCE, LORE_PERSISTANCE_LABELS));
     
     // Action buttons
     const buttonRow = document.createElement('div');
@@ -424,26 +462,33 @@ function createLoreForm(type, planetIndex = null) {
     form.appendChild(loreTextArea);
     form.appendChild(loreTextCounter);
     form.appendChild(footerTextLabel);
-    form.appendChild(quickInsertButtons);
     form.appendChild(footerInput);
     form.appendChild(footerTextCounter);
+    form.appendChild(effectsSection);
     form.appendChild(optionsRow);
     form.appendChild(buttonRow);
+
+    // Receiver affects which warnings apply (e.g. !choice is a no-op for WINNER/LOSER/GM)
+    const receiverSelect = optionsRow.querySelector(`#${prefix}Receiver`);
+    if (receiverSelect) {
+        receiverSelect.addEventListener('change', () => updateEffectsPreview(prefix));
+    }
+    updateEffectsPreview(prefix);
     
     return form;
 }
 
-function createSelectField(id, label, options) {
+function createSelectField(id, label, options, labels = null) {
     const container = document.createElement('div');
     container.style.flex = '1';
-    
+
     const labelEl = document.createElement('label');
     labelEl.textContent = label;
     labelEl.style.display = 'block';
     labelEl.style.marginBottom = '4px';
     labelEl.style.color = '#fff';
     labelEl.style.fontSize = '0.9em';
-    
+
     const select = document.createElement('select');
     select.id = id;
     select.style.width = '100%';
@@ -452,158 +497,209 @@ function createSelectField(id, label, options) {
     select.style.borderRadius = '4px';
     select.style.backgroundColor = '#2c3e50';
     select.style.color = '#fff';
-    
+
     options.forEach(option => {
         const optionEl = document.createElement('option');
         optionEl.value = option;
-        optionEl.textContent = option;
+        optionEl.textContent = labels && labels[option] ? labels[option] : option;
         select.appendChild(optionEl);
     });
-    
+
     container.appendChild(labelEl);
     container.appendChild(select);
-    
+
     return container;
 }
 
-function createQuickInsertButtons(targetInputId, type = 'system', hexLabel = '', planetData = null) {
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.display = 'flex';
-    buttonContainer.style.gap = '4px';
-    buttonContainer.style.marginBottom = '4px';
-    
-    // Define different button sets for system vs planet lore
-    const systemButtons = [
-        { name: 'token', text: `/add_token tile_name:${hexLabel} token:` },
-        { name: 'plastic', text: `/add_units tile_name:${hexLabel} unit_names:` },
-        { name: 'tg', text: '/player stats trade_goods:' },
-        { name: 'commodities', text: '/player stats commodities:' }
-    ];
-    
-    const planetName = planetData && (planetData.name || planetData.planetID || planetData.id) || 'planet_name';
-    const cleanPlanetName = planetName.replace(/\s+/g, ''); // Remove spaces for command format
-    const planetButtons = [
-        { name: 'token', text: `/add_token tile_name:${hexLabel} planet:${cleanPlanetName} token:` },
-        { name: 'plastic', text: `/add_units tile_name:${hexLabel} unit_names:` },
-        { name: 'tg', text: '/player stats trade_goods:' },
-        { name: 'commodities', text: '/player stats commodities:' }
-    ];
-    
-    const buttons = type === 'planet' ? planetButtons : systemButtons;
-    
-    buttons.forEach(button => {
+/**
+ * Builds the "Effects" panel below a footer textarea: buttons that insert correctly-shaped
+ * "!verb args" lines (matching the bot's LoreEffects engine), a Choice-gate checkbox that
+ * manages the "!choice" marker line, a live validation list, and a player-facing preview.
+ */
+function createEffectsSection(prefix) {
+    const section = document.createElement('div');
+    section.style.cssText = 'margin-bottom:10px;padding:10px;border:1px solid #555;border-radius:6px;background:#2c3e50';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px';
+
+    const title = document.createElement('span');
+    title.textContent = 'Effects (bot commands)';
+    title.style.cssText = 'font-size:0.85em;font-weight:bold;color:#9b59b6';
+    header.appendChild(title);
+
+    const gateLabel = document.createElement('label');
+    gateLabel.id = `${prefix}ChoiceGateLabel`;
+    gateLabel.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:0.85em;color:#ddd;cursor:pointer';
+    gateLabel.title = 'Sends each recipient independent Accept/Reject buttons; effect lines tagged "accept:"/"reject:" fire only on that branch.';
+    const gateCheckbox = document.createElement('input');
+    gateCheckbox.type = 'checkbox';
+    gateCheckbox.id = `${prefix}ChoiceGate`;
+    gateCheckbox.addEventListener('change', () => toggleChoiceGate(prefix, gateCheckbox.checked));
+    gateLabel.appendChild(gateCheckbox);
+    gateLabel.appendChild(document.createTextNode('Gate behind Accept/Reject choice'));
+    header.appendChild(gateLabel);
+
+    const insertModeSelect = document.createElement('select');
+    insertModeSelect.id = `${prefix}InsertMode`;
+    insertModeSelect.style.cssText = 'padding:3px 6px;font-size:0.8em;border:1px solid #666;border-radius:4px;background:#34495e;color:#fff';
+    [['always', 'Insert as: Always'], ['accept', 'Insert as: On Accept'], ['reject', 'Insert as: On Reject']]
+        .forEach(([value, text]) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = text;
+            insertModeSelect.appendChild(opt);
+        });
+    header.appendChild(insertModeSelect);
+
+    const targetBtn = document.createElement('button');
+    targetBtn.type = 'button';
+    targetBtn.id = `${prefix}TargetBtn`;
+    targetBtn.textContent = '🎯 Target: none';
+    targetBtn.title = 'Redirect Add/Remove Unit, Token, and Remove Token effects at a specific system or planet (@target). Leave as "none" to affect the lore\'s own system/planet.';
+    targetBtn.style.cssText = 'padding:3px 8px;font-size:0.8em;border:1px solid #666;border-radius:4px;' +
+        'background:#34495e;color:#ddd;cursor:pointer';
+    targetBtn.onclick = async (e) => {
+        e.preventDefault();
+        const choice = await openTargetPicker(targetBtn, loreManager.editor);
+        if (choice === null) return;
+        effectTargetState.set(prefix, choice || null);
+        targetBtn.textContent = choice ? `🎯 Target: ${choice}` : '🎯 Target: none';
+    };
+    header.appendChild(targetBtn);
+
+    section.appendChild(header);
+
+    const buttonRow = document.createElement('div');
+    buttonRow.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px';
+    EFFECT_VERBS.forEach(({ verb, label, template }) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.textContent = button.name;
-        btn.style.cssText = `
-            padding: 2px 6px;
-            font-size: 0.8em;
-            border: 1px solid #666;
-            border-radius: 3px;
-            background: #3498db;
-            color: white;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-        `;
-        
+        btn.textContent = label;
+        btn.title = `!${template}`;
+        btn.style.cssText = 'padding:3px 8px;font-size:0.78em;border:1px solid #666;border-radius:3px;' +
+            'background:#3498db;color:#fff;cursor:pointer;transition:background-color 0.2s ease';
         btn.onmouseover = () => btn.style.backgroundColor = '#2980b9';
         btn.onmouseout = () => btn.style.backgroundColor = '#3498db';
-        
-        btn.onclick = (e) => {
+        btn.onclick = async (e) => {
             e.preventDefault();
-            const targetInput = document.getElementById(targetInputId);
-            if (targetInput) {
-                // Add the text to the input
-                const currentValue = targetInput.value;
-                const newValue = currentValue + (currentValue ? ' ' : '') + button.text;
-                targetInput.value = newValue;
-                
-                // Focus the input and set cursor at the end
-                targetInput.focus();
-                targetInput.setSelectionRange(newValue.length, newValue.length);
+
+            let args = null;
+            if (NUMERIC_PICKER_RANGES[verb]) {
+                const n = await openNumberPicker(btn, NUMERIC_PICKER_RANGES[verb]);
+                if (n == null) return;
+                args = (verb === 'ac' || verb === 'so') ? `${n}` : (n > 0 ? `+${n}` : `${n}`);
+            } else if (verb === 'unit' || verb === 'plastic' || verb === 'removeunit') {
+                args = await openUnitPicker(btn, verb === 'removeunit' ? 'remove' : 'add');
+                if (args == null) return;
+            } else if (verb === 'token' || verb === 'removetoken') {
+                args = await openTokenPicker(btn, resolveTokenScope(prefix));
+                if (args == null) return;
+            } else if (verb === 'swap') {
+                const pair = await openSwapPicker(btn, loreManager.editor);
+                if (!pair) return;
+                args = `${pair[0]} ${pair[1]}`;
             }
+
+            const target = TARGET_AWARE_VERBS.has(verb) ? effectTargetState.get(prefix) : null;
+            const body = args !== null ? `${verb} ${args}` : template;
+            insertEffectSnippet(prefix, target ? `${body} @${target}` : body);
         };
-        
-        buttonContainer.appendChild(btn);
+        buttonRow.appendChild(btn);
     });
-    
-    return buttonContainer;
+    section.appendChild(buttonRow);
+
+    const warningsDiv = document.createElement('div');
+    warningsDiv.id = `${prefix}EffectWarnings`;
+    warningsDiv.style.cssText = 'display:none;font-size:0.8em;color:#f39c12;margin-bottom:8px;line-height:1.5';
+    section.appendChild(warningsDiv);
+
+    const previewLabel = document.createElement('div');
+    previewLabel.textContent = 'Preview — what players will see:';
+    previewLabel.style.cssText = 'font-size:0.78em;color:#aaa;margin-bottom:3px';
+    section.appendChild(previewLabel);
+
+    const previewDiv = document.createElement('div');
+    previewDiv.id = `${prefix}FooterPreview`;
+    previewDiv.style.cssText = 'font-size:0.85em;font-style:italic;color:#ccc;padding:6px;' +
+        'border:1px dashed #555;border-radius:4px;background:#1c2733;white-space:pre-wrap;min-height:1.4em';
+    section.appendChild(previewDiv);
+
+    return section;
 }
 
-function updateQuickInsertButtons(hex) {
-    // Update system buttons
-    const systemFooterInput = document.querySelector('#systemFooterText');
-    let systemButtons = [];
-    if (systemFooterInput) {
-        const buttonContainer = systemFooterInput.previousElementSibling;
-        if (buttonContainer && buttonContainer.style.display === 'flex') {
-            systemButtons = buttonContainer.children;
+function getInsertTag(prefix) {
+    const select = document.getElementById(`${prefix}InsertMode`);
+    if (!select) return '';
+    return select.value === 'accept' ? 'accept:' : select.value === 'reject' ? 'reject:' : '';
+}
+
+function insertEffectSnippet(prefix, template) {
+    const footerInput = document.getElementById(`${prefix}FooterText`);
+    if (!footerInput) return;
+
+    const line = `${getInsertTag(prefix)}!${template}`;
+    const current = footerInput.value;
+    footerInput.value = current + (current && !current.endsWith('\n') ? '\n' : '') + line;
+    footerInput.dispatchEvent(new Event('input', { bubbles: true }));
+    footerInput.focus();
+}
+
+function toggleChoiceGate(prefix, enabled) {
+    const footerInput = document.getElementById(`${prefix}FooterText`);
+    if (!footerInput) return;
+
+    const lines = footerInput.value.split('\n');
+    const hasMarker = lines.some(l => l.trim().toLowerCase() === '!choice');
+    if (enabled && !hasMarker) {
+        footerInput.value = footerInput.value ? `!choice\n${footerInput.value}` : '!choice';
+    } else if (!enabled && hasMarker) {
+        footerInput.value = lines.filter(l => l.trim().toLowerCase() !== '!choice').join('\n');
+    }
+    footerInput.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/** Refreshes the choice checkbox, validation warnings, and player-facing preview for one lore form. */
+function updateEffectsPreview(prefix) {
+    const footerInput = document.getElementById(`${prefix}FooterText`);
+    if (!footerInput) return;
+
+    const receiverSelect = document.getElementById(`${prefix}Receiver`);
+    const gateCheckbox = document.getElementById(`${prefix}ChoiceGate`);
+    const warningsDiv = document.getElementById(`${prefix}EffectWarnings`);
+    const previewDiv = document.getElementById(`${prefix}FooterPreview`);
+
+    const footerText = footerInput.value;
+    const receiver = receiverSelect ? receiverSelect.value : 'CURRENT';
+    const gateMeaningless = receiver === 'WINNER' || receiver === 'LOSER' || receiver === 'GM';
+
+    if (gateCheckbox) {
+        gateCheckbox.checked = isChoiceGated(footerText);
+        gateCheckbox.disabled = gateMeaningless;
+    }
+    const gateLabel = document.getElementById(`${prefix}ChoiceGateLabel`);
+    if (gateLabel) {
+        gateLabel.style.opacity = gateMeaningless ? '0.5' : '1';
+        gateLabel.style.cursor = gateMeaningless ? 'default' : 'pointer';
+        gateLabel.title = gateMeaningless
+            ? `"!choice" has no effect when the receiver is ${LORE_RECEIVER_LABELS[receiver] || receiver} — that receiver never gets offered the choice.`
+            : 'Sends each recipient independent Accept/Reject buttons; effect lines tagged "accept:"/"reject:" fire only on that branch.';
+    }
+
+    if (warningsDiv) {
+        const problems = validateLoreEffects({ footerText, receiver });
+        if (problems.length === 0) {
+            warningsDiv.style.display = 'none';
+            warningsDiv.innerHTML = '';
+        } else {
+            warningsDiv.style.display = 'block';
+            warningsDiv.innerHTML = problems.map(p => `⚠️ ${p}`).join('<br>');
         }
     }
 
-    if (systemButtons.length > 0) {
-        const buttonTexts = [
-            `/add_token tile_name:${hex.label} token:`,
-            `/add_units tile_name:${hex.label} unit_names:`,
-            '/player stats trade_goods:',
-            '/player stats commodities:'
-        ];
-        Array.from(systemButtons).forEach((btn, index) => {
-            if (index < buttonTexts.length) {
-                btn.onclick = (e) => {
-                    e.preventDefault();
-                    const targetInput = document.getElementById('systemFooterText');
-                    if (targetInput) {
-                        const currentValue = targetInput.value;
-                        const newValue = currentValue + (currentValue ? ' ' : '') + buttonTexts[index];
-                        targetInput.value = newValue;
-                        targetInput.focus();
-                        targetInput.setSelectionRange(newValue.length, newValue.length);
-                    }
-                };
-            }
-        });
-    }
-
-    // Update planet buttons
-    const planetCount = hex.planets?.length || 0;
-    for (let i = 0; i < planetCount; i++) {
-        const planet = hex.planets[i];
-        const planetName = (planet && (planet.name || planet.planetID || planet.id)) || `planet_${i+1}`;
-        const cleanPlanetName = planetName.replace(/\s+/g, '');
-
-        const planetFooterInput = document.querySelector(`#planet${i}FooterText`);
-        let planetButtons = [];
-        if (planetFooterInput) {
-            const buttonContainer = planetFooterInput.previousElementSibling;
-            if (buttonContainer && buttonContainer.style.display === 'flex') {
-                planetButtons = buttonContainer.children;
-            }
-        }
-
-        if (planetButtons.length > 0) {
-            const buttonTexts = [
-                `/add_token tile_name:${hex.label} planet:${cleanPlanetName} token:`,
-                `/add_units tile_name:${hex.label} unit_names:`,
-                '/player stats trade_goods:',
-                '/player stats commodities:'
-            ];
-            Array.from(planetButtons).forEach((btn, index) => {
-                if (index < buttonTexts.length) {
-                    btn.onclick = (e) => {
-                        e.preventDefault();
-                        const targetInput = document.getElementById(`planet${i}FooterText`);
-                        if (targetInput) {
-                            const currentValue = targetInput.value;
-                            const newValue = currentValue + (currentValue ? ' ' : '') + buttonTexts[index];
-                            targetInput.value = newValue;
-                            targetInput.focus();
-                            targetInput.setSelectionRange(newValue.length, newValue.length);
-                        }
-                    };
-                }
-            });
-        }
+    if (previewDiv) {
+        const display = getDisplayFooter(footerText);
+        previewDiv.textContent = display || '(nothing shown to players — only bot effects)';
     }
 }
 
@@ -635,6 +731,28 @@ function createActionButtonsSection() {
     importBtn.style.cursor = 'pointer';
     importBtn.onclick = () => importLore();
     
+    const exportBotBtn = document.createElement('button');
+    exportBotBtn.textContent = 'Export Lore (Bot format)';
+    exportBotBtn.title = 'Downloads the bot\'s wire format (target;loreText;footerText;receiver;trigger;ping;persistance|...) for pasting into the bot\'s GM Lore Import.';
+    exportBotBtn.style.padding = '8px 16px';
+    exportBotBtn.style.border = '1px solid #27ae60';
+    exportBotBtn.style.borderRadius = '4px';
+    exportBotBtn.style.backgroundColor = '#2c3e50';
+    exportBotBtn.style.color = '#27ae60';
+    exportBotBtn.style.cursor = 'pointer';
+    exportBotBtn.onclick = () => exportLoreBotFormat();
+
+    const importBotBtn = document.createElement('button');
+    importBotBtn.textContent = 'Import Lore (Bot format)';
+    importBotBtn.title = 'Loads lore from the bot\'s wire format text (e.g. exported from the bot\'s GM Lore Export button).';
+    importBotBtn.style.padding = '8px 16px';
+    importBotBtn.style.border = '1px solid #f39c12';
+    importBotBtn.style.borderRadius = '4px';
+    importBotBtn.style.backgroundColor = '#2c3e50';
+    importBotBtn.style.color = '#f39c12';
+    importBotBtn.style.cursor = 'pointer';
+    importBotBtn.onclick = () => importLoreBotFormat();
+
     const clearAllBtn = document.createElement('button');
     clearAllBtn.textContent = 'Clear All Lore';
     clearAllBtn.style.padding = '8px 16px';
@@ -644,11 +762,13 @@ function createActionButtonsSection() {
     clearAllBtn.style.color = '#fff';
     clearAllBtn.style.cursor = 'pointer';
     clearAllBtn.onclick = () => clearAllLore();
-    
+
     section.appendChild(exportBtn);
     section.appendChild(importBtn);
+    section.appendChild(exportBotBtn);
+    section.appendChild(importBotBtn);
     section.appendChild(clearAllBtn);
-    
+
     return section;
 }
 
@@ -677,11 +797,14 @@ function selectHex(hexLabel) {
     // Update planet lore section based on available planets
     updatePlanetLoreSection(hex);
     
-    // Update quick insert buttons with hex and planet data (with slight delay to ensure DOM is ready)
+    // Sync effects panels (choice checkbox, warnings, preview) with the loaded lore data
     setTimeout(() => {
-        updateQuickInsertButtons(hex);
+        updateEffectsPreview('system');
+        for (let i = 0; i < (hex.planets?.length || 0); i++) {
+            updateEffectsPreview(`planet${i}`);
+        }
     }, 50);
-    
+
     updateHexStatus(`Selected hex ${hexLabel} - ${hex.planets?.length || 0} planets`);
 }
 
@@ -1008,7 +1131,8 @@ function pasteLore(type, planetIndex) {
     document.getElementById(`${prefix}Trigger`).value = sourceData.trigger;
     document.getElementById(`${prefix}Ping`).value = sourceData.ping;
     document.getElementById(`${prefix}Persistance`).value = sourceData.persistance;
-    
+    updateEffectsPreview(prefix);
+
     if (type === 'system') {
         updateHexStatus(`Pasted system lore to hex ${hexLabel}`);
     } else {
@@ -1065,6 +1189,48 @@ function importLore() {
     input.click();
 }
 
+function exportLoreBotFormat() {
+    const wireString = loreManager.exportWireFormat();
+    if (!wireString) {
+        alert('No lore data to export');
+        return;
+    }
+
+    const blob = new Blob([wireString], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lore_data_bot.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    updateHexStatus('Lore data exported in bot format');
+}
+
+function importLoreBotFormat() {
+    const wireString = prompt(
+        'Paste the bot\'s lore wire format below.\n' +
+        'Format: target;loreText;footerText;receiver;trigger;ping;persistance, entries separated by "|".\n' +
+        'System lore targets are tile positions (e.g. "104"); planet lore targets are planet identifiers.'
+    );
+    if (wireString === null) return;
+
+    const result = loreManager.importWireFormat(wireString);
+    let message = `Imported ${result.systemCount} system + ${result.planetCount} planet lore entries`;
+    if (result.skipped.length > 0) {
+        message += ` (${result.skipped.length} skipped — target not found on this map)`;
+    }
+    updateHexStatus(message);
+
+    const currentHex = document.getElementById('hexLabelInput').value.trim();
+    if (currentHex) {
+        selectHex(currentHex);
+    }
+}
+
 function clearAllLore() {
     if (confirm('Are you sure you want to clear ALL lore data from the map? This cannot be undone.')) {
         const clearedCount = loreManager.clearAllLore();
@@ -1099,7 +1265,8 @@ function showLoreHelp() {
                         or click the <em>Add Lore</em> button in the toolbar and click a hex on the map.</li>
                     <li><strong>Fill in the lore text</strong> for the system and/or each planet.
                         The <em>Lore Text</em> field is the narrative shown to players.
-                        The <em>Footer Text</em> field holds optional bot commands (e.g. <code>/add_token</code>).</li>
+                        The <em>Footer Text</em> field holds optional flavor text plus bot effect commands
+                        (e.g. <code>!tg +2</code>) inserted via the Effects panel below it.</li>
                     <li><strong>Configure the options</strong> for each lore entry:
                         <ul style="margin-top:4px">
                             <li><strong>Receiver</strong> — who receives the message:
@@ -1114,11 +1281,42 @@ function showLoreHelp() {
                     <li><strong>Save</strong> each entry with the <em>Save</em> button. Use <em>Clear</em> to remove lore from a slot.</li>
                 </ol>
 
-                <h4 style="color:#9b59b6">Quick-Insert Buttons</h4>
+                <h4 style="color:#9b59b6">Effects (bot commands)</h4>
                 <p style="margin-top:0">
-                    Below each Footer Text field are quick-insert buttons that pre-fill common bot command prefixes
-                    (<code>/add_token</code>, <code>/add_units</code>, <code>/player stats</code>) with the correct
-                    tile name and planet name already filled in.
+                    Below each Footer Text field is an <em>Effects</em> panel with one button per bot effect
+                    (Trade Goods, Fleet/Tactic/Strategy CC, Commodities, Action Cards, Add/Remove Units,
+                    Add/Remove Token, Swap Systems, Grant VP, Draw Secret Objective). Clicking a button inserts
+                    a correctly formatted <code>!verb args</code> line into the footer — these lines are read by
+                    the bot and are never shown to players. Anything else you type in the footer <em>is</em> shown
+                    to players as flavor text, so the <strong>Preview</strong> box under the Effects panel always
+                    shows exactly what they'll see.
+                </p>
+                <p style="margin-top:0">
+                    Most effect buttons open a small picker instead of inserting a fixed value:
+                    Trade Goods/Fleet/Tactic/Strategy CC/Commodities/Action Cards/Secret Objective show a
+                    quick amount picker; Add/Remove Units shows owner, count, and unit type (Space Dock and
+                    PDS also require a planet); Add/Remove Token searches the same token list used by the
+                    map's Token module — system lore only offers space tokens (anomalies, wormholes, frontier,
+                    etc.), planet lore only offers planet tokens/attachments, since that's all the matching
+                    holder can ever accept; Swap Systems asks for the two sectors in two clicks. Pickers close
+                    as soon as you choose — nothing is inserted until then.
+                </p>
+                <p style="margin-top:0">
+                    The <strong>🎯 Target</strong> button lets Add/Remove Units, Add Token, and Remove Token
+                    redirect at a different system or planet (an <code>@target</code> reference) instead of the
+                    one this lore entry is attached to — useful for lore on one planet that grants units
+                    elsewhere. Leave it on "none" to affect the lore's own location.
+                </p>
+                <p style="margin-top:0">
+                    Check <strong>Gate behind Accept/Reject choice</strong> to require the recipient to accept the
+                    lore before any effects apply (adds a <code>!choice</code> marker line). Once gated, use the
+                    <em>Insert as</em> dropdown before clicking an effect button to mark it <em>On Accept</em> or
+                    <em>On Reject</em> instead of Always — rejecting then grants only the reject-tagged effects (if any).
+                </p>
+                <p style="margin-top:0">
+                    Warnings below the effects buttons mirror what the bot itself will flag when this lore is
+                    saved (e.g. unknown effect, missing/invalid arguments, an Accept/Reject tag with no
+                    <code>!choice</code> marker) — fix them here rather than discovering it in a live game.
                 </p>
 
                 <h4 style="color:#9b59b6">Copy &amp; Paste Lore (within the popup)</h4>
@@ -1172,6 +1370,13 @@ function showLoreHelp() {
                     Use <em>Export Lore</em> to download all lore data as a JSON file.
                     Use <em>Import Lore</em> to load it back — useful for sharing lore between maps or restoring a backup.
                     Lore is also saved as part of the full map state when you export the map normally.
+                </p>
+                <p style="margin-top:0">
+                    <em>Export Lore (Bot format)</em> / <em>Import Lore (Bot format)</em> convert to and from the
+                    bot's own wire format (<code>target;loreText;footerText;receiver;trigger;ping;persistance</code>,
+                    entries separated by <code>|</code>) so you can move lore directly between this editor and the
+                    bot's GM Lore import/export. System lore targets are tile positions; planet lore targets are
+                    planet identifiers — entries whose target isn't found on the current map are skipped and counted.
                 </p>
 
             </div>

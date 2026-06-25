@@ -1,5 +1,6 @@
 // loreOverlay.js - Visual indicators for systems and planets with lore
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
+import { getDisplayFooter, getEffectLines, isChoiceGated } from '../modules/Lore/loreEffects.js';
 
 class LoreOverlay {
     constructor(editor) {
@@ -170,12 +171,7 @@ class LoreOverlay {
                 t.textContent = hex.systemLore.loreText.trim();
                 tip.appendChild(t);
             }
-            if (hex.systemLore.footerText?.trim()) {
-                const f = document.createElement('div');
-                f.style.cssText = 'font-style:italic;color:#bbb;margin-bottom:4px';
-                f.textContent = hex.systemLore.footerText.trim();
-                tip.appendChild(f);
-            }
+            this._appendFooterPreview(tip, hex.systemLore.footerText);
             mkMeta(hex.systemLore, tip);
             tip.appendChild(mkCopyBtn('Copy System Lore', () => this._copyLore(hexLabel, 'system', null)));
         }
@@ -203,12 +199,7 @@ class LoreOverlay {
                     t.textContent = lore.loreText.trim();
                     tip.appendChild(t);
                 }
-                if (lore.footerText?.trim()) {
-                    const f = document.createElement('div');
-                    f.style.cssText = 'font-style:italic;color:#bbb;margin-bottom:4px';
-                    f.textContent = lore.footerText.trim();
-                    tip.appendChild(f);
-                }
+                this._appendFooterPreview(tip, lore.footerText);
                 mkMeta(lore, tip);
                 tip.appendChild(mkCopyBtn(`Copy ${planetName} Lore`, () => this._copyLore(hexLabel, 'planet', planetIdx)));
             });
@@ -225,6 +216,35 @@ class LoreOverlay {
                 ? `Paste System Lore (from ${cb.sourceLabel})`
                 : `Paste Planet Lore (from ${cb.sourceLabel})`;
             tip.appendChild(mkCopyBtn(pasteLabel, () => this._pasteLore(hexLabel)));
+        }
+    }
+
+    /** Shows only what players actually see (strips !effect lines and the !choice marker), plus an effects badge. */
+    _appendFooterPreview(tip, footerText) {
+        const display = (footerText || '').trim();
+        const displayOnly = getDisplayFooter(footerText);
+        const effectCount = getEffectLines(footerText).length;
+        const gated = isChoiceGated(footerText);
+
+        if (displayOnly) {
+            const f = document.createElement('div');
+            f.style.cssText = 'font-style:italic;color:#bbb;margin-bottom:4px';
+            f.textContent = displayOnly;
+            tip.appendChild(f);
+        }
+
+        if (effectCount > 0) {
+            const badge = document.createElement('div');
+            badge.style.cssText = 'font-size:11px;color:#7fd3ff;margin-bottom:4px';
+            badge.textContent = `⚙ ${effectCount} bot effect${effectCount > 1 ? 's' : ''}` +
+                (gated ? ' — gated behind Accept/Reject' : '');
+            tip.appendChild(badge);
+        } else if (display && !displayOnly) {
+            // Footer has content but it's entirely machine syntax (e.g. just "!choice")
+            const note = document.createElement('div');
+            note.style.cssText = 'font-size:11px;color:#888;margin-bottom:4px';
+            note.textContent = '(footer is bot-only — nothing shown to players)';
+            tip.appendChild(note);
         }
     }
 

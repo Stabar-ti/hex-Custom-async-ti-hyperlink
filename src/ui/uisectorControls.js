@@ -215,6 +215,8 @@ function createSectorControlsContent(editor) {
     btn.style.overflow = 'hidden';
     btn.style.flex = 'none'; // Prevent flex growth
     btn.addEventListener('click', (e) => {
+      const turningOff = e.currentTarget.classList.contains('active');
+
       // Clear active state from all buttons in the sector controls
       container.querySelectorAll('.mode-button').forEach(btn => {
         btn.classList.remove('active');
@@ -231,6 +233,12 @@ function createSectorControlsContent(editor) {
       if (typeof window.deactivateTokenMode === 'function') {
         window.deactivateTokenMode();
       }
+
+      if (turningOff) {
+        editor.setMode('none');
+        return;
+      }
+
       // Set active state on clicked button (like wormhole popup)
       e.currentTarget.classList.add('active');
       e.currentTarget.style.background = '#666';
@@ -333,12 +341,20 @@ function createSectorControlsContent(editor) {
           btn.style.whiteSpace = 'nowrap';
           if (color) { btn.style.background = color; btn.style.color = '#333'; }
           btn.addEventListener('click', (e) => {
+            const turningOff = e.currentTarget.classList.contains('active');
             content.querySelectorAll('.mode-button').forEach(b => {
               b.classList.remove('active');
               b.style.background = b._baseColor || '';
               b.style.color = b._baseColor ? '#333' : '';
               b.style.fontWeight = 'bold';
             });
+            if (turningOff) {
+              drawHelpersBtn.classList.remove('active');
+              drawHelpersBtn.style.background = '';
+              drawHelpersBtn.style.color = '';
+              editor.setMode('none');
+              return;
+            }
             e.currentTarget.classList.add('active');
             e.currentTarget.style.background = '#666';
             e.currentTarget.style.color = '#fff';
@@ -392,6 +408,7 @@ function createSectorControlsContent(editor) {
           btn.style.textOverflow = 'ellipsis';
           btn.style.whiteSpace = 'nowrap';
           btn.addEventListener('click', (e) => {
+            const turningOff = e.currentTarget.classList.contains('active');
             // Clear active from all buttons in the popup
             content.querySelectorAll('.mode-button').forEach(b => {
               b.classList.remove('active');
@@ -399,6 +416,13 @@ function createSectorControlsContent(editor) {
               b.style.color = '';
               b.style.fontWeight = 'bold';
             });
+            if (turningOff) {
+              drawHelpersBtn.classList.remove('active');
+              drawHelpersBtn.style.background = '';
+              drawHelpersBtn.style.color = '';
+              editor.setMode('none');
+              return;
+            }
             // Set active state on clicked button
             e.currentTarget.classList.add('active');
             e.currentTarget.style.background = '#666';
@@ -745,6 +769,7 @@ function createSectorControlsContent(editor) {
           btn.className = 'mode-button btn-wormhole';
           btn.style.backgroundColor = color;
           btn.addEventListener('click', (e) => {
+            const turningOff = e.currentTarget.classList.contains('active');
             // Clear active from wormhole popup buttons
             content.querySelectorAll('.mode-button').forEach(b => {
               b.classList.remove('active');
@@ -752,6 +777,13 @@ function createSectorControlsContent(editor) {
               b.style.color = '';
               b.style.fontWeight = '';
             });
+            if (turningOff) {
+              wormholesBtn.classList.remove('active');
+              wormholesBtn.style.background = '';
+              wormholesBtn.style.color = '';
+              editor.setMode('none');
+              return;
+            }
             // Set active state on clicked button (like original wormhole popup)
             e.currentTarget.classList.add('active');
             e.currentTarget.style.background = '#666';
