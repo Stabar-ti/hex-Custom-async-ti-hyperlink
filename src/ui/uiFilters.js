@@ -550,9 +550,32 @@ export function sortSystemsByColumn(systems, column, direction) {
 }
 
 /**
- * Generate table row HTML for a system with proper data attributes
+ * Escapes HTML special characters so untrusted text can be safely
+ * mixed with <mark> tags via innerHTML.
  */
-export function generateSystemRow(system) {
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Wraps every case-insensitive occurrence of any highlightTokens entry
+ * in <mark> tags. Returns escaped, safe HTML.
+ */
+function highlightMatches(text, highlightTokens) {
+  const safe = escapeHtml(text || '');
+  if (!highlightTokens || !highlightTokens.length) return safe;
+  const pattern = highlightTokens
+    .filter(Boolean)
+    .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  if (!pattern) return safe;
+  return safe.replace(new RegExp(`(${pattern})`, 'gi'), '<mark>$1</mark>');
+}
+
+export function generateSystemRow(system, highlightTokens = []) {
   const row = document.createElement('tr');
   row.style.borderBottom = '1px solid #444';
   row.style.height = '36px'; // Increased height for larger content
@@ -601,12 +624,12 @@ export function generateSystemRow(system) {
         break;
 
       case 'id':
-        td.textContent = system.id;
+        td.innerHTML = highlightMatches(system.id != null ? String(system.id) : '', highlightTokens);
         td.style.fontFamily = 'monospace';
         break;
 
       case 'name':
-        td.textContent = system.name || '';
+        td.innerHTML = highlightMatches(system.name || '', highlightTokens);
         td.style.maxWidth = '150px';
         td.style.overflow = 'hidden';
         td.style.textOverflow = 'ellipsis';

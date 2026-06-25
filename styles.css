@@ -145,6 +145,18 @@ body {
   cursor: pointer;
 }
 
+.system-table tr.keyboard-active {
+  outline: 2px solid #ffd700;
+  outline-offset: -2px;
+}
+
+.system-table mark {
+  background: #ffd700;
+  color: #1a1a1a;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
 .system-table td b {
   font-family: monospace;
 }

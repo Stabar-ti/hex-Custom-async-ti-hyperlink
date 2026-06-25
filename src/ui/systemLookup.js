@@ -44,6 +44,10 @@ export default async function initSystemLookup(editor) {
     let sortColumn = null;
     let sortDirection = null;
 
+    // Keyboard navigation state: index into the currently rendered rows
+    let currentRenderedRows = [];
+    let activeRowIndex = -1;
+
     /**
      * Creates and shows the system lookup popup
      */
@@ -98,15 +102,40 @@ export default async function initSystemLookup(editor) {
         randomDiv.appendChild(uniqueLabel);
         randomDiv.appendChild(randomBtn);
 
-        // Create search section
+        // Create search section (input + clear button, wrapped for positioning)
+        const searchWrapper = document.createElement('div');
+        searchWrapper.style.position = 'relative';
+        searchWrapper.style.marginBottom = '8px';
+
         searchInput = document.createElement('input');
         searchInput.type = 'text';
         searchInput.id = 'systemSearch';
-        searchInput.placeholder = 'Type ID or name…';
+        searchInput.placeholder = 'Type ID, name, planet, or tech… (space-separate multiple terms)';
         searchInput.className = 'modal-input';
         searchInput.style.width = '100%';
-        searchInput.style.marginBottom = '8px';
         searchInput.style.boxSizing = 'border-box';
+        searchInput.style.paddingRight = '28px';
+
+        const searchClearBtn = document.createElement('button');
+        searchClearBtn.type = 'button';
+        searchClearBtn.id = 'systemSearchClear';
+        searchClearBtn.textContent = '×';
+        searchClearBtn.title = 'Clear search';
+        searchClearBtn.style.position = 'absolute';
+        searchClearBtn.style.right = '4px';
+        searchClearBtn.style.top = '50%';
+        searchClearBtn.style.transform = 'translateY(-50%)';
+        searchClearBtn.style.background = 'none';
+        searchClearBtn.style.border = 'none';
+        searchClearBtn.style.color = '#aaa';
+        searchClearBtn.style.fontSize = '18px';
+        searchClearBtn.style.lineHeight = '1';
+        searchClearBtn.style.cursor = 'pointer';
+        searchClearBtn.style.padding = '2px 6px';
+        searchClearBtn.style.display = 'none';
+
+        searchWrapper.appendChild(searchInput);
+        searchWrapper.appendChild(searchClearBtn);
 
         // Add status indicator
         const statusDiv = document.createElement('div');
@@ -148,7 +177,7 @@ export default async function initSystemLookup(editor) {
         // Assemble the content
         content.appendChild(filtersSection);
         content.appendChild(randomDiv);
-        content.appendChild(searchInput);
+        content.appendChild(searchWrapper);
         content.appendChild(statusDiv);
         content.appendChild(resultsContainer);
 
@@ -223,13 +252,14 @@ export default async function initSystemLookup(editor) {
         });
 
         // Initialize the components after popup is created
-        initializePopupComponents(randomBtn, uniqueCheck);
+        initializePopupComponents(randomBtn, uniqueCheck, searchClearBtn);
 
         // Initial render
         renderList(systems);
 
-        // Initialize filters
-        initFilters(filtersContainer, editor, renderList);
+        // Initialize filters. Wrap renderList so a filter-button change
+        // re-applies the current search term instead of discarding it.
+        initFilters(filtersContainer, editor, (matches) => renderList(applySearchAndSort(matches)));
 
         // Focus search input
         setTimeout(() => searchInput?.focus(), 100);
@@ -241,7 +271,7 @@ export default async function initSystemLookup(editor) {
     /**
      * Initialize event handlers for popup components
      */
-    function initializePopupComponents(randomBtn, uniqueCheck) {
+    function initializePopupComponents(randomBtn, uniqueCheck, searchClearBtn) {
         let lastRandom = null;
 
         // Random tile button handler
@@ -283,33 +313,115 @@ export default async function initSystemLookup(editor) {
 
         // Search input handler
         searchInput.addEventListener('input', () => {
-            const term = searchInput.value.trim().toLowerCase();
-            let toShow = getActiveFilterPass(editor);
-
-            if (term) {
-                // Advanced: allow searching for numbers within IDs even if ID is not purely numeric
-                toShow = toShow.filter(s => {
-                    const id = s.id.toString().toLowerCase();
-                    const name = (s.name || '').toLowerCase();
-
-                    // If term is only digits, match IDs that contain those digits anywhere (even inside strings)
-                    if (/^\d+$/.test(term)) {
-                        const idDigits = id.replace(/\D/g, '');
-                        return id.includes(term) || idDigits.includes(term) || name.includes(term);
-                    }
-
-                    // Otherwise, behave as normal: substring match on ID or name
-                    return id.includes(term) || name.includes(term);
-                });
-            }
-
-            // Preserve sorting if we have sort state
-            if (sortColumn && sortDirection) {
-                toShow = sortSystemsByColumn(toShow, sortColumn, sortDirection);
-            }
-
-            renderList(toShow);
+            searchClearBtn.style.display = searchInput.value ? 'block' : 'none';
+            activeRowIndex = -1;
+            renderList(getCurrentSearchAndFilterResults());
         });
+
+        // Clear button: reset search and refocus without losing filter state
+        searchClearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            searchClearBtn.style.display = 'none';
+            activeRowIndex = -1;
+            renderList(getCurrentSearchAndFilterResults());
+            searchInput.focus();
+        });
+
+        // Keyboard navigation: arrows move selection, Enter picks the active
+        // row, Escape clears the search (or closes the popup if already empty)
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setActiveRow(activeRowIndex + 1);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setActiveRow(activeRowIndex - 1);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const idx = activeRowIndex >= 0 ? activeRowIndex : 0;
+                currentRenderedRows[idx]?.click();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                if (searchInput.value) {
+                    searchClearBtn.click();
+                } else {
+                    hidePopup('system-lookup-popup');
+                }
+            }
+        });
+    }
+
+    /**
+     * Moves keyboard focus to the row at idx (clamped to the rendered
+     * range) and scrolls it into view.
+     */
+    function setActiveRow(idx) {
+        if (!currentRenderedRows.length) return;
+        idx = Math.max(0, Math.min(idx, currentRenderedRows.length - 1));
+        currentRenderedRows.forEach((row, i) => row.classList.toggle('keyboard-active', i === idx));
+        currentRenderedRows[idx].scrollIntoView({ block: 'nearest' });
+        activeRowIndex = idx;
+    }
+
+    /**
+     * Builds the lowercase search haystack for a system: ID, name, planet
+     * names, tech specialties, and wormhole types — so a search term can
+     * match on any of those, not just ID/name.
+     */
+    function buildSearchHaystack(s) {
+        const parts = [s.id, s.name];
+        (s.planets || []).forEach(p => { if (p.name) parts.push(p.name); });
+        (s.planets || []).forEach(p => {
+            (p.techSpecialties || []).forEach(t => parts.push(t));
+        });
+        (Array.isArray(s.wormholes) ? s.wormholes : []).forEach(w => parts.push(w));
+        return parts.filter(Boolean).join(' ').toLowerCase();
+    }
+
+    /**
+     * Applies the current search term and active sort to an already
+     * filter-passed list. Shared by the search input handler, the filter
+     * button callback, and refreshSystemList() (e.g. after a tile is
+     * placed) so none of those paths silently drop an in-progress search.
+     *
+     * The search term is split on whitespace into tokens; a system must
+     * match ALL tokens (AND), each matched against ID/name/planet
+     * names/tech/wormholes. A purely-numeric token also matches digits
+     * embedded anywhere within the ID.
+     */
+    function applySearchAndSort(list) {
+        const tokens = (searchInput?.value || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+        let toShow = list;
+
+        if (tokens.length) {
+            toShow = toShow.filter(s => {
+                const id = s.id.toString().toLowerCase();
+                const haystack = buildSearchHaystack(s);
+
+                return tokens.every(token => {
+                    if (/^\d+$/.test(token)) {
+                        const idDigits = id.replace(/\D/g, '');
+                        return id.includes(token) || idDigits.includes(token) || haystack.includes(token);
+                    }
+                    return haystack.includes(token);
+                });
+            });
+        }
+
+        // Preserve sorting if we have sort state
+        if (sortColumn && sortDirection) {
+            toShow = sortSystemsByColumn(toShow, sortColumn, sortDirection);
+        }
+
+        return toShow;
+    }
+
+    function getCurrentSearchAndFilterResults() {
+        return applySearchAndSort(getActiveFilterPass(editor));
+    }
+
+    function getCurrentSearchTokens() {
+        return (searchInput?.value || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
     }
     /**
      * Helper functions for rendering system attributes
@@ -521,9 +633,11 @@ export default async function initSystemLookup(editor) {
         table.appendChild(thead);
 
         const tbody = document.createElement('tbody');
+        const renderedRows = [];
+        const highlightTokens = getCurrentSearchTokens();
 
         items.forEach(s => {
-            const row = generateSystemRow(s);
+            const row = generateSystemRow(s, highlightTokens);
 
             // Check if this system is currently selected
             const isCurrentlySelected = currentlySelectedSystemId && s.id.toString().toUpperCase() === currentlySelectedSystemId.toString().toUpperCase();
@@ -592,10 +706,21 @@ export default async function initSystemLookup(editor) {
             });
 
             tbody.appendChild(row);
+            renderedRows.push(row);
         });
 
         table.appendChild(tbody);
         systemList.appendChild(table);
+
+        // Update keyboard-nav row tracking, clamping the active index to
+        // the new result set (it shifts on every search/filter/sort change)
+        currentRenderedRows = renderedRows;
+        if (activeRowIndex >= 0 && renderedRows.length) {
+            activeRowIndex = Math.min(activeRowIndex, renderedRows.length - 1);
+            renderedRows[activeRowIndex].classList.add('keyboard-active');
+        } else {
+            activeRowIndex = -1;
+        }
 
         // Apply column visibility
         applyColumnVisibilityToTable(table);
@@ -681,12 +806,7 @@ export default async function initSystemLookup(editor) {
                 clearTimeout(renderTimeout);
             }
             renderTimeout = setTimeout(() => {
-                let items = getActiveFilterPass(editor);
-                // Preserve sorting if we have sort state
-                if (sortColumn && sortDirection) {
-                    items = sortSystemsByColumn(items, sortColumn, sortDirection);
-                }
-                renderList(items);
+                renderList(getCurrentSearchAndFilterResults());
                 renderTimeout = null;
             }, 50);
         }

@@ -3,7 +3,7 @@
  * Provides functionality to get Turnstile tokens and upload maps to Cloudflare Workers
  */
 
-const API_ORIGIN = "https://gateway.stabarrabats.workers.dev"; // TODO: Replace with your gateway Worker URL
+const API_ORIGIN = "https://gateway.stabarrabats.workers.dev"; 
 
 // Optimized Turnstile readiness check
 let turnstileReady = false;
