@@ -246,8 +246,12 @@ function tryAssign(unfilled, pools, valueTierMap = null) {
     const downgrades = [];
     const unmatched = [];
 
-    // Any available system across all pools — used as last-resort token fallback
-    const anyPool = Object.values(p).flat();
+    // Any available system across all pools — used as last-resort token fallback.
+    // Exclude homesystem/fracture pools: those tile types are restricted to their
+    // matching hex baseType and must never leak onto a regular hex as a fallback.
+    const anyPool = Object.entries(p)
+        .filter(([key]) => !key.startsWith('homesystem') && !key.startsWith('fracture'))
+        .flatMap(([, arr]) => arr);
 
     for (const { label, hex } of unfilled) {
         const reqEffects = hex.effects?.size ? Array.from(hex.effects) : [];
@@ -275,7 +279,10 @@ function tryAssign(unfilled, pools, valueTierMap = null) {
                 if (p[tryType]?.length) {
                     const sys = pickFromBucket(p[tryType], vt, valueTierMap);
                     assigned = { sys, usedEffect: null };
-                    if (tryType !== hex.baseType) downgrades.push({ label, from: hex.baseType, to: tryType });
+                    if (tryType !== hex.baseType) downgrades.push({
+                        label, from: hex.baseType, to: tryType,
+                        reason: `No '${hex.baseType}' systems left in the pool — used a '${tryType}' system instead.`,
+                    });
                     break;
                 }
             }
@@ -298,7 +305,10 @@ function tryAssign(unfilled, pools, valueTierMap = null) {
             if (idx === -1) idx = anyPool.length - 1; // nothing clean left — last resort
             const sys = anyPool.splice(idx, 1)[0];
             assigned = { sys, usedEffect: null };
-            downgrades.push({ label, from: hex.baseType, to: 'token-fallback' });
+            downgrades.push({
+                label, from: hex.baseType, to: 'token-fallback',
+                reason: `No '${hex.baseType}' (or downgraded) systems left in the pool — used a leftover '${classifySystem(sys)}' system as a last resort.`,
+            });
         }
 
         if (!assigned) { unmatched.push(label); continue; }

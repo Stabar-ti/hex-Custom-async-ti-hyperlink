@@ -79,6 +79,7 @@ export function showAutoBuilderUI(container) {
     };
     let lastResult  = null;
     let justApplied = false; // true after a successful apply → shows Undo button
+    let excludedLabels = new Set(); // hexes the user unchecked — left unfilled on Apply
 
     // ---- Render ----
     function render() {
@@ -293,6 +294,7 @@ export function showAutoBuilderUI(container) {
         const result = fillRemaining(editor, { ...opts, weights, settings });
         if (result.info) { alert(result.info); return; }
         lastResult = result;
+        excludedLabels = new Set();
         render();
     }
 
@@ -304,7 +306,7 @@ export function showAutoBuilderUI(container) {
         const scoreStr = score != null ? ` &nbsp;<span style="${S.muted}">σ ${score.toFixed(1)} (lower=better)</span>` : '';
         wrap.innerHTML = `<b style="color:#2ecc40">${assignments.length} matched${scoreStr}</b>`;
 
-        // Warnings (req 11: downgrades)
+        // Warnings — report every fallback and why (req: surface reason, let user opt out)
         if (downgrades.length) {
             const d = el('div', S.warn + 'margin-top:3px;');
             const groups = {};
@@ -312,7 +314,7 @@ export function showAutoBuilderUI(container) {
                 const k = `${dg.from} → ${dg.to}`;
                 groups[k] = (groups[k] || 0) + 1;
             }
-            d.textContent = `⚠ Downgraded: ${Object.entries(groups).map(([k,v]) => `${v}× ${k}`).join(', ')}`;
+            d.textContent = `⚠ Downgraded: ${Object.entries(groups).map(([k,v]) => `${v}× ${k}`).join(', ')} — uncheck any hex below to leave it unfilled instead.`;
             wrap.appendChild(d);
         }
         if (tokenPlacements.length) {
@@ -325,27 +327,63 @@ export function showAutoBuilderUI(container) {
             u.textContent = `⚠ ${unmatched.length} tile${unmatched.length !== 1 ? 's' : ''} unmatched — insufficient systems`;
             wrap.appendChild(u);
         }
+        if (excludedLabels.size) {
+            const ex = el('div', S.muted + 'margin-top:3px;');
+            ex.textContent = `${excludedLabels.size} hex${excludedLabels.size !== 1 ? 'es' : ''} unchecked — will be left unfilled.`;
+            wrap.appendChild(ex);
+        }
 
-        // Compact assignment list — token-fallback hexes shown in orange (fix 2)
-        const tokenLabels = new Set((tokenPlacements || []).map(t => t.label));
-        const list = el('div', `margin-top:6px;max-height:160px;overflow-y:auto;
-            display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:3px;font-size:11px;`);
+        // Per-hex reason lookup (downgrade reason takes priority; else token-effect reason)
+        const downgradeMap = new Map(downgrades.map(dg => [dg.label, dg]));
+        const tokenMap = new Map((tokenPlacements || []).map(tp => [tp.label, tp]));
+
+        // Compact assignment list — fallback hexes shown in orange with a checkbox to opt out
+        const list = el('div', `margin-top:6px;max-height:200px;overflow-y:auto;
+            display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:3px;font-size:11px;`);
         for (const { label, sys } of assignments) {
             const planets = sys.planets || [];
             const val = planets.reduce((s, p) => s + (p.resources || 0) + (p.influence || 0), 0);
             const eff = getEffectTag(sys);
-            const isToken = tokenLabels.has(label);
-            const item = el('div', `background:${isToken ? '#3a1a00' : '#0d1d0d'};padding:2px 5px;border-radius:3px;color:${isToken ? '#ffb347' : '#ccc'};`);
-            item.textContent = `${isToken ? '⚠ ' : ''}${label} → ${sys.id} (${planets.length}p ${val}v${eff})${isToken ? ' +token' : ''}`;
-            item.title = isToken ? 'No matching system with this effect — will place anomaly token instead' : '';
+            const dg = downgradeMap.get(label);
+            const tp = tokenMap.get(label);
+            const isFallback = !!(dg || tp);
+            const excluded = excludedLabels.has(label);
+
+            let reason = '';
+            if (dg) reason = dg.reason || `Downgraded ${dg.from} → ${dg.to}.`;
+            else if (tp) reason = `No matching system with effect(s) ${tp.effects.join(',')} — an anomaly token will be placed instead.`;
+
+            const item = el('label', `display:flex;align-items:center;gap:4px;
+                background:${excluded ? '#1a1a1a' : isFallback ? '#3a1a00' : '#0d1d0d'};
+                padding:2px 5px;border-radius:3px;
+                color:${excluded ? '#777' : isFallback ? '#ffb347' : '#ccc'};
+                cursor:pointer;${excluded ? 'text-decoration:line-through;' : ''}`);
+            item.title = reason;
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = !excluded;
+            cb.style.flexShrink = '0';
+            cb.onchange = () => {
+                if (cb.checked) excludedLabels.delete(label); else excludedLabels.add(label);
+                renderPreviewOnly();
+            };
+            item.appendChild(cb);
+
+            const span = document.createElement('span');
+            span.textContent = `${isFallback ? '⚠ ' : ''}${label} → ${sys.id} (${planets.length}p ${val}v${eff})${tp ? ' +token' : ''}`;
+            item.appendChild(span);
+
             list.appendChild(item);
         }
         wrap.appendChild(list);
         container.appendChild(wrap);
 
         // Apply / Discard
+        const includedCount = assignments.length - excludedLabels.size;
         const applyRow = el('div', S.row + 'padding:2px 0;');
-        const applyBtn = el('button', S.btnGreen, '✅ Apply to Map');
+        const applyBtn = el('button', S.btnGreen, `✅ Apply ${includedCount} to Map`);
+        applyBtn.disabled = includedCount === 0;
         applyBtn.onclick = () => applyToMap(lastResult);
         const discardBtn = el('button', S.btnGrey, 'Discard');
         discardBtn.onclick = () => { lastResult = null; render(); };
@@ -354,8 +392,16 @@ export function showAutoBuilderUI(container) {
         container.appendChild(applyRow);
     }
 
+    // Re-renders the panel after a per-hex include checkbox is toggled.
+    function renderPreviewOnly() {
+        render();
+    }
+
     // ---- Apply ----
-    function applyToMap({ assignments, tokenPlacements }) {
+    function applyToMap({ assignments: allAssignments, tokenPlacements: allTokenPlacements }) {
+        // Hexes the user unchecked in the preview are left unfilled entirely.
+        const assignments = allAssignments.filter(a => !excludedLabels.has(a.label));
+        const tokenPlacements = (allTokenPlacements || []).filter(t => !excludedLabels.has(t.label));
         if (!assignments?.length) return;
 
         // BUG2 fix: snapshot custom wormholes before assignment.
