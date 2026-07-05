@@ -1,6 +1,9 @@
 // loreOverlay.js - Visual indicators for systems and planets with lore
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
-import { getDisplayFooter, getEffectLines, isChoiceGated } from '../modules/Lore/loreEffects.js';
+import { getDisplayFooter, getEffectLines, isChoiceGated, isRollGated, getGate } from '../modules/Lore/loreEffects.js';
+import { normalizeLoreEntries, isNonEmptyLoreEntry, formatRoundWindow, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
+
+const PHASE_SHORT = { strategy: 'Str', action: 'Act', status: 'Sta', agenda: 'Agn' };
 
 class LoreOverlay {
     constructor(editor) {
@@ -44,6 +47,7 @@ class LoreOverlay {
         enforceSvgLayerOrder(this.editor.svg);
         this._attachCtrlClickHandler();
         this._updateClipboardBadge();
+        this._updatePhaseBanner();
     }
 
     hide() {
@@ -54,6 +58,7 @@ class LoreOverlay {
         this._hideTooltip();
         this._detachCtrlClickHandler();
         this._updateClipboardBadge();
+        this._updatePhaseBanner();
     }
 
     // ── Tooltip ──────────────────────────────────────────────────
@@ -133,13 +138,15 @@ class LoreOverlay {
             return s;
         };
 
-        const mkMeta = (lore, parent) => {
+        const mkMeta = (entry, parent) => {
             const row = document.createElement('div');
             row.style.cssText = 'font-size:11px;color:#888;margin-bottom:4px';
-            row.append(mkLabel('Trigger: '), lore.trigger, '  ',
-                       mkLabel('Receiver: '), lore.receiver, '  ',
-                       mkLabel('Ping: '), lore.ping, '  ',
-                       mkLabel('Persist: '), lore.persistance);
+            row.append(mkLabel('Trigger: '), entry.trigger, '  ',
+                       mkLabel('Receiver: '), entry.receiver, '  ',
+                       mkLabel('Ping: '), entry.ping, '  ',
+                       mkLabel('Persist: '), entry.persistance);
+            const rounds = formatRoundWindow(entry.fromRound, entry.tillRound);
+            if (rounds) row.append('  ', mkLabel('Rounds: '), rounds);
             parent.appendChild(row);
         };
 
@@ -152,34 +159,47 @@ class LoreOverlay {
             return btn;
         };
 
+        const renderEntry = (entry, i, entryCount, copyLabel, onCopy) => {
+            if (entryCount > 1 || entry.tag) {
+                const tagLine = document.createElement('div');
+                tagLine.style.cssText = 'font-size:11px;color:#b39ddb;margin-bottom:2px';
+                tagLine.textContent = entry.tag ? `#${entry.tag}` : `(entry ${i + 1})`;
+                tip.appendChild(tagLine);
+            }
+            if (entry.loreText?.trim()) {
+                const t = document.createElement('div');
+                t.style.marginBottom = '4px';
+                t.textContent = entry.loreText.trim();
+                tip.appendChild(t);
+            }
+            this._appendFooterPreview(tip, entry.footerText);
+            mkMeta(entry, tip);
+            tip.appendChild(mkCopyBtn(copyLabel, onCopy));
+        };
+
         // Header
         const header = document.createElement('div');
         header.style.cssText = 'font-weight:bold;margin-bottom:8px;border-bottom:1px solid #444;padding-bottom:4px';
         header.textContent = `Hex ${hexLabel}`;
         tip.appendChild(header);
 
-        // System lore
-        if (hex.systemLore && this.hasNonEmptyLore(hex.systemLore)) {
+        // System lore entries
+        const systemEntries = normalizeLoreEntries(hex.systemLore).filter(isNonEmptyLoreEntry);
+        if (systemEntries.length) {
             const title = document.createElement('div');
             title.style.cssText = 'color:#4CAF50;font-weight:bold;margin-bottom:4px';
-            title.textContent = 'System Lore';
+            title.textContent = systemEntries.length > 1 ? `System Lore (×${systemEntries.length})` : 'System Lore';
             tip.appendChild(title);
-
-            if (hex.systemLore.loreText?.trim()) {
-                const t = document.createElement('div');
-                t.style.marginBottom = '4px';
-                t.textContent = hex.systemLore.loreText.trim();
-                tip.appendChild(t);
-            }
-            this._appendFooterPreview(tip, hex.systemLore.footerText);
-            mkMeta(hex.systemLore, tip);
-            tip.appendChild(mkCopyBtn('Copy System Lore', () => this._copyLore(hexLabel, 'system', null)));
+            systemEntries.forEach((entry, i) => renderEntry(entry, i, systemEntries.length,
+                systemEntries.length > 1 ? `Copy ${entry.tag ? '#' + entry.tag : 'entry ' + (i + 1)}` : 'Copy System Lore',
+                () => this._copyLore(hexLabel, 'system', null, i)));
         }
 
-        // Planet lore
+        // Planet lore entries
         if (hex.planetLore) {
-            Object.entries(hex.planetLore).forEach(([idx, lore]) => {
-                if (!this.hasNonEmptyLore(lore)) return;
+            Object.entries(hex.planetLore).forEach(([idx, list]) => {
+                const entries = normalizeLoreEntries(list).filter(isNonEmptyLoreEntry);
+                if (!entries.length) return;
                 const planetIdx = parseInt(idx);
                 const planet = hex.planets?.[planetIdx];
                 const planetName = planet?.name || planet?.planetID || `Planet ${planetIdx + 1}`;
@@ -190,22 +210,16 @@ class LoreOverlay {
 
                 const ptitle = document.createElement('div');
                 ptitle.style.cssText = 'color:#FF9800;font-weight:bold;margin-bottom:4px';
-                ptitle.textContent = planetName;
+                ptitle.textContent = entries.length > 1 ? `${planetName} (×${entries.length})` : planetName;
                 tip.appendChild(ptitle);
 
-                if (lore.loreText?.trim()) {
-                    const t = document.createElement('div');
-                    t.style.marginBottom = '4px';
-                    t.textContent = lore.loreText.trim();
-                    tip.appendChild(t);
-                }
-                this._appendFooterPreview(tip, lore.footerText);
-                mkMeta(lore, tip);
-                tip.appendChild(mkCopyBtn(`Copy ${planetName} Lore`, () => this._copyLore(hexLabel, 'planet', planetIdx)));
+                entries.forEach((entry, i) => renderEntry(entry, i, entries.length,
+                    entries.length > 1 ? `Copy ${entry.tag ? '#' + entry.tag : 'entry ' + (i + 1)}` : `Copy ${planetName} Lore`,
+                    () => this._copyLore(hexLabel, 'planet', planetIdx, i)));
             });
         }
 
-        // Paste button (shown whenever clipboard has data)
+        // Paste button (shown whenever clipboard has data) — pasting APPENDS to the target's list
         if (this._clipboard) {
             const sep = document.createElement('div');
             sep.style.cssText = 'border-top:1px solid #444;margin:6px 0 4px';
@@ -224,7 +238,6 @@ class LoreOverlay {
         const display = (footerText || '').trim();
         const displayOnly = getDisplayFooter(footerText);
         const effectCount = getEffectLines(footerText).length;
-        const gated = isChoiceGated(footerText);
 
         if (displayOnly) {
             const f = document.createElement('div');
@@ -236,8 +249,10 @@ class LoreOverlay {
         if (effectCount > 0) {
             const badge = document.createElement('div');
             badge.style.cssText = 'font-size:11px;color:#7fd3ff;margin-bottom:4px';
-            badge.textContent = `⚙ ${effectCount} bot effect${effectCount > 1 ? 's' : ''}` +
-                (gated ? ' — gated behind Accept/Reject' : '');
+            const gate = getGate(footerText);
+            const gateNote = gate.type === 'choice' ? ' — gated behind Accept/Reject'
+                : gate.type === 'roll' ? ` — gated behind a ${gate.count}d${gate.sides} roll` : '';
+            badge.textContent = `⚙ ${effectCount} bot effect${effectCount > 1 ? 's' : ''}` + gateNote;
             tip.appendChild(badge);
         } else if (display && !displayOnly) {
             // Footer has content but it's entirely machine syntax (e.g. just "!choice")
@@ -248,17 +263,14 @@ class LoreOverlay {
         }
     }
 
-    _copyLore(hexLabel, type, planetIndex) {
+    _copyLore(hexLabel, type, planetIndex, entryIndex = 0) {
         const hex = this.editor.hexes[hexLabel];
         if (!hex) return;
 
-        if (type === 'system' && hex.systemLore) {
-            this._clipboard = { type: 'system', data: { ...hex.systemLore }, sourceLabel: hexLabel, planetIndex: null };
-        } else if (type === 'planet' && hex.planetLore?.[planetIndex]) {
-            this._clipboard = { type: 'planet', data: { ...hex.planetLore[planetIndex] }, sourceLabel: hexLabel, planetIndex };
-        } else {
-            return;
-        }
+        const source = type === 'system' ? hex.systemLore : hex.planetLore?.[planetIndex];
+        const entry = normalizeLoreEntries(source)[entryIndex];
+        if (!entry) return;
+        this._clipboard = { type, data: { ...entry }, sourceLabel: hexLabel, planetIndex: type === 'planet' ? planetIndex : null };
 
         this._updateClipboardBadge();
 
@@ -291,11 +303,15 @@ class LoreOverlay {
         }
 
         this.editor.saveState(targetLabel);
+        // Append to the target's entry list (a target holds many entries)
         if (this._clipboard.type === 'system') {
-            hex.systemLore = loreData;
+            hex.systemLore = normalizeLoreEntries(hex.systemLore);
+            hex.systemLore.push(loreData);
         } else {
-            if (!hex.planetLore) hex.planetLore = {};
-            hex.planetLore[this._clipboard.planetIndex] = loreData;
+            if (!hex.planetLore || Array.isArray(hex.planetLore)) hex.planetLore = {};
+            const idx = this._clipboard.planetIndex;
+            hex.planetLore[idx] = normalizeLoreEntries(hex.planetLore[idx]);
+            hex.planetLore[idx].push(loreData);
         }
 
         this.refresh();
@@ -329,21 +345,36 @@ class LoreOverlay {
         const result = {
             hasSystemLore: false,
             hasPlanetLore: false,
-            planetCount: 0
+            planetCount: 0,     // planets holding lore
+            entryCount: 0,      // total entries on the hex
+            hasGate: false,     // any entry choice/roll-gated
+            hasRounds: false    // any entry round-restricted
         };
 
         const hex = this.editor.hexes[hexLabel];
         if (!hex) return result;
 
-        if (hex.systemLore && this.hasNonEmptyLore(hex.systemLore)) {
+        const tally = (list) => {
+            for (const entry of list) {
+                result.entryCount++;
+                if (isChoiceGated(entry.footerText) || isRollGated(entry.footerText)) result.hasGate = true;
+                if (entry.fromRound > 0 || entry.tillRound > 0) result.hasRounds = true;
+            }
+        };
+
+        const systemEntries = normalizeLoreEntries(hex.systemLore).filter(isNonEmptyLoreEntry);
+        if (systemEntries.length) {
             result.hasSystemLore = true;
+            tally(systemEntries);
         }
 
         if (hex.planetLore) {
             Object.keys(hex.planetLore).forEach(planetIndex => {
-                if (this.hasNonEmptyLore(hex.planetLore[planetIndex])) {
+                const entries = normalizeLoreEntries(hex.planetLore[planetIndex]).filter(isNonEmptyLoreEntry);
+                if (entries.length) {
                     result.hasPlanetLore = true;
                     result.planetCount++;
+                    tally(entries);
                 }
             });
         }
@@ -352,12 +383,8 @@ class LoreOverlay {
     }
 
     hasNonEmptyLore(loreObj) {
-        if (!loreObj) return false;
-        // Only treat actual text content as meaningful — enum fields always have defaults
-        return !!(
-            (loreObj.loreText && loreObj.loreText.trim()) ||
-            (loreObj.footerText && loreObj.footerText.trim())
-        );
+        // Any historical shape: single entry object or a list of entries
+        return normalizeLoreEntries(loreObj).some(isNonEmptyLoreEntry);
     }
 
     createLoreIndicator(hex, loreData, hexLabel) {
@@ -371,17 +398,54 @@ class LoreOverlay {
         hexGroup.style.cursor = 'help';
         this.overlayGroup.appendChild(hexGroup);
 
+        const iconY = y - hexRadius * 0.3;
         if (loreData.hasSystemLore && loreData.hasPlanetLore) {
-            this.createStarIcon(hexGroup, x, y - hexRadius * 0.3, '#9C27B0', `System & Planet Lore (${loreData.planetCount} planets)`);
+            this.createStarIcon(hexGroup, x, iconY, '#9C27B0', `System & Planet Lore (${loreData.planetCount} planets, ${loreData.entryCount} entries)`);
         } else if (loreData.hasSystemLore) {
-            this.createBookIcon(hexGroup, x, y - hexRadius * 0.3, '#4CAF50', 'System Lore');
+            this.createBookIcon(hexGroup, x, iconY, '#4CAF50', `System Lore (${loreData.entryCount} entries)`);
         } else if (loreData.hasPlanetLore) {
-            this.createScrollIcon(hexGroup, x, y - hexRadius * 0.3, '#FF9800', `Planet Lore (${loreData.planetCount} planets)`);
+            this.createScrollIcon(hexGroup, x, iconY, '#FF9800', `Planet Lore (${loreData.planetCount} planets, ${loreData.entryCount} entries)`);
+        }
+
+        // Entry-count badge when a hex holds more than one entry
+        if (loreData.entryCount > 1) {
+            this.createCountBadge(hexGroup, x + 14, iconY - 9, loreData.entryCount);
+        }
+        // Tiny markers: 🎲 = a gated entry, ⏱ = a round-restricted entry
+        const markers = (loreData.hasGate ? '🎲' : '') + (loreData.hasRounds ? '⏱' : '');
+        if (markers) {
+            const markerText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            markerText.setAttribute('x', x - 14);
+            markerText.setAttribute('y', iconY - 8);
+            markerText.setAttribute('text-anchor', 'end');
+            markerText.setAttribute('font-size', '11');
+            markerText.textContent = markers;
+            hexGroup.appendChild(markerText);
         }
 
         hexGroup.addEventListener('mouseenter', (e) => this._showTooltip(hexLabel, e));
         hexGroup.addEventListener('mousemove',  (e) => this._positionTooltip(e));
         hexGroup.addEventListener('mouseleave', ()  => this._scheduleHideTooltip());
+    }
+
+    createCountBadge(group, x, y, count) {
+        const badgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        badgeGroup.setAttribute('transform', `translate(${x}, ${y})`);
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('r', '8');
+        circle.setAttribute('fill', '#1c1c2e');
+        circle.setAttribute('stroke', '#fff');
+        circle.setAttribute('stroke-width', '1.5');
+        badgeGroup.appendChild(circle);
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'central');
+        text.setAttribute('font-size', '10');
+        text.setAttribute('font-weight', 'bold');
+        text.setAttribute('fill', '#fff');
+        text.textContent = `×${count}`;
+        badgeGroup.appendChild(text);
+        group.appendChild(badgeGroup);
     }
 
     createBookIcon(group, x, y, color, title) {
@@ -487,6 +551,8 @@ class LoreOverlay {
         }
         if (this.isActive) {
             this.show();
+        } else {
+            this._updatePhaseBanner();
         }
     }
 
@@ -498,7 +564,56 @@ class LoreOverlay {
         document.getElementById('lore-icon-tooltip')?.remove();
         document.getElementById('lore-clipboard-badge')?.remove();
         document.getElementById('lore-planet-picker')?.remove();
+        document.getElementById('lore-phase-banner')?.remove();
         this.isActive = false;
+    }
+
+    // ── Phase lore banner ─────────────────────────────────────────
+
+    /** Phase lore isn't hex-bound, so while the overlay is on it shows as a fixed corner
+     *  chip like "📜 Phase lore: Str(2) Sta(1)" — clicking opens the Lore popup on that list. */
+    _updatePhaseBanner() {
+        let banner = document.getElementById('lore-phase-banner');
+        const counts = [];
+        const phaseLore = this.editor.phaseLore || {};
+        for (const phase of LORE_PHASE_TARGETS) {
+            const n = normalizeLoreEntries(phaseLore[phase]).filter(isNonEmptyLoreEntry).length;
+            if (n) counts.push([phase, n]);
+        }
+
+        if (!this.isActive || counts.length === 0) {
+            if (banner) banner.style.display = 'none';
+            return;
+        }
+
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'lore-phase-banner';
+            Object.assign(banner.style, {
+                position:      'fixed',
+                bottom:        '24px',
+                left:          '24px',
+                padding:       '5px 14px',
+                background:    '#1c1c2e',
+                color:         '#ccc',
+                border:        '1px solid #9b59b6',
+                borderRadius:  '20px',
+                fontSize:      '12px',
+                zIndex:        '8888',
+                cursor:        'pointer',
+                boxShadow:     '0 2px 10px rgba(0,0,0,0.6)',
+                whiteSpace:    'nowrap',
+            });
+            banner.title = 'Lore attached to game phases (strategy/action/status/agenda). Click to open.';
+            document.body.appendChild(banner);
+        }
+        banner.textContent = '📜 Phase lore: ' + counts.map(([p, n]) => `${PHASE_SHORT[p]}(${n})`).join(' ');
+        banner.style.display = 'block';
+        banner.onclick = () => {
+            const firstPhase = counts[0][0];
+            if (typeof window.openLorePopupAtPhase === 'function') window.openLorePopupAtPhase(firstPhase);
+            else if (typeof window.showLorePopup === 'function') window.showLorePopup();
+        };
     }
 
     // ── Ctrl+click paste ─────────────────────────────────────────

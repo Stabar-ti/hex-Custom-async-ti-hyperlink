@@ -427,8 +427,8 @@ export default class HexEditor {
           customAdjacents: h.customAdjacents ? [...h.customAdjacents] : undefined,
           adjacencyOverrides: h.adjacencyOverrides ? { ...h.adjacencyOverrides } : undefined,
           borderAnomalies: h.borderAnomalies ? { ...h.borderAnomalies } : undefined,
-          systemLore: h.systemLore ?? null,
-          planetLore: Array.isArray(h.planetLore) ? [...h.planetLore] : [],
+          systemLore: h.systemLore ? JSON.parse(JSON.stringify(h.systemLore)) : [],
+          planetLore: h.planetLore ? JSON.parse(JSON.stringify(h.planetLore)) : {},
           systemTokens: Array.isArray(h.systemTokens) ? [...h.systemTokens] : [],
           planetTokens: h.planetTokens ? { ...h.planetTokens } : {}
         };
@@ -454,8 +454,8 @@ export default class HexEditor {
         if (data.customAdjacents) hex.customAdjacents = data.customAdjacents;
         if (data.adjacencyOverrides) hex.adjacencyOverrides = data.adjacencyOverrides;
         if (data.borderAnomalies) hex.borderAnomalies = data.borderAnomalies;
-        hex.systemLore   = data.systemLore   ?? null;
-        hex.planetLore   = data.planetLore   ?? [];
+        hex.systemLore   = data.systemLore   ?? [];
+        hex.planetLore   = data.planetLore   ?? {};
         hex.systemTokens = data.systemTokens ?? [];
         hex.planetTokens = data.planetTokens ?? {};
 
@@ -675,8 +675,8 @@ export default class HexEditor {
       // delete hex.borderAnomalies;
 
       // Clear lore data
-      hex.systemLore = null;
-      hex.planetLore = [];
+      hex.systemLore = [];
+      hex.planetLore = {};
 
       // Clear token state
       hex.systemTokens = [];

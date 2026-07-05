@@ -15,7 +15,7 @@ import { exportFullState, exportMapInfo } from './data/export.js';
 import { importFullState } from './data/import.js';
 import { initHistory } from './features/history.js';
 import { showModal, closeModal } from './ui/uiModals.js';
-import { loadSystemInfo } from './data/import.js';
+import { loadSystemInfo, loadLoreData } from './data/import.js';
 import { assignSystem } from './features/assignSystem.js';
 import './ui/systemLookup.js'; // Adds system search modal
 import { redrawAllRealIDOverlays } from './features/realIDsOverlays.js';
@@ -374,6 +374,7 @@ document.body.focus();
 // ───── System Lookup Modal: search and select system ID ─────
 (async () => {
   await loadSystemInfo(editor);
+  loadLoreData(editor); // fire-and-forget: Lore module degrades gracefully without it
   const searchInput = document.getElementById('systemSearch');
   const resultsList = document.getElementById('systemList');
   const jumpBtn = document.getElementById('jumpToSystemBtn');

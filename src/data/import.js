@@ -18,6 +18,7 @@ import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 import { createWormholeOverlay } from '../features/baseOverlays.js';
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
+import { normalizeLoreEntries, shortToLoreEntries, LORE_PHASE_TARGETS, LORE_GAME_TYPES } from '../modules/Lore/loreCore.js';
 
 /**
  * Import map adjacency from a space-separated list of label,hexMatrix pairs.
@@ -69,6 +70,49 @@ export async function loadSystemInfo(editor) {
   } catch (err) {
     console.error('Failed to load SystemInfo.json:', err);
     alert('Error loading system data.');
+  }
+}
+
+/**
+ * Loads loreData.json (techs, factions, colors, unit aliases synced from the bot repo)
+ * and attaches raw lists plus prebuilt lookup structures to editor.loreData for the
+ * Lore module's pickers and effect validation. Optional: on failure the Lore module
+ * falls back to free-text inputs and skips id validation.
+ */
+export async function loadLoreData(editor) {
+  if (editor.loreData) return;
+  try {
+    const res = await fetch(window.location.pathname.replace(/\/[^/]*$/, '/public/data/loreData.json'));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const bundle = await res.json();
+
+    const techIndex = new Map();
+    for (const tech of bundle.techs || []) {
+      techIndex.set(tech.id.toLowerCase(), tech);
+    }
+    for (const [name, id] of Object.entries(bundle.techAliases || {})) {
+      if (!techIndex.has(name) && techIndex.has(id.toLowerCase())) {
+        techIndex.set(name, techIndex.get(id.toLowerCase()));
+      }
+    }
+
+    const colorNames = new Set();
+    for (const color of bundle.colors || []) {
+      colorNames.add(color.name.toLowerCase());
+      (color.aliases || []).forEach(a => colorNames.add(a.toLowerCase()));
+    }
+
+    const factionIds = new Set((bundle.factions || []).map(f => f.id.toLowerCase()));
+
+    const unitAliases = new Set(Object.keys(bundle.unitAliases || {}));
+    for (const spellings of Object.values(bundle.unitAliases || {})) {
+      spellings.forEach(s => unitAliases.add(s));
+    }
+
+    editor.loreData = { ...bundle, techIndex, colorNames, factionIds, unitAliases };
+    console.info(`Loaded loreData.json: ${techIndex.size} tech ids, ${factionIds.size} factions, ${colorNames.size} color names.`);
+  } catch (err) {
+    console.warn('loreData.json not available — Lore module falls back to free-text inputs:', err);
   }
 }
 
@@ -411,36 +455,17 @@ export function importFullState(editor, jsonText) {
       (h.fx || h.effects || []).forEach(eff => eff && editor.applyEffect(id, eff));
 
       // ---- Import system lore
-      if (h.sl) {
-        hex.systemLore = {
-          loreText: h.sl.lt || "",
-          footerText: h.sl.ft || "",
-          receiver: h.sl.r || "CURRENT",
-          trigger: h.sl.t || "CONTROLLED",
-          ping: h.sl.p || "NO",
-          persistance: h.sl.pe || "ONCE"
-        };
-      } else {
-        delete hex.systemLore;
-      }
+      // h.sl: array of short-key entries (new) or a single short object (legacy saves)
+      hex.systemLore = shortToLoreEntries(h.sl);
 
       // ---- Import planet lore
+      // h.prl values: arrays of short-key entries (new) or single short objects (legacy)
+      hex.planetLore = {};
       if (h.prl && Object.keys(h.prl).length > 0) {
-        hex.planetLore = {};
         Object.entries(h.prl).forEach(([planetIndex, lore]) => {
-          if (lore) {
-            hex.planetLore[planetIndex] = {
-              loreText: lore.lt || "",
-              footerText: lore.ft || "",
-              receiver: lore.r || "CURRENT",
-              trigger: lore.t || "CONTROLLED",
-              ping: lore.p || "NO",
-              persistance: lore.pe || "ONCE"
-            };
-          }
+          const entries = shortToLoreEntries(lore);
+          if (entries.length) hex.planetLore[planetIndex] = entries;
         });
-      } else {
-        delete hex.planetLore;
       }
 
       // ---- Import system tokens
@@ -574,38 +599,28 @@ export function importFullState(editor, jsonText) {
       (h.fx || h.effects || []).forEach(eff => eff && editor.applyEffect(h.id, eff));
 
       // ---- Import system lore (for extra hexes)
-      if (h.sl) {
-        hex.systemLore = {
-          loreText: h.sl.lt || "",
-          footerText: h.sl.ft || "",
-          receiver: h.sl.r || "CURRENT",
-          trigger: h.sl.t || "CONTROLLED",
-          ping: h.sl.p || "NO",
-          persistance: h.sl.pe || "ONCE"
-        };
-      } else {
-        delete hex.systemLore;
-      }
+      // h.sl: array of short-key entries (new) or a single short object (legacy saves)
+      hex.systemLore = shortToLoreEntries(h.sl);
 
       // ---- Import planet lore (for extra hexes)
+      // h.prl values: arrays of short-key entries (new) or single short objects (legacy)
+      hex.planetLore = {};
       if (h.prl && Object.keys(h.prl).length > 0) {
-        hex.planetLore = {};
         Object.entries(h.prl).forEach(([planetIndex, lore]) => {
-          if (lore) {
-            hex.planetLore[planetIndex] = {
-              loreText: lore.lt || "",
-              footerText: lore.ft || "",
-              receiver: lore.r || "CURRENT",
-              trigger: lore.t || "CONTROLLED",
-              ping: lore.p || "NO",
-              persistance: lore.pe || "ONCE"
-            };
-          }
+          const entries = shortToLoreEntries(lore);
+          if (entries.length) hex.planetLore[planetIndex] = entries;
         });
-      } else {
-        delete hex.planetLore;
       }
     });
+
+    // ---- Map-global lore state (phase lore + game type)
+    editor.phaseLore = { strategy: [], action: [], status: [], agenda: [] };
+    if (obj.phaseLore && typeof obj.phaseLore === 'object') {
+      for (const phase of LORE_PHASE_TARGETS) {
+        editor.phaseLore[phase] = shortToLoreEntries(obj.phaseLore[phase]);
+      }
+    }
+    editor.loreGameType = LORE_GAME_TYPES.includes(obj.loreGameType) ? obj.loreGameType : 'unknown';
 
     redrawAllRealIDOverlays(editor);
     drawCustomAdjacencyLayer(editor);
@@ -897,19 +912,12 @@ export async function importMapInfo(editor, jsonData) {
           return planet;
         });
 
-        // Import planet lore
+        // Import planet lore — prefer the full-fidelity planetLoreEntries array,
+        // fall back to the single bot-compatible planetLore object
         hex.planetLore = {};
         hexData.planets.forEach((planetData, planetIndex) => {
-          if (planetData.planetLore) {
-            hex.planetLore[planetIndex] = {
-              loreText: planetData.planetLore.loreText || "",
-              footerText: planetData.planetLore.footerText || "",
-              receiver: planetData.planetLore.receiver || "CURRENT",
-              trigger: planetData.planetLore.trigger || "CONTROLLED",
-              ping: planetData.planetLore.ping || "NO",
-              persistance: planetData.planetLore.persistance || "ONCE"
-            };
-          }
+          const entries = normalizeLoreEntries(planetData.planetLoreEntries || planetData.planetLore);
+          if (entries.length) hex.planetLore[planetIndex] = entries;
         });
       } else if (info.planets && Array.isArray(info.planets) && info.planets.length > 0) {
         // No planets in JSON, extract from SystemInfo based on tileID
@@ -923,10 +931,10 @@ export async function importMapInfo(editor, jsonData) {
           if (!planet.attachments) planet.attachments = [];
           return planet;
         });
-        delete hex.planetLore;
+        hex.planetLore = {};
       } else {
         hex.planets = [];
-        delete hex.planetLore;
+        hex.planetLore = {};
       }
 
       // Import tokens and extract custom wormholes
@@ -994,19 +1002,9 @@ export async function importMapInfo(editor, jsonData) {
         delete hex.borderAnomalies;
       }
 
-      // Import system lore
-      if (hexData.systemLore) {
-        hex.systemLore = {
-          loreText: hexData.systemLore.loreText || "",
-          footerText: hexData.systemLore.footerText || "",
-          receiver: hexData.systemLore.receiver || "CURRENT",
-          trigger: hexData.systemLore.trigger || "CONTROLLED",
-          ping: hexData.systemLore.ping || "NO",
-          persistance: hexData.systemLore.persistance || "ONCE"
-        };
-      } else {
-        delete hex.systemLore;
-      }
+      // Import system lore — prefer the full-fidelity systemLoreEntries array,
+      // fall back to the single bot-compatible systemLore object
+      hex.systemLore = normalizeLoreEntries(hexData.systemLoreEntries || hexData.systemLore);
 
       // Import Plastic field
       if (hexData.Plastic !== undefined && hexData.Plastic !== null) {
@@ -1143,6 +1141,15 @@ export async function importMapInfo(editor, jsonData) {
         }
       }
     }
+
+    // Map-global lore state (phase lore + game type), when the mapinfo carries it
+    editor.phaseLore = { strategy: [], action: [], status: [], agenda: [] };
+    if (data.phaseLore && typeof data.phaseLore === 'object') {
+      for (const phase of LORE_PHASE_TARGETS) {
+        editor.phaseLore[phase] = normalizeLoreEntries(data.phaseLore[phase]);
+      }
+    }
+    editor.loreGameType = LORE_GAME_TYPES.includes(data.loreGameType) ? data.loreGameType : 'unknown';
 
     // Redraw all overlays and layers
     redrawAllRealIDOverlays(editor);
