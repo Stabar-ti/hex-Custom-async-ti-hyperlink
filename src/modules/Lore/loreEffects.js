@@ -41,7 +41,7 @@ export const EFFECT_VERBS = [
     { verb: 'swap', label: 'Swap Systems', template: 'swap 203 401', group: 'map' },
     { verb: 'settile', label: 'Set Tile', template: 'settile 305 41', group: 'map', aliases: ['stl'] },
     { verb: 'rotatehyperlane', label: 'Rotate Hyperlane', template: 'rotatehyperlane 305 1', group: 'map', aliases: ['rhl'] },
-    { verb: 'sethyperlane', label: 'Set Hyperlane', template: 'sethyperlane 305 000201000', group: 'map', aliases: ['shl'] },
+    { verb: 'sethyperlane', label: 'Set Hyperlane', template: 'sethyperlane 305 000100000000000000100000000000000000', group: 'map', aliases: ['shl'] },
     // FoW-only effects — these never touch the real board. They only override what ONE
     // receiving player's client shows for a position that's currently fogged/unknown to
     // them (their personal "last seen" sighting), e.g. to plant a false decoy or reveal a hint.
@@ -347,10 +347,16 @@ function targetResolves(ctx, ref) {
     return false;
 }
 
-/** 9-hex-char encoded hyperlane matrix (or the legacy 36-char binary form). */
+/**
+ * The bot's !sethyperlane accepts either a plain 36-char 0/1 string (six rows of six —
+ * this builder's own hex.matrix.flat() representation, easy for a GM to eyeball/verify)
+ * or a compact 9-hex-char packed form. This module always generates the 36-char form
+ * (via the picker's "copy from a hex" flow) but keeps accepting hex here for anyone
+ * pasting from the bot's own bulk hyperlane Export button.
+ */
 function isValidEncodedMatrix(arg) {
     const s = String(arg).trim();
-    return /^[0-9a-fA-F]{9}$/.test(s) || /^[01]{36}$/.test(s);
+    return /^[01]{36}$/.test(s) || /^[0-9a-fA-F]{9}$/.test(s);
 }
 
 /** Save-time syntax check for one "?condition" token (mirror of validateCondition). */
@@ -485,11 +491,11 @@ function validateOperands(ctx, p, where) {
             break;
         case 'sethyperlane':
             if (a.length < 2) {
-                problems.push(`"sethyperlane" needs "<position> <encodedMatrix>" — use the 9-hex-char form from the hyperlane manager's Export button${where}`);
+                problems.push(`"sethyperlane" needs "<position> <pattern>" — use the Set Hyperlane button's "copy from a hex" option to grab the 36-char 0/1 pattern from an existing hyperlane${where}`);
             } else {
                 if (!isValidPosition(ctx, a[0])) problems.push(`invalid position "${a[0]}"${where}`);
                 if (!isValidEncodedMatrix(a[1])) {
-                    problems.push(`invalid encoded matrix "${a[1]}" — use the 9-hex-char form from the hyperlane manager's Export button${where}`);
+                    problems.push(`invalid hyperlane pattern "${a[1]}" — expected a plain 36-character 0/1 string (or the bot's compact 9-hex-char form)${where}`);
                 }
             }
             break;

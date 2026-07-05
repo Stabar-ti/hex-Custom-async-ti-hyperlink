@@ -5,6 +5,8 @@
  * Promise so callers can stay simple: `const value = await openXyzPicker(...)`.
  */
 
+import { hasLinks } from '../../utils/matrix.js';
+
 let activePicker = null;
 let activeResolve = null;
 
@@ -592,17 +594,63 @@ export async function openRotateHyperlanePicker(anchorEl, editor) {
     return `${position} ${steps}`;
 }
 
-/** Position + encoded matrix for "sethyperlane". Resolves e.g. "305 0a0b0c0d0" or null. */
+/**
+ * Position + encoded matrix for "sethyperlane". The bot's effect only accepts a 9-hex-char
+ * packed form or the plain 36-character 0/1 string — never the readable semicolon/comma matrix
+ * its own GM modal uses. We use the 36-char binary form here (never hex): it's exactly this
+ * builder's own `hex.matrix.flat()` representation, so it can be copied straight off an existing
+ * hex on the map instead of asking a GM to hand-type an opaque hex string. Resolves
+ * e.g. "305 000100000000000000100000000000000000" or null.
+ */
 export async function openSetHyperlanePicker(anchorEl, editor) {
     const positions = Object.keys(editor.hexes || {}).sort().map(label => ({ value: label, label }));
     const position = await openListPicker(anchorEl, positions, { title: 'Set hyperlane at…', width: 200 });
     if (!position) return null;
-    const matrix = prompt('Encoded hyperlane matrix (9 hex chars, from the hyperlane manager\'s Export):');
-    if (!matrix || !/^([0-9a-fA-F]{9}|[01]{36})$/.test(matrix.trim())) {
-        if (matrix) alert('That doesn\'t look like a valid encoded matrix (expected 9 hex characters).');
-        return null;
+
+    const choice = await new Promise((resolve) => {
+        const panel = createPanel(anchorEl, { width: 260 });
+        activeResolve = resolve;
+        const done = (value) => { activeResolve = null; closeActivePicker(); resolve(value); };
+
+        const title = document.createElement('div');
+        title.textContent = `Hyperlane pattern for ${position}:`;
+        title.style.cssText = 'font-size:0.85em;color:#aaa;margin-bottom:6px';
+        panel.appendChild(title);
+
+        const copyBtn = styledButton("Copy from a hex's hyperlane…", { bg: '#3498db' });
+        copyBtn.style.cssText += 'width:100%;margin-bottom:8px';
+        copyBtn.onclick = () => done('copy');
+        panel.appendChild(copyBtn);
+
+        const manualBtn = styledButton('Type the 36-char 0/1 string…', { bg: '#8e44ad' });
+        manualBtn.style.cssText += 'width:100%';
+        manualBtn.onclick = () => done('manual');
+        panel.appendChild(manualBtn);
+    });
+    if (!choice) return null;
+
+    let binary;
+    if (choice === 'copy') {
+        const sourceItems = Object.entries(editor.hexes || {})
+            .filter(([, hex]) => hasLinks(hex.matrix))
+            .map(([label]) => ({ value: label, label }));
+        if (!sourceItems.length) {
+            alert('No hex on the map currently has a custom hyperlane drawn — draw one first, or type the pattern manually.');
+            return null;
+        }
+        const source = await openListPicker(anchorEl, sourceItems, { title: 'Copy hyperlane pattern from…', width: 200 });
+        if (!source) return null;
+        binary = editor.hexes[source].matrix.flat().join('');
+    } else {
+        const typed = prompt("Hyperlane pattern as a plain 36-character string of 0s and 1s (matches the map's own hyperlane matrix, row by row):");
+        if (!typed) return null;
+        binary = typed.trim();
+        if (!/^[01]{36}$/.test(binary)) {
+            alert('That needs to be exactly 36 characters of 0/1 (six rows of six), not the hex-encoded form.');
+            return null;
+        }
     }
-    return `${position} ${matrix.trim()}`;
+    return `${position} ${binary}`;
 }
 
 /**
