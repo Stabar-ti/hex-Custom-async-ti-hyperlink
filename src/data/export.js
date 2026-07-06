@@ -445,9 +445,16 @@ export function exportCustomAdjacents(editor) {
  * @param {Object} options - Export options
  * @param {boolean} options.includeFlavourText - If true, use planet flavourText as lore fallback (default: false)
  */
-/** The exact 7 fields the bot's MapJsonIOService.LoreIO deserializes — do not add keys here. */
+/**
+ * The bot's MapJsonIOService.LoreIO shape (as of 2026-07-06: full-fidelity, including
+ * fromRound/tillRound — see the bot's lore_builder_spec memory §11). No `tag` field: the
+ * bot re-tags entries within a list on import, so tags are never stable IDs to round-trip.
+ * Used for BOTH the single-object `systemLore`/`planetLore` (back-compat) and the
+ * `systemLoreEntries`/`planetLoreEntries` arrays — entry[0] of the array must come out
+ * structurally identical to the single object, which this shared converter guarantees.
+ */
 function loreEntryToMapInfo(entry) {
-  return {
+  const out = {
     loreText: entry.loreText || "",
     footerText: entry.footerText || "",
     receiver: entry.receiver || "CURRENT",
@@ -455,14 +462,8 @@ function loreEntryToMapInfo(entry) {
     ping: entry.ping || "NO",
     persistance: entry.persistance || "ONCE"
   };
-}
-
-/** Full-fidelity entry for the new `*LoreEntries` arrays (ignored by today's bot importer). */
-function loreEntryToMapInfoFull(entry) {
-  const out = loreEntryToMapInfo(entry);
   if (entry.fromRound > 0) out.fromRound = entry.fromRound;
   if (entry.tillRound > 0) out.tillRound = entry.tillRound;
-  if (entry.tag) out.tag = entry.tag;
   return out;
 }
 
@@ -487,7 +488,7 @@ export async function exportMapInfo(editor, options = {}) {
       const planetEntryList = normalizeLoreEntries(hex.planetLore?.[planetIndex]).filter(isNonEmptyLoreEntry);
       if (planetEntryList.length) {
         planetLore = loreEntryToMapInfo(planetEntryList[0]);
-        planetLoreEntries = planetEntryList.map(loreEntryToMapInfoFull);
+        planetLoreEntries = planetEntryList.map(loreEntryToMapInfo);
       } else if (planet.loreMain || planet.loreSub || (includeFlavourText && planet.flavourText)) {
         // Legacy fallback - convert old planet lore format
         let loreText = "";
@@ -589,7 +590,7 @@ export async function exportMapInfo(editor, options = {}) {
     const systemEntryList = normalizeLoreEntries(hex.systemLore).filter(isNonEmptyLoreEntry);
     if (systemEntryList.length) {
       systemLore = loreEntryToMapInfo(systemEntryList[0]);
-      systemLoreEntries = systemEntryList.map(loreEntryToMapInfoFull);
+      systemLoreEntries = systemEntryList.map(loreEntryToMapInfo);
     } else if (hex.loreMain || hex.loreSub || hex.lore) {
       // Legacy fallback - convert old lore format to new structure
       let loreText = "";
@@ -682,13 +683,14 @@ export async function exportMapInfo(editor, options = {}) {
 
   const result = { mapInfo };
 
-  // Map-global lore (ignored by today's bot mapinfo importer, read back by this builder):
-  // phase lore has no tile of its own, so it can't live in any mapInfo entry.
+  // Map-global lore: the bot's MapJsonIOService reads this top-level `phaseLore` key
+  // directly (as of 2026-07-06 — phase lore has no tile of its own, so it can't live
+  // in any mapInfo entry; see the bot's lore_builder_spec memory §11).
   if (editor.phaseLore) {
     const phaseLore = {};
     for (const phase of LORE_PHASE_TARGETS) {
       const entries = normalizeLoreEntries(editor.phaseLore[phase]).filter(isNonEmptyLoreEntry);
-      if (entries.length) phaseLore[phase] = entries.map(loreEntryToMapInfoFull);
+      if (entries.length) phaseLore[phase] = entries.map(loreEntryToMapInfo);
     }
     if (Object.keys(phaseLore).length) result.phaseLore = phaseLore;
   }

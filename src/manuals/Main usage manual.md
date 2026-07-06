@@ -357,8 +357,9 @@ when its trigger fires (system activated, planet controlled, phase begins…).
   as a corner banner while the overlay is on.
 - **Export/Import** — as JSON, or in the bot's wire format
   (`target;loreText;footerText;receiver;trigger;ping;persistance;fromRound;tillRound` joined by `|`)
-  ready for the bot's GM *Import from URL*. Lore also rides along in normal map saves and the mapinfo
-  export (mapinfo carries only the first entry per target — use the Bot-format export for the full set).
+  ready for the bot's GM *Import from URL*. Lore also rides along in normal map saves and the AsyncTI4
+  mapinfo export — both paths now carry every entry per target (with round windows) plus phase lore,
+  fully validated on the bot side.
 
 The **?** button in the popup's title bar has the full reference.
 

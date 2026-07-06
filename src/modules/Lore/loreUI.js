@@ -1630,9 +1630,11 @@ function showLoreHelp() {
                     <em>Export Lore (Bot format)</em> writes the bot's 9-field wire format —
                     <code>target;loreText;footerText;receiver;trigger;ping;persistance;fromRound;tillRound</code>
                     joined by <code>|</code>, with <code>#Tag</code> targets and phase targets — ready for the bot's
-                    GM <em>Import from URL</em>. Import accepts old 7-field entries too. Lore also rides along in the
-                    normal map save and the AsyncTI4 mapinfo export (the mapinfo path carries only the first entry
-                    per target — the bot's mapinfo import supports just one; use the Bot-format export for the full set).
+                    GM <em>Import from URL</em>. Import accepts old 7-field entries too. The <strong>AsyncTI4 mapinfo
+                    export/import is now also full-fidelity</strong>: every entry per target (with round windows)
+                    plus all phase lore rides along in the normal map save and mapinfo file, validated the same way
+                    a modal save is on the bot side — either export path carries everything. Bot-assigned
+                    <code>#Tag</code>s are re-generated on import either way, so don't treat them as stable IDs.
                 </p>
 
                 <p style="color:#888;font-size:0.85em">

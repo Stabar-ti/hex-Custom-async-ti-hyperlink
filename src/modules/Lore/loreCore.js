@@ -25,7 +25,7 @@ export const LORE_PHASE_TARGETS = ['strategy', 'action', 'status', 'agenda'];
 export const LORE_PHASE_TRIGGERS = ['PHASE_START', 'PHASE_END'];
 
 export const LORE_TEXT_LIMIT = 1000;
-export const LORE_FOOTER_LIMIT = 300;
+export const LORE_FOOTER_LIMIT = 400;
 
 export const LORE_RECEIVER_LABELS = {
     CURRENT: 'Current Player',
