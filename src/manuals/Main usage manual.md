@@ -332,6 +332,39 @@ Cutting removes the tiles from their original positions. Copying leaves the orig
 
 ---
 
+## 13b. Lore Module (GM tools)
+
+The **Lore Module** (Sector Controls → *Add Lore…*, or `window.showLorePopup()`) attaches narrative
+text and bot commands to **systems, planets, and game phases**. The AsyncTI4 bot delivers each entry
+when its trigger fires (system activated, planet controlled, phase begins…).
+
+- **Targets** — pick a hex (type its label or click it on the map in *Add Lore…* mode), then choose the
+  *System* chip or a planet chip; or click a *Phase* button (Strategy/Action/Status/Agenda) for phase lore.
+- **Multiple entries per target** — the left-hand list shows every entry on the selected target; entries
+  are told apart by their `#tag` (letters+digits). Saving a colliding entry auto-tags it.
+- **Entry options** — trigger, receiver, GM ping, persistence, a **Rounds** window (`3`, `2-5`, `4-`,
+  `-6`, blank = always), and the tag. Set the **Game type** (FoW / normal) so the editor offers only
+  receivers and effects that exist in that mode.
+- **Effects** — footer lines starting with `!` are machine commands (trade goods, CCs, cards, techs,
+  units, tokens, tiles, hyperlanes, FoW fog tiles…), inserted via picker buttons. The 🎯 button redirects
+  tile-bound effects (`@target`); the ❓ button adds per-player conditions (`?red`, `?!faction:winnu`,
+  `?round:3-`). Entries can be gated behind an **Accept/Reject choice** (`!choice`) or a **dice roll**
+  (`!roll 2d10` with `N-M:` result bins).
+- **Overview** — the 📋 button lists every entry on the map; click a row to jump to it.
+- **Map overlay** — toggle *Lore Indicators* in the Overlays panel: 🟢 book = system lore, 🟠 scroll =
+  planet lore, 🟣 star = both, with an ×N badge for multiple entries and 🎲/⏱ markers for gates/round
+  windows. Hover for the full tooltip (with per-entry Copy); Ctrl+click a hex to paste. Phase lore shows
+  as a corner banner while the overlay is on.
+- **Export/Import** — as JSON, or in the bot's wire format
+  (`target;loreText;footerText;receiver;trigger;ping;persistance;fromRound;tillRound` joined by `|`)
+  ready for the bot's GM *Import from URL*. Lore also rides along in normal map saves and the AsyncTI4
+  mapinfo export — both paths now carry every entry per target (with round windows) plus phase lore,
+  fully validated on the bot side.
+
+The **?** button in the popup's title bar has the full reference.
+
+---
+
 ## 14. Exporting and importing
 
 Your map is stored as a JSON object that captures all tile assignments, hyperlanes, wormholes, adjacency overrides, border anomalies, tokens, and lore.

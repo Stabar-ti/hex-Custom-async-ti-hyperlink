@@ -221,6 +221,97 @@ jobs:
               json.dump(props, out, separators=(',', ':'), ensure_ascii=False)
           EOF
 
+      - name: Build loreData.json (techs, factions, colors, unit aliases for the Lore module)
+        run: |
+          python3 - << 'EOF'
+          import json, glob, os
+
+          # Source: the read-only clone of AsyncTI4/TI4_map_generator_bot.
+          BOT = os.environ.get('BOT_REPO', 'temp-bot-repo')
+          OUT = os.environ.get('OUT_DIR', 'public/data')
+          RES = os.path.join(BOT, 'src/main/resources')
+
+          def load_all(pattern):
+              out = []
+              for path in sorted(glob.glob(os.path.join(RES, pattern))):
+                  try:
+                      data = json.load(open(path, encoding='utf-8'))
+                      out.extend(data if isinstance(data, list) else [data])
+                  except Exception as e:
+                      print(f'skipping {path}: {e}')
+              return out
+
+          def load_properties(rel):
+              props = {}
+              path = os.path.join(RES, rel)
+              if not os.path.exists(path):
+                  print(f'missing {path}')
+                  return props
+              for line in open(path, encoding='utf-8'):
+                  line = line.strip()
+                  if not line or line.startswith('#') or '=' not in line:
+                      continue
+                  k, v = line.split('=', 1)
+                  props[k.strip()] = v.strip()
+              return props
+
+          # Techs: the JSON "alias" field IS the tech id the lore engine resolves.
+          techs, seen = [], set()
+          for t in load_all('data/technologies/*.json'):
+              tid = t.get('alias')
+              if not tid or tid in seen:
+                  continue
+              seen.add(tid)
+              tech = {'id': tid, 'name': t.get('name', tid), 'types': t.get('types', []), 'source': t.get('source', '')}
+              if t.get('faction'):
+                  tech['faction'] = t['faction']
+              techs.append(tech)
+
+          # tech_alias.properties: id = comma-separated display names -> reverse to name->id
+          tech_aliases = {}
+          for tid, names in load_properties('alias/tech_alias.properties').items():
+              for name in names.split(','):
+                  name = name.strip().lower()
+                  if name and name not in tech_aliases:
+                      tech_aliases[name] = tid
+
+          factions, seen = [], set()
+          for f in load_all('data/factions/*.json'):
+              fid = f.get('alias')
+              if not fid or fid in seen:
+                  continue
+              seen.add(fid)
+              factions.append({'id': fid, 'name': f.get('factionName', fid), 'source': f.get('source', '')})
+
+          colors, seen = [], set()
+          for c in load_all('data/colors/*.json'):
+              cid = c.get('alias')
+              name = c.get('name', cid)
+              if not name or name in seen:
+                  continue
+              seen.add(name)
+              aliases = sorted({a.lower() for a in ([cid] + c.get('aliases', [])) if a})
+              colors.append({'id': cid, 'name': name, 'display': c.get('displayName', name), 'aliases': aliases})
+
+          # unit_alias.properties: canonical code = comma-separated accepted spellings
+          unit_aliases = {}
+          for code, names in load_properties('alias/unit_alias.properties').items():
+              unit_aliases[code] = sorted({n.strip().lower() for n in names.split(',') if n.strip()})
+
+          bundle = {
+              'techs': sorted(techs, key=lambda t: (t['source'], t['name'])),
+              'techAliases': tech_aliases,
+              'factions': sorted(factions, key=lambda f: (f['source'], f['name'])),
+              'colors': sorted(colors, key=lambda c: c['name']),
+              'unitAliases': unit_aliases,
+          }
+          os.makedirs(OUT, exist_ok=True)
+          with open(os.path.join(OUT, 'loreData.json'), 'w', encoding='utf-8') as out:
+              json.dump(bundle, out, separators=(',', ':'), ensure_ascii=False)
+          print(f'loreData.json: {len(techs)} techs, {len(tech_aliases)} tech aliases, '
+                f'{len(factions)} factions, {len(colors)} colors, {len(unit_aliases)} unit codes')
+          EOF
+
       - name: Commit & push changes
         run: |
           git add public/data/systems \
@@ -232,6 +323,7 @@ jobs:
                   public/data/attachments.json \
                   public/data/border.json \
                   public/data/hyperlanes.json \
+                  public/data/loreData.json \
                   public/data/hyperlanes.properties \
                   public/data/tokens.properties \
                   public/data/tiles \

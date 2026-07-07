@@ -100,8 +100,8 @@ export function createHexData(label, q, r) {
     matrix: Array.from({ length: 6 }, () => Array(6).fill(0)),
     wormholes: new Set(),
     wormholeOverlays: [],
-    systemLore: null,
-    planetLore: [],
+    systemLore: [],   // array of lore entries (see modules/Lore/loreCore.js)
+    planetLore: {},   // { planetIndex: [entries] }
     systemTokens: [],
     planetTokens: {},
     valueTarget: null,

@@ -19,6 +19,7 @@ import { showModal } from '../ui/uiModals.js';
 import { generateRings } from '../draw/drawHexes.js';
 import { wormholeTypes } from '../constants/constants.js'; // Adjust import path if needed
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
+import { normalizeLoreEntries, isNonEmptyLoreEntry, loreEntryToShort, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
 
 /**
  * Cache for wormhole token mappings loaded from tokens.json
@@ -230,33 +231,20 @@ export function exportFullState(editor) {
     if (hex.borderAnomalies && Object.keys(hex.borderAnomalies).length) h.ba = JSON.parse(JSON.stringify(hex.borderAnomalies));
     if (hex.matrix && hex.matrix.flat().some(x => x !== 0)) h.ln = hex.matrix;
 
-    // Add system lore if it exists
-    if (hex.systemLore) {
-      h.sl = {
-        lt: hex.systemLore.loreText || "",
-        ft: hex.systemLore.footerText || "",
-        r: hex.systemLore.receiver || "CURRENT",
-        t: hex.systemLore.trigger || "CONTROLLED",
-        p: hex.systemLore.ping || "NO",
-        pe: hex.systemLore.persistance || "ONCE"
-      };
+    // Add system lore if it exists (array of entries; legacy single objects normalize)
+    const systemEntries = normalizeLoreEntries(hex.systemLore).filter(isNonEmptyLoreEntry);
+    if (systemEntries.length) {
+      h.sl = systemEntries.map(loreEntryToShort);
     }
 
     // Add planet lore if it exists
     if (hex.planetLore && Object.keys(hex.planetLore).length > 0) {
-      h.prl = {};
+      const prl = {};
       Object.entries(hex.planetLore).forEach(([planetIndex, lore]) => {
-        if (lore) {
-          h.prl[planetIndex] = {
-            lt: lore.loreText || "",
-            ft: lore.footerText || "",
-            r: lore.receiver || "CURRENT",
-            t: lore.trigger || "CONTROLLED",
-            p: lore.ping || "NO",
-            pe: lore.persistance || "ONCE"
-          };
-        }
+        const entries = normalizeLoreEntries(lore).filter(isNonEmptyLoreEntry);
+        if (entries.length) prl[planetIndex] = entries.map(loreEntryToShort);
       });
+      if (Object.keys(prl).length) h.prl = prl;
     }
 
     // Add system tokens if they exist
@@ -279,7 +267,23 @@ export function exportFullState(editor) {
 
     return h;
   });
-  return JSON.stringify({ hexes }, null, 1);
+
+  const out = { hexes };
+
+  // Map-global lore state: phase lore entries + game-type validation context
+  if (editor.phaseLore) {
+    const phaseLore = {};
+    for (const phase of LORE_PHASE_TARGETS) {
+      const entries = normalizeLoreEntries(editor.phaseLore[phase]).filter(isNonEmptyLoreEntry);
+      if (entries.length) phaseLore[phase] = entries.map(loreEntryToShort);
+    }
+    if (Object.keys(phaseLore).length) out.phaseLore = phaseLore;
+  }
+  if (editor.loreGameType && editor.loreGameType !== 'unknown') {
+    out.loreGameType = editor.loreGameType;
+  }
+
+  return JSON.stringify(out, null, 1);
 }
 
 /**
@@ -441,6 +445,28 @@ export function exportCustomAdjacents(editor) {
  * @param {Object} options - Export options
  * @param {boolean} options.includeFlavourText - If true, use planet flavourText as lore fallback (default: false)
  */
+/**
+ * The bot's MapJsonIOService.LoreIO shape (as of 2026-07-06: full-fidelity, including
+ * fromRound/tillRound — see the bot's lore_builder_spec memory §11). No `tag` field: the
+ * bot re-tags entries within a list on import, so tags are never stable IDs to round-trip.
+ * Used for BOTH the single-object `systemLore`/`planetLore` (back-compat) and the
+ * `systemLoreEntries`/`planetLoreEntries` arrays — entry[0] of the array must come out
+ * structurally identical to the single object, which this shared converter guarantees.
+ */
+function loreEntryToMapInfo(entry) {
+  const out = {
+    loreText: entry.loreText || "",
+    footerText: entry.footerText || "",
+    receiver: entry.receiver || "CURRENT",
+    trigger: entry.trigger || "CONTROLLED",
+    ping: entry.ping || "NO",
+    persistance: entry.persistance || "ONCE"
+  };
+  if (entry.fromRound > 0) out.fromRound = entry.fromRound;
+  if (entry.tillRound > 0) out.tillRound = entry.tillRound;
+  return out;
+}
+
 export async function exportMapInfo(editor, options = {}) {
   const { includeFlavourText = false } = options;
 
@@ -455,18 +481,14 @@ export async function exportMapInfo(editor, options = {}) {
 
     // Build planets array
     const planets = (hex.planets || []).map((planet, planetIndex) => {
-      // Build planet lore from new lore module structure
+      // Build planet lore from the lore module structure (array of entries; the single
+      // `planetLore` object stays bot-LoreIO-compatible = first entry only)
       let planetLore = null;
-      if (hex.planetLore && hex.planetLore[planetIndex]) {
-        const lore = hex.planetLore[planetIndex];
-        planetLore = {
-          loreText: lore.loreText || "",
-          footerText: lore.footerText || "",
-          receiver: lore.receiver || "CURRENT",
-          trigger: lore.trigger || "CONTROLLED",
-          ping: lore.ping || "NO",
-          persistance: lore.persistance || "ONCE"
-        };
+      let planetLoreEntries = null;
+      const planetEntryList = normalizeLoreEntries(hex.planetLore?.[planetIndex]).filter(isNonEmptyLoreEntry);
+      if (planetEntryList.length) {
+        planetLore = loreEntryToMapInfo(planetEntryList[0]);
+        planetLoreEntries = planetEntryList.map(loreEntryToMapInfo);
       } else if (planet.loreMain || planet.loreSub || (includeFlavourText && planet.flavourText)) {
         // Legacy fallback - convert old planet lore format
         let loreText = "";
@@ -489,11 +511,13 @@ export async function exportMapInfo(editor, options = {}) {
       const placedAttachments = (hex.planetTokens && hex.planetTokens[planetIndex])
         ? hex.planetTokens[planetIndex]
         : [];
-      return {
+      const planetOut = {
         planetID: planet.id || planet.planetID || '',
         attachments: [...(planet.attachments || []), ...placedAttachments],
         planetLore: planetLore
       };
+      if (planetLoreEntries) planetOut.planetLoreEntries = planetLoreEntries;
+      return planetOut;
     });
 
     // Build tokens array - collect from various token sources
@@ -559,18 +583,14 @@ export async function exportMapInfo(editor, options = {}) {
       });
     }
 
-    // Build system lore - use new lore module structure
+    // Build system lore from the lore module structure (array of entries; the single
+    // `systemLore` object stays bot-LoreIO-compatible = first entry only)
     let systemLore = null;
-    if (hex.systemLore) {
-      // Use the structured lore object from the lore module
-      systemLore = {
-        loreText: hex.systemLore.loreText || "",
-        footerText: hex.systemLore.footerText || "",
-        receiver: hex.systemLore.receiver || "CURRENT",
-        trigger: hex.systemLore.trigger || "CONTROLLED",
-        ping: hex.systemLore.ping || "NO",
-        persistance: hex.systemLore.persistance || "ONCE"
-      };
+    let systemLoreEntries = null;
+    const systemEntryList = normalizeLoreEntries(hex.systemLore).filter(isNonEmptyLoreEntry);
+    if (systemEntryList.length) {
+      systemLore = loreEntryToMapInfo(systemEntryList[0]);
+      systemLoreEntries = systemEntryList.map(loreEntryToMapInfo);
     } else if (hex.loreMain || hex.loreSub || hex.lore) {
       // Legacy fallback - convert old lore format to new structure
       let loreText = "";
@@ -648,6 +668,7 @@ export async function exportMapInfo(editor, options = {}) {
       customHyperlaneString: hyperlaneString,
       borderAnomalies: borderAnomalies,
       systemLore: systemLore,
+      systemLoreEntries: systemLoreEntries,
       Plastic: hex.plastic || null,
       customAdjacencies: customAdjacencies,
       adjacencyOverrides: adjacencyOverrides
@@ -660,7 +681,24 @@ export async function exportMapInfo(editor, options = {}) {
     }
   });
 
-  return { mapInfo };
+  const result = { mapInfo };
+
+  // Map-global lore: the bot's MapJsonIOService reads this top-level `phaseLore` key
+  // directly (as of 2026-07-06 — phase lore has no tile of its own, so it can't live
+  // in any mapInfo entry; see the bot's lore_builder_spec memory §11).
+  if (editor.phaseLore) {
+    const phaseLore = {};
+    for (const phase of LORE_PHASE_TARGETS) {
+      const entries = normalizeLoreEntries(editor.phaseLore[phase]).filter(isNonEmptyLoreEntry);
+      if (entries.length) phaseLore[phase] = entries.map(loreEntryToMapInfo);
+    }
+    if (Object.keys(phaseLore).length) result.phaseLore = phaseLore;
+  }
+  if (editor.loreGameType && editor.loreGameType !== 'unknown') {
+    result.loreGameType = editor.loreGameType;
+  }
+
+  return result;
 }
 
 //test
