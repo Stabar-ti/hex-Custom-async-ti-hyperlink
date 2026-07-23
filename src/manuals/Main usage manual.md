@@ -124,7 +124,7 @@ Once your layout is sketched out with Draw Helpers, use the system search to ass
 
 - **Search by name or ID** — type the tile's name (e.g. "Mecatol") or its number to filter the list immediately.
 - **Show/hide columns** — click column headers to toggle visibility and reduce clutter (e.g. hide the ID column if you're searching by name only).
-- **Source filter** — restrict results to specific expansions. Toggle Base, PoK + Codex, Thunders Edge, Discordant Stars, or Eronous individually. At least one source must be active.
+- **Source filter** — restrict results to specific expansions. Toggle Base, PoK + Codex, Thunders Edge, or Discordant Stars individually. At least one source must be active.
 - **Attribute filters** — show only tiles with specific properties: wormholes, tech specialties, anomalies, planet count, or legendary planets.
 - **AND / NAND toggle** — in **AND** mode, only tiles matching *all* active attribute filters are shown. In **NAND** mode, tiles matching *none* of them are shown — useful for finding "clean" tiles with no anomalies.
 - **DJWizzy Random Tile Bonanza** — picks a random tile from the currently filtered list. Good for variety.

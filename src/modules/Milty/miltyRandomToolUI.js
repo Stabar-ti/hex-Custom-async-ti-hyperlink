@@ -176,7 +176,7 @@ export function createGeneratorPopupContent() {
                         <input type="checkbox" id="sourceDSUncharted" style="margin-right: 8px;"> Discordant Stars / Uncharted Space
                     </label>
                     <label style="display: block; cursor: pointer;">
-                        <input type="checkbox" id="sourceEronous" style="margin-right: 8px;"> Eronous / Lost Star Charts
+                        <input type="checkbox" id="sourceEronous" style="margin-right: 8px;"> Lost Star Charts / Somno
                     </label>
                 </div>
             </div>

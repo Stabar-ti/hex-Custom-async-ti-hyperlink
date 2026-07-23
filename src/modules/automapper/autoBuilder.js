@@ -168,6 +168,8 @@ export function showAutoBuilderUI(container) {
             { key: 'others',  label: 'Others' },
         ];
         SRC_DEFS.forEach(({ key, label }) => {
+            // Eronous data currently excluded — see sync workflow; un-hide if re-enabled
+            if (key === 'eronous') return;
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.style.marginRight = '3px';

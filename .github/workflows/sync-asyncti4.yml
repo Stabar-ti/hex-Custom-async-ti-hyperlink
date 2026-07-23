@@ -62,6 +62,44 @@ jobs:
             echo "tokens directory not found"
           fi
 
+      # --- Eronous exclusion (requested by tile maker, remove this block to re-enable) ---
+      # Deletes only source:"eronous" system/planet files and their tile art before the
+      # bundle step runs, so Eronous tiles never reach SystemInfo.json or the app.
+      # Somno (source: somno) and Lost Star Charts of Ixth (source: lost_star_charts_of_ixth)
+      # are a different source and are intentionally left untouched.
+      - name: Exclude Eronous tiles
+        run: |
+          python3 - << 'EOF'
+          import json, glob, os
+
+          eronous_planet_ids = set()
+          removed_systems = 0
+          for path in glob.glob('public/data/systems/*.json'):
+              sys = json.load(open(path))
+              if sys.get('source') != 'eronous':
+                  continue
+              for pid in sys.get('planets', []) or []:
+                  if pid:
+                      eronous_planet_ids.add(pid)
+              image_path = sys.get('imagePath')
+              if image_path:
+                  tile_path = os.path.join('public/data/tiles', image_path)
+                  if os.path.exists(tile_path):
+                      os.remove(tile_path)
+              os.remove(path)
+              removed_systems += 1
+
+          removed_planets = 0
+          for pid in eronous_planet_ids:
+              planet_path = os.path.join('public/data/planets', f'{pid}.json')
+              if os.path.exists(planet_path):
+                  os.remove(planet_path)
+                  removed_planets += 1
+
+          print(f'Excluded {removed_systems} Eronous systems and {removed_planets} Eronous planets')
+          EOF
+      # --- end Eronous exclusion ---
+
       - name: Combine into a single bundle
         run: |
           python3 - << 'EOF'

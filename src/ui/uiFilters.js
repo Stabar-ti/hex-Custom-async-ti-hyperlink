@@ -864,6 +864,8 @@ export function initFilters(container, editor, onResults) {
   // Separate source and attribute filters
   const sourceFilterKeys = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceThundersEdge', 'sourceOthers'];
   FILTERS.forEach(({ key, label, defaultOn }) => {
+    // Eronous data currently excluded — see sync workflow; un-hide if re-enabled
+    if (key === 'sourceEronous') return;
     const btn = document.createElement('button');
     btn.id = `filter-${key}`;
     btn.textContent = label;

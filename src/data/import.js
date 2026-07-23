@@ -19,6 +19,23 @@ import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 import { createWormholeOverlay } from '../features/baseOverlays.js';
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { normalizeLoreEntries, shortToLoreEntries, LORE_PHASE_TARGETS, LORE_GAME_TYPES } from '../modules/Lore/loreCore.js';
+import { showToast } from '../modules/automapper/autoBuilderUI.js';
+
+/**
+ * Shows one toast summarizing tile IDs from a loaded save that no longer
+ * resolve to a known system (e.g. removed tile sets), instead of silently
+ * leaving those hexes blank.
+ */
+function warnUnresolvedTileIds(unresolvedTileIds) {
+  if (!unresolvedTileIds.size) return;
+  const ids = [...unresolvedTileIds].join(', ');
+  const n = unresolvedTileIds.size;
+  showToast(
+    `${n} tile${n === 1 ? '' : 's'} in this save ${n === 1 ? 'is' : 'are'} no longer available: ${ids}. ${n === 1 ? 'It' : 'They'} will appear as blank hexes.`,
+    'warning',
+    6000
+  );
+}
 
 /**
  * Import map adjacency from a space-separated list of label,hexMatrix pairs.
@@ -345,6 +362,7 @@ export function importFullState(editor, jsonText) {
     editor.drawnSegments = [];
 
     // ---- 5. Assign all hexes by label order (EXACT classification order)
+    const unresolvedTileIds = new Set();
     hexesOrdered.forEach((h, i) => {
       const id = labelList[i];
       let hex = editor.hexes[id];
@@ -379,6 +397,8 @@ export function importFullState(editor, jsonText) {
       } else if (h.bt || h.baseType) {
         code = h.bt || h.baseType;
         info = {};
+      } else if (realIdKey) {
+        unresolvedTileIds.add(realId.toString());
       }
 
       // --------- Hyperlane tile logic ---------
@@ -554,6 +574,8 @@ export function importFullState(editor, jsonText) {
       let realIdKey = realId ? realId.toString().toUpperCase() : null;
       if (realIdKey && editor.sectorIDLookup && editor.sectorIDLookup[realIdKey]) {
         info = editor.sectorIDLookup[realIdKey] || {};
+      } else if (realIdKey) {
+        unresolvedTileIds.add(realId.toString());
       }
       hex.planets = h.pl || h.planets || [];
       // Restore baseType (color/classification)
@@ -612,6 +634,8 @@ export function importFullState(editor, jsonText) {
         });
       }
     });
+
+    warnUnresolvedTileIds(unresolvedTileIds);
 
     // ---- Map-global lore state (phase lore + game type)
     editor.phaseLore = { strategy: [], action: [], status: [], agenda: [] };
@@ -864,6 +888,7 @@ export async function importMapInfo(editor, jsonData) {
     editor.drawnSegments = [];
 
     // Process each hex in the mapInfo
+    const unresolvedTileIds = new Set();
     for (const hexData of mapInfo) {
       const position = hexData.position;
       const hex = editor.hexes[position];
@@ -895,6 +920,8 @@ export async function importMapInfo(editor, jsonData) {
       const realIdKey = hex.realId ? hex.realId.toString().toUpperCase() : null;
       if (realIdKey && editor.sectorIDLookup && editor.sectorIDLookup[realIdKey]) {
         info = editor.sectorIDLookup[realIdKey] || {};
+      } else if (realIdKey && !['0G', 'HL'].includes(realIdKey)) {
+        unresolvedTileIds.add(hex.realId.toString());
       }
 
       // Import planets
@@ -1110,6 +1137,8 @@ export async function importMapInfo(editor, jsonData) {
         if (info.isScar)          editor.applyEffect(position, 'scar');
       }
     }
+
+    warnUnresolvedTileIds(unresolvedTileIds);
 
     // Set all remaining hexes without data to void
     // Build label list for all hexes in the generated map
