@@ -400,6 +400,10 @@ async function saveMapInfo(editor) {
                 <input type="checkbox" id="cloudExportIncludeFlavourText" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
                 Include planet flavour Lore as lore fallback
             </label>
+            <label style="display: flex; align-items: center; cursor: pointer; font-size: 16px; color: var(--text-main, #e0e0e0); margin-top: 10px;">
+                <input type="checkbox" id="cloudExportRetainHomeSystemTileID" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
+                Retain real tileID for homesystem tiles (instead of 0g)
+            </label>
         </div>
         <div style="margin-bottom: 25px;">
             <div style="margin-bottom: 20px; padding: 15px; background: var(--bg-secondary, #2d2d2d); border-radius: 6px; border-left: 4px solid #4dabf7;">
@@ -482,6 +486,7 @@ async function saveMapInfo(editor) {
     const cancelBtn = modal.querySelector('#cancelExportBtn');
     const statusDiv = modal.querySelector('#exportStatus');
     const includeFlavourTextCheckbox = modal.querySelector('#cloudExportIncludeFlavourText');
+    const retainHomeSystemTileIDCheckbox = modal.querySelector('#cloudExportRetainHomeSystemTileID');
 
     // Cloud upload handler
     cloudUploadBtn.addEventListener('click', async () => {
@@ -493,7 +498,8 @@ async function saveMapInfo(editor) {
             statusDiv.style.color = '#4dabf7';
 
             const includeFlavourText = includeFlavourTextCheckbox?.checked ?? false;
-            const url = await saveMapInfoToCloudflare(editor, { includeFlavourText });
+            const retainHomeSystemTileID = retainHomeSystemTileIDCheckbox?.checked ?? false;
+            const url = await saveMapInfoToCloudflare(editor, { includeFlavourText, retainHomeSystemTileID });
             document.body.removeChild(overlay);
             showDownloadLink(url, 'map info');
         } catch (error) {
@@ -524,7 +530,8 @@ async function saveMapInfo(editor) {
             // Import and use the exportMapInfo function
             const { exportMapInfo } = await import('./export.js');
             const includeFlavourText = includeFlavourTextCheckbox?.checked ?? false;
-            const mapInfoData = await exportMapInfo(editor, { includeFlavourText });
+            const retainHomeSystemTileID = retainHomeSystemTileIDCheckbox?.checked ?? false;
+            const mapInfoData = await exportMapInfo(editor, { includeFlavourText, retainHomeSystemTileID });
 
             // Create downloadable JSON file
             const data = JSON.stringify(mapInfoData, null, 2);

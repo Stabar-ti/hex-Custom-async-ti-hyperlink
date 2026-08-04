@@ -444,6 +444,8 @@ export function exportCustomAdjacents(editor) {
  * @param {Object} editor - The hex editor instance
  * @param {Object} options - Export options
  * @param {boolean} options.includeFlavourText - If true, use planet flavourText as lore fallback (default: false)
+ * @param {boolean} options.retainHomeSystemTileID - If true, export the hex's real tileID for homesystem
+ *   tiles instead of always forcing '0g' (default: false)
  */
 /**
  * The bot's MapJsonIOService.LoreIO shape (as of 2026-07-06: full-fidelity, including
@@ -468,7 +470,7 @@ function loreEntryToMapInfo(entry) {
 }
 
 export async function exportMapInfo(editor, options = {}) {
-  const { includeFlavourText = false } = options;
+  const { includeFlavourText = false, retainHomeSystemTileID = false } = options;
 
   // Load wormhole token map dynamically from tokens.json
   const whTokenMap = await getWormholeTokenMap();
@@ -649,9 +651,15 @@ export async function exportMapInfo(editor, options = {}) {
       //  // Void tiles get -1
       //  tileID = '-1';
     } else if (hex.baseType === 'homesystem') {
-      // Home system tiles get 0g
-      tileID = '0g';
-      console.log(`exportMapInfo: Setting tileID to '0g' for ${label}, baseType: ${hex.baseType}`);
+      // Home system tiles default to the anonymized 0g code, unless the designer
+      // opted to retain the real tileID for a homesystem tile they explicitly assigned
+      if (retainHomeSystemTileID && (hex.realId || hex.systemId)) {
+        tileID = hex.realId || hex.systemId;
+        console.log(`exportMapInfo: Retaining real tileID '${tileID}' for ${label}, baseType: ${hex.baseType}`);
+      } else {
+        tileID = '0g';
+        console.log(`exportMapInfo: Setting tileID to '0g' for ${label}, baseType: ${hex.baseType}`);
+      }
     } else {
       // Otherwise use realId or systemId
       tileID = hex.realId || hex.systemId || '';
