@@ -55,6 +55,13 @@ export const COLORS = {
   overrideLine:         '#0044ff',
   overrideLabel:        '#e049c9',
 
+  // Lore relationship arcs. These cross tile artwork of every colour, so each is drawn
+  // over a dark casing stroke — the casing is what makes them readable, not the hue.
+  loreArcAffects:       '#1976d2',  // placements — a deeper blue than the marker fill
+  loreArcRemoves:       '#e74c3c',
+  loreArcSwap:          '#ffc107',
+  loreArcCasing:        '#0a0a12',
+
   // Popup border identities
   popupDefault:         '#2196f3',
   popupLayout:          '#ffe066',

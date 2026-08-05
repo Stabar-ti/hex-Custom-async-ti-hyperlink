@@ -139,9 +139,24 @@ export function drawMarker(parent, { x, y, kind, summary, focused }) {
     return group;
 }
 
+const ARC_WIDTH = 3;
+const ARC_CASING_WIDTH = ARC_WIDTH + 3.5;
+const ARROW_SIZE = 10;
+
+const ARC_COLOURS = {
+    swap: COLORS.loreArcSwap,
+    removes: COLORS.loreArcRemoves,
+    affects: COLORS.loreArcAffects
+};
+
 /**
  * An arc from a lore marker to a tile the entry acts on — swaps, @target redirects and
  * token/unit placements all point at other tiles and previously drew nothing at all.
+ *
+ * Each arc is drawn twice: a dark casing stroke, then the colour on top. The map underneath
+ * is tile artwork in every colour, so a single stroke disappears against roughly half of it
+ * no matter which hue you pick. The casing is what makes these readable; it's the same
+ * technique road maps use for routes over terrain.
  */
 export function drawEffectArc(parent, from, to, { kind = 'affects' } = {}) {
     const dx = to.x - from.x;
@@ -152,33 +167,47 @@ export function drawEffectArc(parent, from, to, { kind = 'affects' } = {}) {
     const mx = (from.x + to.x) / 2 - (dy / distance) * bow;
     const my = (from.y + to.y) / 2 + (dx / distance) * bow;
 
-    const colour = kind === 'swap' ? COLORS.accent
-        : kind === 'removes' ? COLORS.danger
-            : COLORS.info;
+    const colour = ARC_COLOURS[kind] || ARC_COLOURS.affects;
+    const d = `M ${from.x},${from.y} Q ${mx},${my} ${to.x},${to.y}`;
+
+    // Casing first, underneath.
+    parent.appendChild(el('path', {
+        d,
+        fill: 'none',
+        stroke: COLORS.loreArcCasing,
+        'stroke-width': ARC_CASING_WIDTH,
+        'stroke-linecap': 'round',
+        opacity: 0.75,
+        class: 'lore-arc-casing'
+    }));
 
     const path = el('path', {
-        d: `M ${from.x},${from.y} Q ${mx},${my} ${to.x},${to.y}`,
+        d,
         fill: 'none',
         stroke: colour,
-        'stroke-width': 2,
+        'stroke-width': ARC_WIDTH,
         'stroke-linecap': 'round',
-        opacity: 0.85,
         class: `lore-arc lore-arc--${kind}`
     });
-    if (kind === 'removes') path.setAttribute('stroke-dasharray', '5,4');
+    // Removals read as "taken away" rather than relying on colour alone.
+    if (kind === 'removes') path.setAttribute('stroke-dasharray', '6,4');
     parent.appendChild(path);
 
-    // Arrowhead at the destination, oriented along the curve's final tangent.
+    // Arrowhead at the destination, oriented along the curve's final tangent, outlined in
+    // the same casing colour so it stays a distinct shape over bright tiles.
     const angle = Math.atan2(to.y - my, to.x - mx);
-    const size = 7;
-    const head = el('polygon', {
-        points: [
-            `${to.x},${to.y}`,
-            `${to.x - size * Math.cos(angle - 0.4)},${to.y - size * Math.sin(angle - 0.4)}`,
-            `${to.x - size * Math.cos(angle + 0.4)},${to.y - size * Math.sin(angle + 0.4)}`
-        ].join(' '),
+    const points = [
+        `${to.x},${to.y}`,
+        `${to.x - ARROW_SIZE * Math.cos(angle - 0.4)},${to.y - ARROW_SIZE * Math.sin(angle - 0.4)}`,
+        `${to.x - ARROW_SIZE * Math.cos(angle + 0.4)},${to.y - ARROW_SIZE * Math.sin(angle + 0.4)}`
+    ].join(' ');
+
+    parent.appendChild(el('polygon', {
+        points,
         fill: colour,
-        opacity: 0.85
-    });
-    parent.appendChild(head);
+        stroke: COLORS.loreArcCasing,
+        'stroke-width': 1.75,
+        'stroke-linejoin': 'round',
+        class: `lore-arrowhead lore-arrowhead--${kind}`
+    }));
 }
