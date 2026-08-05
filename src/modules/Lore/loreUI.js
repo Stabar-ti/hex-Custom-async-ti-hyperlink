@@ -10,8 +10,9 @@
  * unsaved work detectable. Switching entry or target commits first instead of silently
  * discarding, which is the bug this replaced.
  *
- * External contract kept for uisectorControls.js "Add Lore…" hex-pick mode:
- * fill #hexLabelInput and click #selectHexBtn.
+ * Entry points are real functions, not DOM ids: openLoreEditor(ref, entryIndex) and
+ * showLorePopup(), both also on window. The toolbar's "Add Lore…" button and the map overlay
+ * call those; the hex-label input is now just a convenience for typing a label directly.
  */
 
 import { showPopup, hidePopup } from '../../ui/popupUI.js';
@@ -28,6 +29,12 @@ import { checkAllFooters } from './loreFooterModel.js';
 import * as state from './loreState.js';
 import * as effectRows from './loreEffectRows.js';
 import { openListPicker } from './loreEffectPickers.js';
+import { armLoreMapPick, disarmLoreMapPick } from './loreMapPick.js';
+
+// The popup remembers its size, and the pre-rework layout was much narrower. Clear that one
+// stored value once so the effect rows aren't squeezed into a column on first open.
+const LAYOUT_VERSION_KEY = 'lore-ui-layout-version';
+const LAYOUT_VERSION = '2';
 
 const PHASE_LABELS = { strategy: 'Strategy', action: 'Action', status: 'Status', agenda: 'Agenda' };
 
@@ -35,6 +42,12 @@ let loreManager = null;
 
 export function installLoreUI(editor) {
     loreManager = new LoreManager(editor);
+    try {
+        if (localStorage.getItem(LAYOUT_VERSION_KEY) !== LAYOUT_VERSION) {
+            localStorage.removeItem('popup-pos-lorePopup');
+            localStorage.setItem(LAYOUT_VERSION_KEY, LAYOUT_VERSION);
+        }
+    } catch { /* private mode / storage disabled — the popup just uses its default size */ }
     // Any change to the draft re-renders the effect rows and the dirty indicator. The form
     // fields are NOT rewritten here — that would fight the cursor while typing.
     state.subscribe(() => {
@@ -98,8 +111,16 @@ export function showLorePopup() {
             padding: '16px'
         },
         showHelp: true,
-        onHelp: () => showLoreHelp()
+        onHelp: () => showLoreHelp(),
+        onClose: () => {
+            // Commit before the popup goes away, or closing it would be another silent
+            // way to lose work. Then release the map so hex clicks paint again.
+            commitIfDirty();
+            disarmLoreMapPick(loreManager.editor);
+        }
     });
+
+    applyMapPicking(mapPickPreference());
 
     // restore state if the popup was reopened mid-session
     if (state.getRef()?.hexLabel) selectHex(state.getRef().hexLabel);
@@ -178,10 +199,23 @@ function createTargetSection() {
     selectBtn.onclick = () => selectHex(input.value.trim());
     row.appendChild(selectBtn);
 
-    const hint = document.createElement('span');
-    hint.textContent = 'or use "Add Lore…" in the toolbar and click hexes on the map';
-    hint.style.cssText = 'font-size:0.8em;color:#888';
-    row.appendChild(hint);
+    // Map picking is the primary way in, so it's on by default while the popup is open.
+    // It's a visible toggle because it claims hex clicks — painting sectors with the popup
+    // open has to stay possible.
+    const pickLabel = document.createElement('label');
+    pickLabel.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:0.8em;color:#ccc;cursor:pointer';
+    pickLabel.title = 'Click a hex on the map to edit its lore. Right-click a hex to pick one of its planets.';
+    const pickToggle = document.createElement('input');
+    pickToggle.type = 'checkbox';
+    pickToggle.id = 'loreMapPickToggle';
+    pickToggle.checked = mapPickPreference();
+    pickToggle.onchange = () => {
+        setMapPickPreference(pickToggle.checked);
+        applyMapPicking(pickToggle.checked);
+    };
+    pickLabel.appendChild(pickToggle);
+    pickLabel.appendChild(document.createTextNode('🎯 Pick from map'));
+    row.appendChild(pickLabel);
 
     const phaseWrap = document.createElement('div');
     phaseWrap.style.cssText = 'display:flex;align-items:center;gap:6px;margin-left:auto';
@@ -212,6 +246,25 @@ function createTargetSection() {
     section.appendChild(statusDiv);
 
     return section;
+}
+
+const MAP_PICK_KEY = 'lore-map-pick';
+
+function mapPickPreference() {
+    try { return localStorage.getItem(MAP_PICK_KEY) !== 'off'; } catch { return true; }
+}
+
+function setMapPickPreference(on) {
+    try { localStorage.setItem(MAP_PICK_KEY, on ? 'on' : 'off'); } catch { /* ignore */ }
+}
+
+/** Arm or disarm hex picking for the open popup. */
+function applyMapPicking(on) {
+    if (on) {
+        armLoreMapPick(loreManager.editor, { onPick: (ref) => openLoreEditor(ref) });
+    } else {
+        disarmLoreMapPick(loreManager.editor);
+    }
 }
 
 function updateHexStatus(message) {

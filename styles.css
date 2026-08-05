@@ -1864,3 +1864,22 @@ select:focus {
 
 /* The anchored effect pickers already carry this class; give it real rules. */
 .lore-mini-picker { font-family: var(--font-ui); }
+
+/* Map-picking mode (loreMapPick.js) */
+body.lore-picking #hexMap { cursor: crosshair; }
+
+.lore-pick-hint {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  padding: 6px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--popup-border-lore, #9b59b6);
+  background: var(--surface-2);
+  color: var(--text-color);
+  font-size: 0.82em;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}

@@ -416,6 +416,61 @@ class LoreOverlay {
         hexGroup.addEventListener('mouseenter', (e) => this._showTooltip(hexLabel, e));
         hexGroup.addEventListener('mousemove',  (e) => this._positionTooltip(e));
         hexGroup.addEventListener('mouseleave', ()  => this._scheduleHideTooltip());
+
+        // Clicking a marker opens the editor on what it represents. Ctrl+click is still the
+        // paste shortcut, so leave that to the capture-phase handler.
+        hexGroup.style.cursor = 'pointer';
+        hexGroup.addEventListener('click', (e) => {
+            if (e.ctrlKey || e.metaKey) return;
+            e.preventDefault();
+            e.stopPropagation();
+            this._openEditorFor(hexLabel, e);
+        });
+    }
+
+    /**
+     * Open the lore editor on this hex. When the hex holds lore on several targets
+     * (the system plus one or more planets) ask which one rather than guessing.
+     */
+    async _openEditorFor(hexLabel, event) {
+        const open = window.openLoreEditor;
+        if (typeof open !== 'function') return;
+
+        const hex = this.editor.hexes[hexLabel];
+        if (!hex) return;
+
+        const targets = [];
+        if (normalizeLoreEntries(hex.systemLore).filter(isNonEmptyLoreEntry).length) {
+            targets.push({ ref: { kind: 'system', hexLabel }, label: `${hexLabel} — System` });
+        }
+        for (const [idx, list] of Object.entries(hex.planetLore || {})) {
+            if (!normalizeLoreEntries(list).filter(isNonEmptyLoreEntry).length) continue;
+            const i = Number(idx);
+            targets.push({
+                ref: { kind: 'planet', hexLabel, planetIndex: i },
+                label: planetDisplayName(hex.planets?.[i], i)
+            });
+        }
+
+        if (targets.length === 0) return;
+        if (targets.length === 1) { open(targets[0].ref); return; }
+
+        this._hideTooltip();
+        const { openListPicker } = await import('../modules/Lore/loreEffectPickers.js');
+        const anchor = document.createElement('div');
+        anchor.style.cssText = `position:fixed;left:${event.clientX}px;top:${event.clientY}px;` +
+            'width:0;height:0;pointer-events:none';
+        document.body.appendChild(anchor);
+        try {
+            const choice = await openListPicker(
+                anchor,
+                targets.map((t, i) => ({ value: String(i), label: t.label })),
+                { title: 'Edit lore on…', searchable: false, width: 220 }
+            );
+            if (choice != null) open(targets[Number(choice)].ref);
+        } finally {
+            anchor.remove();
+        }
     }
 
     createCountBadge(group, x, y, count) {
