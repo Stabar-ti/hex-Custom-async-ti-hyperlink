@@ -136,7 +136,21 @@ src/
 public/data/   — system info, tokens, attachments (sourced from AsyncTI4 bot)
 ```
 
-### Linting (optional)
+### Checks (optional)
+
+```bash
+npm install   # one time; requires Node 18+
+npm run check # lint + tests
+npm test      # lore footer round-trip tests only
+```
+
+`npm test` exercises the lore footer model against the real modules: an entry's `footerText`
+is the only thing the AsyncTI4 bot ever reads, and the editor parses it into objects and
+writes it back, so a defect there silently corrupts a GM's lore. The suite asserts the
+round-trip is safe over the lore export shipped in `public/data/tempo/` plus constructed
+cases covering gates, roll bins, multi-effect lines, and negated conditions.
+
+### Linting
 
 The app itself still has **no build step** — `index.html` loads `src/` as native ES modules and
 opens directly, exactly as before. But because nothing compiles the code, a mistyped import path

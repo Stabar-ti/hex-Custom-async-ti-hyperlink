@@ -5,6 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node tools/test-lore-footer.js",
+    "check": "npm run lint && npm test",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "lint:lore": "eslint src/modules/Lore src/features/loreOverlay.js src/draw/hexAnchors.js",
