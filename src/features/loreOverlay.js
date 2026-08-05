@@ -1,6 +1,7 @@
 // loreOverlay.js - Visual indicators for systems and planets with lore
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
-import { getDisplayFooter, getEffectLines, isChoiceGated, isRollGated, getGate } from '../modules/Lore/loreEffects.js';
+import { planetDisplayName } from '../draw/hexAnchors.js';
+import { getDisplayFooter, getEffectLines, isChoiceGated, isRollGated, getGate, retargetFooterReferences } from '../modules/Lore/loreEffects.js';
 import { normalizeLoreEntries, isNonEmptyLoreEntry, formatRoundWindow, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
 
 const PHASE_SHORT = { strategy: 'Str', action: 'Act', status: 'Sta', agenda: 'Agn' };
@@ -202,7 +203,7 @@ class LoreOverlay {
                 if (!entries.length) return;
                 const planetIdx = parseInt(idx);
                 const planet = hex.planets?.[planetIdx];
-                const planetName = planet?.name || planet?.planetID || `Planet ${planetIdx + 1}`;
+                const planetName = planetDisplayName(planet, Number(planetIdx));
 
                 const sep = document.createElement('div');
                 sep.style.cssText = 'border-top:1px solid #333;margin:6px 0 4px';
@@ -288,19 +289,8 @@ class LoreOverlay {
         if (!hex) return;
 
         const loreData = { ...this._clipboard.data };
-
-        // Update tile_name references in footerText for the target hex
-        if (loreData.footerText?.includes('tile_name:')) {
-            loreData.footerText = loreData.footerText.replace(/tile_name:\w+/g, `tile_name:${hex.label}`);
-
-            if (this._clipboard.type === 'planet' && this._clipboard.planetIndex !== null) {
-                const planet = hex.planets?.[this._clipboard.planetIndex];
-                if (planet) {
-                    const pName = (planet.name || planet.planetID || planet.id || '').replace(/\s+/g, '');
-                    if (pName) loreData.footerText = loreData.footerText.replace(/planet:\w+/g, `planet:${pName}`);
-                }
-            }
-        }
+        const pastedPlanetIndex = this._clipboard.type === 'planet' ? this._clipboard.planetIndex : null;
+        loreData.footerText = retargetFooterReferences(loreData.footerText, hex, pastedPlanetIndex);
 
         this.editor.saveState(targetLabel);
         // Append to the target's entry list (a target holds many entries)
@@ -685,7 +675,7 @@ class LoreOverlay {
         picker.appendChild(title);
 
         (hex.planets || []).forEach((planet, idx) => {
-            const name = planet?.name || planet?.planetID || `Planet ${idx + 1}`;
+            const name = planetDisplayName(planet, idx);
             const btn = document.createElement('button');
             btn.textContent = name;
             btn.style.cssText = 'display:block;width:100%;text-align:left;padding:5px 10px;' +
@@ -741,19 +731,14 @@ class LoreOverlay {
         if (!hex) return;
 
         const loreData = { ...this._clipboard.data };
-
-        if (loreData.footerText?.includes('tile_name:')) {
-            loreData.footerText = loreData.footerText.replace(/tile_name:\w+/g, `tile_name:${hex.label}`);
-            const planet = hex.planets?.[targetPlanetIdx];
-            if (planet) {
-                const pName = (planet.name || planet.planetID || planet.id || '').replace(/\s+/g, '');
-                if (pName) loreData.footerText = loreData.footerText.replace(/planet:\w+/g, `planet:${pName}`);
-            }
-        }
+        loreData.footerText = retargetFooterReferences(loreData.footerText, hex, targetPlanetIdx);
 
         this.editor.saveState(targetLabel);
-        if (!hex.planetLore) hex.planetLore = {};
-        hex.planetLore[targetPlanetIdx] = loreData;
+        // Append, like _pasteLore — a planet slot holds a LIST of entries, and the tooltip
+        // tells the user pasting appends. Assigning here wiped every entry already there.
+        if (!hex.planetLore || Array.isArray(hex.planetLore)) hex.planetLore = {};
+        hex.planetLore[targetPlanetIdx] = normalizeLoreEntries(hex.planetLore[targetPlanetIdx]);
+        hex.planetLore[targetPlanetIdx].push(loreData);
 
         this.refresh();
 

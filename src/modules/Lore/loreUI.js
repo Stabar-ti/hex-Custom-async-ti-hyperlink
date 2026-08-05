@@ -11,6 +11,7 @@
  */
 
 import { showPopup } from '../../ui/popupUI.js';
+import { planetDisplayName } from '../../draw/hexAnchors.js';
 import {
     LoreManager, LORE_RECEIVERS, LORE_TRIGGERS, LORE_PINGS, LORE_PERSISTANCE,
     LORE_RECEIVER_LABELS, LORE_TRIGGER_LABELS, LORE_PERSISTANCE_LABELS,
@@ -19,7 +20,8 @@ import {
     createLoreEntry, parseRoundWindow, formatRoundWindow, validateTag, isNonEmptyLoreEntry
 } from './loreCore.js';
 import {
-    EFFECT_VERBS, getGate, withGateMarker, getDisplayFooter, validateLoreEffects
+    EFFECT_VERBS, getGate, withGateMarker, getDisplayFooter, validateLoreEffects,
+    retargetFooterReferences, TILE_DEFAULT_VERBS
 } from './loreEffects.js';
 import {
     openNumberPicker, openUnitPicker, openTokenPicker, openTargetPicker, openSwapPicker,
@@ -38,12 +40,6 @@ const NUMERIC_PICKER_RANGES = {
     ac: { min: 1, max: 3 },
     so: { min: 1, max: 3 }
 };
-
-// Verbs that resolve against a board target, so the "Target" control's @ref is meaningful.
-const TARGET_AWARE_VERBS = new Set([
-    'unit', 'plastic', 'removeunit', 'token', 'removetoken',
-    'cc', 'removecc', 'clearunits', 'addfogtile', 'removefogtile'
-]);
 
 const PHASE_LABELS = { strategy: 'Strategy', action: 'Action', status: 'Status', agenda: 'Agenda' };
 
@@ -266,8 +262,7 @@ function targetTitle(ref) {
     if (ref.kind === 'phase') return `${PHASE_LABELS[ref.phase]} phase`;
     if (ref.kind === 'system') return `${ref.hexLabel} — System`;
     const planet = loreManager.editor.hexes[ref.hexLabel]?.planets?.[ref.planetIndex];
-    const name = planet?.name || planet?.planetID || planet?.id || `Planet ${ref.planetIndex + 1}`;
-    return `${ref.hexLabel} — ${name}`;
+    return `${ref.hexLabel} — ${planetDisplayName(planet, ref.planetIndex)}`;
 }
 
 function renderChipBar(hex) {
@@ -291,7 +286,7 @@ function renderChipBar(hex) {
     mkChip(`System${sysCount ? ` ×${sysCount}` : ''}`, { kind: 'system', hexLabel: hex.label }, 'loreChip_system');
 
     (hex.planets || []).forEach((planet, i) => {
-        const name = planet?.name || planet?.planetID || planet?.id || `Planet ${i + 1}`;
+        const name = planetDisplayName(planet, i);
         const count = loreManager.getEntries({ kind: 'planet', hexLabel: hex.label, planetIndex: i })
             .filter(isNonEmptyLoreEntry).length;
         mkChip(`${name}${count ? ` ×${count}` : ''}`, { kind: 'planet', hexLabel: hex.label, planetIndex: i }, `loreChip_planet${i}`);
@@ -360,7 +355,7 @@ function selectTarget(ref) {
 function entrySummaryLine(entry) {
     const bits = [];
     bits.push(entry.tag ? `#${entry.tag}` : '(untagged)');
-    bits.push(LORE_TRIGGER_LABELS[entry.trigger] ? entry.trigger : entry.trigger);
+    bits.push(LORE_TRIGGER_LABELS[entry.trigger] || entry.trigger);
     return bits.join(' · ');
 }
 
@@ -917,7 +912,7 @@ function createVerbButton({ verb, label, template, fowOnly, hint }, color) {
             if (args == null) return;
         }
 
-        const target = TARGET_AWARE_VERBS.has(verb) ? effectTarget : null;
+        const target = TILE_DEFAULT_VERBS.has(verb) ? effectTarget : null;
         const body = args ? `${verb} ${args}`.trim() : (args === '' ? verb : template);
         insertEffectSnippet(target ? `${body} @${target}` : body);
     };
@@ -1285,17 +1280,11 @@ function pasteEntry() {
 
 /** Rewrites tile_name:/planet: footer references when an entry moves to another target. */
 function _applyHexReplacements(loreData, targetRef) {
-    if (!loreData.footerText?.includes('tile_name:') || targetRef.kind === 'phase') return loreData;
+    if (targetRef.kind === 'phase') return loreData;
     const targetHex = loreManager.editor.hexes[targetRef.hexLabel];
     if (!targetHex) return loreData;
-    loreData.footerText = loreData.footerText.replace(/tile_name:\w+/g, `tile_name:${targetHex.label}`);
-    if (targetRef.kind === 'planet') {
-        const planet = targetHex.planets?.[targetRef.planetIndex];
-        if (planet) {
-            const pName = (planet.name || planet.planetID || planet.id || '').replace(/\s+/g, '');
-            if (pName) loreData.footerText = loreData.footerText.replace(/planet:\w+/g, `planet:${pName}`);
-        }
-    }
+    const planetIndex = targetRef.kind === 'planet' ? targetRef.planetIndex : null;
+    loreData.footerText = retargetFooterReferences(loreData.footerText, targetHex, planetIndex);
     return loreData;
 }
 

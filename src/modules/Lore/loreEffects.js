@@ -169,6 +169,32 @@ function splitTag(line, rollGated) {
 }
 
 /**
+ * The single tokenizer for one footer line. Everything that reads footer text — the effect
+ * list, the player-facing display, and the structured document model — goes through this, so
+ * there is exactly one place where the bot's line grammar is encoded.
+ *
+ * Returns { isGateMarker, branch, segments } where branch is null | 'accept' | 'reject' |
+ * a bin range like '2-10', and each segment is { isEffect, text } in source order. Effect
+ * segment text has its leading "!" stripped.
+ */
+export function splitFooterLine(rawLine, rollGated) {
+    const stripped = (rawLine || '').trim();
+    if (isGateMarkerLine(stripped)) {
+        return { isGateMarker: true, branch: null, segments: [] };
+    }
+
+    const [branch, rest] = splitTag(stripped, rollGated);
+    const segments = [];
+    for (const segment of rest.split(/(?<=\s)(?=!)/)) {
+        const trimmed = segment.trim();
+        if (!trimmed) continue;
+        const isEffect = trimmed.startsWith('!');
+        segments.push({ isEffect, text: isEffect ? trimmed.substring(1).trim() : trimmed });
+    }
+    return { isGateMarker: false, branch, segments };
+}
+
+/**
  * Returns each effect line, leading "!" stripped, branch tag preserved as a
  * "accept:"/"reject:"/"2-10:" prefix. Mirrors LoreEntry.getEffectLines().
  */
@@ -176,17 +202,11 @@ export function getEffectLines(footerText) {
     const out = [];
     const rollGated = isRollGated(footerText);
     for (const rawLine of (footerText || '').split('\n')) {
-        const stripped = rawLine.trim();
-        if (isGateMarkerLine(stripped)) continue;
-
-        const [tag, rest] = splitTag(stripped, rollGated);
-        const tagPrefix = tag === null ? '' : tag + ':';
-
-        for (const segment of rest.split(/(?<=\s)(?=!)/)) {
-            const trimmed = segment.trim();
-            if (trimmed.startsWith('!')) {
-                out.push(tagPrefix + trimmed.substring(1).trim());
-            }
+        const { isGateMarker, branch, segments } = splitFooterLine(rawLine, rollGated);
+        if (isGateMarker) continue;
+        const tagPrefix = branch === null ? '' : branch + ':';
+        for (const segment of segments) {
+            if (segment.isEffect) out.push(tagPrefix + segment.text);
         }
     }
     return out;
@@ -197,18 +217,9 @@ export function getDisplayFooter(footerText) {
     const outLines = [];
     const rollGated = isRollGated(footerText);
     for (const rawLine of (footerText || '').split('\n')) {
-        let stripped = rawLine.trim();
-        if (isGateMarkerLine(stripped)) continue;
-        stripped = splitTag(stripped, rollGated)[1];
-
-        let lineOut = '';
-        for (const segment of stripped.split(/(?<=\s)(?=!)/)) {
-            const trimmed = segment.trim();
-            if (!trimmed.startsWith('!')) {
-                lineOut += (lineOut ? ' ' : '') + trimmed;
-            }
-        }
-        const displayLine = lineOut.trim();
+        const { isGateMarker, segments } = splitFooterLine(rawLine, rollGated);
+        if (isGateMarker) continue;
+        const displayLine = segments.filter(s => !s.isEffect).map(s => s.text).join(' ').trim();
         if (displayLine) outLines.push(displayLine);
     }
     return outLines.join('\n').trim();
@@ -251,6 +262,67 @@ export function parseEffectLine(entry) {
         else args.push(token);
     }
     return { verb, args, targetRef, branch, conditions };
+}
+
+/**
+ * Inverse of parseEffectLine, in the getEffectLines form: "accept:tg +2 @305 ?red".
+ * Token order is fixed (branch, verb, args, @target, ?conditions) — parseEffectLine
+ * bucket-sorts by prefix so order carries no meaning, and fixing it makes the
+ * parse -> serialize pass idempotent.
+ */
+export function serializeEffectBody(parsed) {
+    if (!parsed || !parsed.verb) return '';
+    const parts = [parsed.verb, ...(parsed.args || [])];
+    if (parsed.targetRef) parts.push(`@${parsed.targetRef}`);
+    for (const condition of parsed.conditions || []) parts.push(`?${condition}`);
+    const prefix = parsed.branch ? `${parsed.branch}:` : '';
+    return prefix + parts.join(' ');
+}
+
+/** Same, in the footer form (the "!" restored): "accept:!tg +2 @305 ?red". */
+export function serializeEffectLine(parsed) {
+    if (!parsed || !parsed.verb) return '';
+    const prefix = parsed.branch ? `${parsed.branch}:` : '';
+    return prefix + '!' + serializeEffectBody({ ...parsed, branch: null });
+}
+
+/**
+ * True when a parsed effect can be re-serialized without changing what the bot reads.
+ * Anything we cannot round-trip safely is left as raw text rather than rewritten.
+ *
+ * Whitespace inside any token would re-tokenize into extra args, and ';'/'|' are the wire
+ * format's field and entry separators — so those are unsafe everywhere. A leading '!' is
+ * only unsafe on tokens emitted bare (the verb and args), because getEffectLines splits a
+ * line at /(?<=\s)(?=!)/ — a bare "!x" would become a whole new effect segment. Conditions
+ * and targets are emitted behind '?' and '@', so "?!faction:winnu" (a negated condition,
+ * which is valid) is never at risk.
+ */
+export function canSerializeEffect(parsed) {
+    if (!parsed || !parsed.verb) return false;
+    const badChars = t => typeof t !== 'string' || t === '' || /[\s;|]/.test(t);
+    const unsafeBare = t => badChars(t) || t.startsWith('!');
+    if (unsafeBare(parsed.verb)) return false;
+    if ((parsed.args || []).some(unsafeBare)) return false;
+    if ((parsed.conditions || []).some(badChars)) return false;
+    if (parsed.targetRef != null && badChars(parsed.targetRef)) return false;
+    if (parsed.branch != null && !/^(accept|reject|\d+(-\d+)?)$/i.test(parsed.branch)) return false;
+    return true;
+}
+
+/**
+ * Rewrites the tile/planet references a footer carries when an entry is copied to another
+ * target, so "/add_token ... tile_name:305" follows the entry to its new home.
+ * Shared by the editor's Copy to… and the map overlay's paste paths.
+ */
+export function retargetFooterReferences(footerText, hex, planetIndex = null) {
+    if (!footerText || !hex || !footerText.includes('tile_name:')) return footerText;
+    let out = footerText.replace(/tile_name:\w+/g, `tile_name:${hex.label}`);
+    if (planetIndex != null) {
+        const planet = hex.planets?.[planetIndex];
+        const name = (planet?.name || planet?.planetID || planet?.id || '').replace(/\s+/g, '');
+        if (name) out = out.replace(/planet:\w+/g, `planet:${name}`);
+    }
+    return out;
 }
 
 /** Parses "N", "N-M", "N-", "-M" into [from, till] (0 = unbounded); null if malformed/backwards. */
