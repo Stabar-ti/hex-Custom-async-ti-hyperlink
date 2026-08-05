@@ -136,6 +136,22 @@ src/
 public/data/   — system info, tokens, attachments (sourced from AsyncTI4 bot)
 ```
 
+### Linting (optional)
+
+The app itself still has **no build step** — `index.html` loads `src/` as native ES modules and
+opens directly, exactly as before. But because nothing compiles the code, a mistyped import path
+or a named import that doesn't exist shows up only as a blank page at runtime. ESLint is set up
+to catch that class of mistake:
+
+```bash
+npm install        # one time; requires Node 18+
+npm run lint       # whole codebase
+npm run lint:lore  # just the Lore module
+```
+
+`node_modules/` is gitignored and no build output is produced — linting is a check you run, not
+a step anyone needs in order to use the tool.
+
 ### Contributing
 
 - Open issues or PRs on GitHub

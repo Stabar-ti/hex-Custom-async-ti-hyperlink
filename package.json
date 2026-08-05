@@ -1,0 +1,19 @@
+{
+  "name": "hex-custom-async-ti-hyperlink",
+  "version": "1.0.0",
+  "description": "Client-side SVG hex-map editor for Twilight Imperium 4 async league play.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "lint:lore": "eslint src/modules/Lore src/features/loreOverlay.js src/draw/hexAnchors.js",
+    "serve": "python server.py"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "eslint-plugin-import": "^2.31.0",
+    "globals": "^15.14.0"
+  }
+}
