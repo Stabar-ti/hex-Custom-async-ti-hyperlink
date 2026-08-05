@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lore marker &amp; arc preview</title>
+<style>
+  body {
+    margin: 0; padding: 24px;
+    background: #121212; color: #eee;
+    font-family: "Segoe UI", Arial, sans-serif;
+  }
+  h1 { font-size: 1.1em; margin: 0 0 4px; }
+  p.note { color: #999; font-size: 0.85em; margin: 0 0 20px; max-width: 70ch; line-height: 1.5; }
+  h2 { font-size: 0.9em; color: #9b59b6; margin: 24px 0 8px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 12px; }
+  .cell {
+    border: 1px solid #444; border-radius: 6px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .cell figcaption {
+    font-size: 0.72em; color: #aaa; padding: 4px 8px;
+    background: #1e1e1e; border-top: 1px solid #444;
+  }
+  svg { display: block; }
+</style>
+</head>
+<body>
+
+<h1>Lore marker &amp; arc preview</h1>
+<p class="note">
+  Renders every marker and arc variant from <code>src/draw/loreDraw.js</code> over a range of
+  backgrounds, so the visuals can be judged without hunting for a hex that happens to have a
+  <code>!swap</code> on it. This page imports the real drawing module — what you see here is
+  what the map draws. Serve it with <code>python server.py</code> and open
+  <code>/html test/test-lore-markers.html</code>.
+</p>
+
+<h2>Arcs over varying backgrounds</h2>
+<div class="strip" id="arcs"></div>
+
+<h2>Markers — trigger glyphs (system fill)</h2>
+<div class="strip" id="triggers"></div>
+
+<h2>Markers — gate rim, count badge, round clock</h2>
+<div class="strip" id="variants"></div>
+
+<script type="module">
+import { drawMarker, drawEffectArc, TRIGGER_LEGEND } from '../src/draw/loreDraw.js';
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// Backgrounds a marker or arc realistically lands on: deep space, bright nebula,
+// pale supernova, mid grey asteroid, and a saturated blue planet tile.
+const BACKDROPS = [
+  ['#2b2b2b', 'void / dark tile'],
+  ['#e6ccff', 'nebula (light)'],
+  ['#ffe5b4', 'supernova (pale)'],
+  ['#7b7b7b', 'rift (mid grey)'],
+  ['#005cbf', '3-planet (saturated)']
+];
+
+function cell(width, height, bg, caption) {
+  const fig = document.createElement('figure');
+  fig.className = 'cell';
+  fig.style.margin = '0';
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('width', width);
+  svg.setAttribute('height', height);
+  svg.style.background = bg;
+  fig.appendChild(svg);
+  const cap = document.createElement('figcaption');
+  cap.textContent = caption;
+  fig.appendChild(cap);
+  return { fig, svg };
+}
+
+// ── arcs ─────────────────────────────────────────────────────────────────────
+const arcsHost = document.getElementById('arcs');
+for (const [bg, name] of BACKDROPS) {
+  const { fig, svg } = cell(230, 150, bg, name);
+  drawEffectArc(svg, { x: 30, y: 30 },  { x: 195, y: 45 },  { kind: 'affects' });
+  drawEffectArc(svg, { x: 30, y: 70 },  { x: 195, y: 85 },  { kind: 'removes' });
+  drawEffectArc(svg, { x: 30, y: 110 }, { x: 195, y: 125 }, { kind: 'swap' });
+  arcsHost.appendChild(fig);
+}
+{
+  const { fig, svg } = cell(230, 150, '#2b2b2b', 'legend');
+  const label = (y, text, colour) => {
+    const t = document.createElementNS(SVG_NS, 'text');
+    t.setAttribute('x', 12); t.setAttribute('y', y);
+    t.setAttribute('fill', colour); t.setAttribute('font-size', '13');
+    t.textContent = text;
+    svg.appendChild(t);
+  };
+  label(35, 'blue solid  = places / affects', '#1976d2');
+  label(75, 'red dashed  = removes', '#e74c3c');
+  label(115, 'gold solid  = swaps systems', '#ffc107');
+  arcsHost.appendChild(fig);
+}
+
+// ── trigger glyphs ───────────────────────────────────────────────────────────
+const trigHost = document.getElementById('triggers');
+for (const [trigger, glyph, description] of TRIGGER_LEGEND) {
+  const { fig, svg } = cell(150, 70, '#2b2b2b', `${glyph}  ${description}`);
+  drawMarker(svg, {
+    x: 75, y: 32, kind: 'system',
+    summary: { count: 1, trigger, gate: 'none', hasRounds: false }
+  });
+  trigHost.appendChild(fig);
+}
+
+// ── gate / badge variants ────────────────────────────────────────────────────
+const varHost = document.getElementById('variants');
+const VARIANTS = [
+  [{ count: 1, trigger: 'CONTROLLED', gate: 'none',   hasRounds: false }, 'system, no gate'],
+  [{ count: 1, trigger: 'CONTROLLED', gate: 'choice', hasRounds: false }, 'Accept/Reject rim'],
+  [{ count: 1, trigger: 'CONTROLLED', gate: 'roll',   hasRounds: false }, 'dice-roll rim'],
+  [{ count: 3, trigger: 'ACTIVATED',  gate: 'none',   hasRounds: false }, 'count badge x3'],
+  [{ count: 12, trigger: 'ACTIVATED', gate: 'none',   hasRounds: false }, 'count badge 9+'],
+  [{ count: 1, trigger: 'MOVED',      gate: 'none',   hasRounds: true  }, 'round-restricted'],
+  [{ count: 2, trigger: 'SPACE_BATTLE', gate: 'roll', hasRounds: true  }, 'everything at once']
+];
+for (const [summary, caption] of VARIANTS) {
+  const { fig, svg } = cell(150, 80, '#2b2b2b', caption);
+  drawMarker(svg, { x: 50, y: 38, kind: 'system', summary });
+  drawMarker(svg, { x: 105, y: 38, kind: 'planet', summary });
+  varHost.appendChild(fig);
+}
+{
+  const { fig, svg } = cell(150, 80, '#2b2b2b', 'focused (halo)');
+  drawMarker(svg, {
+    x: 50, y: 38, kind: 'system', focused: true,
+    summary: { count: 1, trigger: 'CONTROLLED', gate: 'none', hasRounds: false }
+  });
+  drawMarker(svg, {
+    x: 105, y: 38, kind: 'planet', focused: true,
+    summary: { count: 1, trigger: 'CONTROLLED', gate: 'none', hasRounds: false }
+  });
+  varHost.appendChild(fig);
+}
+</script>
+</body>
+</html>

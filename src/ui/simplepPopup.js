@@ -229,20 +229,15 @@ export function showOverlayOptionsPopup() {
         });
 
         // Lore overlay toggle
+        // main.js always constructs editor.loreOverlay at startup. Constructing a second one
+        // here orphaned the first's clipboard/active state and left its badge DOM unowned.
         setupToggle('toggleLore', 'showLore', () => {
             if (!editor.loreOverlay) {
-                import('../features/loreOverlay.js').then(({ default: LoreOverlay }) => {
-                    editor.loreOverlay = new LoreOverlay(editor);
-                    if (editor.showLore) {
-                        editor.loreOverlay.show();
-                    }
-                });
+                console.warn('Lore overlay not initialized yet');
+            } else if (editor.showLore) {
+                editor.loreOverlay.show();
             } else {
-                if (editor.showLore) {
-                    editor.loreOverlay.show();
-                } else {
-                    editor.loreOverlay.hide();
-                }
+                editor.loreOverlay.hide();
             }
         });
 

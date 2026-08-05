@@ -3,67 +3,71 @@
  *
  * Layout: a target bar (hex pick + chips per system/planet + a phase strip), an entry
  * list on the left (a target holds MANY entries, distinguished by #tags), and a single
- * entry editor on the right (text, footer + effects builder, trigger/receiver/rounds/tag,
- * choice/roll gates, per-line ?conditions).
+ * entry editor on the right (text, the structured footer from loreEffectRows, and
+ * trigger/receiver/rounds/tag).
  *
- * External contract kept for uisectorControls.js "Add Lore…" hex-pick mode:
- * fill #hexLabelInput and click #selectHexBtn.
+ * The form no longer owns its values: everything lives in loreState, which is what makes
+ * unsaved work detectable. Switching entry or target commits first instead of silently
+ * discarding, which is the bug this replaced.
+ *
+ * Entry points are real functions, not DOM ids: openLoreEditor(ref, entryIndex) and
+ * showLorePopup(), both also on window. The toolbar's "Add Lore…" button and the map overlay
+ * call those; the hex-label input is now just a convenience for typing a label directly.
  */
 
-import { showPopup } from '../../ui/popupUI.js';
+import { showPopup, hidePopup } from '../../ui/popupUI.js';
+import { planetDisplayName } from '../../draw/hexAnchors.js';
 import {
     LoreManager, LORE_RECEIVERS, LORE_TRIGGERS, LORE_PINGS, LORE_PERSISTANCE,
     LORE_RECEIVER_LABELS, LORE_TRIGGER_LABELS, LORE_PERSISTANCE_LABELS,
-    LORE_PHASE_TARGETS, LORE_PHASE_TRIGGERS, LORE_TEXT_LIMIT, LORE_FOOTER_LIMIT,
+    LORE_PHASE_TARGETS, LORE_PHASE_TRIGGERS, LORE_TEXT_LIMIT,
     LORE_FOW_ONLY_RECEIVERS, LORE_NON_FOW_ONLY_RECEIVERS,
-    createLoreEntry, parseRoundWindow, formatRoundWindow, validateTag, isNonEmptyLoreEntry
+    parseRoundWindow, formatRoundWindow, validateTag, isNonEmptyLoreEntry
 } from './loreCore.js';
-import {
-    EFFECT_VERBS, getGate, withGateMarker, getDisplayFooter, validateLoreEffects
-} from './loreEffects.js';
-import {
-    openNumberPicker, openUnitPicker, openTokenPicker, openTargetPicker, openSwapPicker,
-    openColorPicker, openTechPicker, openSetTilePicker, openRotateHyperlanePicker,
-    openSetHyperlanePicker, openFogTilePicker, openConditionPicker, openListPicker
-} from './loreEffectPickers.js';
+import { getGate, retargetFooterReferences } from './loreEffects.js';
+import { checkAllFooters } from './loreFooterModel.js';
+import * as state from './loreState.js';
+import * as effectRows from './loreEffectRows.js';
+import { openListPicker } from './loreEffectPickers.js';
+import { armLoreMapPick, disarmLoreMapPick } from './loreMapPick.js';
 
-// Verbs whose footer-DSL semantics are "amount only" — clicking shows a quick -3..+3
-// (or positive-only) number picker instead of inserting a fixed template.
-const NUMERIC_PICKER_RANGES = {
-    tg: { min: -3, max: 3 },
-    fleet: { min: -3, max: 3 },
-    tactic: { min: -3, max: 3 },
-    strategy: { min: -3, max: 3 },
-    comms: { min: -3, max: 3 },
-    ac: { min: 1, max: 3 },
-    so: { min: 1, max: 3 }
-};
-
-// Verbs that resolve against a board target, so the "Target" control's @ref is meaningful.
-const TARGET_AWARE_VERBS = new Set([
-    'unit', 'plastic', 'removeunit', 'token', 'removetoken',
-    'cc', 'removecc', 'clearunits', 'addfogtile', 'removefogtile'
-]);
+// The popup remembers its size, and the pre-rework layout was much narrower. Clear that one
+// stored value once so the effect rows aren't squeezed into a column on first open.
+const LAYOUT_VERSION_KEY = 'lore-ui-layout-version';
+const LAYOUT_VERSION = '2';
 
 const PHASE_LABELS = { strategy: 'Strategy', action: 'Action', status: 'Status', agenda: 'Agenda' };
 
 let loreManager = null;
 
-// Selected target + entry
-let currentRef = null;      // {kind:'system'|'planet'|'phase', hexLabel?, planetIndex?, phase?}
-let currentIndex = -1;      // index into the target's entry list; -1 = composing a new entry
-
-// Editor-local clipboard (one full entry)
-let copiedEntry = null;
-
-// The optional @target redirect for effect insertion
-let effectTarget = null;
-
 export function installLoreUI(editor) {
     loreManager = new LoreManager(editor);
+    try {
+        if (localStorage.getItem(LAYOUT_VERSION_KEY) !== LAYOUT_VERSION) {
+            localStorage.removeItem('popup-pos-lorePopup');
+            localStorage.setItem(LAYOUT_VERSION_KEY, LAYOUT_VERSION);
+        }
+    } catch { /* private mode / storage disabled — the popup just uses its default size */ }
+    // Any change to the draft re-renders the effect rows and the dirty indicator. The form
+    // fields are NOT rewritten here — that would fight the cursor while typing.
+    state.subscribe(() => {
+        effectRows.refresh();
+        updateDirtyUI();
+    });
     window.loreManager = loreManager;
     window.showLorePopup = showLorePopup;
     window.openLorePopupAtPhase = openLorePopupAtPhase;
+    window.openLoreEditor = openLoreEditor;
+    // Dev guard: verifies every footer on the map survives a structured round-trip.
+    window.__loreCheckAllFooters = () => checkAllFooters(loreManager.editor);
+}
+
+/** Open the editor on a specific target, optionally focused on one entry. */
+export function openLoreEditor(ref, entryIndex = null) {
+    showLorePopup();
+    if (!ref) return;
+    selectTarget(ref);
+    if (entryIndex != null) loadEntry(entryIndex);
 }
 
 /** Opens the popup focused on one phase's entry list (used by the overlay's phase banner). */
@@ -107,12 +111,20 @@ export function showLorePopup() {
             padding: '16px'
         },
         showHelp: true,
-        onHelp: () => showLoreHelp()
+        onHelp: () => showLoreHelp(),
+        onClose: () => {
+            // Commit before the popup goes away, or closing it would be another silent
+            // way to lose work. Then release the map so hex clicks paint again.
+            commitIfDirty();
+            disarmLoreMapPick(loreManager.editor);
+        }
     });
 
+    applyMapPicking(mapPickPreference());
+
     // restore state if the popup was reopened mid-session
-    if (currentRef?.hexLabel) selectHex(currentRef.hexLabel);
-    else if (currentRef?.kind === 'phase') selectPhase(currentRef.phase);
+    if (state.getRef()?.hexLabel) selectHex(state.getRef().hexLabel);
+    else if (state.getRef()?.kind === 'phase') selectPhase(state.getRef().phase);
 }
 
 function createHeaderSection() {
@@ -137,7 +149,7 @@ function createHeaderSection() {
     gameTypeSelect.onchange = () => {
         loreManager.editor.loreGameType = gameTypeSelect.value;
         updateReceiverOptions();
-        updateEffectsPreview();
+        effectRows.refresh();   // game type gates which effect verbs are offered
     };
     gameTypeLabel.appendChild(gameTypeSelect);
     row.appendChild(gameTypeLabel);
@@ -187,10 +199,23 @@ function createTargetSection() {
     selectBtn.onclick = () => selectHex(input.value.trim());
     row.appendChild(selectBtn);
 
-    const hint = document.createElement('span');
-    hint.textContent = 'or use "Add Lore…" in the toolbar and click hexes on the map';
-    hint.style.cssText = 'font-size:0.8em;color:#888';
-    row.appendChild(hint);
+    // Map picking is the primary way in, so it's on by default while the popup is open.
+    // It's a visible toggle because it claims hex clicks — painting sectors with the popup
+    // open has to stay possible.
+    const pickLabel = document.createElement('label');
+    pickLabel.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:0.8em;color:#ccc;cursor:pointer';
+    pickLabel.title = 'Click a hex on the map to edit its lore. Right-click a hex to pick one of its planets.';
+    const pickToggle = document.createElement('input');
+    pickToggle.type = 'checkbox';
+    pickToggle.id = 'loreMapPickToggle';
+    pickToggle.checked = mapPickPreference();
+    pickToggle.onchange = () => {
+        setMapPickPreference(pickToggle.checked);
+        applyMapPicking(pickToggle.checked);
+    };
+    pickLabel.appendChild(pickToggle);
+    pickLabel.appendChild(document.createTextNode('🎯 Pick from map'));
+    row.appendChild(pickLabel);
 
     const phaseWrap = document.createElement('div');
     phaseWrap.style.cssText = 'display:flex;align-items:center;gap:6px;margin-left:auto';
@@ -223,6 +248,25 @@ function createTargetSection() {
     return section;
 }
 
+const MAP_PICK_KEY = 'lore-map-pick';
+
+function mapPickPreference() {
+    try { return localStorage.getItem(MAP_PICK_KEY) !== 'off'; } catch { return true; }
+}
+
+function setMapPickPreference(on) {
+    try { localStorage.setItem(MAP_PICK_KEY, on ? 'on' : 'off'); } catch { /* ignore */ }
+}
+
+/** Arm or disarm hex picking for the open popup. */
+function applyMapPicking(on) {
+    if (on) {
+        armLoreMapPick(loreManager.editor, { onPick: (ref) => openLoreEditor(ref) });
+    } else {
+        disarmLoreMapPick(loreManager.editor);
+    }
+}
+
 function updateHexStatus(message) {
     const statusDiv = document.getElementById('hexStatus');
     if (statusDiv) statusDiv.textContent = message;
@@ -245,11 +289,11 @@ function selectHex(hexLabel) {
     updateHexStatus(`Selected hex ${hexLabel} — ${hex.planets?.length || 0} planet(s)`);
 
     // keep the current planet selection when re-selecting the same hex, else go to System
-    if (!(currentRef && currentRef.hexLabel === hexLabel && currentRef.kind === 'planet'
-        && currentRef.planetIndex < (hex.planets?.length || 0))) {
-        currentRef = { kind: 'system', hexLabel };
+    if (!(state.getRef() && state.getRef().hexLabel === hexLabel && state.getRef().kind === 'planet'
+        && state.getRef().planetIndex < (hex.planets?.length || 0))) {
+        state.setTarget({ kind: 'system', hexLabel });
     }
-    selectTarget(currentRef);
+    selectTarget(state.getRef());
 }
 
 function selectPhase(phase) {
@@ -266,8 +310,7 @@ function targetTitle(ref) {
     if (ref.kind === 'phase') return `${PHASE_LABELS[ref.phase]} phase`;
     if (ref.kind === 'system') return `${ref.hexLabel} — System`;
     const planet = loreManager.editor.hexes[ref.hexLabel]?.planets?.[ref.planetIndex];
-    const name = planet?.name || planet?.planetID || planet?.id || `Planet ${ref.planetIndex + 1}`;
-    return `${ref.hexLabel} — ${name}`;
+    return `${ref.hexLabel} — ${planetDisplayName(planet, ref.planetIndex)}`;
 }
 
 function renderChipBar(hex) {
@@ -291,7 +334,7 @@ function renderChipBar(hex) {
     mkChip(`System${sysCount ? ` ×${sysCount}` : ''}`, { kind: 'system', hexLabel: hex.label }, 'loreChip_system');
 
     (hex.planets || []).forEach((planet, i) => {
-        const name = planet?.name || planet?.planetID || planet?.id || `Planet ${i + 1}`;
+        const name = planetDisplayName(planet, i);
         const count = loreManager.getEntries({ kind: 'planet', hexLabel: hex.label, planetIndex: i })
             .filter(isNonEmptyLoreEntry).length;
         mkChip(`${name}${count ? ` ×${count}` : ''}`, { kind: 'planet', hexLabel: hex.label, planetIndex: i }, `loreChip_planet${i}`);
@@ -309,11 +352,11 @@ function highlightSelection() {
         const btn = document.getElementById(`lorePhaseBtn_${phase}`);
         if (btn) { btn.style.background = '#34495e'; btn.style.borderColor = '#666'; }
     });
-    if (!currentRef) return;
+    if (!state.getRef()) return;
     let el = null;
-    if (currentRef.kind === 'phase') el = document.getElementById(`lorePhaseBtn_${currentRef.phase}`);
-    else if (currentRef.kind === 'system') el = document.getElementById('loreChip_system');
-    else el = document.getElementById(`loreChip_planet${currentRef.planetIndex}`);
+    if (state.getRef().kind === 'phase') el = document.getElementById(`lorePhaseBtn_${state.getRef().phase}`);
+    else if (state.getRef().kind === 'system') el = document.getElementById('loreChip_system');
+    else el = document.getElementById(`loreChip_planet${state.getRef().planetIndex}`);
     if (el) { el.style.background = '#8e44ad'; el.style.borderColor = '#9b59b6'; }
 }
 
@@ -340,10 +383,10 @@ function createMainSection() {
 }
 
 function selectTarget(ref) {
-    currentRef = ref;
-    effectTarget = null;
-    const targetBtn = document.getElementById('loreTargetBtn');
-    if (targetBtn) targetBtn.textContent = '🎯 Target: none';
+    // Commit before switching target, for the same reason as switching entry: the old code
+    // moved on and whatever was typed went with it.
+    if (!commitIfDirty()) return;
+    state.setTarget(ref);
 
     const main = document.getElementById('loreMain');
     if (main) main.style.display = 'flex';
@@ -352,7 +395,7 @@ function selectTarget(ref) {
     updateReceiverOptions();
     renderEntryList();
 
-    const entries = loreManager.getEntries(currentRef);
+    const entries = loreManager.getEntries(state.getRef());
     if (entries.length) loadEntry(0);
     else startNewEntry();
 }
@@ -360,7 +403,7 @@ function selectTarget(ref) {
 function entrySummaryLine(entry) {
     const bits = [];
     bits.push(entry.tag ? `#${entry.tag}` : '(untagged)');
-    bits.push(LORE_TRIGGER_LABELS[entry.trigger] ? entry.trigger : entry.trigger);
+    bits.push(LORE_TRIGGER_LABELS[entry.trigger] || entry.trigger);
     return bits.join(' · ');
 }
 
@@ -377,15 +420,15 @@ function entryMetaLine(entry) {
 
 function renderEntryList() {
     const pane = document.getElementById('loreEntryListPane');
-    if (!pane || !currentRef) return;
+    if (!pane || !state.getRef()) return;
     pane.innerHTML = '';
 
     const heading = document.createElement('div');
-    heading.textContent = targetTitle(currentRef);
+    heading.textContent = targetTitle(state.getRef());
     heading.style.cssText = 'font-weight:bold;color:#9b59b6;font-size:0.9em;margin-bottom:2px';
     pane.appendChild(heading);
 
-    const entries = loreManager.getEntries(currentRef);
+    const entries = loreManager.getEntries(state.getRef());
     if (!entries.length) {
         const empty = document.createElement('div');
         empty.textContent = 'No lore entries yet.';
@@ -397,8 +440,8 @@ function renderEntryList() {
         const row = document.createElement('button');
         row.type = 'button';
         row.style.cssText = 'display:block;width:100%;text-align:left;padding:6px 8px;border:1px solid ' +
-            (i === currentIndex ? '#9b59b6' : '#555') + ';border-radius:4px;background:' +
-            (i === currentIndex ? '#3d2a52' : '#34495e') + ';color:#ddd;cursor:pointer';
+            (i === state.getIndex() ? '#9b59b6' : '#555') + ';border-radius:4px;background:' +
+            (i === state.getIndex() ? '#3d2a52' : '#34495e') + ';color:#ddd;cursor:pointer';
         const line1 = document.createElement('div');
         line1.textContent = entrySummaryLine(entry);
         line1.style.cssText = 'font-size:0.85em;font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
@@ -441,21 +484,14 @@ function createEntryEditor() {
     form.appendChild(loreTextArea);
     const loreCounter = mkCounter('loreLoreTextCounter', LORE_TEXT_LIMIT);
     form.appendChild(loreCounter);
-    wireTextLimit(loreTextArea, loreCounter, LORE_TEXT_LIMIT);
+    wireTextLimit(loreTextArea, loreCounter, LORE_TEXT_LIMIT,
+        () => state.patchDraft({ loreText: loreTextArea.value }));
 
-    // Footer text + counter
-    form.appendChild(mkLabel('Footer Text (flavor + !effect lines):'));
-    const footerArea = mkTextarea('loreFooterText', 4);
-    form.appendChild(footerArea);
-    const footerCounter = mkCounter('loreFooterTextCounter', LORE_FOOTER_LIMIT);
-    form.appendChild(footerCounter);
-    wireTextLimit(footerArea, footerCounter, LORE_FOOTER_LIMIT, () => updateEffectsPreview());
-
-    // Gate row (choice / roll)
-    form.appendChild(createGateRow());
-
-    // Effects builder
-    form.appendChild(createEffectsSection());
+    // Footer: flavour + gate + structured effect rows (replaces the raw footer textarea)
+    form.appendChild(effectRows.createFooterSection({
+        editor: loreManager.editor,
+        buildValidationData
+    }));
 
     // Options: receiver / trigger / ping / persistance
     const optionsRow = document.createElement('div');
@@ -507,34 +543,59 @@ function createEntryEditor() {
     metaRow.appendChild(tagWrap);
     form.appendChild(metaRow);
 
-    // Warnings from the manager (round shorthand, phase footguns) shown on save
+    // Errors and warnings from the manager, shown inline instead of via alert()
+    const errorBand = document.createElement('div');
+    errorBand.id = 'loreErrorBand';
+    errorBand.className = 'lore-error-band';
+    errorBand.style.display = 'none';
+    form.appendChild(errorBand);
+
     const saveWarnings = document.createElement('div');
     saveWarnings.id = 'loreSaveWarnings';
     saveWarnings.style.cssText = 'display:none;font-size:0.8em;color:#f39c12;margin-top:8px;line-height:1.5';
     form.appendChild(saveWarnings);
 
-    // Buttons
+    // Save row. "Save as New" and "Update" only ever differed by which index they wrote to —
+    // something the entry list already shows — so they collapse into one Save, with the
+    // duplicate-an-entry intent moved to the ⋯ menu.
     const buttonRow = document.createElement('div');
-    buttonRow.style.cssText = 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap';
-    const saveNewBtn = mkButton('loreSaveNewBtn', 'Save as New', '#27ae60', () => saveAsNew());
-    saveNewBtn.title = 'Always adds the form\'s content as a brand-new entry (auto-tags on collision) — ' +
-        'never overwrites whatever is currently loaded.';
-    buttonRow.appendChild(saveNewBtn);
-    const updateBtn = mkButton('loreUpdateBtn', 'Update', '#2980b9', () => updateLoadedEntry());
-    buttonRow.appendChild(updateBtn);
-    buttonRow.appendChild(mkButton('loreDeleteBtn', 'Delete', '#e74c3c', () => deleteEntry()));
-    buttonRow.appendChild(mkButton('loreCopyToBtn', 'Copy to…', '#6c3483', () => copyEntryTo()));
-    buttonRow.appendChild(mkButton('loreCopyBtn', 'Copy', '#3498db', () => copyEntry()));
-    buttonRow.appendChild(mkButton('lorePasteBtn', 'Paste', '#3498db', () => pasteEntry()));
+    buttonRow.className = 'lore-save-row';
+    buttonRow.style.cssText = 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center';
+    buttonRow.appendChild(mkButton('loreSaveBtn', 'Save', '#27ae60', () => saveEntry()));
+    buttonRow.appendChild(mkButton('loreRevertBtn', 'Revert', '#7f8c8d', () => revertEntry()));
+    const moreBtn = mkButton('loreMoreBtn', '⋯', '#6c3483', (e) => openEntryMenu(e.currentTarget));
+    moreBtn.title = 'Duplicate · Copy · Paste · Copy to… · Delete';
+    buttonRow.appendChild(moreBtn);
+
+    const dirtyPill = document.createElement('span');
+    dirtyPill.id = 'loreDirtyPill';
+    dirtyPill.className = 'lore-dirty-pill';
+    dirtyPill.textContent = '● Unsaved';
+    dirtyPill.style.display = 'none';
+    buttonRow.appendChild(dirtyPill);
     form.appendChild(buttonRow);
 
-    // Receiver affects gate warnings
-    setTimeout(() => {
-        const receiverSelect = document.getElementById('loreReceiver');
-        if (receiverSelect) receiverSelect.addEventListener('change', () => updateEffectsPreview());
-    }, 0);
-
+    wireFormFields();
     return form;
+}
+
+/** Every field writes straight into the draft, so the store always knows what's unsaved. */
+function wireFormFields() {
+    setTimeout(() => {
+        const bind = (id, read) => {
+            const node = document.getElementById(id);
+            if (node) node.addEventListener('change', () => state.patchDraft(read(node)));
+        };
+        bind('loreReceiver', n => ({ receiver: n.value }));
+        bind('loreTrigger', n => ({ trigger: n.value }));
+        bind('lorePing', n => ({ ping: n.value }));
+        bind('lorePersistance', n => ({ persistance: n.value }));
+        bind('loreTag', n => ({ tag: n.value.trim() }));
+        bind('loreRounds', n => {
+            const { fromRound, tillRound } = parseRoundWindow(n.value);
+            return { fromRound, tillRound };
+        });
+    }, 0);
 }
 
 function mkLabel(text, fontSize = '1em') {
@@ -611,8 +672,8 @@ function createSelectField(id, label, options, labels = null) {
 /** Phase targets only offer PHASE_START/PHASE_END; board targets exclude them (hard rule). */
 function updateTriggerOptions() {
     const select = document.getElementById('loreTrigger');
-    if (!select || !currentRef) return;
-    const isPhase = currentRef.kind === 'phase';
+    if (!select || !state.getRef()) return;
+    const isPhase = state.getRef().kind === 'phase';
     const previous = select.value;
     select.innerHTML = '';
     LORE_TRIGGERS
@@ -656,345 +717,6 @@ function updateReceiverOptions() {
     }
 }
 
-// ── gate row ──
-
-function createGateRow() {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:6px 0;' +
-        'padding:8px;border:1px solid #555;border-radius:6px;background:#2c3e50';
-
-    const title = document.createElement('span');
-    title.textContent = 'Gate:';
-    title.style.cssText = 'font-size:0.85em;font-weight:bold;color:#9b59b6';
-    row.appendChild(title);
-
-    const mkRadio = (value, text, tooltip) => {
-        const label = document.createElement('label');
-        label.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:0.85em;color:#ddd;cursor:pointer';
-        label.title = tooltip;
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'loreGate';
-        radio.value = value;
-        radio.id = `loreGate_${value}`;
-        radio.addEventListener('change', () => applyGateFromControls());
-        label.appendChild(radio);
-        label.appendChild(document.createTextNode(text));
-        row.appendChild(label);
-        return radio;
-    };
-
-    mkRadio('none', 'None', 'Effects fire immediately when the lore triggers.');
-    mkRadio('choice', 'Accept/Reject choice', 'Each recipient gets Accept/Reject buttons; "accept:"/"reject:" lines fire on that pick (adds a !choice marker).');
-    mkRadio('roll', 'Dice roll', 'Each recipient gets a Roll button; "N-M:" bin lines fire when the total lands in that range (adds a !roll NdM marker).');
-
-    const rollSpec = document.createElement('span');
-    rollSpec.id = 'loreRollSpecWrap';
-    rollSpec.style.cssText = 'display:none;align-items:center;gap:4px;font-size:0.85em;color:#ddd';
-    const countInput = document.createElement('input');
-    countInput.type = 'number';
-    countInput.id = 'loreRollCount';
-    countInput.min = '1';
-    countInput.max = '20';
-    countInput.value = '2';
-    countInput.style.cssText = 'width:48px;padding:3px;border:1px solid #666;border-radius:4px;background:#34495e;color:#fff';
-    countInput.addEventListener('change', () => applyGateFromControls());
-    const dLabel = document.createElement('span');
-    dLabel.textContent = 'd';
-    const sidesInput = document.createElement('input');
-    sidesInput.type = 'number';
-    sidesInput.id = 'loreRollSides';
-    sidesInput.min = '2';
-    sidesInput.max = '100';
-    sidesInput.value = '10';
-    sidesInput.style.cssText = 'width:48px;padding:3px;border:1px solid #666;border-radius:4px;background:#34495e;color:#fff';
-    sidesInput.addEventListener('change', () => applyGateFromControls());
-    rollSpec.appendChild(countInput);
-    rollSpec.appendChild(dLabel);
-    rollSpec.appendChild(sidesInput);
-    row.appendChild(rollSpec);
-
-    const wrap = document.createElement('div');
-    wrap.appendChild(row);
-    wrap.appendChild(createInsertModeRow());
-    return wrap;
-}
-
-/**
- * "New effects insert as:" row — sits directly under the gate radios/dice inputs (not up
- * in the Effects section) so the mode you just set is right next to what you set it for.
- * Hidden entirely while Gate = None (every effect always fires, nothing to choose).
- */
-function createInsertModeRow() {
-    const row = document.createElement('div');
-    row.id = 'loreInsertRow';
-    row.style.cssText = 'display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;' +
-        'padding-top:8px;border-top:1px solid #444';
-
-    const label = document.createElement('span');
-    label.textContent = 'New effects insert as:';
-    label.style.cssText = 'font-size:0.82em;color:#aaa';
-    row.appendChild(label);
-
-    const insertModeSelect = document.createElement('select');
-    insertModeSelect.id = 'loreInsertMode';
-    insertModeSelect.style.cssText = 'padding:3px 6px;font-size:0.8em;border:1px solid #666;border-radius:4px;background:#34495e;color:#fff';
-    row.appendChild(insertModeSelect);
-
-    const binInput = document.createElement('input');
-    binInput.type = 'text';
-    binInput.id = 'loreBinRange';
-    binInput.placeholder = 'bin: 2-10';
-    binInput.title = 'Roll-bin range for inserted effects, e.g. "2-10" or "15" (first matching bin wins).';
-    binInput.style.cssText = 'display:none;width:80px;padding:3px 6px;font-size:0.8em;border:1px solid #666;' +
-        'border-radius:4px;background:#34495e;color:#fff';
-    row.appendChild(binInput);
-
-    return row;
-}
-
-/** Rewrites the footer's marker line to match the gate radio/NdM controls. */
-function applyGateFromControls() {
-    const footerInput = document.getElementById('loreFooterText');
-    if (!footerInput) return;
-    const type = document.querySelector('input[name="loreGate"]:checked')?.value || 'none';
-    const count = parseInt(document.getElementById('loreRollCount')?.value, 10) || 2;
-    const sides = parseInt(document.getElementById('loreRollSides')?.value, 10) || 10;
-    footerInput.value = withGateMarker(footerInput.value, { type, count, sides });
-    footerInput.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-/** Syncs the gate controls (and the insert-mode dropdown) to whatever the footer contains. */
-function syncGateControls(footerText) {
-    const gate = getGate(footerText);
-    const radio = document.getElementById(`loreGate_${gate.type}`);
-    if (radio) radio.checked = true;
-    const rollWrap = document.getElementById('loreRollSpecWrap');
-    if (rollWrap) rollWrap.style.display = gate.type === 'roll' ? 'inline-flex' : 'none';
-    if (gate.type === 'roll') {
-        const countInput = document.getElementById('loreRollCount');
-        const sidesInput = document.getElementById('loreRollSides');
-        if (countInput && document.activeElement !== countInput) countInput.value = gate.count;
-        if (sidesInput && document.activeElement !== sidesInput) sidesInput.value = gate.sides;
-    }
-    rebuildInsertModeOptions(gate.type);
-}
-
-// ── effects section ──
-
-function createEffectsSection() {
-    const section = document.createElement('div');
-    section.style.cssText = 'margin-bottom:4px;padding:10px;border:1px solid #555;border-radius:6px;background:#2c3e50';
-
-    const header = document.createElement('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px';
-
-    const title = document.createElement('span');
-    title.textContent = 'Effects (bot commands)';
-    title.style.cssText = 'font-size:0.85em;font-weight:bold;color:#9b59b6';
-    header.appendChild(title);
-
-    const targetBtn = document.createElement('button');
-    targetBtn.type = 'button';
-    targetBtn.id = 'loreTargetBtn';
-    targetBtn.textContent = '🎯 Target: none';
-    targetBtn.title = 'Redirect tile-bound effects (units, tokens, cc, fog…) at a specific system or planet (@target). ' +
-        'Phase lore REQUIRES this for those effects — it has no system of its own.';
-    targetBtn.style.cssText = 'padding:3px 8px;font-size:0.8em;border:1px solid #666;border-radius:4px;background:#34495e;color:#ddd;cursor:pointer';
-    targetBtn.onclick = async (e) => {
-        e.preventDefault();
-        const choice = await openTargetPicker(targetBtn, loreManager.editor);
-        if (choice === null) return;
-        effectTarget = choice || null;
-        targetBtn.textContent = choice ? `🎯 Target: ${choice}` : '🎯 Target: none';
-    };
-    header.appendChild(targetBtn);
-
-    const conditionBtn = document.createElement('button');
-    conditionBtn.type = 'button';
-    conditionBtn.textContent = '❓ Condition';
-    conditionBtn.title = 'Append a per-player condition (?color · ?faction:x · ?round:3-6) to the last effect line — ' +
-        'the line only fires for players matching ALL its conditions.';
-    conditionBtn.style.cssText = 'padding:3px 8px;font-size:0.8em;border:1px solid #666;border-radius:4px;background:#34495e;color:#f39c12;cursor:pointer';
-    conditionBtn.onclick = async (e) => {
-        e.preventDefault();
-        const token = await openConditionPicker(conditionBtn, loreManager.editor);
-        if (token) appendConditionToLastEffectLine(token);
-    };
-    header.appendChild(conditionBtn);
-
-    section.appendChild(header);
-
-    // verb buttons, grouped
-    const groups = [
-        ['player', 'Player rewards', '#3498db'],
-        ['map', 'Map changes', '#16a085'],
-        ['fow', 'Fog of War', '#7f8c8d']
-    ];
-    for (const [group, groupLabel, color] of groups) {
-        const groupRow = document.createElement('div');
-        groupRow.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;align-items:center';
-        const tag = document.createElement('span');
-        tag.textContent = groupLabel + ':';
-        tag.style.cssText = 'font-size:0.75em;color:#888;flex:0 0 90px';
-        groupRow.appendChild(tag);
-        EFFECT_VERBS.filter(v => v.group === group).forEach(spec => {
-            groupRow.appendChild(createVerbButton(spec, color));
-        });
-        section.appendChild(groupRow);
-    }
-
-    const warningsDiv = document.createElement('div');
-    warningsDiv.id = 'loreEffectWarnings';
-    warningsDiv.style.cssText = 'display:none;font-size:0.8em;color:#f39c12;margin-bottom:8px;line-height:1.5';
-    section.appendChild(warningsDiv);
-
-    const previewLabel = document.createElement('div');
-    previewLabel.textContent = 'Preview — what players will see:';
-    previewLabel.style.cssText = 'font-size:0.78em;color:#aaa;margin-bottom:3px';
-    section.appendChild(previewLabel);
-
-    const previewDiv = document.createElement('div');
-    previewDiv.id = 'loreFooterPreview';
-    previewDiv.style.cssText = 'font-size:0.85em;font-style:italic;color:#ccc;padding:6px;' +
-        'border:1px dashed #555;border-radius:4px;background:#1c2733;white-space:pre-wrap;min-height:1.4em';
-    section.appendChild(previewDiv);
-
-    return section;
-}
-
-function createVerbButton({ verb, label, template, fowOnly, hint }, color) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.title = hint ? `${hint}\n\n!${template}` : `!${template}${fowOnly ? ' (Fog of War games only)' : ''}`;
-    btn.style.cssText = `padding:3px 8px;font-size:0.78em;border:1px solid #666;border-radius:3px;` +
-        `background:${color};color:#fff;cursor:pointer`;
-    btn.onclick = async (e) => {
-        e.preventDefault();
-        const editor = loreManager.editor;
-        let args = null;
-
-        if (NUMERIC_PICKER_RANGES[verb]) {
-            const n = await openNumberPicker(btn, NUMERIC_PICKER_RANGES[verb]);
-            if (n == null) return;
-            args = (verb === 'ac' || verb === 'so') ? `${n}` : (n > 0 ? `+${n}` : `${n}`);
-        } else if (verb === 'unit' || verb === 'removeunit') {
-            args = await openUnitPicker(btn, verb === 'removeunit' ? 'remove' : 'add');
-            if (args == null) return;
-        } else if (verb === 'token' || verb === 'removetoken') {
-            args = await openTokenPicker(btn, resolveTokenScope());
-            if (args == null) return;
-        } else if (verb === 'swap') {
-            const pair = await openSwapPicker(btn, editor);
-            if (!pair) return;
-            args = `${pair[0]} ${pair[1]}`;
-        } else if (verb === 'tech' || verb === 'removetech') {
-            args = await openTechPicker(btn, editor, { mode: verb === 'removetech' ? 'remove' : 'grant' });
-            if (args == null) return;
-        } else if (verb === 'cc' || verb === 'removecc') {
-            const picked = await openColorPicker(btn, editor, {
-                title: verb === 'cc' ? 'Place command token of…' : 'Remove command token of…',
-                allowNeutral: false, allowCurrent: true
-            });
-            if (picked === null) return;
-            args = picked; // '' = current player → bare verb
-        } else if (verb === 'clearunits') {
-            const picked = await openColorPicker(btn, editor, { title: 'Clear all units of…' });
-            if (picked === null) return;
-            args = picked;
-        } else if (verb === 'settile') {
-            args = await openSetTilePicker(btn, editor);
-            if (args == null) return;
-        } else if (verb === 'rotatehyperlane') {
-            args = await openRotateHyperlanePicker(btn, editor);
-            if (args == null) return;
-        } else if (verb === 'sethyperlane') {
-            args = await openSetHyperlanePicker(btn, editor);
-            if (args == null) return;
-        } else if (verb === 'addfogtile') {
-            args = await openFogTilePicker(btn, editor);
-            if (args == null) return;
-        }
-
-        const target = TARGET_AWARE_VERBS.has(verb) ? effectTarget : null;
-        const body = args ? `${verb} ${args}`.trim() : (args === '' ? verb : template);
-        insertEffectSnippet(target ? `${body} @${target}` : body);
-    };
-    return btn;
-}
-
-/** Token scope follows the @target redirect if set, else the selected chip. */
-function resolveTokenScope() {
-    if (effectTarget) return loreManager.editor.hexes[effectTarget] ? 'space' : 'planet';
-    return currentRef?.kind === 'planet' ? 'planet' : 'space';
-}
-
-function getInsertTag() {
-    const select = document.getElementById('loreInsertMode');
-    if (!select) return '';
-    if (select.value === 'accept') return 'accept:';
-    if (select.value === 'reject') return 'reject:';
-    if (select.value === 'bin') {
-        const range = document.getElementById('loreBinRange')?.value.trim();
-        return range && /^\d+(-\d+)?$/.test(range) ? `${range}:` : '';
-    }
-    return '';
-}
-
-function rebuildInsertModeOptions(gateType) {
-    const insertRow = document.getElementById('loreInsertRow');
-    if (insertRow) insertRow.style.display = gateType === 'none' ? 'none' : 'flex';
-
-    const select = document.getElementById('loreInsertMode');
-    const binInput = document.getElementById('loreBinRange');
-    if (!select) return;
-    const previous = select.value;
-    const options = [['always', 'Always']];
-    if (gateType === 'choice') {
-        options.push(['accept', 'On Accept'], ['reject', 'On Reject']);
-    } else if (gateType === 'roll') {
-        options.push(['bin', 'Roll bin…']);
-    }
-    select.innerHTML = '';
-    options.forEach(([value, text]) => {
-        const opt = document.createElement('option');
-        opt.value = value;
-        opt.textContent = text;
-        select.appendChild(opt);
-    });
-    select.value = options.some(([v]) => v === previous) ? previous : 'always';
-    if (binInput) binInput.style.display = (gateType === 'roll' && select.value === 'bin') ? 'inline-block' : 'none';
-    select.onchange = () => {
-        if (binInput) binInput.style.display = select.value === 'bin' ? 'inline-block' : 'none';
-    };
-}
-
-function insertEffectSnippet(template) {
-    const footerInput = document.getElementById('loreFooterText');
-    if (!footerInput) return;
-    const line = `${getInsertTag()}!${template}`;
-    const current = footerInput.value;
-    footerInput.value = current + (current && !current.endsWith('\n') ? '\n' : '') + line;
-    footerInput.dispatchEvent(new Event('input', { bubbles: true }));
-    footerInput.focus();
-}
-
-function appendConditionToLastEffectLine(token) {
-    const footerInput = document.getElementById('loreFooterText');
-    if (!footerInput) return;
-    const lines = footerInput.value.split('\n');
-    for (let i = lines.length - 1; i >= 0; i--) {
-        if (lines[i].includes('!') && !/^!(choice|roll\s)/i.test(lines[i].trim())) {
-            lines[i] = `${lines[i].trimEnd()} ${token}`;
-            footerInput.value = lines.join('\n');
-            footerInput.dispatchEvent(new Event('input', { bubbles: true }));
-            return;
-        }
-    }
-    updateHexStatus('Conditions attach to effect lines — insert an effect first.');
-}
-
 /** Lookup data handed to validateLoreEffects (skips checks whose data isn't loaded). */
 function buildValidationData() {
     const loreData = loreManager.editor.loreData;
@@ -1011,45 +733,6 @@ function buildValidationData() {
         Object.values(categorized).forEach(cat => cat.tokens.forEach(t => data.tokenIds.add(t.id.toLowerCase())));
     }
     return data;
-}
-
-/** Refreshes gate controls, validation warnings, and the player-facing preview. */
-function updateEffectsPreview() {
-    const footerInput = document.getElementById('loreFooterText');
-    if (!footerInput) return;
-    const footerText = footerInput.value;
-
-    syncGateControls(footerText);
-
-    const warningsDiv = document.getElementById('loreEffectWarnings');
-    if (warningsDiv) {
-        const receiver = document.getElementById('loreReceiver')?.value || 'CURRENT';
-        const persistance = document.getElementById('lorePersistance')?.value || 'ONCE';
-        const problems = validateLoreEffects({ footerText, receiver, persistance }, {
-            targetKind: currentRef?.kind || 'system',
-            gameType: loreManager.editor.loreGameType || 'unknown',
-            editor: loreManager.editor,
-            data: buildValidationData()
-        });
-        if (problems.length === 0) {
-            warningsDiv.style.display = 'none';
-            warningsDiv.innerHTML = '';
-        } else {
-            warningsDiv.style.display = 'block';
-            warningsDiv.textContent = '';
-            problems.forEach(p => {
-                const line = document.createElement('div');
-                line.textContent = `⚠️ ${p}`;
-                warningsDiv.appendChild(line);
-            });
-        }
-    }
-
-    const previewDiv = document.getElementById('loreFooterPreview');
-    if (previewDiv) {
-        const display = getDisplayFooter(footerText);
-        previewDiv.textContent = display || '(nothing shown to players — only bot effects)';
-    }
 }
 
 // ─────────────────────────────────────────── entry CRUD ───────────────────────────────────────────
@@ -1073,94 +756,99 @@ function setSelectValue(id, value) {
     select.value = value;
 }
 
+/** Push the draft into the form controls. Only on load/new/revert — never while typing. */
+function renderFormFromState() {
+    const draft = state.getDraft();
+    if (!draft) return;
+    const set = (id, value) => { const n = document.getElementById(id); if (n) n.value = value; };
+    set('loreLoreText', draft.loreText || '');
+    setSelectValue('loreReceiver', draft.receiver);
+    setSelectValue('loreTrigger', draft.trigger);
+    set('lorePing', draft.ping);
+    set('lorePersistance', draft.persistance);
+    set('loreRounds', formatRoundWindow(draft.fromRound, draft.tillRound));
+    set('loreTag', draft.tag || '');
+
+    const index = state.getIndex();
+    setEditorTitle(index === -1
+        ? `New entry on ${targetTitle(state.getRef())}`
+        : `Editing ${draft.tag ? '#' + draft.tag : 'entry ' + (index + 1)} on ${targetTitle(state.getRef())}`);
+
+    document.getElementById('loreLoreTextCounter')
+        ?.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('loreLoreText')
+        ?.dispatchEvent(new Event('input', { bubbles: true }));
+    effectRows.refresh();
+    updateDirtyUI();
+}
+
+/**
+ * Commit whatever is open before moving away. This is the fix for the old behaviour, where
+ * loadEntry() simply overwrote the form and any unsaved typing vanished without a word.
+ * Returns false when a hard validation error blocks the move.
+ */
+function commitIfDirty() {
+    if (!state.isDirty() || !state.getDraft()) return true;
+    return saveEntry({ silent: true });
+}
+
 function loadEntry(index) {
-    const entries = loreManager.getEntries(currentRef);
+    if (!commitIfDirty()) return;
+    const entries = loreManager.getEntries(state.getRef());
     const entry = entries[index];
     if (!entry) { startNewEntry(); return; }
-    currentIndex = index;
-
-    document.getElementById('loreLoreText').value = entry.loreText || '';
-    document.getElementById('loreFooterText').value = entry.footerText || '';
-    setSelectValue('loreReceiver', entry.receiver);
-    setSelectValue('loreTrigger', entry.trigger);
-    document.getElementById('lorePing').value = entry.ping;
-    document.getElementById('lorePersistance').value = entry.persistance;
-    document.getElementById('loreRounds').value = formatRoundWindow(entry.fromRound, entry.tillRound);
-    document.getElementById('loreTag').value = entry.tag || '';
-
-    setEditorTitle(`Editing ${entry.tag ? '#' + entry.tag : 'entry ' + (index + 1)} on ${targetTitle(currentRef)}`);
+    state.loadEntry(index, entry);
     hideSaveWarnings();
-    refreshCountersAndPreview();
+    hideError();
+    renderFormFromState();
     renderEntryList();
-    updateSaveButtonsState();
 }
 
 function startNewEntry() {
-    currentIndex = -1;
-    const isPhase = currentRef?.kind === 'phase';
-    document.getElementById('loreLoreText').value = '';
-    document.getElementById('loreFooterText').value = '';
-    document.getElementById('loreReceiver').value = isPhase ? 'ALL' : 'CURRENT';
-    document.getElementById('loreTrigger').value = isPhase ? 'PHASE_START' : 'CONTROLLED';
-    document.getElementById('lorePing').value = 'NO';
-    document.getElementById('lorePersistance').value = 'ONCE';
-    document.getElementById('loreRounds').value = '';
-    document.getElementById('loreTag').value = '';
-    setEditorTitle(`New entry on ${targetTitle(currentRef)}`);
-    hideSaveWarnings();
-    refreshCountersAndPreview();
-    renderEntryList();
-    updateSaveButtonsState();
-}
-
-/** "Update"/"Delete" only ever act on an entry that's actually loaded (currentIndex >= 0) —
- *  disabling them otherwise makes it impossible to accidentally overwrite/delete nothing. */
-function updateSaveButtonsState() {
-    const updateBtn = document.getElementById('loreUpdateBtn');
-    const deleteBtn = document.getElementById('loreDeleteBtn');
-    const editing = currentIndex !== -1;
-    const entries = loreManager.getEntries(currentRef);
-    const entry = editing ? entries[currentIndex] : null;
-    const label = entry ? (entry.tag ? `#${entry.tag}` : `entry ${currentIndex + 1}`) : '';
-
-    if (updateBtn) {
-        updateBtn.disabled = !editing;
-        updateBtn.textContent = editing ? `Update ${label}` : 'Update';
-        updateBtn.style.opacity = editing ? '1' : '0.5';
-        updateBtn.style.cursor = editing ? 'pointer' : 'not-allowed';
-    }
-    if (deleteBtn) {
-        deleteBtn.disabled = !editing;
-        deleteBtn.style.opacity = editing ? '1' : '0.5';
-        deleteBtn.style.cursor = editing ? 'pointer' : 'not-allowed';
-    }
-}
-
-function refreshCountersAndPreview() {
-    ['loreLoreText', 'loreFooterText'].forEach(id => {
-        document.getElementById(id)?.dispatchEvent(new Event('input', { bubbles: true }));
+    if (!commitIfDirty()) return;
+    const isPhase = state.getRef()?.kind === 'phase';
+    state.startNew({
+        receiver: isPhase ? 'ALL' : 'CURRENT',
+        trigger: isPhase ? 'PHASE_START' : 'CONTROLLED'
     });
-    const roundsInput = document.getElementById('loreRounds');
-    roundsInput?.dispatchEvent(new Event('input', { bubbles: true }));
-    updateEffectsPreview();
+    hideSaveWarnings();
+    hideError();
+    renderFormFromState();
+    renderEntryList();
 }
 
-function collectEntryFromForm() {
-    const roundsRaw = document.getElementById('loreRounds').value;
-    const { fromRound, tillRound, warning } = parseRoundWindow(roundsRaw);
-    return {
-        entry: createLoreEntry({
-            loreText: document.getElementById('loreLoreText').value,
-            footerText: document.getElementById('loreFooterText').value,
-            receiver: document.getElementById('loreReceiver').value,
-            trigger: document.getElementById('loreTrigger').value,
-            ping: document.getElementById('lorePing').value,
-            persistance: document.getElementById('lorePersistance').value,
-            fromRound, tillRound,
-            tag: document.getElementById('loreTag').value.trim()
-        }),
-        roundsWarning: warning
-    };
+/** The dirty pill and the Save/Revert enablement, driven by the store. */
+function updateDirtyUI() {
+    const dirty = state.isDirty();
+    const pill = document.getElementById('loreDirtyPill');
+    if (pill) pill.style.display = dirty ? 'inline-block' : 'none';
+
+    const saveBtn = document.getElementById('loreSaveBtn');
+    if (saveBtn) {
+        saveBtn.textContent = state.getIndex() === -1 ? 'Create entry' : 'Save';
+        saveBtn.disabled = !dirty;
+        saveBtn.style.opacity = dirty ? '1' : '0.5';
+        saveBtn.style.cursor = dirty ? 'pointer' : 'not-allowed';
+    }
+    const revertBtn = document.getElementById('loreRevertBtn');
+    if (revertBtn) {
+        revertBtn.disabled = !dirty;
+        revertBtn.style.opacity = dirty ? '1' : '0.5';
+        revertBtn.style.cursor = dirty ? 'pointer' : 'not-allowed';
+    }
+}
+
+function hideError() {
+    const band = document.getElementById('loreErrorBand');
+    if (band) { band.style.display = 'none'; band.textContent = ''; }
+}
+
+/** Errors are shown in place. The old UI used alert(), which the rest of the app never does. */
+function showError(message) {
+    const band = document.getElementById('loreErrorBand');
+    if (!band) return;
+    band.style.display = 'block';
+    band.textContent = message;
 }
 
 function hideSaveWarnings() {
@@ -1181,55 +869,131 @@ function showSaveWarnings(warnings) {
     });
 }
 
-/** Always appends the form's content as a brand-new entry — never overwrites whatever is
- *  currently loaded, even if you were editing an existing one (auto-tags on collision). */
-function saveAsNew() {
-    if (!currentRef) { alert('Select a hex or phase first.'); return; }
-    const { entry, roundsWarning } = collectEntryFromForm();
+/**
+ * One save path. Creates when nothing is loaded, updates otherwise — the distinction the old
+ * "Save as New" / "Update" pair encoded is already visible in the entry list.
+ */
+function saveEntry({ silent = false } = {}) {
+    const ref = state.getRef();
+    const entry = state.entryToSave();
+    if (!ref || !entry) { showError('Select a hex or phase first.'); return false; }
 
-    const result = loreManager.addEntry(currentRef, entry);
-    if (!result.ok) { alert(result.error); return; }
+    const roundsWarning = parseRoundWindow(
+        document.getElementById('loreRounds')?.value || '').warning;
+
+    const index = state.getIndex();
+    const result = index === -1
+        ? loreManager.addEntry(ref, entry)
+        : loreManager.updateEntry(ref, index, entry);
+
+    if (!result.ok) { showError(result.error); return false; }
+    hideError();
+
+    const saved = loreManager.getEntries(ref)[result.index];
+    state.markSaved(result.index, saved);
 
     const warnings = [...(roundsWarning ? [roundsWarning] : []), ...result.warnings];
     showSaveWarnings(warnings);
-    updateHexStatus(`Saved new entry on ${targetTitle(currentRef)}${warnings.length ? ' (with warnings)' : ''}`);
+    if (!silent) {
+        updateHexStatus(`Saved on ${targetTitle(ref)}${warnings.length ? ' (with warnings)' : ''}`);
+    }
     afterMutation();
-    loadEntry(result.index);
+    renderFormFromState();
+    return true;
 }
 
-/** Overwrites the currently loaded entry. Disabled (see updateSaveButtonsState) unless one is loaded. */
-function updateLoadedEntry() {
-    if (!currentRef) { alert('Select a hex or phase first.'); return; }
-    if (currentIndex === -1) return; // button is disabled in this state; guard anyway
-    const { entry, roundsWarning } = collectEntryFromForm();
-
-    const result = loreManager.updateEntry(currentRef, currentIndex, entry);
-    if (!result.ok) { alert(result.error); return; }
-
-    const warnings = [...(roundsWarning ? [roundsWarning] : []), ...result.warnings];
-    showSaveWarnings(warnings);
-    currentIndex = result.index;
-    updateHexStatus(`Updated entry on ${targetTitle(currentRef)}${warnings.length ? ' (with warnings)' : ''}`);
-    afterMutation();
-    loadEntry(currentIndex);
+function revertEntry() {
+    state.revert();
+    hideError();
+    hideSaveWarnings();
+    renderFormFromState();
 }
 
 function deleteEntry() {
-    if (!currentRef || currentIndex === -1) return; // button is disabled in this state; guard anyway
-    if (!confirm('Delete this lore entry?')) return;
-    loreManager.removeEntry(currentRef, currentIndex);
-    updateHexStatus(`Deleted entry on ${targetTitle(currentRef)}`);
+    const ref = state.getRef();
+    const index = state.getIndex();
+    if (!ref || index === -1) return;
+    loreManager.removeEntry(ref, index);
+    updateHexStatus(`Deleted entry on ${targetTitle(ref)}`);
     afterMutation();
-    const entries = loreManager.getEntries(currentRef);
-    if (entries.length) loadEntry(Math.min(currentIndex, entries.length - 1));
-    else startNewEntry();
+    const entries = loreManager.getEntries(ref);
+    // The draft is gone, so nothing is dirty — load directly rather than via loadEntry,
+    // which would try to commit a draft that no longer has a home.
+    if (entries.length) {
+        const next = Math.min(index, entries.length - 1);
+        state.loadEntry(next, entries[next]);
+    } else {
+        state.startNew({
+            receiver: ref.kind === 'phase' ? 'ALL' : 'CURRENT',
+            trigger: ref.kind === 'phase' ? 'PHASE_START' : 'CONTROLLED'
+        });
+    }
+    hideError();
+    renderFormFromState();
+    renderEntryList();
+}
+
+/** Duplicate / Copy / Paste / Copy to… / Delete, moved off the button row into one menu. */
+async function openEntryMenu(anchor) {
+    const hasEntry = state.getIndex() !== -1;
+    const items = [{ value: 'copy', label: 'Copy' }];
+    if (state.hasClipboard()) items.push({ value: 'paste', label: 'Paste into this form' });
+    items.push({ value: 'copyto', label: 'Copy to…' });
+    if (hasEntry) {
+        items.unshift({ value: 'duplicate', label: 'Duplicate' });
+        items.push({ value: 'delete', label: 'Delete this entry' });
+    }
+
+    const choice = await openListPicker(anchor, items,
+        { title: 'Entry actions', searchable: false, width: 220 });
+    if (!choice) return;
+    if (choice === 'duplicate') duplicateEntry();
+    else if (choice === 'copy') copyEntry();
+    else if (choice === 'paste') pasteEntry();
+    else if (choice === 'copyto') copyEntryTo();
+    else if (choice === 'delete') confirmDelete();
+}
+
+/** Two-step inline confirm, replacing confirm(). */
+function confirmDelete() {
+    const band = document.getElementById('loreErrorBand');
+    if (!band) { deleteEntry(); return; }
+    band.style.display = 'block';
+    band.textContent = 'Delete this entry? ';
+    const yes = document.createElement('button');
+    yes.type = 'button';
+    yes.className = 'lore-inline-prompt__btn';
+    yes.textContent = 'Delete';
+    yes.onclick = () => { hideError(); deleteEntry(); };
+    const no = document.createElement('button');
+    no.type = 'button';
+    no.className = 'lore-inline-prompt__btn';
+    no.textContent = 'Cancel';
+    no.onclick = () => hideError();
+    band.append(yes, no);
+}
+
+/** Clone the loaded entry as a new one; LoreManager auto-tags on collision. */
+function duplicateEntry() {
+    const ref = state.getRef();
+    const entry = state.entryToSave();
+    if (!ref || !entry) return;
+    const result = loreManager.addEntry(ref, entry);
+    if (!result.ok) { showError(result.error); return; }
+    afterMutation();
+    const saved = loreManager.getEntries(ref)[result.index];
+    state.loadEntry(result.index, saved);
+    updateHexStatus(`Duplicated as ${saved.tag ? '#' + saved.tag : 'entry ' + (result.index + 1)}`);
+    renderFormFromState();
+    renderEntryList();
 }
 
 /** Save/copy this entry to other targets (the bot's comma-separated multi-target save). */
 async function copyEntryTo() {
-    if (!currentRef) return;
-    const { entry } = collectEntryFromForm();
-    const anchor = document.getElementById('loreCopyToBtn');
+    const ref = state.getRef();
+    const entry = state.entryToSave();
+    if (!ref || !entry) return;
+    const anchor = document.getElementById('loreMoreBtn');
 
     const editor = loreManager.editor;
     const items = [];
@@ -1250,58 +1014,48 @@ async function copyEntryTo() {
 
     const adjusted = _applyHexReplacements({ ...entry }, targetRef);
     const result = loreManager.addEntry(targetRef, adjusted);
-    if (!result.ok) { alert(result.error); return; }
+    if (!result.ok) { showError(result.error); return; }
     updateHexStatus(`Copied entry to ${targetTitle(targetRef)}${result.warnings.length ? ' (auto-tagged)' : ''}`);
     afterMutation();
 }
 
 function copyEntry() {
-    const { entry } = collectEntryFromForm();
-    copiedEntry = entry;
+    const entry = state.entryToSave();
+    if (!entry) return;
+    state.setClipboard(entry);
     updateHexStatus('Copied entry to the lore clipboard.');
 }
 
 function pasteEntry() {
-    if (!copiedEntry) { alert('Nothing copied yet.'); return; }
-    if (!currentRef) { alert('Select a target first.'); return; }
-    const adjusted = _applyHexReplacements({ ...copiedEntry }, currentRef);
-    // fill the form rather than saving directly, so the GM can adjust before committing
-    document.getElementById('loreLoreText').value = adjusted.loreText;
-    document.getElementById('loreFooterText').value = adjusted.footerText;
-    document.getElementById('loreReceiver').value = adjusted.receiver;
-    if ((currentRef.kind === 'phase') !== LORE_PHASE_TRIGGERS.includes(adjusted.trigger)) {
-        // pasted across target kinds: trigger can't carry over
-        document.getElementById('loreTrigger').value = currentRef.kind === 'phase' ? 'PHASE_START' : 'CONTROLLED';
-    } else {
-        document.getElementById('loreTrigger').value = adjusted.trigger;
+    const clip = state.getClipboard();
+    const ref = state.getRef();
+    if (!clip) { showError('Nothing copied yet.'); return; }
+    if (!ref) { showError('Select a target first.'); return; }
+
+    const adjusted = _applyHexReplacements(clip, ref);
+    // A pasted trigger can't carry across target kinds — phase lore needs a phase trigger.
+    if ((ref.kind === 'phase') !== LORE_PHASE_TRIGGERS.includes(adjusted.trigger)) {
+        adjusted.trigger = ref.kind === 'phase' ? 'PHASE_START' : 'CONTROLLED';
     }
-    document.getElementById('lorePing').value = adjusted.ping;
-    document.getElementById('lorePersistance').value = adjusted.persistance;
-    document.getElementById('loreRounds').value = formatRoundWindow(adjusted.fromRound, adjusted.tillRound);
-    document.getElementById('loreTag').value = adjusted.tag || '';
-    refreshCountersAndPreview();
-    updateHexStatus('Pasted entry into the editor — click Save as New to commit.');
+    // Fill the form rather than saving, so the GM can adjust before committing.
+    state.patchDraft(adjusted);
+    renderFormFromState();
+    updateHexStatus('Pasted into the editor — Save to commit.');
 }
 
 /** Rewrites tile_name:/planet: footer references when an entry moves to another target. */
 function _applyHexReplacements(loreData, targetRef) {
-    if (!loreData.footerText?.includes('tile_name:') || targetRef.kind === 'phase') return loreData;
+    if (targetRef.kind === 'phase') return loreData;
     const targetHex = loreManager.editor.hexes[targetRef.hexLabel];
     if (!targetHex) return loreData;
-    loreData.footerText = loreData.footerText.replace(/tile_name:\w+/g, `tile_name:${targetHex.label}`);
-    if (targetRef.kind === 'planet') {
-        const planet = targetHex.planets?.[targetRef.planetIndex];
-        if (planet) {
-            const pName = (planet.name || planet.planetID || planet.id || '').replace(/\s+/g, '');
-            if (pName) loreData.footerText = loreData.footerText.replace(/planet:\w+/g, `planet:${pName}`);
-        }
-    }
+    const planetIndex = targetRef.kind === 'planet' ? targetRef.planetIndex : null;
+    loreData.footerText = retargetFooterReferences(loreData.footerText, targetHex, planetIndex);
     return loreData;
 }
 
 function afterMutation() {
     renderEntryList();
-    if (currentRef?.hexLabel) renderChipBar(loreManager.editor.hexes[currentRef.hexLabel]);
+    if (state.getRef()?.hexLabel) renderChipBar(loreManager.editor.hexes[state.getRef().hexLabel]);
     highlightSelection();
     loreManager.editor.loreOverlay?.refresh();
 }
@@ -1413,10 +1167,11 @@ function createActionButtonsSection() {
     const section = document.createElement('div');
     section.style.cssText = 'border-top:1px solid #555;padding-top:14px;display:flex;gap:8px;flex-wrap:wrap';
 
-    const mk = (text, border, bg, fg, title, onClick) => {
+    const mk = (text, border, bg, fg, title, onClick, id) => {
         const btn = document.createElement('button');
         btn.textContent = text;
         btn.title = title;
+        if (id) btn.id = id;
         btn.style.cssText = `padding:8px 16px;border:1px solid ${border};border-radius:4px;background:${bg};color:${fg};cursor:pointer`;
         btn.onclick = onClick;
         return btn;
@@ -1432,7 +1187,8 @@ function createActionButtonsSection() {
     section.appendChild(mk('Import Lore (Bot format)', '#f39c12', '#2c3e50', '#f39c12',
         'Loads lore from the bot\'s wire format text (7- or 9-field entries).', () => importLoreBotFormat()));
     section.appendChild(mk('Clear All Lore', '#e74c3c', '#e74c3c', '#fff',
-        'Removes every lore entry on the map, including phase lore.', () => clearAllLore()));
+        'Removes every lore entry on the map, including phase lore.', () => clearAllLore(),
+        'loreClearAllBtn'));
 
     return section;
 }
@@ -1459,7 +1215,7 @@ function importLore() {
                 updateHexStatus(`Imported lore data for ${importedCount} targets`);
                 refreshAfterBulkImport();
             } catch (error) {
-                alert('Failed to import lore data: ' + error.message);
+                showError('Failed to import lore data: ' + error.message);
             }
         };
         reader.readAsText(file);
@@ -1470,43 +1226,96 @@ function importLore() {
 function exportLoreBotFormat() {
     const wireString = loreManager.exportWireFormat();
     if (!wireString) {
-        alert('No lore data to export');
+        updateHexStatus('No lore data to export.');
         return;
     }
     downloadFile(wireString, 'lore_data_bot.txt', 'text/plain');
     updateHexStatus('Lore data exported in bot format');
 }
 
+/**
+ * A real popup with a textarea, not prompt(). A wire-format dump is routinely thousands of
+ * characters and browsers truncate what prompt() accepts, so long pastes were being silently
+ * cut off before they ever reached the parser.
+ */
 function importLoreBotFormat() {
-    const wireString = prompt(
-        'Paste the bot\'s lore wire format below.\n' +
-        'Format: target;loreText;footerText;receiver;trigger;ping;persistance[;fromRound;tillRound], entries separated by "|".\n' +
-        'Targets: tile positions (104), planet identifiers, or phases (strategy/action/status/agenda); "#Tag" suffixes are kept.'
-    );
-    if (wireString === null) return;
+    const body = document.createElement('div');
+    body.style.cssText = 'display:flex;flex-direction:column;gap:8px;min-width:520px';
 
-    const result = loreManager.importWireFormat(wireString);
-    let message = `Imported ${result.systemCount} system + ${result.planetCount} planet + ${result.phaseCount} phase entries`;
-    if (result.skipped.length > 0) {
-        message += ` (${result.skipped.length} skipped)`;
-        console.warn('Lore import skipped entries:', result.skipped);
-    }
-    updateHexStatus(message);
-    refreshAfterBulkImport();
+    const help = document.createElement('div');
+    help.style.cssText = 'font-size:0.82em;color:#aaa;line-height:1.5';
+    help.textContent = 'Paste the bot\'s lore wire format. Fields are separated by ";" and entries by "|": '
+        + 'target;loreText;footerText;receiver;trigger;ping;persistance[;fromRound;tillRound]. '
+        + 'Targets are tile positions (104), planet identifiers, or phases '
+        + '(strategy/action/status/agenda); "#Tag" suffixes are kept.';
+    body.appendChild(help);
+
+    const area = document.createElement('textarea');
+    area.rows = 10;
+    area.placeholder = '104;You feel watched.;;CURRENT;CONTROLLED;NO;ONCE;0;0|...';
+    area.style.cssText = 'width:100%;box-sizing:border-box;font-family:var(--font-mono,monospace);font-size:0.85em';
+    body.appendChild(area);
+
+    const status = document.createElement('div');
+    status.style.cssText = 'font-size:0.82em;color:#f39c12;line-height:1.5';
+    body.appendChild(status);
+
+    showPopup({
+        id: 'loreBotImportPopup',
+        title: 'Import lore (bot format)',
+        content: body,
+        draggable: true,
+        style: { border: '2px solid var(--popup-border-lore)', padding: '14px' },
+        actions: [
+            {
+                label: 'Import', action: () => {
+                    const text = area.value.trim();
+                    if (!text) { status.textContent = 'Nothing to import — paste the export first.'; return; }
+                    const result = loreManager.importWireFormat(text);
+                    let message = `Imported ${result.systemCount} system + ${result.planetCount} planet `
+                        + `+ ${result.phaseCount} phase entries`;
+                    if (result.skipped.length > 0) {
+                        message += ` (${result.skipped.length} skipped)`;
+                        console.warn('Lore import skipped entries:', result.skipped);
+                        status.textContent = `${result.skipped.length} entr(y/ies) skipped — see the console for why.`;
+                    } else {
+                        hidePopup('loreBotImportPopup');
+                    }
+                    updateHexStatus(message);
+                    refreshAfterBulkImport();
+                }
+            },
+            { label: 'Cancel', action: () => hidePopup('loreBotImportPopup') }
+        ]
+    });
 }
 
+/** Two-step inline confirm on the button itself, rather than a blocking confirm(). */
 function clearAllLore() {
-    if (confirm('Are you sure you want to clear ALL lore data from the map (including phase lore)? This cannot be undone.')) {
+    const btn = document.getElementById('loreClearAllBtn');
+    if (!btn) return;
+    if (btn.dataset.armed === 'yes') {
+        btn.dataset.armed = '';
+        btn.textContent = 'Clear All Lore';
         const clearedCount = loreManager.clearAllLore();
         updateHexStatus(`Cleared lore from ${clearedCount} targets`);
         refreshAfterBulkImport();
+        return;
     }
+    btn.dataset.armed = 'yes';
+    btn.textContent = 'Click again to clear everything';
+    setTimeout(() => {
+        if (btn.dataset.armed === 'yes') {
+            btn.dataset.armed = '';
+            btn.textContent = 'Clear All Lore';
+        }
+    }, 4000);
 }
 
 function refreshAfterBulkImport() {
     loreManager.editor.loreOverlay?.refresh();
     const currentHex = document.getElementById('hexLabelInput')?.value.trim();
-    if (currentRef?.kind === 'phase') selectPhase(currentRef.phase);
+    if (state.getRef()?.kind === 'phase') selectPhase(state.getRef().phase);
     else if (currentHex) selectHex(currentHex);
 }
 
@@ -1542,18 +1351,20 @@ function showLoreHelp() {
 
                 <h4 style="color:#9b59b6">Workflow</h4>
                 <ol style="margin-top:0;padding-left:18px">
-                    <li><strong>Pick a target</strong> — type a hex label (or use the toolbar's <em>Add Lore…</em> map-pick
-                        mode), then click the <em>System</em> or a planet chip. Or click a <em>Phase</em> button
-                        (Strategy/Action/Status/Agenda) for phase lore — no hex needed.</li>
+                    <li><strong>Pick a target</strong> — with the popup open, <strong>click a hex on the map</strong>
+                        (right-click one to choose a specific planet). Turn that off with the
+                        <em>🎯 Pick from map</em> checkbox if you'd rather paint sectors with the popup open;
+                        you can also type a hex label. For phase lore click a <em>Phase</em> button
+                        (Strategy/Action/Status/Agenda) — no hex needed.</li>
                     <li><strong>Pick or add an entry</strong> in the left-hand list. Each row shows its tag, trigger,
                         receiver, round window, and gate.</li>
-                    <li><strong>Edit</strong> on the right: lore text, footer (flavor + effects), trigger/receiver/
-                        ping/persistence, a <em>Rounds</em> window (<code>3</code>, <code>2-5</code>, <code>4-</code>,
-                        <code>-6</code>, blank = always), and a <em>Tag</em>.</li>
-                    <li><strong>Save as New</strong> to add it (always creates a new entry, auto-tagging on
-                        collision — it never overwrites what's loaded); once an entry is loaded, <strong>Update</strong>
-                        becomes enabled to overwrite that specific entry instead. Warnings (the same ones the bot
-                        would emit) appear underneath.</li>
+                    <li><strong>Edit</strong> on the right: lore text, the footer (flavour + effects), trigger /
+                        receiver / ping / persistence, a <em>Rounds</em> window (<code>3</code>, <code>2-5</code>,
+                        <code>4-</code>, <code>-6</code>, blank = always), and a <em>Tag</em>.</li>
+                    <li><strong>Save</strong>. It's disabled until something actually changes, and an
+                        <em>● Unsaved</em> pill shows when it has. Switching entry, switching target, or closing the
+                        popup <strong>saves first</strong> rather than discarding your edits. <em>Revert</em> puts the
+                        entry back to its last saved state.</li>
                 </ol>
 
                 <h4 style="color:#9b59b6">Game type</h4>
@@ -1564,64 +1375,86 @@ function showLoreHelp() {
                     instead. The editor hides what doesn't apply.
                 </p>
 
+                <h4 style="color:#9b59b6">The footer: flavour, gate, effects</h4>
+                <p style="margin-top:0">
+                    The footer carries three different things, so it's edited as three:
+                </p>
+                <ul style="margin-top:0;padding-left:18px">
+                    <li><strong>Flavour</strong> — prose players read under the lore text.</li>
+                    <li><strong>Gate</strong> — whether the entry fires straight away, behind
+                        <em>Accept/Reject</em> buttons, or behind a <em>dice roll</em>.</li>
+                    <li><strong>Effects</strong> — one row per bot command. Add them with the
+                        <em>＋ Player rewards / Map changes / Fog of War</em> buttons.</li>
+                </ul>
+                <p style="margin-top:0">
+                    Everything on an effect row is editable in place — click the value chip to reopen that effect's
+                    picker, and use the row's own controls for the rest:
+                </p>
+                <ul style="margin-top:0;padding-left:18px">
+                    <li><strong>When</strong> (the dropdown) — <em>Always</em>, or <em>On Accept</em>/<em>On Reject</em>
+                        under a choice gate, or a <em>roll bin</em> like <code>2-10</code> under a dice gate. First
+                        matching bin wins; untagged lines always fire.</li>
+                    <li><strong>@here / @target</strong> — by default a unit/token/cc/fog effect acts on the entry's
+                        own tile. Click the chip to point it at another system or planet.</li>
+                    <li><strong>＋?</strong> — a condition (<code>?red</code>, <code>?!faction:winnu</code>,
+                        <code>?round:3-</code>) so the line only fires for players matching <em>all</em> of them.
+                        "Else" = a second row with the negated condition.</li>
+                    <li><strong>▲▼ ⧉ 🗑</strong> — reorder, duplicate, remove.</li>
+                    <li><strong>＋ Text line</strong> — prose tied to one outcome, e.g. what players read when the
+                        roll lands in a particular bin.</li>
+                </ul>
+                <p style="margin-top:0">
+                    The <strong>Preview</strong> box shows exactly what players will see; effect lines are never shown
+                    to them. The counter tracks the whole footer against the 400-character limit — hover it for a
+                    gate/flavour/effects breakdown. <strong>&lt;/&gt; Raw footer</strong> lets you edit the stored text
+                    directly; if a footer uses something the editor can't safely rebuild, it opens automatically and
+                    the rows lock, so nothing hand-authored is ever silently rewritten.
+                </p>
+
                 <h4 style="color:#9b59b6">Phase lore</h4>
                 <p style="margin-top:0">
                     Phase entries fire on <em>Phase begins/ends</em> — there is no acting player and no home system,
                     so use receiver <code>ALL</code> (or <code>GM</code> for map-effects-only), give map effects an
-                    explicit color, and point tile-bound effects somewhere with the 🎯 <code>@target</code> button.
+                    explicit colour, and point tile-bound effects somewhere with each row's <code>@target</code> chip.
                     The warnings list flags all of these footguns.
                 </p>
-
-                <h4 style="color:#9b59b6">Effects (bot commands)</h4>
-                <p style="margin-top:0">
-                    Footer lines starting with <code>!</code> are machine effects, never shown to players; the
-                    <strong>Preview</strong> box shows exactly what players will see. Buttons insert correctly-shaped
-                    lines, with pickers for amounts, units, tokens, techs (specific / random draw / player's choice),
-                    command tokens, and tiles/hyperlanes (set/swap/rotate).
-                </p>
-                <ul style="margin-top:0;padding-left:18px">
-                    <li><strong>🎯 Target</strong> — redirect unit/token/cc/fog-sighting effects at another system or
-                        planet (<code>@target</code>).</li>
-                    <li><strong>❓ Condition</strong> — appends <code>?red</code> / <code>?!faction:winnu</code> /
-                        <code>?round:3-</code> to the last effect line: the line only fires for players matching ALL
-                        of its conditions. "Else" = another line with the negated condition.</li>
-                </ul>
                 <p style="margin-top:0">
                     <strong>Fog sighting effects</strong> (Fog of War games only) never touch the shared board — they
                     only override what <em>one receiving player's client</em> shows for a position that's still fogged
                     to them: <em>Set Fog Sighting</em> plants a tile ID (real or a decoy) as what that player currently
-                    believes is there; <em>Clear Fog Sighting</em> wipes it back to plain unknown fog. Useful for lore
-                    that "plants false intel" or "reveals a hint" to one player without changing anyone else's view.
-                </p>
-
-                <h4 style="color:#9b59b6">Gates: choice &amp; dice roll</h4>
-                <p style="margin-top:0">
-                    The <em>Gate</em> row manages a whole-entry gate: <strong>Accept/Reject</strong> (adds
-                    <code>!choice</code>) or a <strong>Dice roll</strong> (adds <code>!roll NdM</code>). Either way, a
-                    <em>"New effects insert as…"</em> row appears right under the Gate controls — set it to
-                    <em>On Accept/On Reject</em>, or for rolls, <em>Roll bin…</em> plus a range like <code>2-10</code>
-                    — then click effect buttons below as normal; the line fires when the rolled total lands in the
-                    bin (first matching bin wins, untagged lines always fire). A numeric prefix like <code>3:</code>
-                    is ONLY treated as a bin while a <code>!roll</code> marker exists — otherwise it stays flavor text.
+                    believes is there; <em>Clear Fog Sighting</em> wipes it back to plain unknown fog.
                 </p>
 
                 <h4 style="color:#9b59b6">Entry list, tags &amp; copy</h4>
                 <p style="margin-top:0">
                     Multiple entries on one target need distinct tags (letters+digits); saving a colliding entry
-                    auto-tags it. <em>Save as New</em> always adds the form's content as another entry — it never
-                    overwrites what's loaded; <em>Update</em> (enabled once an entry is loaded) overwrites that one
-                    specific entry. <em>Copy to…</em> saves the entry onto any other system/planet/phase (footer
-                    <code>tile_name:</code>/<code>planet:</code> references are rewritten); <em>Copy</em>/<em>Paste</em>
-                    move an entry through the editor clipboard.
+                    auto-tags it. The <strong>⋯</strong> menu holds <em>Duplicate</em> (clone the open entry as a new
+                    one), <em>Copy</em>/<em>Paste</em> through the lore clipboard — which the map overlay shares —
+                    <em>Copy to…</em> (save it onto any other system/planet/phase, rewriting footer
+                    <code>tile_name:</code>/<code>planet:</code> references), and <em>Delete</em>.
                 </p>
 
                 <h4 style="color:#9b59b6">Overview &amp; map overlay</h4>
                 <p style="margin-top:0">
                     <strong>📋 Overview</strong> lists every entry on the map — click a row to jump to it.
-                    The map overlay (toggle <em>Lore Indicators</em> in the Overlays panel) marks hexes with lore:
-                    🟢 book = system, 🟠 scroll = planet, 🟣 star = both, with an <strong>×N badge</strong> for
-                    multiple entries. Hover for the full tooltip (every entry + per-entry Copy); Ctrl+click a hex
-                    to paste the overlay clipboard. Phase lore shows as a corner banner while the overlay is on.
+                    Toggle <em>Lore Indicators</em> in the Overlays panel to mark lore on the board. Each marker
+                    sits on what it describes — the system, or the individual planet — and encodes its entry at a
+                    glance:
+                </p>
+                <ul style="margin-top:0;padding-left:18px">
+                    <li><strong>Colour</strong> — purple for system lore, blue for planet lore.</li>
+                    <li><strong>Glyph</strong> — the trigger: ⚑ in control · ◎ activated · ➜ units moved in ·
+                        ✦ space battle · ▲ ground battle.</li>
+                    <li><strong>Rim</strong> — solid when it fires straight away, long-dashed for Accept/Reject,
+                        finely dashed for a dice roll.</li>
+                    <li><strong>×N badge</strong> for several entries, <strong>⏱</strong> when a round window applies.</li>
+                </ul>
+                <p style="margin-top:0">
+                    <strong>Click a marker</strong> to open that exact target in the editor. Hovering one draws arcs
+                    to every tile its effects reach — gold for <code>!swap</code>, blue for placements, dashed red for
+                    removals — so lore that moves or alters another system is visible on the board. Hover also shows
+                    the full tooltip (every entry, with per-entry Copy); Ctrl+click a hex pastes the clipboard onto it.
+                    Phase lore shows as a corner banner while the overlay is on.
                 </p>
 
                 <h4 style="color:#9b59b6">Export / Import</h4>
@@ -1631,14 +1464,15 @@ function showLoreHelp() {
                     <code>target;loreText;footerText;receiver;trigger;ping;persistance;fromRound;tillRound</code>
                     joined by <code>|</code>, with <code>#Tag</code> targets and phase targets — ready for the bot's
                     GM <em>Import from URL</em>. Import accepts old 7-field entries too. The <strong>AsyncTI4 mapinfo
-                    export/import is now also full-fidelity</strong>: every entry per target (with round windows)
-                    plus all phase lore rides along in the normal map save and mapinfo file, validated the same way
-                    a modal save is on the bot side — either export path carries everything. Bot-assigned
+                    export/import is also full-fidelity</strong>: every entry per target (with round windows)
+                    plus all phase lore rides along in the normal map save and mapinfo file. Bot-assigned
                     <code>#Tag</code>s are re-generated on import either way, so don't treat them as stable IDs.
                 </p>
 
                 <p style="color:#888;font-size:0.85em">
                     Note: lore edits on hexes are undo-able (Ctrl+Z); phase lore isn't undo-tracked yet.
+                    Run <code>__loreCheckAllFooters()</code> in the browser console to verify every footer on the
+                    map survives a structured round-trip.
                 </p>
             </div>
         `,

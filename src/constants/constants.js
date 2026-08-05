@@ -172,7 +172,8 @@ export const SVG_LAYER_ORDER = [
   'customAdjacencyLayer',
   'borderAnomalyLayer',
   'token-overlay-group',    // token indicators (separate from wormholes)
-  'lore-overlay'            // lore indicators on top
+  'lore-link-layer',        // arcs from a lore entry to the tiles its effects act on
+  'lore-overlay'            // lore markers sit above their own arcs
 
   // top-most
 ];
