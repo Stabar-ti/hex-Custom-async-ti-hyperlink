@@ -1351,18 +1351,20 @@ function showLoreHelp() {
 
                 <h4 style="color:#9b59b6">Workflow</h4>
                 <ol style="margin-top:0;padding-left:18px">
-                    <li><strong>Pick a target</strong> — type a hex label (or use the toolbar's <em>Add Lore…</em> map-pick
-                        mode), then click the <em>System</em> or a planet chip. Or click a <em>Phase</em> button
-                        (Strategy/Action/Status/Agenda) for phase lore — no hex needed.</li>
+                    <li><strong>Pick a target</strong> — with the popup open, <strong>click a hex on the map</strong>
+                        (right-click one to choose a specific planet). Turn that off with the
+                        <em>🎯 Pick from map</em> checkbox if you'd rather paint sectors with the popup open;
+                        you can also type a hex label. For phase lore click a <em>Phase</em> button
+                        (Strategy/Action/Status/Agenda) — no hex needed.</li>
                     <li><strong>Pick or add an entry</strong> in the left-hand list. Each row shows its tag, trigger,
                         receiver, round window, and gate.</li>
-                    <li><strong>Edit</strong> on the right: lore text, footer (flavor + effects), trigger/receiver/
-                        ping/persistence, a <em>Rounds</em> window (<code>3</code>, <code>2-5</code>, <code>4-</code>,
-                        <code>-6</code>, blank = always), and a <em>Tag</em>.</li>
-                    <li><strong>Save as New</strong> to add it (always creates a new entry, auto-tagging on
-                        collision — it never overwrites what's loaded); once an entry is loaded, <strong>Update</strong>
-                        becomes enabled to overwrite that specific entry instead. Warnings (the same ones the bot
-                        would emit) appear underneath.</li>
+                    <li><strong>Edit</strong> on the right: lore text, the footer (flavour + effects), trigger /
+                        receiver / ping / persistence, a <em>Rounds</em> window (<code>3</code>, <code>2-5</code>,
+                        <code>4-</code>, <code>-6</code>, blank = always), and a <em>Tag</em>.</li>
+                    <li><strong>Save</strong>. It's disabled until something actually changes, and an
+                        <em>● Unsaved</em> pill shows when it has. Switching entry, switching target, or closing the
+                        popup <strong>saves first</strong> rather than discarding your edits. <em>Revert</em> puts the
+                        entry back to its last saved state.</li>
                 </ol>
 
                 <h4 style="color:#9b59b6">Game type</h4>
@@ -1373,64 +1375,86 @@ function showLoreHelp() {
                     instead. The editor hides what doesn't apply.
                 </p>
 
+                <h4 style="color:#9b59b6">The footer: flavour, gate, effects</h4>
+                <p style="margin-top:0">
+                    The footer carries three different things, so it's edited as three:
+                </p>
+                <ul style="margin-top:0;padding-left:18px">
+                    <li><strong>Flavour</strong> — prose players read under the lore text.</li>
+                    <li><strong>Gate</strong> — whether the entry fires straight away, behind
+                        <em>Accept/Reject</em> buttons, or behind a <em>dice roll</em>.</li>
+                    <li><strong>Effects</strong> — one row per bot command. Add them with the
+                        <em>＋ Player rewards / Map changes / Fog of War</em> buttons.</li>
+                </ul>
+                <p style="margin-top:0">
+                    Everything on an effect row is editable in place — click the value chip to reopen that effect's
+                    picker, and use the row's own controls for the rest:
+                </p>
+                <ul style="margin-top:0;padding-left:18px">
+                    <li><strong>When</strong> (the dropdown) — <em>Always</em>, or <em>On Accept</em>/<em>On Reject</em>
+                        under a choice gate, or a <em>roll bin</em> like <code>2-10</code> under a dice gate. First
+                        matching bin wins; untagged lines always fire.</li>
+                    <li><strong>@here / @target</strong> — by default a unit/token/cc/fog effect acts on the entry's
+                        own tile. Click the chip to point it at another system or planet.</li>
+                    <li><strong>＋?</strong> — a condition (<code>?red</code>, <code>?!faction:winnu</code>,
+                        <code>?round:3-</code>) so the line only fires for players matching <em>all</em> of them.
+                        "Else" = a second row with the negated condition.</li>
+                    <li><strong>▲▼ ⧉ 🗑</strong> — reorder, duplicate, remove.</li>
+                    <li><strong>＋ Text line</strong> — prose tied to one outcome, e.g. what players read when the
+                        roll lands in a particular bin.</li>
+                </ul>
+                <p style="margin-top:0">
+                    The <strong>Preview</strong> box shows exactly what players will see; effect lines are never shown
+                    to them. The counter tracks the whole footer against the 400-character limit — hover it for a
+                    gate/flavour/effects breakdown. <strong>&lt;/&gt; Raw footer</strong> lets you edit the stored text
+                    directly; if a footer uses something the editor can't safely rebuild, it opens automatically and
+                    the rows lock, so nothing hand-authored is ever silently rewritten.
+                </p>
+
                 <h4 style="color:#9b59b6">Phase lore</h4>
                 <p style="margin-top:0">
                     Phase entries fire on <em>Phase begins/ends</em> — there is no acting player and no home system,
                     so use receiver <code>ALL</code> (or <code>GM</code> for map-effects-only), give map effects an
-                    explicit color, and point tile-bound effects somewhere with the 🎯 <code>@target</code> button.
+                    explicit colour, and point tile-bound effects somewhere with each row's <code>@target</code> chip.
                     The warnings list flags all of these footguns.
                 </p>
-
-                <h4 style="color:#9b59b6">Effects (bot commands)</h4>
-                <p style="margin-top:0">
-                    Footer lines starting with <code>!</code> are machine effects, never shown to players; the
-                    <strong>Preview</strong> box shows exactly what players will see. Buttons insert correctly-shaped
-                    lines, with pickers for amounts, units, tokens, techs (specific / random draw / player's choice),
-                    command tokens, and tiles/hyperlanes (set/swap/rotate).
-                </p>
-                <ul style="margin-top:0;padding-left:18px">
-                    <li><strong>🎯 Target</strong> — redirect unit/token/cc/fog-sighting effects at another system or
-                        planet (<code>@target</code>).</li>
-                    <li><strong>❓ Condition</strong> — appends <code>?red</code> / <code>?!faction:winnu</code> /
-                        <code>?round:3-</code> to the last effect line: the line only fires for players matching ALL
-                        of its conditions. "Else" = another line with the negated condition.</li>
-                </ul>
                 <p style="margin-top:0">
                     <strong>Fog sighting effects</strong> (Fog of War games only) never touch the shared board — they
                     only override what <em>one receiving player's client</em> shows for a position that's still fogged
                     to them: <em>Set Fog Sighting</em> plants a tile ID (real or a decoy) as what that player currently
-                    believes is there; <em>Clear Fog Sighting</em> wipes it back to plain unknown fog. Useful for lore
-                    that "plants false intel" or "reveals a hint" to one player without changing anyone else's view.
-                </p>
-
-                <h4 style="color:#9b59b6">Gates: choice &amp; dice roll</h4>
-                <p style="margin-top:0">
-                    The <em>Gate</em> row manages a whole-entry gate: <strong>Accept/Reject</strong> (adds
-                    <code>!choice</code>) or a <strong>Dice roll</strong> (adds <code>!roll NdM</code>). Either way, a
-                    <em>"New effects insert as…"</em> row appears right under the Gate controls — set it to
-                    <em>On Accept/On Reject</em>, or for rolls, <em>Roll bin…</em> plus a range like <code>2-10</code>
-                    — then click effect buttons below as normal; the line fires when the rolled total lands in the
-                    bin (first matching bin wins, untagged lines always fire). A numeric prefix like <code>3:</code>
-                    is ONLY treated as a bin while a <code>!roll</code> marker exists — otherwise it stays flavor text.
+                    believes is there; <em>Clear Fog Sighting</em> wipes it back to plain unknown fog.
                 </p>
 
                 <h4 style="color:#9b59b6">Entry list, tags &amp; copy</h4>
                 <p style="margin-top:0">
                     Multiple entries on one target need distinct tags (letters+digits); saving a colliding entry
-                    auto-tags it. <em>Save as New</em> always adds the form's content as another entry — it never
-                    overwrites what's loaded; <em>Update</em> (enabled once an entry is loaded) overwrites that one
-                    specific entry. <em>Copy to…</em> saves the entry onto any other system/planet/phase (footer
-                    <code>tile_name:</code>/<code>planet:</code> references are rewritten); <em>Copy</em>/<em>Paste</em>
-                    move an entry through the editor clipboard.
+                    auto-tags it. The <strong>⋯</strong> menu holds <em>Duplicate</em> (clone the open entry as a new
+                    one), <em>Copy</em>/<em>Paste</em> through the lore clipboard — which the map overlay shares —
+                    <em>Copy to…</em> (save it onto any other system/planet/phase, rewriting footer
+                    <code>tile_name:</code>/<code>planet:</code> references), and <em>Delete</em>.
                 </p>
 
                 <h4 style="color:#9b59b6">Overview &amp; map overlay</h4>
                 <p style="margin-top:0">
                     <strong>📋 Overview</strong> lists every entry on the map — click a row to jump to it.
-                    The map overlay (toggle <em>Lore Indicators</em> in the Overlays panel) marks hexes with lore:
-                    🟢 book = system, 🟠 scroll = planet, 🟣 star = both, with an <strong>×N badge</strong> for
-                    multiple entries. Hover for the full tooltip (every entry + per-entry Copy); Ctrl+click a hex
-                    to paste the overlay clipboard. Phase lore shows as a corner banner while the overlay is on.
+                    Toggle <em>Lore Indicators</em> in the Overlays panel to mark lore on the board. Each marker
+                    sits on what it describes — the system, or the individual planet — and encodes its entry at a
+                    glance:
+                </p>
+                <ul style="margin-top:0;padding-left:18px">
+                    <li><strong>Colour</strong> — purple for system lore, blue for planet lore.</li>
+                    <li><strong>Glyph</strong> — the trigger: ⚑ in control · ◎ activated · ➜ units moved in ·
+                        ✦ space battle · ▲ ground battle.</li>
+                    <li><strong>Rim</strong> — solid when it fires straight away, long-dashed for Accept/Reject,
+                        finely dashed for a dice roll.</li>
+                    <li><strong>×N badge</strong> for several entries, <strong>⏱</strong> when a round window applies.</li>
+                </ul>
+                <p style="margin-top:0">
+                    <strong>Click a marker</strong> to open that exact target in the editor. Hovering one draws arcs
+                    to every tile its effects reach — gold for <code>!swap</code>, blue for placements, dashed red for
+                    removals — so lore that moves or alters another system is visible on the board. Hover also shows
+                    the full tooltip (every entry, with per-entry Copy); Ctrl+click a hex pastes the clipboard onto it.
+                    Phase lore shows as a corner banner while the overlay is on.
                 </p>
 
                 <h4 style="color:#9b59b6">Export / Import</h4>
@@ -1440,14 +1464,15 @@ function showLoreHelp() {
                     <code>target;loreText;footerText;receiver;trigger;ping;persistance;fromRound;tillRound</code>
                     joined by <code>|</code>, with <code>#Tag</code> targets and phase targets — ready for the bot's
                     GM <em>Import from URL</em>. Import accepts old 7-field entries too. The <strong>AsyncTI4 mapinfo
-                    export/import is now also full-fidelity</strong>: every entry per target (with round windows)
-                    plus all phase lore rides along in the normal map save and mapinfo file, validated the same way
-                    a modal save is on the bot side — either export path carries everything. Bot-assigned
+                    export/import is also full-fidelity</strong>: every entry per target (with round windows)
+                    plus all phase lore rides along in the normal map save and mapinfo file. Bot-assigned
                     <code>#Tag</code>s are re-generated on import either way, so don't treat them as stable IDs.
                 </p>
 
                 <p style="color:#888;font-size:0.85em">
                     Note: lore edits on hexes are undo-able (Ctrl+Z); phase lore isn't undo-tracked yet.
+                    Run <code>__loreCheckAllFooters()</code> in the browser console to verify every footer on the
+                    map survives a structured round-trip.
                 </p>
             </div>
         `,

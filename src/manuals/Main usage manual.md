@@ -334,27 +334,39 @@ Cutting removes the tiles from their original positions. Copying leaves the orig
 
 ## 13b. Lore Module (GM tools)
 
-The **Lore Module** (Sector Controls → *Add Lore…*, or `window.showLorePopup()`) attaches narrative
-text and bot commands to **systems, planets, and game phases**. The AsyncTI4 bot delivers each entry
-when its trigger fires (system activated, planet controlled, phase begins…).
+The **Lore Module** (Sector Controls → *Add Lore…*, a click on any lore marker, or
+`window.showLorePopup()`) attaches narrative text and bot commands to **systems, planets, and game
+phases**. The AsyncTI4 bot delivers each entry when its trigger fires (system activated, planet
+controlled, phase begins…).
 
-- **Targets** — pick a hex (type its label or click it on the map in *Add Lore…* mode), then choose the
-  *System* chip or a planet chip; or click a *Phase* button (Strategy/Action/Status/Agenda) for phase lore.
+- **Targets** — with the popup open, click a hex on the map (right-click to pick one of its planets).
+  The *🎯 Pick from map* checkbox turns that off if you'd rather keep painting sectors; you can also type
+  a hex label. Click a *Phase* button (Strategy/Action/Status/Agenda) for phase lore — no hex needed.
 - **Multiple entries per target** — the left-hand list shows every entry on the selected target; entries
   are told apart by their `#tag` (letters+digits). Saving a colliding entry auto-tags it.
 - **Entry options** — trigger, receiver, GM ping, persistence, a **Rounds** window (`3`, `2-5`, `4-`,
   `-6`, blank = always), and the tag. Set the **Game type** (FoW / normal) so the editor offers only
   receivers and effects that exist in that mode.
-- **Effects** — footer lines starting with `!` are machine commands (trade goods, CCs, cards, techs,
-  units, tokens, tiles, hyperlanes, FoW fog tiles…), inserted via picker buttons. The 🎯 button redirects
-  tile-bound effects (`@target`); the ❓ button adds per-player conditions (`?red`, `?!faction:winnu`,
-  `?round:3-`). Entries can be gated behind an **Accept/Reject choice** (`!choice`) or a **dice roll**
-  (`!roll 2d10` with `N-M:` result bins).
+- **Saving** — *Save* is disabled until something changes, and an *● Unsaved* pill appears when it has.
+  Switching entry, switching target, or closing the popup saves first rather than discarding edits;
+  *Revert* restores the last saved state. The *⋯* menu holds Duplicate, Copy, Paste, Copy to… and Delete.
+- **Effects** — the footer is edited as three separate things: **flavour** prose players read, the
+  **gate**, and a list of **effect rows**. Each row is one bot command (trade goods, CCs, cards, techs,
+  units, tokens, tiles, hyperlanes, FoW fog tiles…) with its own controls: click the value chip to reopen
+  that effect's picker, set *when* it fires (Always / On Accept / On Reject / a roll bin like `2-10`),
+  point it at another tile with the `@target` chip, and attach per-player conditions with `＋?`
+  (`?red`, `?!faction:winnu`, `?round:3-`). Rows can be reordered, duplicated and removed.
+  Gates are **Accept/Reject** (`!choice`) or a **dice roll** (`!roll 2d10` with `N-M:` result bins).
+  *＋ Text line* adds prose tied to one outcome. *&lt;/&gt; Raw footer* edits the stored text directly, and
+  opens automatically (locking the rows) if a footer uses something the editor can't safely rebuild.
 - **Overview** — the 📋 button lists every entry on the map; click a row to jump to it.
-- **Map overlay** — toggle *Lore Indicators* in the Overlays panel: 🟢 book = system lore, 🟠 scroll =
-  planet lore, 🟣 star = both, with an ×N badge for multiple entries and 🎲/⏱ markers for gates/round
-  windows. Hover for the full tooltip (with per-entry Copy); Ctrl+click a hex to paste. Phase lore shows
-  as a corner banner while the overlay is on.
+- **Map overlay** — toggle *Lore Indicators* in the Overlays panel. Markers sit on what they describe
+  (the system, or the individual planet): purple = system lore, blue = planet lore; the glyph is the
+  trigger (⚑ in control · ◎ activated · ➜ moved in · ✦ space battle · ▲ ground battle); the rim is the
+  gate (solid / long-dashed for Accept-Reject / finely dashed for a roll); ×N and ⏱ mark multiple
+  entries and round windows. **Click a marker** to edit that target. Hovering draws arcs to every tile
+  the entry's effects reach — gold for `!swap`, blue for placements, dashed red for removals.
+  Ctrl+click a hex to paste the clipboard. Phase lore shows as a corner banner while the overlay is on.
 - **Export/Import** — as JSON, or in the bot's wire format
   (`target;loreText;footerText;receiver;trigger;ping;persistance;fromRound;tillRound` joined by `|`)
   ready for the bot's GM *Import from URL*. Lore also rides along in normal map saves and the AsyncTI4

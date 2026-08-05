@@ -1,7 +1,7 @@
 // loreOverlay.js - Visual indicators for systems and planets with lore
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { planetDisplayName } from '../draw/hexAnchors.js';
-import { markerPosition, drawMarker, drawEffectArc } from '../draw/loreDraw.js';
+import { markerPosition, drawMarker, drawEffectArc, TRIGGER_LEGEND } from '../draw/loreDraw.js';
 import {
     getDisplayFooter, getEffectLines, getGate,
     retargetFooterReferences, parseEffectLine
@@ -107,6 +107,7 @@ class LoreOverlay {
         this._attachCtrlClickHandler();
         this._updateClipboardBadge();
         this._updatePhaseBanner();
+        this._updateFilterStrip();
     }
 
     hide() {
@@ -118,6 +119,7 @@ class LoreOverlay {
         this._detachCtrlClickHandler();
         this._updateClipboardBadge();
         this._updatePhaseBanner();
+        this._updateFilterStrip();
     }
 
     // ── Tooltip ──────────────────────────────────────────────────
@@ -513,10 +515,95 @@ class LoreOverlay {
     setFilter(filter) {
         this._filter = filter && Object.keys(filter).length ? filter : null;
         this.render();
+        this._updateFilterStrip();
     }
 
     getFilter() {
         return this._filter;
+    }
+
+    /**
+     * Control strip for the filter. A lore-heavy map is otherwise an undifferentiated field of
+     * markers you can't audit — this lets you ask "what fires on activation?" or "what has
+     * effects?" and see only that. State lives here, not on the editor, so it never reaches a
+     * save file.
+     */
+    _updateFilterStrip() {
+        let strip = document.getElementById('lore-filter-strip');
+
+        if (!this.isActive) {
+            if (strip) strip.remove();
+            return;
+        }
+        if (!strip) {
+            strip = document.createElement('div');
+            strip.id = 'lore-filter-strip';
+            strip.className = 'lore-filter-strip';
+            document.body.appendChild(strip);
+        }
+        strip.innerHTML = '';
+
+        const active = this._filter || {};
+        const chip = (label, title, isOn, onClick) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'lore-filter-chip' + (isOn ? ' is-on' : '');
+            btn.textContent = label;
+            btn.title = title;
+            btn.onclick = onClick;
+            strip.appendChild(btn);
+        };
+
+        const toggle = (key, value) => {
+            const next = { ...(this._filter || {}) };
+            if (next[key] === value) delete next[key];
+            else next[key] = value;
+            this.setFilter(next);
+        };
+
+        const heading = document.createElement('span');
+        heading.className = 'lore-filter-label';
+        heading.textContent = 'Lore:';
+        strip.appendChild(heading);
+
+        for (const [trigger, glyph, description] of TRIGGER_LEGEND) {
+            chip(glyph, description, active.trigger === trigger, () => toggle('trigger', trigger));
+        }
+        chip('⚖', 'Only entries behind an Accept/Reject choice',
+            active.gate === 'choice', () => toggle('gate', 'choice'));
+        chip('🎲', 'Only entries behind a dice roll',
+            active.gate === 'roll', () => toggle('gate', 'roll'));
+        chip('!', 'Only entries that carry bot effects',
+            !!active.withEffects, () => toggle('withEffects', true));
+        chip('⏱', 'Only entries restricted to a round window',
+            !!active.withRounds, () => toggle('withRounds', true));
+
+        if (Object.keys(active).length) {
+            const clear = document.createElement('button');
+            clear.type = 'button';
+            clear.className = 'lore-filter-clear';
+            clear.textContent = 'Clear';
+            clear.onclick = () => this.setFilter(null);
+            strip.appendChild(clear);
+
+            const hidden = this._countHiddenByFilter();
+            if (hidden) {
+                const note = document.createElement('span');
+                note.className = 'lore-filter-note';
+                note.textContent = `${hidden} hidden`;
+                strip.appendChild(note);
+            }
+        }
+    }
+
+    _countHiddenByFilter() {
+        let hidden = 0;
+        for (const hexLabel of Object.keys(this.editor.hexes || {})) {
+            for (const target of this.targetsOn(hexLabel)) {
+                if (!this.passesFilter(target.summary)) hidden++;
+            }
+        }
+        return hidden;
     }
 
     // ── relationship arcs ────────────────────────────────────────────────
