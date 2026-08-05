@@ -1609,3 +1609,329 @@ select:focus {
   z-index: 1001;
   opacity: 0.95;
 }
+/*──────────────────────────────────────────────────────────────────────────────
+  Lore module — structured footer editor
+
+  The Lore UI was built entirely from inline style strings in JS. These classes
+  replace the parts rewritten for the effect-row editor and use the shared
+  design tokens, so the module re-themes with everything else instead of
+  carrying its own hardcoded flat-UI palette.
+──────────────────────────────────────────────────────────────────────────────*/
+
+.lore-panel {
+  background: var(--surface-2);
+  border: 1px solid var(--surface-5);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+
+.lore-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.lore-panel-title {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: var(--popup-border-lore, #9b59b6);
+}
+
+.lore-field-label {
+  display: block;
+  margin: 8px 0 4px;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--text-color);
+}
+.lore-field-label--sub { font-weight: 400; color: #aaa; }
+
+.lore-field-problem {
+  font-size: 0.8em;
+  color: var(--color-warning);
+  margin: 2px 0 6px;
+  line-height: 1.4;
+}
+
+.lore-counter { font-size: 0.78em; color: #888; }
+.lore-counter.is-warn { color: var(--color-warning); }
+.lore-counter.is-over { color: var(--color-danger); font-weight: bold; }
+
+.lore-flavour-input,
+.lore-raw-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.lore-raw-input { font-family: var(--font-mono); font-size: 0.85em; }
+
+/* ── gate ─────────────────────────────────────────────────────────────────── */
+
+.lore-gate-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+  padding: 8px;
+  background: var(--surface-3);
+  border-radius: 6px;
+}
+.lore-gate-label {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: var(--popup-border-lore, #9b59b6);
+}
+.lore-gate-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+.lore-roll-spec { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; }
+.lore-roll-input { width: 52px; }
+
+/* ── effect rows ──────────────────────────────────────────────────────────── */
+
+.lore-effect-list { display: flex; flex-direction: column; gap: 4px; }
+
+.lore-effect-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 5px 6px;
+  background: var(--surface-3);
+  border: 1px solid transparent;
+  border-left: 3px solid var(--popup-border-lore, #9b59b6);
+  border-radius: 4px;
+}
+.lore-effect-row.is-invalid {
+  border-color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--surface-3));
+}
+.lore-prose-row { border-left-color: var(--color-info); }
+
+.lore-drag-handle { color: #666; cursor: grab; user-select: none; font-size: 0.9em; }
+
+.lore-row-verb {
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--text-color);
+  min-width: 90px;
+}
+
+.lore-branch-select,
+.lore-bin-input { font-size: 0.78em; padding: 2px 4px; }
+.lore-bin-input { width: 60px; }
+
+.lore-args-input,
+.lore-prose-input { font-size: 0.82em; padding: 3px 6px; }
+.lore-prose-input { flex: 1; min-width: 160px; }
+
+.lore-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  font-size: 0.78em;
+  border-radius: 10px;
+  border: 1px solid var(--surface-5);
+  background: var(--surface-4);
+  color: var(--text-color);
+  cursor: pointer;
+}
+.lore-chip:hover { border-color: var(--color-primary); }
+.lore-chip--arg    { background: var(--surface-1); font-family: var(--font-mono); }
+.lore-chip--target { color: var(--color-info); }
+.lore-chip--cond   { color: var(--color-warning); cursor: default; }
+.lore-chip--addcond { border-style: dashed; color: var(--color-warning); }
+
+.lore-chip__x {
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 0 0 2px;
+  font-size: 1.1em;
+  line-height: 1;
+}
+.lore-chip__x:hover { color: var(--color-danger); }
+
+.lore-row-actions { margin-left: auto; display: inline-flex; gap: 2px; }
+.lore-row-action {
+  border: none;
+  background: none;
+  color: #999;
+  cursor: pointer;
+  padding: 1px 4px;
+  font-size: 0.85em;
+  border-radius: 3px;
+}
+.lore-row-action:hover { background: var(--surface-4); color: var(--text-color); }
+
+.lore-row-problem {
+  flex-basis: 100%;
+  font-size: 0.78em;
+  color: var(--color-warning);
+  padding-left: 20px;
+}
+
+/* ── add controls, preview, messages ──────────────────────────────────────── */
+
+.lore-add-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+.lore-add-btn {
+  padding: 4px 10px;
+  font-size: 0.8em;
+  border: 1px dashed var(--surface-5);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+}
+.lore-add-btn:hover:not(:disabled) { border-color: var(--color-success); color: var(--color-success); }
+.lore-add-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.lore-add-btn--player { border-color: var(--color-info); color: var(--color-info); }
+.lore-add-btn--map    { border-color: #16a085; color: #16a085; }
+.lore-add-btn--fow    { border-color: #7f8c8d; color: #95a5a6; }
+
+.lore-empty { color: #888; font-style: italic; font-size: 0.82em; padding: 4px 2px; }
+
+.lore-preview {
+  font-size: 0.85em;
+  font-style: italic;
+  color: #ccc;
+  padding: 6px 8px;
+  border: 1px dashed var(--surface-5);
+  border-radius: 4px;
+  background: var(--surface-1);
+  white-space: pre-wrap;
+  min-height: 1.4em;
+}
+
+.lore-raw { margin-top: 10px; }
+.lore-raw > summary { font-size: 0.8em; color: #aaa; cursor: pointer; margin-bottom: 6px; }
+
+.lore-error-band {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border-left: 3px solid var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 15%, var(--surface-2));
+  color: var(--text-color);
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+
+.lore-warn-list { font-size: 0.8em; color: var(--color-warning); line-height: 1.5; margin: 6px 0; }
+
+.lore-inline-prompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border-left: 3px solid var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--surface-2));
+  font-size: 0.82em;
+}
+.lore-inline-prompt__btn {
+  padding: 3px 10px;
+  font-size: 0.95em;
+  border: 1px solid var(--surface-5);
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-color);
+  cursor: pointer;
+}
+.lore-inline-prompt__btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+.lore-dirty-pill {
+  margin-left: auto;
+  padding: 2px 10px;
+  font-size: 0.78em;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-warning) 25%, var(--surface-3));
+  color: var(--color-warning);
+}
+
+/* The anchored effect pickers already carry this class; give it real rules. */
+.lore-mini-picker { font-family: var(--font-ui); }
+
+/* Map-picking mode (loreMapPick.js) */
+body.lore-picking #hexMap { cursor: crosshair; }
+
+.lore-pick-hint {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  padding: 6px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--popup-border-lore, #9b59b6);
+  background: var(--surface-2);
+  color: var(--text-color);
+  font-size: 0.82em;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+/* Lore filter strip — isolate markers by trigger, gate, effects or round window */
+.lore-filter-strip {
+  position: fixed;
+  top: 70px;
+  right: 16px;
+  z-index: 1002;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  max-width: 320px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--popup-border-lore, #9b59b6);
+  background: rgba(30, 30, 30, 0.92);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.lore-filter-label { font-size: 0.75em; color: #aaa; margin-right: 2px; }
+
+.lore-filter-chip {
+  min-width: 26px;
+  padding: 3px 7px;
+  font-family: var(--font-icon);
+  font-size: 0.9em;
+  line-height: 1.1;
+  border: 1px solid var(--surface-5);
+  border-radius: 5px;
+  background: var(--surface-3);
+  color: var(--text-color);
+  cursor: pointer;
+}
+.lore-filter-chip:hover { border-color: var(--color-primary); }
+.lore-filter-chip.is-on {
+  background: var(--popup-border-lore, #9b59b6);
+  border-color: #ffffff;
+  color: #ffffff;
+}
+
+.lore-filter-clear {
+  padding: 3px 8px;
+  font-size: 0.72em;
+  border: 1px solid var(--surface-5);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+.lore-filter-clear:hover { border-color: var(--color-accent); }
+
+.lore-filter-note { font-size: 0.72em; color: #888; }

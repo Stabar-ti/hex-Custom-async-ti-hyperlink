@@ -341,8 +341,9 @@ export default class HexEditor {
 
     autoscaleView(this);
 
-    // Restore token overlay after SVG was wiped and rebuilt
+    // Restore overlays after SVG was wiped and rebuilt
     this.tokenOverlay?.refresh();
+    this.loreOverlay?.refresh();
   }
 
   addRing() {

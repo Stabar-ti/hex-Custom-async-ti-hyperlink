@@ -1,9 +1,65 @@
 // loreOverlay.js - Visual indicators for systems and planets with lore
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
-import { getDisplayFooter, getEffectLines, isChoiceGated, isRollGated, getGate } from '../modules/Lore/loreEffects.js';
+import { planetDisplayName } from '../draw/hexAnchors.js';
+import { markerPosition, drawMarker, drawEffectArc, TRIGGER_LEGEND } from '../draw/loreDraw.js';
+import {
+    getDisplayFooter, getEffectLines, getGate,
+    retargetFooterReferences, parseEffectLine
+} from '../modules/Lore/loreEffects.js';
 import { normalizeLoreEntries, isNonEmptyLoreEntry, formatRoundWindow, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
 
 const PHASE_SHORT = { strategy: 'Str', action: 'Act', status: 'Sta', agenda: 'Agn' };
+
+/**
+ * What one marker stands for. A target can hold several entries, so the marker shows the
+ * first entry's trigger and gate (the common case is one entry) plus a count, and flags
+ * whether ANY entry is round-restricted or carries effects.
+ */
+function summarizeEntries(entries) {
+    const first = entries[0] || {};
+    const gate = getGate(first.footerText || '').type;
+    return {
+        count: entries.length,
+        trigger: first.trigger,
+        gate,
+        triggers: entries.map(e => e.trigger),
+        receivers: entries.map(e => e.receiver),
+        hasRounds: entries.some(e => e.fromRound > 0 || e.tillRound > 0),
+        hasEffects: entries.some(e => getEffectLines(e.footerText || '').length > 0)
+    };
+}
+
+/**
+ * Tiles the entries act on, derived from their effect lines:
+ *   !swap a b        -> both positions
+ *   ... @target      -> the redirect, when it names a hex
+ *   tile-default verbs with no @target act on the entry's own hex, so they're not links.
+ * Returns [{ hexLabel, kind }] with kind driving the arc's styling.
+ */
+function effectTargets(entries, editor, ownLabel) {
+    const links = new Map();
+    const add = (label, kind) => {
+        if (!label || label === ownLabel || !editor.hexes?.[label]) return;
+        if (!links.has(label)) links.set(label, kind);
+    };
+
+    for (const entry of entries) {
+        for (const line of getEffectLines(entry.footerText || '')) {
+            const parsed = parseEffectLine(line);
+            if (!parsed) continue;
+            if (parsed.verb === 'swap') {
+                add(parsed.args[0], 'swap');
+                add(parsed.args[1], 'swap');
+                continue;
+            }
+            if (parsed.targetRef) {
+                const removes = parsed.verb.startsWith('remove') || parsed.verb === 'clearunits';
+                add(parsed.targetRef, removes ? 'removes' : 'affects');
+            }
+        }
+    }
+    return [...links].map(([hexLabel, kind]) => ({ hexLabel, kind }));
+}
 
 class LoreOverlay {
     constructor(editor) {
@@ -13,6 +69,9 @@ class LoreOverlay {
         this._hideTimer = null;
         this._clipboard = null;        // { type, data, sourceLabel, planetIndex }
         this._ctrlClickBound = null;   // bound Ctrl+click handler reference
+        this._focus = null;            // target ref the editor/user is looking at
+        this._hover = null;            // target ref under the cursor
+        this._filter = null;           // {trigger?, receiver?, gate?, withEffects?, withRounds?}
     }
 
     initialize() {
@@ -48,6 +107,7 @@ class LoreOverlay {
         this._attachCtrlClickHandler();
         this._updateClipboardBadge();
         this._updatePhaseBanner();
+        this._updateFilterStrip();
     }
 
     hide() {
@@ -59,6 +119,7 @@ class LoreOverlay {
         this._detachCtrlClickHandler();
         this._updateClipboardBadge();
         this._updatePhaseBanner();
+        this._updateFilterStrip();
     }
 
     // ── Tooltip ──────────────────────────────────────────────────
@@ -202,7 +263,7 @@ class LoreOverlay {
                 if (!entries.length) return;
                 const planetIdx = parseInt(idx);
                 const planet = hex.planets?.[planetIdx];
-                const planetName = planet?.name || planet?.planetID || `Planet ${planetIdx + 1}`;
+                const planetName = planetDisplayName(planet, Number(planetIdx));
 
                 const sep = document.createElement('div');
                 sep.style.cssText = 'border-top:1px solid #333;margin:6px 0 4px';
@@ -288,19 +349,8 @@ class LoreOverlay {
         if (!hex) return;
 
         const loreData = { ...this._clipboard.data };
-
-        // Update tile_name references in footerText for the target hex
-        if (loreData.footerText?.includes('tile_name:')) {
-            loreData.footerText = loreData.footerText.replace(/tile_name:\w+/g, `tile_name:${hex.label}`);
-
-            if (this._clipboard.type === 'planet' && this._clipboard.planetIndex !== null) {
-                const planet = hex.planets?.[this._clipboard.planetIndex];
-                if (planet) {
-                    const pName = (planet.name || planet.planetID || planet.id || '').replace(/\s+/g, '');
-                    if (pName) loreData.footerText = loreData.footerText.replace(/planet:\w+/g, `planet:${pName}`);
-                }
-            }
-        }
+        const pastedPlanetIndex = this._clipboard.type === 'planet' ? this._clipboard.planetIndex : null;
+        loreData.footerText = retargetFooterReferences(loreData.footerText, hex, pastedPlanetIndex);
 
         this.editor.saveState(targetLabel);
         // Append to the target's entry list (a target holds many entries)
@@ -326,222 +376,323 @@ class LoreOverlay {
 
     render() {
         if (!this.overlayGroup || !this.isActive) return;
-
-        // Clear existing indicators
         this.overlayGroup.innerHTML = '';
-
-        Object.keys(this.editor.hexes).forEach(hexLabel => {
-            const hex = this.editor.hexes[hexLabel];
-            if (!hex || !hex.center) return;
-
-            const loreData = this.getLoreData(hexLabel);
-            if (loreData.hasSystemLore || loreData.hasPlanetLore) {
-                this.createLoreIndicator(hex, loreData, hexLabel);
-            }
-        });
+        for (const hexLabel of Object.keys(this.editor.hexes)) {
+            this.renderHex(hexLabel);
+        }
+        this.renderArcs();
     }
 
-    getLoreData(hexLabel) {
-        const result = {
-            hasSystemLore: false,
-            hasPlanetLore: false,
-            planetCount: 0,     // planets holding lore
-            entryCount: 0,      // total entries on the hex
-            hasGate: false,     // any entry choice/roll-gated
-            hasRounds: false    // any entry round-restricted
-        };
-
+    /**
+     * Draw one hex's markers: one for its system lore, one on each planet that holds lore.
+     * Separate from render() so focus and edits can repaint a single hex instead of the whole
+     * board — a full innerHTML wipe destroys hover and focus state.
+     */
+    renderHex(hexLabel) {
         const hex = this.editor.hexes[hexLabel];
-        if (!hex) return result;
+        if (!hex || !hex.center || !this.overlayGroup) return;
 
-        const tally = (list) => {
-            for (const entry of list) {
-                result.entryCount++;
-                if (isChoiceGated(entry.footerText) || isRollGated(entry.footerText)) result.hasGate = true;
-                if (entry.fromRound > 0 || entry.tillRound > 0) result.hasRounds = true;
-            }
-        };
+        for (const stale of this.overlayGroup.querySelectorAll(`[data-lore-hex="${hexLabel}"]`)) {
+            stale.remove();
+        }
+
+        for (const target of this.targetsOn(hexLabel)) {
+            const pos = markerPosition(hex, this.editor.hexRadius, target.kind, target.planetIndex);
+            if (!pos) continue;
+            if (!this.passesFilter(target.summary)) continue;
+
+            const group = drawMarker(this.overlayGroup, {
+                x: pos.x, y: pos.y,
+                kind: target.kind,
+                summary: target.summary,
+                focused: this.isFocused(target.ref)
+            });
+            group.setAttribute('data-lore-hex', hexLabel);
+            group.style.pointerEvents = 'all';
+            group.style.cursor = 'pointer';
+            this.wireMarker(group, target);
+        }
+    }
+
+    /** Every lore-bearing target on a hex, with a summary of what's behind each marker. */
+    targetsOn(hexLabel) {
+        const hex = this.editor.hexes[hexLabel];
+        const out = [];
+        if (!hex) return out;
 
         const systemEntries = normalizeLoreEntries(hex.systemLore).filter(isNonEmptyLoreEntry);
         if (systemEntries.length) {
-            result.hasSystemLore = true;
-            tally(systemEntries);
-        }
-
-        if (hex.planetLore) {
-            Object.keys(hex.planetLore).forEach(planetIndex => {
-                const entries = normalizeLoreEntries(hex.planetLore[planetIndex]).filter(isNonEmptyLoreEntry);
-                if (entries.length) {
-                    result.hasPlanetLore = true;
-                    result.planetCount++;
-                    tally(entries);
-                }
+            out.push({
+                kind: 'system',
+                planetIndex: null,
+                ref: { kind: 'system', hexLabel },
+                entries: systemEntries,
+                summary: summarizeEntries(systemEntries)
             });
         }
 
-        return result;
-    }
-
-    hasNonEmptyLore(loreObj) {
-        // Any historical shape: single entry object or a list of entries
-        return normalizeLoreEntries(loreObj).some(isNonEmptyLoreEntry);
-    }
-
-    createLoreIndicator(hex, loreData, hexLabel) {
-        const x = hex.center.x;
-        const y = hex.center.y;
-        const hexRadius = this.editor.hexRadius;
-
-        const hexGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        hexGroup.setAttribute('class', 'lore-hex-indicator');
-        hexGroup.style.pointerEvents = 'all';
-        hexGroup.style.cursor = 'help';
-        this.overlayGroup.appendChild(hexGroup);
-
-        const iconY = y - hexRadius * 0.3;
-        if (loreData.hasSystemLore && loreData.hasPlanetLore) {
-            this.createStarIcon(hexGroup, x, iconY, '#9C27B0', `System & Planet Lore (${loreData.planetCount} planets, ${loreData.entryCount} entries)`);
-        } else if (loreData.hasSystemLore) {
-            this.createBookIcon(hexGroup, x, iconY, '#4CAF50', `System Lore (${loreData.entryCount} entries)`);
-        } else if (loreData.hasPlanetLore) {
-            this.createScrollIcon(hexGroup, x, iconY, '#FF9800', `Planet Lore (${loreData.planetCount} planets, ${loreData.entryCount} entries)`);
+        for (const [idx, list] of Object.entries(hex.planetLore || {})) {
+            const entries = normalizeLoreEntries(list).filter(isNonEmptyLoreEntry);
+            if (!entries.length) continue;
+            const planetIndex = Number(idx);
+            out.push({
+                kind: 'planet',
+                planetIndex,
+                ref: { kind: 'planet', hexLabel, planetIndex },
+                entries,
+                summary: summarizeEntries(entries)
+            });
         }
-
-        // Entry-count badge when a hex holds more than one entry
-        if (loreData.entryCount > 1) {
-            this.createCountBadge(hexGroup, x + 14, iconY - 9, loreData.entryCount);
-        }
-        // Tiny markers: 🎲 = a gated entry, ⏱ = a round-restricted entry
-        const markers = (loreData.hasGate ? '🎲' : '') + (loreData.hasRounds ? '⏱' : '');
-        if (markers) {
-            const markerText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            markerText.setAttribute('x', x - 14);
-            markerText.setAttribute('y', iconY - 8);
-            markerText.setAttribute('text-anchor', 'end');
-            markerText.setAttribute('font-size', '11');
-            markerText.textContent = markers;
-            hexGroup.appendChild(markerText);
-        }
-
-        hexGroup.addEventListener('mouseenter', (e) => this._showTooltip(hexLabel, e));
-        hexGroup.addEventListener('mousemove',  (e) => this._positionTooltip(e));
-        hexGroup.addEventListener('mouseleave', ()  => this._scheduleHideTooltip());
+        return out;
     }
 
-    createCountBadge(group, x, y, count) {
-        const badgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        badgeGroup.setAttribute('transform', `translate(${x}, ${y})`);
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('r', '8');
-        circle.setAttribute('fill', '#1c1c2e');
-        circle.setAttribute('stroke', '#fff');
-        circle.setAttribute('stroke-width', '1.5');
-        badgeGroup.appendChild(circle);
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('dominant-baseline', 'central');
-        text.setAttribute('font-size', '10');
-        text.setAttribute('font-weight', 'bold');
-        text.setAttribute('fill', '#fff');
-        text.textContent = `×${count}`;
-        badgeGroup.appendChild(text);
-        group.appendChild(badgeGroup);
-    }
-
-    createBookIcon(group, x, y, color, title) {
-        const iconGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        iconGroup.setAttribute('transform', `translate(${x}, ${y})`);
-        group.appendChild(iconGroup);
-
-        const bookCover = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        bookCover.setAttribute('x', '-12');
-        bookCover.setAttribute('y', '-9');
-        bookCover.setAttribute('width', '24');
-        bookCover.setAttribute('height', '18');
-        bookCover.setAttribute('fill', color);
-        bookCover.setAttribute('stroke', '#fff');
-        bookCover.setAttribute('stroke-width', '2');
-        bookCover.setAttribute('rx', '3');
-        iconGroup.appendChild(bookCover);
-
-        const bookSpine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        bookSpine.setAttribute('x1', '-6');
-        bookSpine.setAttribute('y1', '-9');
-        bookSpine.setAttribute('x2', '-6');
-        bookSpine.setAttribute('y2', '9');
-        bookSpine.setAttribute('stroke', '#fff');
-        bookSpine.setAttribute('stroke-width', '2');
-        iconGroup.appendChild(bookSpine);
-
-        const titleElement = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-        titleElement.textContent = title;
-        iconGroup.appendChild(titleElement);
-    }
-
-    createScrollIcon(group, x, y, color, title) {
-        const iconGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        iconGroup.setAttribute('transform', `translate(${x}, ${y})`);
-        group.appendChild(iconGroup);
-
-        const scrollBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        scrollBg.setAttribute('x', '-12');
-        scrollBg.setAttribute('y', '-9');
-        scrollBg.setAttribute('width', '24');
-        scrollBg.setAttribute('height', '18');
-        scrollBg.setAttribute('fill', color);
-        scrollBg.setAttribute('stroke', '#fff');
-        scrollBg.setAttribute('stroke-width', '2');
-        scrollBg.setAttribute('rx', '3');
-        iconGroup.appendChild(scrollBg);
-
-        [-4, 0, 4].forEach(offset => {
-            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            line.setAttribute('x1', '-9');
-            line.setAttribute('y1', offset);
-            line.setAttribute('x2', '9');
-            line.setAttribute('y2', offset);
-            line.setAttribute('stroke', '#fff');
-            line.setAttribute('stroke-width', '2');
-            iconGroup.appendChild(line);
+    wireMarker(group, target) {
+        const hexLabel = target.ref.hexLabel;
+        group.addEventListener('mouseenter', (e) => {
+            this.setHover(target.ref);
+            this._showTooltip(hexLabel, e);
         });
-
-        const titleElement = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-        titleElement.textContent = title;
-        iconGroup.appendChild(titleElement);
+        group.addEventListener('mousemove', (e) => this._positionTooltip(e));
+        group.addEventListener('mouseleave', () => {
+            this.setHover(null);
+            this._scheduleHideTooltip();
+        });
+        group.addEventListener('click', (e) => {
+            if (e.ctrlKey || e.metaKey) return;   // Ctrl+click is still paste
+            e.preventDefault();
+            e.stopPropagation();
+            this.setFocus(target.ref);
+            window.openLoreEditor?.(target.ref);
+        });
     }
 
-    createStarIcon(group, x, y, color, title) {
-        const iconGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        iconGroup.setAttribute('transform', `translate(${x}, ${y})`);
-        group.appendChild(iconGroup);
+    // ── focus, hover and filtering ───────────────────────────────────────
 
-        const starPath = this.createStarPath(10);
-        const star = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        star.setAttribute('d', starPath);
-        star.setAttribute('fill', color);
-        star.setAttribute('stroke', '#fff');
-        star.setAttribute('stroke-width', '2');
-        iconGroup.appendChild(star);
-
-        const titleElement = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-        titleElement.textContent = title;
-        iconGroup.appendChild(titleElement);
+    static sameRef(a, b) {
+        if (!a || !b || a.kind !== b.kind) return false;
+        if (a.kind === 'phase') return a.phase === b.phase;
+        return a.hexLabel === b.hexLabel && (a.planetIndex ?? null) === (b.planetIndex ?? null);
     }
 
-    createStarPath(radius) {
-        const points = [];
-        const numPoints = 5;
-        const innerRadius = radius * 0.4;
+    isFocused(ref) {
+        return LoreOverlay.sameRef(this._focus, ref) || LoreOverlay.sameRef(this._hover, ref);
+    }
 
-        for (let i = 0; i < numPoints * 2; i++) {
-            const r = (i % 2 === 0) ? radius : innerRadius;
-            const angle = (i * Math.PI) / numPoints - Math.PI / 2;
-            const x = Math.cos(angle) * r;
-            const y = Math.sin(angle) * r;
-            points.push(`${x},${y}`);
+    /** Highlight one target and draw the tiles its effects reach. */
+    setFocus(ref) {
+        const previous = this._focus;
+        this._focus = ref || null;
+        if (previous?.hexLabel) this.renderHex(previous.hexLabel);
+        if (ref?.hexLabel) this.renderHex(ref.hexLabel);
+        this.renderArcs();
+    }
+
+    setHover(ref) {
+        const previous = this._hover;
+        if (LoreOverlay.sameRef(previous, ref)) return;
+        this._hover = ref || null;
+        if (previous?.hexLabel) this.renderHex(previous.hexLabel);
+        if (ref?.hexLabel) this.renderHex(ref.hexLabel);
+        this.renderArcs();
+    }
+
+    /**
+     * Show only markers matching the active filter. Filtering dims rather than deletes so the
+     * board's shape stays recognisable — a lore-heavy map is otherwise an undifferentiated
+     * field of icons you can't audit.
+     */
+    passesFilter(summary) {
+        const f = this._filter;
+        if (!f) return true;
+        if (f.trigger && !summary.triggers.includes(f.trigger)) return false;
+        if (f.receiver && !summary.receivers.includes(f.receiver)) return false;
+        if (f.gate && summary.gate !== f.gate) return false;
+        if (f.withEffects && !summary.hasEffects) return false;
+        if (f.withRounds && !summary.hasRounds) return false;
+        return true;
+    }
+
+    setFilter(filter) {
+        this._filter = filter && Object.keys(filter).length ? filter : null;
+        this.render();
+        this._updateFilterStrip();
+    }
+
+    getFilter() {
+        return this._filter;
+    }
+
+    /**
+     * Control strip for the filter. A lore-heavy map is otherwise an undifferentiated field of
+     * markers you can't audit — this lets you ask "what fires on activation?" or "what has
+     * effects?" and see only that. State lives here, not on the editor, so it never reaches a
+     * save file.
+     */
+    _updateFilterStrip() {
+        let strip = document.getElementById('lore-filter-strip');
+
+        if (!this.isActive) {
+            if (strip) strip.remove();
+            return;
+        }
+        if (!strip) {
+            strip = document.createElement('div');
+            strip.id = 'lore-filter-strip';
+            strip.className = 'lore-filter-strip';
+            document.body.appendChild(strip);
+        }
+        strip.innerHTML = '';
+
+        const active = this._filter || {};
+        const chip = (label, title, isOn, onClick) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'lore-filter-chip' + (isOn ? ' is-on' : '');
+            btn.textContent = label;
+            btn.title = title;
+            btn.onclick = onClick;
+            strip.appendChild(btn);
+        };
+
+        const toggle = (key, value) => {
+            const next = { ...(this._filter || {}) };
+            if (next[key] === value) delete next[key];
+            else next[key] = value;
+            this.setFilter(next);
+        };
+
+        const heading = document.createElement('span');
+        heading.className = 'lore-filter-label';
+        heading.textContent = 'Lore:';
+        strip.appendChild(heading);
+
+        for (const [trigger, glyph, description] of TRIGGER_LEGEND) {
+            chip(glyph, description, active.trigger === trigger, () => toggle('trigger', trigger));
+        }
+        chip('⚖', 'Only entries behind an Accept/Reject choice',
+            active.gate === 'choice', () => toggle('gate', 'choice'));
+        chip('🎲', 'Only entries behind a dice roll',
+            active.gate === 'roll', () => toggle('gate', 'roll'));
+        chip('!', 'Only entries that carry bot effects',
+            !!active.withEffects, () => toggle('withEffects', true));
+        chip('⏱', 'Only entries restricted to a round window',
+            !!active.withRounds, () => toggle('withRounds', true));
+
+        if (Object.keys(active).length) {
+            const clear = document.createElement('button');
+            clear.type = 'button';
+            clear.className = 'lore-filter-clear';
+            clear.textContent = 'Clear';
+            clear.onclick = () => this.setFilter(null);
+            strip.appendChild(clear);
+
+            const hidden = this._countHiddenByFilter();
+            if (hidden) {
+                const note = document.createElement('span');
+                note.className = 'lore-filter-note';
+                note.textContent = `${hidden} hidden`;
+                strip.appendChild(note);
+            }
+        }
+    }
+
+    _countHiddenByFilter() {
+        let hidden = 0;
+        for (const hexLabel of Object.keys(this.editor.hexes || {})) {
+            for (const target of this.targetsOn(hexLabel)) {
+                if (!this.passesFilter(target.summary)) hidden++;
+            }
+        }
+        return hidden;
+    }
+
+    // ── relationship arcs ────────────────────────────────────────────────
+
+    _getOrCreateArcLayer() {
+        let layer = this.editor.svg.querySelector('#lore-link-layer');
+        if (!layer) {
+            layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            layer.setAttribute('id', 'lore-link-layer');
+            layer.style.pointerEvents = 'none';
+            this.editor.svg.appendChild(layer);
+        }
+        return layer;
+    }
+
+    /**
+     * Draw arcs from the focused (or hovered) marker to every tile its effects act on.
+     * These relationships — !swap, @target redirects, token and unit placements — were
+     * completely invisible before: nothing on the map showed that lore on one hex moves
+     * or alters another.
+     */
+    renderArcs() {
+        if (!this.isActive) return;
+        const layer = this._getOrCreateArcLayer();
+        layer.innerHTML = '';
+
+        const ref = this._focus || this._hover;
+        if (!ref || !ref.hexLabel) return;
+
+        const hex = this.editor.hexes[ref.hexLabel];
+        if (!hex?.center) return;
+
+        const target = this.targetsOn(ref.hexLabel)
+            .find(t => LoreOverlay.sameRef(t.ref, ref));
+        if (!target) return;
+
+        const from = markerPosition(hex, this.editor.hexRadius, target.kind, target.planetIndex);
+        if (!from) return;
+
+        for (const link of effectTargets(target.entries, this.editor, ref.hexLabel)) {
+            const destination = this.editor.hexes[link.hexLabel];
+            if (!destination?.center) continue;
+            drawEffectArc(layer, from, destination.center, { kind: link.kind });
+        }
+    }
+
+    /**
+     * Open the lore editor on this hex. Each marker now wires its own click to its own
+     * target, so this only matters for callers that have a hex label and nothing finer.
+     */
+    async _openEditorFor(hexLabel, event) {
+        const open = window.openLoreEditor;
+        if (typeof open !== 'function') return;
+
+        const hex = this.editor.hexes[hexLabel];
+        if (!hex) return;
+
+        const targets = [];
+        if (normalizeLoreEntries(hex.systemLore).filter(isNonEmptyLoreEntry).length) {
+            targets.push({ ref: { kind: 'system', hexLabel }, label: `${hexLabel} — System` });
+        }
+        for (const [idx, list] of Object.entries(hex.planetLore || {})) {
+            if (!normalizeLoreEntries(list).filter(isNonEmptyLoreEntry).length) continue;
+            const i = Number(idx);
+            targets.push({
+                ref: { kind: 'planet', hexLabel, planetIndex: i },
+                label: planetDisplayName(hex.planets?.[i], i)
+            });
         }
 
-        return `M${points.join('L')}Z`;
+        if (targets.length === 0) return;
+        if (targets.length === 1) { open(targets[0].ref); return; }
+
+        this._hideTooltip();
+        const { openListPicker } = await import('../modules/Lore/loreEffectPickers.js');
+        const anchor = document.createElement('div');
+        anchor.style.cssText = `position:fixed;left:${event.clientX}px;top:${event.clientY}px;` +
+            'width:0;height:0;pointer-events:none';
+        document.body.appendChild(anchor);
+        try {
+            const choice = await openListPicker(
+                anchor,
+                targets.map((t, i) => ({ value: String(i), label: t.label })),
+                { title: 'Edit lore on…', searchable: false, width: 220 }
+            );
+            if (choice != null) open(targets[Number(choice)].ref);
+        } finally {
+            anchor.remove();
+        }
     }
 
     refresh() {
@@ -685,7 +836,7 @@ class LoreOverlay {
         picker.appendChild(title);
 
         (hex.planets || []).forEach((planet, idx) => {
-            const name = planet?.name || planet?.planetID || `Planet ${idx + 1}`;
+            const name = planetDisplayName(planet, idx);
             const btn = document.createElement('button');
             btn.textContent = name;
             btn.style.cssText = 'display:block;width:100%;text-align:left;padding:5px 10px;' +
@@ -741,19 +892,14 @@ class LoreOverlay {
         if (!hex) return;
 
         const loreData = { ...this._clipboard.data };
-
-        if (loreData.footerText?.includes('tile_name:')) {
-            loreData.footerText = loreData.footerText.replace(/tile_name:\w+/g, `tile_name:${hex.label}`);
-            const planet = hex.planets?.[targetPlanetIdx];
-            if (planet) {
-                const pName = (planet.name || planet.planetID || planet.id || '').replace(/\s+/g, '');
-                if (pName) loreData.footerText = loreData.footerText.replace(/planet:\w+/g, `planet:${pName}`);
-            }
-        }
+        loreData.footerText = retargetFooterReferences(loreData.footerText, hex, targetPlanetIdx);
 
         this.editor.saveState(targetLabel);
-        if (!hex.planetLore) hex.planetLore = {};
-        hex.planetLore[targetPlanetIdx] = loreData;
+        // Append, like _pasteLore — a planet slot holds a LIST of entries, and the tooltip
+        // tells the user pasting appends. Assigning here wiped every entry already there.
+        if (!hex.planetLore || Array.isArray(hex.planetLore)) hex.planetLore = {};
+        hex.planetLore[targetPlanetIdx] = normalizeLoreEntries(hex.planetLore[targetPlanetIdx]);
+        hex.planetLore[targetPlanetIdx].push(loreData);
 
         this.refresh();
 

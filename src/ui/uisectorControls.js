@@ -979,7 +979,6 @@ function createSectorControlsContent(editor) {
   let loreHexSelectorActive = false;
 
   selectHexForLoreBtn.onclick = (e) => {
-    console.log('Add Lore button clicked!');
     e.preventDefault();
     e.stopPropagation();
 
@@ -993,34 +992,32 @@ function createSectorControlsContent(editor) {
       }
     });
 
-    // Toggle lore hex selector mode
     loreHexSelectorActive = !loreHexSelectorActive;
-    console.log('loreHexSelectorActive toggled to:', loreHexSelectorActive);
+    if (!loreHexSelectorActive) { deactivateLoreMode(); return; }
 
-    if (loreHexSelectorActive) {
-      console.log('Activating lore hex selection mode');
-      // Activate mode
-      selectHexForLoreBtn.classList.add('active');
-      selectHexForLoreBtn.style.background = '#27ae60';
-      selectHexForLoreBtn.style.color = '#fff';
-      selectHexForLoreBtn.style.fontWeight = 'bold';
-      selectHexForLoreBtn.textContent = 'Click a Hex...';
+    selectHexForLoreBtn.classList.add('active');
+    selectHexForLoreBtn.style.background = '#27ae60';
+    selectHexForLoreBtn.style.color = '#fff';
+    selectHexForLoreBtn.style.fontWeight = 'bold';
+    selectHexForLoreBtn.textContent = 'Click a Hex...';
 
-      // Enable hex click listener
-      enableLoreHexSelection();
-    } else {
-      // Deactivate mode
-      deactivateLoreMode();
-    }
+    // The lore module owns the picking mode and the editor entry point; this button only
+    // turns it on. Previously this file drove the popup by filling #hexLabelInput and
+    // clicking #selectHexBtn behind a setTimeout, which coupled it to the editor's DOM.
+    import('../modules/Lore/loreMapPick.js').then(({ armLoreMapPick }) => {
+      armLoreMapPick(window.editor, {
+        onPick: (ref) => window.openLoreEditor?.(ref)
+      });
+    });
   };
   container.appendChild(selectHexForLoreBtn);
 
   return container;
 }
 
-// ───────────── Lore Hex Selection Helper Functions ─────────────
-let loreHexClickHandler = null;
-let previousMode = null;
+// ───────────── Lore Hex Selection ─────────────
+// The picking mode itself lives in src/modules/Lore/loreMapPick.js. This shim only exists
+// so the seven sibling toolbar buttons that call window.deactivateLoreMode() keep working.
 
 function deactivateLoreMode() {
   const btn = document.getElementById('selectHexForLoreBtn');
@@ -1031,125 +1028,13 @@ function deactivateLoreMode() {
     btn.style.fontWeight = '';
     btn.textContent = 'Add Lore...';
   }
-  disableLoreHexSelection();
+  import('../modules/Lore/loreMapPick.js')
+    .then(({ disarmLoreMapPick }) => disarmLoreMapPick(window.editor))
+    .catch(() => { /* module never loaded, so nothing is armed */ });
 }
 
 // Make deactivateLoreMode globally available so other buttons can call it
 window.deactivateLoreMode = deactivateLoreMode;
-
-function enableLoreHexSelection() {
-  console.log('enableLoreHexSelection called');
-  // Remove any existing handler first
-  disableLoreHexSelection();
-
-  // Store the current editor mode and switch to a special lore mode
-  const editor = window.editor;
-  if (editor) {
-    previousMode = editor.mode;
-    editor.mode = 'lore-selection'; // Special mode to prevent other click handlers
-  }
-
-  // Create new click handler
-  loreHexClickHandler = (event) => {
-    console.log('Lore hex click handler triggered', event.target);
-    const hex = event.target.closest('[data-label]');
-    console.log('Found hex element:', hex);
-    if (hex) {
-      const hexLabel = hex.getAttribute('data-label');
-      console.log('Hex label:', hexLabel);
-      if (hexLabel) {
-        // Select hex in lore popup
-        selectHexInLorePopup(hexLabel);
-
-        // Don't deactivate - let user continue selecting hexes
-        // Only deactivate when another button is clicked or same button is toggled
-
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    }
-  };
-
-  // Add event listener to the hex map
-  const svgContainer = document.querySelector('#hexMap');
-  console.log('SVG container found:', !!svgContainer);
-  if (svgContainer) {
-    svgContainer.addEventListener('click', loreHexClickHandler, true);
-    svgContainer.style.cursor = 'crosshair';
-    console.log('Event listener added to hexMap, cursor set to crosshair');
-  }
-}
-
-function disableLoreHexSelection() {
-  // Restore the previous editor mode
-  const editor = window.editor;
-  if (editor && previousMode !== null) {
-    editor.mode = previousMode;
-    previousMode = null;
-  }
-
-  // Remove event listener
-  if (loreHexClickHandler) {
-    const svgContainer = document.querySelector('#hexMap');
-    if (svgContainer) {
-      svgContainer.removeEventListener('click', loreHexClickHandler, true);
-      svgContainer.style.cursor = '';
-    }
-    loreHexClickHandler = null;
-  }
-}
-
-function selectHexInLorePopup(hexLabel) {
-  console.log('selectHexInLorePopup called with:', hexLabel);
-
-  // Check if lore popup is already open
-  const loreInput = document.getElementById('hexLabelInput');
-  console.log('loreInput found:', !!loreInput);
-
-  if (loreInput) {
-    // Set the hex label and trigger selection
-    loreInput.value = hexLabel;
-
-    // Trigger the select button click
-    const selectBtn = document.getElementById('selectHexBtn');
-    console.log('selectBtn found:', !!selectBtn);
-    if (selectBtn) {
-      selectBtn.click();
-    }
-  } else {
-    // Open lore popup first, then select hex
-    console.log('Opening lore popup first...');
-    console.log('window.showLorePopup available:', typeof window.showLorePopup);
-
-    // Try window.showLorePopup first (if module was already loaded)
-    if (typeof window.showLorePopup === 'function') {
-      console.log('Using window.showLorePopup');
-      window.showLorePopup();
-      // Wait a moment for popup to load, then select hex
-      setTimeout(() => selectHexInLorePopup(hexLabel), 150);
-    } else {
-      // Use dynamic import as fallback
-      console.log('Using dynamic import...');
-      import('../modules/Lore/loreUI.js').then(mod => {
-        console.log('Lore module loaded:', mod);
-        const showLoreUI = mod.showLorePopup;
-
-        if (typeof showLoreUI === 'function') {
-          console.log('Calling showLoreUI function');
-          showLoreUI();
-          // Wait a moment for popup to load, then select hex
-          setTimeout(() => selectHexInLorePopup(hexLabel), 150);
-        } else {
-          console.error('showLorePopup is not a function in the loaded module.');
-          alert('Error: Could not initialize Lore Module UI.');
-        }
-      }).catch(err => {
-        console.error('Failed to load Lore module:', err);
-        alert('Error: Failed to load Lore module.');
-      });
-    }
-  }
-}
 
 // ───────────── Token Hex Selection Helper Functions ─────────────
 let tokenHexSelectorActive = false;

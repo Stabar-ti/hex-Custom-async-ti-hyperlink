@@ -136,6 +136,48 @@ src/
 public/data/   — system info, tokens, attachments (sourced from AsyncTI4 bot)
 ```
 
+### Checks (optional)
+
+```bash
+npm install   # one time; requires Node 18+
+npm run check # lint + tests
+npm test      # lore footer round-trip tests only
+```
+
+`npm test` exercises the lore footer model against the real modules: an entry's `footerText`
+is the only thing the AsyncTI4 bot ever reads, and the editor parses it into objects and
+writes it back, so a defect there silently corrupts a GM's lore. The suite asserts the
+round-trip is safe over the lore export shipped in `public/data/tempo/` plus constructed
+cases covering gates, roll bins, multi-effect lines, and negated conditions.
+
+### Linting
+
+The app itself still has **no build step** — `index.html` loads `src/` as native ES modules and
+opens directly, exactly as before. But because nothing compiles the code, a mistyped import path
+or a named import that doesn't exist shows up only as a blank page at runtime. ESLint is set up
+to catch that class of mistake:
+
+```bash
+npm install        # one time; requires Node 18+
+npm run lint       # whole codebase
+npm run lint:lore  # just the Lore module
+```
+
+`node_modules/` is gitignored and no build output is produced — linting is a check you run, not
+a step anyone needs in order to use the tool.
+
+A clean tree exits 0. Errors are reserved for things that genuinely break the app (an import
+that doesn't resolve, an undefined variable); the remaining pre-existing style issues are
+warnings, so any **error** you see is worth acting on.
+
+**Windows / PowerShell:** if `npm` fails with *"npm.ps1 cannot be loaded because running
+scripts is disabled"*, PowerShell is blocking npm's script wrapper. Either use `npm.cmd`
+instead of `npm`, or allow local scripts once:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
 ### Contributing
 
 - Open issues or PRs on GitHub
