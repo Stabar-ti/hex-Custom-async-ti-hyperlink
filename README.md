@@ -152,6 +152,18 @@ npm run lint:lore  # just the Lore module
 `node_modules/` is gitignored and no build output is produced — linting is a check you run, not
 a step anyone needs in order to use the tool.
 
+A clean tree exits 0. Errors are reserved for things that genuinely break the app (an import
+that doesn't resolve, an undefined variable); the remaining pre-existing style issues are
+warnings, so any **error** you see is worth acting on.
+
+**Windows / PowerShell:** if `npm` fails with *"npm.ps1 cannot be loaded because running
+scripts is disabled"*, PowerShell is blocking npm's script wrapper. Either use `npm.cmd`
+instead of `npm`, or allow local scripts once:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
 ### Contributing
 
 - Open issues or PRs on GitHub
