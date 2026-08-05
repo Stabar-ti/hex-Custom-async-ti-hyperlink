@@ -23,6 +23,8 @@ import {
 import {
     parseFooterDoc, serializeFooterDoc, checkFooterRoundTrip, flavourProblem
 } from '../src/modules/Lore/loreFooterModel.js';
+import * as state from '../src/modules/Lore/loreState.js';
+import { normalizeLoreEntries } from '../src/modules/Lore/loreCore.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -58,7 +60,19 @@ const SYNTHETIC = [
     '!roll 1d6\n12:00 looks like a bin now',
     'flavour\n!swap 203 401\ntail prose',
     '!token gravityrift @mecatolrex',
-    '!removeunit neutral 3 infantry mr'
+    '!removeunit neutral 3 infantry mr',
+
+    // Shapes taken from a real exported map — these are what GM-authored footers actually
+    // look like, and each one caught something worth keeping a test for.
+    '!unit 3 fighter\n!unit neutral 1 destroyer',
+    '!vp -1 The joke',
+    'Should only trigger once....\n!vp 1 Triumph monument',
+    '!choice\naccept:!tg -2\nreject:!tg +2',
+    '!choice\n!tactic +2\naccept:!tg +2\nreject:!ac 2',
+    '!choice\nroll a d2 on 1 accept on 2 reject\naccept:!unit 1 destroyer @rep\nreject:!unit 1 cruiser @rep',
+    '!removeunit 1 infantry @kkita',
+    '!token  wheta @705',                 // note the double space — see below
+    '!token  custom_eronous_whiota @712'
 ];
 
 /** Footers from the lore export shipped in the repo — real GM-authored text. */
@@ -211,6 +225,49 @@ for (const footer of corpus) {
     if (doc.unsafe) continue;
     check('gate survives', JSON.stringify(getGate(serializeFooterDoc(doc)))
         === JSON.stringify(getGate(footer)), JSON.stringify(footer));
+}
+
+// ── 4. what the bot receives ──────────────────────────────────────────────────
+
+// The guarantee that matters day to day: opening an entry and saving it without touching the
+// effects must write the ORIGINAL footer string back, byte for byte. Otherwise simply viewing
+// a GM's lore would quietly reformat it — and the footer is the only thing the bot reads.
+{
+    const opened = normalizeLoreEntries(corpus.map(footerText => ({
+        loreText: 'x', footerText, receiver: 'CURRENT', trigger: 'CONTROLLED',
+        ping: 'NO', persistance: 'ONCE'
+    })));
+
+    let preserved = 0;
+    for (const entry of opened) {
+        state.loadEntry(0, entry);
+        if (state.entryToSave().footerText === entry.footerText) preserved++;
+    }
+    check('opening + saving an untouched entry preserves the footer exactly',
+        preserved === opened.length, `${preserved}/${opened.length} preserved`);
+
+    // ...and the flag really is what gates it: a structural edit DOES rebuild the footer.
+    state.loadEntry(0, opened.find(e => e.footerText === '!tg +2') || opened[0]);
+    const before = state.entryToSave().footerText;
+    const doc = state.getDoc();
+    doc.blocks.push({ kind: 'effect', branch: null, verb: 'ac', args: ['1'], targetRef: null, conditions: [] });
+    state.setDoc(doc);
+    check('a structural edit rebuilds the footer',
+        state.entryToSave().footerText !== before);
+    check('the added effect is in the rebuilt footer',
+        getEffectLines(state.entryToSave().footerText).includes('ac 1'));
+}
+
+// Rebuilding normalises runs of whitespace inside an effect ("!token  x" -> "!token x").
+// The bot tokenises on \s+, so this cannot change what it does — but assert it rather than
+// assume it, because it is the one visible difference a GM might notice after an edit.
+{
+    const original = '!token  wheta @705';
+    const rebuilt = serializeFooterDoc(parseFooterDoc(original));
+    check('double space inside an effect is normalised', rebuilt === '!token wheta @705', rebuilt);
+    check('...and the bot still reads it identically',
+        JSON.stringify(getEffectLines(original).map(parseEffectLine))
+        === JSON.stringify(getEffectLines(rebuilt).map(parseEffectLine)));
 }
 
 // ── report ────────────────────────────────────────────────────────────────────
