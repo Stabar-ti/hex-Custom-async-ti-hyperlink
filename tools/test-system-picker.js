@@ -28,6 +28,7 @@ import {
     passesFilter, selectSystems, autoMapperFilter,
     activeFilterCount, describeActiveFilters
 } from '../src/modules/SystemPicker/pickerSelect.js';
+import * as store from '../src/modules/SystemPicker/pickerState.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -559,6 +560,116 @@ for (const col of COLUMNS) {
         highlightMatches('a+b', ['+']) === 'a<mark>+</mark>b');
     check('highlightMatches with no tokens is just escaping',
         highlightMatches('plain', []) === 'plain');
+}
+
+// ── 14. Store reducers ────────────────────────────────────────────────────────
+//
+// The store must import under node at all — it touches localStorage, which does not
+// exist here, so every access is guarded. If that guard ever breaks, this file throws
+// on import rather than failing a check.
+
+{
+    store.__resetForTest();
+
+    check('the store starts at the defaults', activeFilterCount(store.getFilter()) === 0);
+
+    store.toggleAttr('hasTech');
+    check('toggleAttr switches an attribute on', store.getFilter().attrs.hasTech === true);
+    store.toggleAttr('hasTech');
+    check('toggleAttr is its own inverse', !('hasTech' in store.getFilter().attrs),
+        'the key must be deleted, not set false — describeActiveFilters counts keys');
+
+    store.toggleSource('base');
+    check('toggleSource switches a source off', store.getFilter().sources.base === false);
+    store.setSourcesAll(true);
+    check('setSourcesAll(true) restores every source',
+        Object.values(store.getFilter().sources).every(Boolean));
+
+    store.togglePlanetCount(2);
+    store.togglePlanetCount(1);
+    check('planet counts accumulate and stay sorted',
+        store.getFilter().planetCounts.join(',') === '1,2');
+    store.togglePlanetCount(1);
+    check('planet counts remove on re-toggle', store.getFilter().planetCounts.join(',') === '2');
+
+    store.cycleTri('weird');
+    check('cycleTri steps hide -> only', store.getFilter().tri.weird === 'only');
+    store.cycleTri('weird');
+    check('cycleTri steps only -> any', store.getFilter().tri.weird === 'any');
+    store.cycleTri('weird');
+    check('cycleTri wraps any -> hide', store.getFilter().tri.weird === 'hide');
+    store.setTri('weird', 'nonsense');
+    check('setTri rejects a value outside the three positions', store.getFilter().tri.weird === 'hide');
+
+    store.clearFilters();
+    check('clearFilters returns to zero active', activeFilterCount(store.getFilter()) === 0);
+
+    // Sort cycling: asc -> desc -> unpinned, so relevance is reachable without
+    // clearing the search box.
+    store.setSort('id');
+    check('setSort pins ascending first', store.getSort().direction === 'asc');
+    store.setSort('id');
+    check('setSort flips to descending', store.getSort().direction === 'desc');
+    store.setSort('id');
+    check('setSort unpins on the third click', store.getSort().column === null);
+
+    // Subscribers.
+    let fired = 0;
+    const off = store.subscribe(() => fired++);
+    store.setQuery('lodor');
+    check('subscribers fire on change', fired === 1);
+    off();
+    store.setQuery('');
+    check('unsubscribe stops delivery', fired === 1);
+
+    // Arming.
+    const tile = systems.find(s => String(s.id) === '18');
+    store.arm(tile, 'once');
+    check('arm records the tile', store.getArmed()?.id === '18');
+    check('arm uppercases the id for the lookup', store.getArmed().id === String(tile.id).toUpperCase());
+    check('isArmed agrees', store.isArmed() === true);
+    check('"once" disarms after one placement', store.consumeArmed() === false && !store.isArmed());
+
+    store.arm(tile, 'keep');
+    check('"keep" stays armed', store.consumeArmed() === true && store.isArmed());
+    check('"keep" stays armed indefinitely',
+        store.consumeArmed() && store.consumeArmed() && store.isArmed());
+    store.disarm();
+    check('disarm clears it', !store.isArmed());
+
+    store.arm(tile, 'count', 3);
+    check('"count" reports its remaining', store.getArmed().remaining === 3);
+    check('"count" survives the first placement', store.consumeArmed() === true);
+    check('...and the second', store.consumeArmed() === true);
+    check('...and disarms on the last', store.consumeArmed() === false && !store.isArmed());
+
+    check('consumeArmed on nothing is safe', store.consumeArmed() === false);
+    store.arm(null);
+    check('arming nothing is a no-op', !store.isArmed());
+
+    // Recent.
+    store.noteRecent('18');
+    store.noteRecent('19');
+    store.noteRecent('18');
+    check('recent is most-recent-first with no duplicates',
+        store.getRecent().join(',') === '18,19', store.getRecent().join(','));
+    for (let i = 0; i < 30; i++) store.noteRecent(`t${i}`);
+    check('recent is capped', store.getRecent().length <= 12, `${store.getRecent().length}`);
+
+    // hydrate() must survive garbage rather than leaving an unexplainable empty list.
+    store.__resetForTest();
+    check('hydrate() runs with no storage available', typeof store.hydrate() === 'object');
+    check('hydrate() leaves a usable filter', activeFilterCount(store.getFilter()) === 0);
+
+    // getViewSpec is the contract between the store and the pipeline.
+    store.__resetForTest();
+    store.setQuery('lodor');
+    const viaStore = selectSystems(systems, store.getViewSpec()).results.length;
+    const direct = selectSystems(systems, { filter: defaultFilter(), query: 'lodor', sort: {} }).results.length;
+    check('getViewSpec drives the pipeline identically', viaStore === direct,
+        `${viaStore} vs ${direct}`);
+
+    store.__resetForTest();
 }
 
 // ── report ────────────────────────────────────────────────────────────────────
