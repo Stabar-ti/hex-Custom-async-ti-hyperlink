@@ -961,17 +961,15 @@ export function applyFilters(editor, onResults) {
  * trigger a refresh.
  */
 /**
- * Announce a used-ID change and re-render whatever list is open.
+ * Announce that the set of placed tile ids changed.
  *
- * The event is the modern path — subscribers get the specific id that moved. The
- * window.renderSystemList() call keeps the current picker working until it is replaced;
- * it goes away with systemLookup.js.
+ * Subscribers get the specific id that moved. This used to also call
+ * window.renderSystemList(), a global the old picker installed from inside its own
+ * constructor closure; the picker listens for the event now, so any number of views can
+ * react and none of them has to be reachable through a global.
  */
 function announceUsedChange(detail) {
   emitUsedIdsChanged(detail);
-  if (typeof window.renderSystemList === 'function') {
-    window.renderSystemList();
-  }
 }
 
 export function markRealIDUsed(id) {

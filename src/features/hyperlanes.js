@@ -40,12 +40,11 @@ export function bindHyperlaneEditing(editor) {
    * (unless it's the first click), then tries to draw a link.
    */
   editor._selectHex = function (label) {
-    // --- Block hyperlane drawing if modal/popup open or pending system assignment ---
-    const lookupPopupOpen = document.getElementById('system-lookup-popup') !== null;
-    const lookupModalOpen = document.getElementById('systemLookupModal')?.classList.contains('open');
-    if (lookupPopupOpen || lookupModalOpen || this.pendingSystemId) {
-      return;
-    }
+    // This used to bail out whenever the lookup popup existed in the DOM, which meant
+    // you could not draw hyperlanes with the tile list merely open. The system picker
+    // swallows map clicks in the capture phase while a tile is actually armed
+    // (pickerPlacement.js), so having the picker on screen no longer implies you are
+    // placing, and the guard is not needed.
     if (!this.linking) return;
     const last = this.selectedPath[this.selectedPath.length - 1];
     // Only allow path to grow to neighbors (unless it's the start of the path)

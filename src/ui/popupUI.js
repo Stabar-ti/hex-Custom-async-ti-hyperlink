@@ -346,17 +346,25 @@ export function showPopup({
     // Add to DOM
     (parent || document.body).appendChild(popup);
 
-    // Click to focus - bring popup to front when clicked
-    popup.addEventListener('mousedown', function (e) {
-        // Bring this popup to the front by setting a high z-index
-        const allPopups = document.querySelectorAll('.popup-ui');
+    /** Raise this popup above every other .popup-ui currently on screen. */
+    function bringToFront() {
         let maxZ = 1000;
-        allPopups.forEach(p => {
+        document.querySelectorAll('.popup-ui').forEach(p => {
             const z = parseInt(window.getComputedStyle(p).zIndex) || 1000;
             if (z > maxZ) maxZ = z;
         });
         popup.style.zIndex = maxZ + 1;
+    }
 
+    // A popup that just opened belongs on top. Without this it keeps whatever z-index
+    // its config asked for, while any popup the user has clicked has already been raised
+    // above that by the handler below — so opening a second popup could put it behind the
+    // first, with its close button unreachable.
+    bringToFront();
+
+    // Click to focus - bring popup to front when clicked
+    popup.addEventListener('mousedown', function (e) {
+        bringToFront();
         // Focus the popup for keyboard accessibility
         popup.focus();
     });

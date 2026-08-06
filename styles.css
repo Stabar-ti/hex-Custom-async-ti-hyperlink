@@ -1948,6 +1948,157 @@ body.lore-picking #hexMap { cursor: crosshair; }
   re-themes with everything else.
 ──────────────────────────────────────────────────────────────────────────────*/
 
+/* ── panel shell ──────────────────────────────────────────────────────────── */
+
+/* .popup-ui styles the chrome but not the body, so each module supplies its own
+   background. Without this the map and the sector-controls panel show straight through
+   the results grid. */
+.sp-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 6px 8px 8px;
+  box-sizing: border-box;
+  background: var(--surface-1);
+  color: #ddd;
+}
+
+.sp-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sp-search-wrap { position: relative; flex: 1; min-width: 0; }
+
+.sp-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 26px 6px 8px;
+  border: 1px solid var(--surface-5);
+  border-radius: 4px;
+  background: var(--surface-1);
+  color: #eee;
+  font-family: inherit;
+}
+.sp-search:focus { outline: none; border-color: var(--popup-border-picker); }
+
+.sp-search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: #888;
+  font-size: 1.1em;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 5px;
+}
+.sp-search-clear:hover { color: var(--color-danger); }
+
+.sp-view-toggle { display: flex; }
+.sp-view-btn {
+  border: 1px solid var(--surface-5);
+  background: transparent;
+  color: #aaa;
+  font-size: 1em;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+.sp-view-btn:first-child { border-radius: 4px 0 0 4px; }
+.sp-view-btn:last-child { border-radius: 0 4px 4px 0; border-left: none; }
+.sp-view-btn:hover { color: #fff; }
+.sp-view-btn.is-on {
+  color: #fff;
+  background: color-mix(in srgb, var(--popup-border-picker) 30%, transparent);
+  border-color: var(--popup-border-picker);
+}
+
+/* flex:1 + min-height:0 is what lets the results scroll instead of pushing the panel
+   past the bottom of the popup. */
+.sp-results {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  border: 1px solid var(--surface-4);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sp-results > * { flex: 1; min-width: 0; }
+
+.sp-empty {
+  padding: 14px;
+  text-align: center;
+  color: #999;
+  font-size: 0.85em;
+}
+.sp-empty-msg { margin-bottom: 6px; }
+
+.sp-recent-row { padding-bottom: 2px; }
+.sp-recent {
+  border: 1px solid var(--surface-5);
+  border-radius: 4px;
+  background: var(--surface-2);
+  padding: 1px;
+  cursor: pointer;
+  line-height: 0;
+}
+.sp-recent:hover { border-color: var(--popup-border-picker); }
+.sp-recent-img { width: 28px; height: 28px; object-fit: contain; }
+
+/* ── random tile popup ────────────────────────────────────────────────────── */
+
+.sp-random { padding: 8px; text-align: center; background: var(--surface-1); color: #ddd; }
+.sp-random-body { min-height: 220px; }
+.sp-random-img { width: 210px; height: 210px; object-fit: contain; }
+.sp-random-title { font-weight: bold; margin-top: 6px; }
+.sp-random-stats {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0;
+  font-size: 0.85em;
+}
+.sp-random-note { font-size: 0.82em; color: #aaa; }
+.sp-random-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.sp-random-unique { font-size: 0.8em; color: #aaa; cursor: pointer; }
+.sp-random-arm { border-style: solid; border-color: var(--color-success); color: var(--color-success); }
+.sp-random-arm:disabled { opacity: 0.4; cursor: default; }
+
+/* ── help ─────────────────────────────────────────────────────────────────── */
+
+/* showPopup drops minWidth/maxWidth/minHeight/maxHeight from its style argument
+   (popupUI.js:64, to stop popups growing), so the width has to be constrained here on
+   the content instead. */
+.sp-help {
+  line-height: 1.6;
+  font-size: 0.92em;
+  max-width: 640px;
+  background: var(--surface-1);
+  color: #ddd;
+}
+.sp-help h3 { margin: 14px 0 4px; color: var(--popup-border-picker); font-size: 1em; }
+.sp-help h3:first-child { margin-top: 0; }
+.sp-help ul { margin: 4px 0; padding-left: 20px; }
+.sp-help p { margin: 4px 0; }
+.sp-help code {
+  font-family: var(--font-mono);
+  background: var(--surface-3);
+  padding: 0 3px;
+  border-radius: 3px;
+}
+.sp-help-note { margin-top: 12px; font-size: 0.9em; color: #999; }
+
 /* ── shared bits ──────────────────────────────────────────────────────────── */
 
 .sp-badge {
@@ -1973,9 +2124,12 @@ body.lore-picking #hexMap { cursor: crosshair; }
 
 /* ── anchored list picker (src/ui/listPicker.js) ──────────────────────────── */
 
+/* Above every popup. popupUI raises whatever was clicked last to max+1, so a popup can
+   climb past any fixed value in the 10000s over a long session; these transient layers
+   belong in a band it will never reach. */
 .sp-picker-panel {
   position: fixed;
-  z-index: 10050;
+  z-index: 99990;
   max-height: 70vh;
   overflow-y: auto;
   background: var(--surface-3);
@@ -2321,7 +2475,7 @@ body.lore-picking #hexMap { cursor: crosshair; }
 
 .sp-preview-popup {
   position: fixed;
-  z-index: 10060;
+  z-index: 99995;   /* see .sp-picker-panel */
   pointer-events: none;
   background: var(--surface-2);
   border: 1px solid var(--surface-5);
@@ -2358,13 +2512,18 @@ body.sp-placing #hexMap polygon {
 }
 
 /* Anchored to the viewport, not to the picker: the popup gets dragged off-screen and
-   the armed state has to stay visible when it does. */
+   the armed state has to stay visible when it does.
+
+   Bottom-centre rather than top: the top of the screen belongs to the toolbar and to
+   wherever popups happen to be, and an overlay there covered the picker's own help and
+   close buttons. pointer-events is scoped to the controls so the banner's empty space
+   never swallows a click meant for something underneath it. */
 .sp-armed {
   position: fixed;
-  top: 68px;
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10040;
+  z-index: 99980;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2376,7 +2535,11 @@ body.sp-placing #hexMap polygon {
   color: #eee;
   font-size: 0.85em;
   max-width: 92vw;
+  pointer-events: none;
 }
+.sp-armed button,
+.sp-armed input,
+.sp-armed .sp-armed-mode { pointer-events: auto; }
 
 .sp-armed-thumb {
   width: 34px;
@@ -2436,12 +2599,14 @@ body.sp-placing #hexMap polygon {
 
 /* ── undo band ────────────────────────────────────────────────────────────── */
 
+/* Stacked above the armed banner rather than beside it: in Keep mode both are on screen
+   at once and they must not overlap. */
 .sp-undo-band {
   position: fixed;
-  bottom: 18px;
+  bottom: 72px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10045;
+  z-index: 99981;
   display: flex;
   align-items: center;
   gap: 10px;

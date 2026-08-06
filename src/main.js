@@ -17,9 +17,7 @@ import { initHistory } from './features/history.js';
 import { showModal, closeModal } from './ui/uiModals.js';
 import { loadSystemInfo, loadLoreData } from './data/import.js';
 import { assignSystem } from './features/assignSystem.js';
-import './ui/systemLookup.js'; // Adds system search modal
-import { redrawAllRealIDOverlays } from './features/realIDsOverlays.js';
-import { markRealIDUsed } from './ui/uiFilters.js';
+import { installSystemPickerUI } from './modules/SystemPicker/pickerUI.js';
 //import { initHexHoverInfo } from './ui/hexHoverInfo.js';
 import { openCalcSlicePopup } from './features/calcSlice.js';
 import { installCustomLinksUI } from './ui/customLinksUI.js';
@@ -74,6 +72,7 @@ initHistory(editor);
 
 installCustomLinksUI(editor);
 installBorderAnomaliesUI(editor);
+installSystemPickerUI(editor);
 installLoreUI(editor);
 
 // Initialize lore overlay
@@ -371,91 +370,21 @@ if (btnTileImages) {
 document.body.tabIndex = -1;
 document.body.focus();
 
-// ───── System Lookup Modal: search and select system ID ─────
+// ───── Data the map needs before anything can be placed on it ─────
+// This used to be the head of the legacy lookup modal's IIFE. The modal is gone — the
+// system picker replaced it — but these two loads were never about the modal: the map
+// can't resolve a realId without SystemInfo, and the Lore module reads loreData.
 (async () => {
   await loadSystemInfo(editor);
   loadLoreData(editor); // fire-and-forget: Lore module degrades gracefully without it
-  const searchInput = document.getElementById('systemSearch');
-  const resultsList = document.getElementById('systemList');
-  const jumpBtn = document.getElementById('jumpToSystemBtn');
-
-  if (!searchInput || !resultsList || !jumpBtn) {
-    console.warn('Lookup elements not found.');
-    return;
-  }
-
-  jumpBtn.addEventListener('click', () => {
-    // Use the new popup system if available, fallback to old modal
-    if (typeof window.showSystemLookupPopup === 'function') {
-      window.showSystemLookupPopup();
-    } else {
-      showModal('systemLookupModal');
-      searchInput.value = '';
-      resultsList.innerHTML = '';
-      editor.pendingSystemId = null;
-      setTimeout(() => searchInput.focus(), 0);
-    }
-  });
-
-  searchInput.addEventListener('input', e => {
-    const q = e.target.value.trim().toUpperCase();
-    resultsList.innerHTML = '';
-    if (!q) return;
-
-    const lookup = editor.sectorIDLookup || {};
-    let matches = Object.values(lookup).filter(sys => {
-      if (/^\d+$/.test(q)) return sys.id.toString() === q;
-      const name = sys.name || '';
-      const aliases = Array.isArray(sys.aliases) ? sys.aliases : [];
-      return sys.id.toString().startsWith(q)
-        || name.toUpperCase().includes(q)
-        || aliases.some(a => (a || '').toUpperCase().startsWith(q));
-    });
-
-    matches = Array.from(new Map(matches.map(s => [s.id, s])).values());
-    matches.slice(0, 20).forEach(sys => {
-      const li = document.createElement('li');
-      li.textContent = `${sys.id} – ${sys.name}`;
-      li.addEventListener('click', () => {
-        editor.pendingSystemId = sys.id.toString();
-      });
-      resultsList.appendChild(li);
-    });
-  });
 })();
 
+// Placement now belongs to src/modules/SystemPicker/pickerPlacement.js, which takes the
+// map click in the capture phase while a tile is armed. The handler that used to live
+// here ran in the bubble phase — *after* the polygon's own handler had already painted
+// the hex with the current mode — so one click both painted and assigned, and put two
+// entries in the undo history.
 
-svg.addEventListener('click', e => {
-  const poly = e.target.closest('polygon');
-  if (!poly) return;
-  const hexID = poly.dataset.label;
-  if (!hexID) return;
-
-  // --- Prevent ANY action (including hyperlane mode) if system lookup popup is open ---
-  //const lookupPopupOpen = document.getElementById('system-lookup-popup') !== null;
-  //const lookupModalOpen = document.getElementById('systemLookupModal')?.classList.contains('open');
-  //if (lookupPopupOpen || lookupModalOpen) {
-  // Optionally, flash or shake modal/popup here to show user it's still open
-  //  return;
-  //}
-
-  // --- System assignment from Async Tiles ---
-  if (editor.pendingSystemId) {
-    editor.selectedHex = hexID;
-    const sys = editor.sectorIDLookup[editor.pendingSystemId.toUpperCase()];
-    if (sys) {
-      editor.beginUndoGroup();
-      editor.saveState(hexID);         // snapshot BEFORE mutation
-      editor._historyLocked = true;    // prevent cascading saves inside assignSystem
-      assignSystem(editor, sys, hexID);
-      editor._historyLocked = false;
-      editor.commitUndoGroup();
-      redrawAllRealIDOverlays(editor);
-    }
-    editor.pendingSystemId = null;
-    return;
-  }
-});
 
 
 const resetPopupBtn = document.getElementById('resetPopupPositionsBtn');

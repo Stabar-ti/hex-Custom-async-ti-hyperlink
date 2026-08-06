@@ -170,12 +170,7 @@ function createSectorControlsContent(editor) {
       window.deactivateTokenMode();
     }
 
-    // Use the new popup system if available, fallback to old modal
-    if (typeof window.showSystemLookupPopup === 'function') {
-      window.showSystemLookupPopup();
-    } else {
-      showModal('systemLookupModal');
-    }
+    window.showSystemPicker?.();
   });
   container.appendChild(realIdBtn);
 

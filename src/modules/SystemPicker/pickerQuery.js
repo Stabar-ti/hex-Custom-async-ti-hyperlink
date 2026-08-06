@@ -3,11 +3,11 @@
  *
  * The old search was a whitespace split AND-ed over one flat haystack. That worked for
  * "18" and "lodor" but made whole questions unaskable: ~200 tiles sit in the "Others"
- * source bucket with no button of their own, so "show me the Andcat tiles" had no
+ * source bucket with no button of their own, so "show me the Somno tiles" had no
  * expression at all. It also silently lost alias search in the rewrite — `camelot` is
  * an alias of tile 18 and returned nothing.
  *
- * So: field prefixes (`tech:cybernetic`, `src:andcat`), `-` to negate, quotes to group,
+ * So: field prefixes (`tech:cybernetic`, `src:somno`), `-` to negate, quotes to group,
  * and everything unprefixed still matching anywhere, exactly as before.
  *
  * No DOM — this module loads under node for tools/test-system-picker.js.

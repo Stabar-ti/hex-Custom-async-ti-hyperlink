@@ -361,10 +361,25 @@ check('TRI_VALUES is exactly the three positions',
     }
 
     // src: makes the ~200-tile "Others" bucket addressable for the first time.
-    const andcat = find('src:andcat');
-    check('src:andcat is expressible and non-empty', andcat.length > 0, `got ${andcat.length}`);
-    check('src:andcat returns only andcat tiles',
-        andcat.every(s => (s.source || '').toLowerCase().includes('andcat')));
+    //
+    // Checked through the WHOLE pipeline, not just matchesQuery: the first version of
+    // this test asserted on matching alone and happily passed for `src:andcat`, which
+    // returns nothing in the actual picker because all 63 andcat tiles are hyperlanes
+    // and the default filter hides those. A search test that skips the filter stage is
+    // not testing what the user types.
+    const somno = selectSystems(systems, { filter: defaultFilter(), query: 'src:somno' }).results;
+    check('src:somno reaches a source that has no button of its own',
+        somno.length > 0, `got ${somno.length}`);
+    check('src:somno returns only somno tiles',
+        somno.every(s => (s.source || '').toLowerCase().includes('somno')));
+
+    // The andcat case itself, asserted rather than assumed.
+    const andcat = selectSystems(systems, { filter: defaultFilter(), query: 'src:andcat' }).results;
+    check('src:andcat is empty under default filters (all hyperlanes)', andcat.length === 0,
+        `got ${andcat.length}`);
+    check('...and non-empty once hyperlanes are allowed',
+        selectSystems(systems, { filter: withFilter({ tri: { hyperlanes: 'any' } }), query: 'src:andcat' })
+            .results.length > 0);
 
     const techQ = find('tech:cybernetic');
     const techExpected = systems.filter(s =>

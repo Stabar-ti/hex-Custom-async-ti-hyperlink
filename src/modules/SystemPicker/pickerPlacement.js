@@ -21,6 +21,9 @@
  * Modes: 'once' (default — the old behaviour), 'keep' (stays armed), 'count' (N, then
  * disarms). Escape always disarms. The armed banner lives on document.body, not inside
  * the popup, because the popup gets dragged off-screen and the state has to stay visible.
+ * It sits at the bottom of the screen: the top belongs to the toolbar and to wherever
+ * popups happen to be, and an overlay there covered the picker's own help and close
+ * buttons.
  */
 
 import { assignSystem } from '../../features/assignSystem.js';
@@ -149,9 +152,6 @@ export function placeArmedOn(hexId) {
     }
     redrawAllRealIDOverlays(editor);
 
-    // Kept in sync for anything still reading the old flag (the legacy handler in
-    // main.js checks it; this makes sure it never sees a stale value).
-    editor.pendingSystemId = null;
     editor.selectedHex = hexId;
 
     state.noteRecent(armed.id);
