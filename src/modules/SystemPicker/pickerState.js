@@ -25,12 +25,19 @@ const COLUMN_KEY = 'ti4-column-visibility';
 
 const RECENT_LIMIT = 12;
 
+// Text scale bounds. Below 0.8 the tile badges stop being legible; above 1.6 a grid cell
+// can no longer fit a tile name on one line.
+export const TEXT_SCALE_MIN = 0.8;
+export const TEXT_SCALE_MAX = 1.6;
+export const TEXT_SCALE_STEP = 0.1;
+
 const state = {
     filter: defaultFilter(),
     query: '',
     sort: { column: null, direction: null },  // no column = relevance when searching, file order otherwise
     view: 'grid',                             // 'grid' | 'table'
     columns: defaultColumnVisibility(),
+    textScale: 1,                             // multiplier on the picker's whole type scale
     armed: null,                              // { id, name, system, mode, remaining } — never persisted
     recent: []                                // ids, most recent first
 };
@@ -61,6 +68,7 @@ function persist() {
             query: state.query,
             sort: state.sort,
             view: state.view,
+            textScale: state.textScale,
             recent: state.recent
         }));
         localStorage.setItem(COLUMN_KEY, JSON.stringify(state.columns));
@@ -112,6 +120,7 @@ export function hydrate() {
             direction: stored.sort?.direction === 'desc' ? 'desc' : (stored.sort?.direction === 'asc' ? 'asc' : null)
         };
         state.view = stored.view === 'table' ? 'table' : 'grid';
+        state.textScale = clampScale(stored.textScale);
         state.recent = Array.isArray(stored.recent) ? stored.recent.slice(0, RECENT_LIMIT) : [];
     }
 
@@ -242,6 +251,32 @@ export function setView(view) {
     notify();
 }
 
+/** Rounds to the nearest step and clamps; anything unparseable falls back to 1. */
+function clampScale(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 1;
+    const stepped = Math.round(n / TEXT_SCALE_STEP) * TEXT_SCALE_STEP;
+    return Math.min(TEXT_SCALE_MAX, Math.max(TEXT_SCALE_MIN, Number(stepped.toFixed(2))));
+}
+
+export function getTextScale() { return state.textScale; }
+
+export function setTextScale(value) {
+    const next = clampScale(value);
+    if (next === state.textScale) return;
+    state.textScale = next;
+    notify();
+}
+
+/** Nudges the scale by whole steps, for the +/- buttons. */
+export function stepTextScale(direction) {
+    setTextScale(state.textScale + direction * TEXT_SCALE_STEP);
+}
+
+export function resetTextScale() {
+    setTextScale(1);
+}
+
 export function setColumnVisible(key, on) {
     state.columns = { ...state.columns, [key]: !!on };
     notify();
@@ -337,6 +372,7 @@ export function __resetForTest() {
     state.sort = { column: null, direction: null };
     state.view = 'grid';
     state.columns = defaultColumnVisibility();
+    state.textScale = 1;
     state.armed = null;
     state.recent = [];
     listeners = [];

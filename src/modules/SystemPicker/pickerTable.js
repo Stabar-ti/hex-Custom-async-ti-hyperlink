@@ -142,7 +142,9 @@ function buildHeader(cols) {
     for (const col of cols) {
         const th = document.createElement('th');
         th.dataset.column = col.key;
-        th.style.width = col.width;
+        // table-layout is fixed, so the declared widths are the real ones — they have to
+        // grow with the type scale or larger text clips inside its column.
+        th.style.width = `calc(${col.width} * var(--sp-text-scale))`;
 
         if (col.key === 'tile') {
             th.textContent = col.label;

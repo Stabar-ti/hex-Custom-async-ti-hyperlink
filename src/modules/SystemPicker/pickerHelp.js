@@ -69,6 +69,11 @@ export function showPickerHelp() {
   <p><b>▦</b> is the tile gallery, <b>☰</b> is the detailed table with sortable columns.
      Arrow keys move through results from either the search box or the results
      themselves; <b>Enter</b> arms the highlighted tile.</p>
+  <p><b>Columns</b> (table view only) chooses which columns to show. The menu stays open
+     so you can change several at once.</p>
+  <p><b>A− / A+</b> changes the text size of the picker and its popups, from 80% to 160%.
+     Click the percentage to go back to 100%. This is separate from the browser's zoom,
+     which would rescale the map as well.</p>
 
   <p class="sp-help-note">Filters, search, sort and view are remembered when you close
      the picker. The armed tile is not.</p>

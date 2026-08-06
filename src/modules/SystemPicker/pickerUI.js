@@ -36,6 +36,7 @@ let resultsHost = null;
 let recentHost = null;
 let emptyState = null;
 let columnsBtn = null;
+let scaleLabel = null;
 let unsubscribeStore = null;
 let unsubscribeUsed = null;
 
@@ -49,6 +50,9 @@ let cached = null;
 export function installSystemPickerUI(editor) {
     editorRef = editor;
     state.hydrate();
+    // Before the popup exists: the armed banner and the hover card are body-level and
+    // must already be at the stored size the first time they appear.
+    applyTextScale();
     installPlacement(editor);
 
     window.showSystemPicker = showSystemPicker;
@@ -100,6 +104,7 @@ function render() {
     activeView().refresh();
     renderRecent();
     renderEmptyState();
+    applyTextScale();
     if (columnsBtn) columnsBtn.hidden = state.getView() !== 'table';
 }
 
@@ -215,6 +220,7 @@ function buildSearchRow() {
     row.appendChild(wrap);
 
     row.appendChild(buildViewToggle());
+    row.appendChild(buildTextScale());
 
     // Table-only: hidden in the gallery, where there are no columns to choose.
     columnsBtn = document.createElement('button');
@@ -234,6 +240,51 @@ function buildSearchRow() {
     row.appendChild(random);
 
     return row;
+}
+
+/**
+ * Text size control: A− / percentage / A+.
+ *
+ * The picker's panels all live outside the page's normal flow — the popup, the hover
+ * card, the armed banner, the menus — so the browser's own zoom is a blunt instrument
+ * here: it rescales the map too. One variable on :root drives every picker surface.
+ *
+ * The middle reads as a label but is a button: clicking it resets to 100%, which is the
+ * only affordance people reliably look for after over-shooting.
+ */
+function buildTextScale() {
+    const wrap = document.createElement('div');
+    wrap.className = 'sp-view-toggle sp-scale';
+
+    const minus = document.createElement('button');
+    minus.type = 'button';
+    minus.className = 'sp-view-btn';
+    minus.textContent = 'A−';
+    minus.title = 'Smaller text';
+    minus.addEventListener('click', () => state.stepTextScale(-1));
+
+    scaleLabel = document.createElement('button');
+    scaleLabel.type = 'button';
+    scaleLabel.className = 'sp-view-btn sp-scale-label';
+    scaleLabel.title = 'Reset text size to 100%';
+    scaleLabel.addEventListener('click', () => state.resetTextScale());
+
+    const plus = document.createElement('button');
+    plus.type = 'button';
+    plus.className = 'sp-view-btn';
+    plus.textContent = 'A+';
+    plus.title = 'Larger text';
+    plus.addEventListener('click', () => state.stepTextScale(1));
+
+    wrap.append(minus, scaleLabel, plus);
+    return wrap;
+}
+
+/** Pushes the stored scale onto :root and refreshes the readout. */
+function applyTextScale() {
+    const scale = state.getTextScale();
+    document.documentElement.style.setProperty('--sp-text-scale', String(scale));
+    if (scaleLabel) scaleLabel.textContent = `${Math.round(scale * 100)}%`;
 }
 
 function buildViewToggle() {
@@ -326,7 +377,7 @@ export function showSystemPicker() {
             unsubscribeUsed?.(); unsubscribeUsed = null;
             grid.destroy(); table.destroy(); chips.destroy();
             destroyPreview();
-            searchInput = resultsHost = recentHost = emptyState = columnsBtn = null;
+            searchInput = resultsHost = recentHost = emptyState = columnsBtn = scaleLabel = null;
             mountedView = null;
             // The armed tile deliberately survives closing the popup: closing it to see
             // the map better should not disarm you.
