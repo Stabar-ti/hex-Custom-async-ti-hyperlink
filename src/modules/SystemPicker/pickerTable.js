@@ -17,6 +17,7 @@ import {
 import { attachPreview } from './pickerPreview.js';
 import { COLUMNS, totalResources, totalInfluence } from './pickerModel.js';
 import { highlightMatches } from './pickerQuery.js';
+import { createPanel, closeListPicker } from '../../ui/listPicker.js';
 import * as state from './pickerState.js';
 
 let root = null;
@@ -44,6 +45,68 @@ export function destroy() {
 function visibleColumns() {
     const vis = state.getColumns();
     return COLUMNS.filter(c => vis[c.key] !== false);
+}
+
+/**
+ * The column chooser.
+ *
+ * Uses createPanel rather than openListPicker because this is a set of toggles, not a
+ * choice: openListPicker resolves and closes on the first click, which would mean
+ * reopening the menu for every column you wanted to change. Panel dismissal (outside
+ * click, Escape) still comes from the shared primitive.
+ */
+export function openColumnsMenu(anchorEl) {
+    const panel = createPanel(anchorEl, { width: 200 });
+
+    const title = document.createElement('div');
+    title.className = 'sp-picker-title';
+    title.textContent = 'Show columns';
+    panel.appendChild(title);
+
+    const list = document.createElement('div');
+    list.className = 'sp-picker-list';
+
+    for (const col of COLUMNS) {
+        const row = document.createElement('label');
+        row.className = 'sp-col-toggle';
+
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.checked = state.getColumns()[col.key] !== false;
+        box.addEventListener('change', () => state.setColumnVisible(col.key, box.checked));
+
+        row.appendChild(box);
+        row.append(col.label);
+        list.appendChild(row);
+    }
+    panel.appendChild(list);
+
+    const actions = document.createElement('div');
+    actions.className = 'sp-col-actions';
+
+    const all = document.createElement('button');
+    all.type = 'button';
+    all.className = 'sp-linkbtn';
+    all.textContent = 'Show all';
+    all.addEventListener('click', () => {
+        for (const col of COLUMNS) state.setColumnVisible(col.key, true);
+        closeListPicker();
+        openColumnsMenu(anchorEl);
+    });
+    actions.appendChild(all);
+
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'sp-linkbtn';
+    reset.textContent = 'Reset';
+    reset.addEventListener('click', () => {
+        for (const col of COLUMNS) state.setColumnVisible(col.key, col.defaultVisible);
+        closeListPicker();
+        openColumnsMenu(anchorEl);
+    });
+    actions.appendChild(reset);
+
+    panel.appendChild(actions);
 }
 
 export function refresh() {

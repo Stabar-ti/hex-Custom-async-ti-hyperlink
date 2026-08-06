@@ -35,6 +35,7 @@ let searchInput = null;
 let resultsHost = null;
 let recentHost = null;
 let emptyState = null;
+let columnsBtn = null;
 let unsubscribeStore = null;
 let unsubscribeUsed = null;
 
@@ -99,6 +100,7 @@ function render() {
     activeView().refresh();
     renderRecent();
     renderEmptyState();
+    if (columnsBtn) columnsBtn.hidden = state.getView() !== 'table';
 }
 
 /** Swaps grid/table in place when the view toggle changes. */
@@ -214,6 +216,15 @@ function buildSearchRow() {
 
     row.appendChild(buildViewToggle());
 
+    // Table-only: hidden in the gallery, where there are no columns to choose.
+    columnsBtn = document.createElement('button');
+    columnsBtn.type = 'button';
+    columnsBtn.className = 'sp-addbtn';
+    columnsBtn.textContent = 'Columns';
+    columnsBtn.title = 'Choose which columns the table shows';
+    columnsBtn.addEventListener('click', () => table.openColumnsMenu(columnsBtn));
+    row.appendChild(columnsBtn);
+
     const random = document.createElement('button');
     random.type = 'button';
     random.className = 'sp-addbtn';
@@ -315,7 +326,7 @@ export function showSystemPicker() {
             unsubscribeUsed?.(); unsubscribeUsed = null;
             grid.destroy(); table.destroy(); chips.destroy();
             destroyPreview();
-            searchInput = resultsHost = recentHost = emptyState = null;
+            searchInput = resultsHost = recentHost = emptyState = columnsBtn = null;
             mountedView = null;
             // The armed tile deliberately survives closing the popup: closing it to see
             // the map better should not disarm you.
