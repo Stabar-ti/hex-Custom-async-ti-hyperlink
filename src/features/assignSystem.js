@@ -5,6 +5,7 @@ import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { createWormholeOverlay } from '../features/baseOverlays.js';
 import { markRealIDUsed } from '../ui/uiFilters.js';
+import { emitSystemPlaced } from '../modules/SystemPicker/pickerEvents.js';
 
 /**
  * Assigns a system object to a hex tile, updating all overlays, type, and state.
@@ -40,6 +41,9 @@ export function assignSystem(editor, sys, hexID) {
     // Still update DOM for realId overlays if needed
     const el = document.getElementById(hexID);
     if (el) el.dataset.realId = sys.id.toString();
+    // Note: hyperlanes are deliberately never marked "used" — the same matrix tile is
+    // placed many times on one map — so this is the only signal the picker gets here.
+    emitSystemPlaced({ systemId: sys.id, hexId: hexID });
     // Do not assign planets or overlays!
     return; // <- STOP HERE for hyperlane tiles!
   }
@@ -120,4 +124,6 @@ export function assignSystem(editor, sys, hexID) {
 
   // Refresh value overlay if it is currently active
   editor._refreshValueOverlay?.();
+
+  emitSystemPlaced({ systemId: sys.id, hexId: hexID });
 }

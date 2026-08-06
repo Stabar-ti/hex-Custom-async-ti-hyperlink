@@ -9,6 +9,7 @@
 // ───────────────────────────────────────────────────────────────
 
 import { wormholeTypes, techSpecialtyColors, effectEmojiMap } from '../constants/constants.js';
+import { emitUsedIdsChanged } from '../modules/SystemPicker/pickerEvents.js';
 
 // ▶︎ A Set of all realIDs that have already been assigned to hexes on the map.
 //    This helps prevent duplicate assignments.
@@ -959,10 +960,24 @@ export function applyFilters(editor, onResults) {
  * placements of the same tile are tracked correctly). If not batching, also
  * trigger a refresh.
  */
+/**
+ * Announce a used-ID change and re-render whatever list is open.
+ *
+ * The event is the modern path — subscribers get the specific id that moved. The
+ * window.renderSystemList() call keeps the current picker working until it is replaced;
+ * it goes away with systemLookup.js.
+ */
+function announceUsedChange(detail) {
+  emitUsedIdsChanged(detail);
+  if (typeof window.renderSystemList === 'function') {
+    window.renderSystemList();
+  }
+}
+
 export function markRealIDUsed(id) {
   usedRealIDs.set(id, (usedRealIDs.get(id) || 0) + 1);
   //  console.log('realIDmarked')
-  if (!_batchMode) refreshSystemList();
+  if (!_batchMode) announceUsedChange({ id, used: true });
 }
 
 /**
@@ -976,7 +991,7 @@ export function unmarkRealIDUsed(id) {
   } else {
     usedRealIDs.set(id, count - 1);
   }
-  if (!_batchMode) refreshSystemList();
+  if (!_batchMode) announceUsedChange({ id, used: usedRealIDs.has(id) });
 }
 
 /**
@@ -991,74 +1006,27 @@ export function isRealIDUsed(id) {
  */
 export function clearRealIDUsage() {
   usedRealIDs.clear();
-  if (!_batchMode) refreshSystemList();
+  if (!_batchMode) announceUsedChange({});
 }
 
 // ──────────────────────────────
 // refreshSystemList: Main "reflow" after filter/search changes
 // ─────────────────────────────-
 /**
- * The standard “reflow”: re-apply filters+search and re-render
- * via window.renderSystemList, the lookup module's live results.
+ * The standard "reflow": ask the lookup UI to re-render its live results.
+ *
+ * This used to rebuild the entire filtered-and-searched list here and then throw both
+ * results away, calling window.renderSystemList() — which does its own filtering — with
+ * no arguments. So every tile placement, every undo and every step of a map import paid
+ * for a full 671-system filter pass whose output was unreachable. It also read the search
+ * term from `#systemSearch`, an id that exists twice in the DOM; getElementById returned
+ * the legacy modal's input, so the term was always ''.
+ *
+ * The work is gone. The dispatch is what callers actually wanted, and the render call is
+ * kept so the current picker keeps working until it is replaced.
  */
 export function refreshSystemList() {
-  const editor = window.editor;
-  const systems = Array.isArray(editor.allSystems) ? editor.allSystems : [];
-  const input = document.getElementById('systemSearch');
-  const term = input?.value.toLowerCase() || '';
-
-  // 1) Filter out already-placed systems and apply filters
-  const filtered = systems.filter(sys => {
-    if (editor.hexes[sys.id]?.baseType) return false;
-
-    // Handle source filters with OR logic
-    const sourceFilters = ['sourceBase', 'sourcePok', 'sourceDS', 'sourceEronous', 'sourceThundersEdge', 'sourceOthers'];
-    const activeSourceFilters = sourceFilters.filter(key => {
-      const btn = document.getElementById(`filter-${key}`);
-      return btn?.dataset.active === 'true';
-    });
-
-    // Apply OR logic for sources - if no source filters are active, show nothing
-    if (activeSourceFilters.length === 0) {
-      return false; // No source filters active = show nothing
-    }
-
-    const sourceMatches = activeSourceFilters.some(key => {
-      const source = (sys.source || '').toLowerCase();
-      switch (key) {
-        case 'sourceBase': return source === 'base';
-        case 'sourcePok': return source === 'pok';
-        case 'sourceDS': return source === 'ds' || source === 'uncharted_space';
-        case 'sourceEronous': return source === 'eronous';
-        case 'sourceThundersEdge': return source === 'thunders_edge';
-        case 'sourceOthers':
-          // Handle "others" - includes known other sources and any unknown sources
-          return ['other', 'draft', 'dane_leaks'].includes(source) ||
-            (source !== '' && !['base', 'pok', 'ds', 'uncharted_space', 'eronous', 'thunders_edge'].includes(source));
-        default: return false;
-      }
-    });
-    if (!sourceMatches) return false;
-
-    // All other filters must pass (AND logic) - exclude source filters
-    const otherFilters = FILTERS.filter(({ key }) => !sourceFilters.includes(key));
-    return otherFilters.every(({ key, test }) => {
-      const btn = document.getElementById(`filter-${key}`);
-      const active = btn?.dataset.active === 'true';
-      return test(sys, active);
-    });
-  });
-
-  // 2) Apply the live search term (ID or name substring)
-  const searched = filtered.filter(sys => {
-    const name = (sys.name || '').toLowerCase();
-    return sys.id.toString().includes(term) || name.includes(term);
-  });
-
-  // 3) Render the final results via the lookup UI
-  if (typeof window.renderSystemList === 'function') {
-    window.renderSystemList();
-  }
+  announceUsedChange({});
 }
 
 // ──────────────────────────────
