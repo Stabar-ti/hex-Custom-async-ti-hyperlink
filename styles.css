@@ -50,6 +50,13 @@
   --popup-border-sector:     #4a9eff;
   --popup-border-automapper: #00d4ff;
   --popup-border-lore:       #9b59b6;
+  --popup-border-picker:     #4ecdc4;
+
+  /* System picker type scale. Every size in the picker is an em fraction of --sp-font,
+     so this one number resizes the panel, the hover card, the armed banner, the menus
+     and the random popup together. Set from pickerUI; see pickerState.textScale. */
+  --sp-text-scale: 1;
+  --sp-font: calc(1rem * var(--sp-text-scale));
   --popup-border-token:      #3498db;
   --popup-border-special:    #2ecc40;
   --popup-border-spin:       #e67e22;
@@ -1935,3 +1942,765 @@ body.lore-picking #hexMap { cursor: crosshair; }
 .lore-filter-clear:hover { border-color: var(--color-accent); }
 
 .lore-filter-note { font-size: 0.72em; color: #888; }
+
+
+/*──────────────────────────────────────────────────────────────────────────────
+  System picker — tile gallery, dense table, filter strip
+
+  The old picker styled its rows from JS (row.style.backgroundColor = '#522' for
+  used, '#3a5a3a' for selected, '#444' for hover), which overrode the stylesheet's
+  own rules for those same states and meant the whole table ignored dark mode.
+  State lives in classes here — .is-used / .is-armed / .is-active — so the module
+  re-themes with everything else.
+──────────────────────────────────────────────────────────────────────────────*/
+
+/* ── panel shell ──────────────────────────────────────────────────────────── */
+
+/* .popup-ui styles the chrome but not the body, so each module supplies its own
+   background. Without this the map and the sector-controls panel show straight through
+   the results grid. */
+.sp-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 6px 8px 8px;
+  box-sizing: border-box;
+  background: var(--surface-1);
+  color: #ddd;
+  font-size: var(--sp-font);
+}
+
+.sp-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* At larger text sizes the controls stop fitting on one line; wrapping keeps the
+     search box usable instead of squeezing it down to nothing. */
+  flex-wrap: wrap;
+}
+
+.sp-search-wrap { position: relative; flex: 1 1 240px; min-width: 200px; }
+
+.sp-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 26px 6px 8px;
+  border: 1px solid var(--surface-5);
+  border-radius: 4px;
+  background: var(--surface-1);
+  color: #eee;
+  font-family: inherit;
+}
+.sp-search:focus { outline: none; border-color: var(--popup-border-picker); }
+
+.sp-search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: #888;
+  font-size: 1.1em;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 5px;
+}
+.sp-search-clear:hover { color: var(--color-danger); }
+
+.sp-view-toggle { display: flex; }
+.sp-view-btn {
+  border: 1px solid var(--surface-5);
+  background: transparent;
+  color: #aaa;
+  font-size: 1em;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+.sp-view-btn:first-child { border-radius: 4px 0 0 4px; }
+.sp-view-btn:last-child { border-radius: 0 4px 4px 0; border-left: none; }
+.sp-view-btn:hover { color: #fff; }
+.sp-view-btn.is-on {
+  color: #fff;
+  background: color-mix(in srgb, var(--popup-border-picker) 30%, transparent);
+  border-color: var(--popup-border-picker);
+}
+
+/* Text size control. Its own font-size is deliberately fixed rather than scaled — a
+   control that shrinks as you shrink the text gets progressively harder to click back. */
+.sp-scale .sp-view-btn { font-size: 0.85rem; }
+.sp-scale-label {
+  min-width: 3.4em;
+  font-variant-numeric: tabular-nums;
+  color: #999;
+}
+.sp-scale-label:hover { color: #fff; }
+
+/* flex:1 + min-height:0 is what lets the results scroll instead of pushing the panel
+   past the bottom of the popup. */
+.sp-results {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  border: 1px solid var(--surface-4);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sp-results > * { flex: 1; min-width: 0; }
+
+.sp-empty {
+  padding: 14px;
+  text-align: center;
+  color: #999;
+  font-size: 0.95em;
+}
+.sp-empty-msg { margin-bottom: 6px; }
+
+.sp-recent-row { padding-bottom: 2px; }
+.sp-recent {
+  border: 1px solid var(--surface-5);
+  border-radius: 4px;
+  background: var(--surface-2);
+  padding: 1px;
+  cursor: pointer;
+  line-height: 0;
+}
+.sp-recent:hover { border-color: var(--popup-border-picker); }
+.sp-recent-img { width: 28px; height: 28px; object-fit: contain; }
+
+/* ── random tile popup ────────────────────────────────────────────────────── */
+
+.sp-random {
+  padding: 8px;
+  text-align: center;
+  background: var(--surface-1);
+  color: #ddd;
+  font-size: var(--sp-font);
+}
+.sp-random-body { min-height: 220px; }
+.sp-random-img { width: 210px; height: 210px; object-fit: contain; }
+.sp-random-title { font-weight: bold; margin-top: 6px; }
+.sp-random-stats {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0;
+  font-size: 0.95em;
+}
+.sp-random-note { font-size: 0.9em; color: #aaa; }
+.sp-random-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.sp-random-unique { font-size: 0.9em; color: #aaa; cursor: pointer; }
+.sp-random-arm { border-style: solid; border-color: var(--color-success); color: var(--color-success); }
+.sp-random-arm:disabled { opacity: 0.4; cursor: default; }
+
+/* ── help ─────────────────────────────────────────────────────────────────── */
+
+/* showPopup drops minWidth/maxWidth/minHeight/maxHeight from its style argument
+   (popupUI.js:64, to stop popups growing), so the width has to be constrained here on
+   the content instead. */
+.sp-help {
+  line-height: 1.6;
+  font-size: calc(var(--sp-font) * 0.92);
+  max-width: 640px;
+  background: var(--surface-1);
+  color: #ddd;
+}
+.sp-help h3 { margin: 14px 0 4px; color: var(--popup-border-picker); font-size: 1em; }
+.sp-help h3:first-child { margin-top: 0; }
+.sp-help ul { margin: 4px 0; padding-left: 20px; }
+.sp-help p { margin: 4px 0; }
+.sp-help code {
+  font-family: var(--font-mono);
+  background: var(--surface-3);
+  padding: 0 3px;
+  border-radius: 3px;
+}
+.sp-help-note { margin-top: 12px; font-size: 0.9em; color: #999; }
+
+/* Form controls do not inherit font-size — the UA stylesheet gives buttons and inputs a
+   fixed ~13.3px. Most of the picker's text lives inside a <button> (every grid cell is
+   one), so without this the type scale moved the layout while the text stayed put. */
+.sp-panel button, .sp-panel input,
+.sp-picker-panel button, .sp-picker-panel input,
+.sp-random button, .sp-random input,
+.sp-armed button, .sp-armed input,
+.sp-undo-band button {
+  font-size: inherit;
+  font-family: inherit;
+}
+
+/* ── shared bits ──────────────────────────────────────────────────────────── */
+
+.sp-badge {
+  font-weight: bold;
+  margin-right: 2px;
+}
+
+.sp-thumb {
+  object-fit: contain;
+  border-radius: 3px;
+  display: block;
+  margin: 0 auto;
+}
+
+.sp-thumb-fallback {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  color: #999;
+}
+
+.sp-res { color: var(--color-success); }
+.sp-inf { color: var(--color-primary); }
+
+/* ── anchored list picker (src/ui/listPicker.js) ──────────────────────────── */
+
+/* Above every popup. popupUI raises whatever was clicked last to max+1, so a popup can
+   climb past any fixed value in the 10000s over a long session; these transient layers
+   belong in a band it will never reach. */
+.sp-picker-panel {
+  position: fixed;
+  z-index: 99990;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--surface-3);
+  border: 1px solid var(--surface-5);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  padding: 8px;
+  color: #eee;
+  font-size: calc(var(--sp-font) * 0.95);
+}
+
+.sp-picker-title {
+  font-size: 0.92em;
+  color: #aaa;
+  margin-bottom: 6px;
+}
+
+/* ── column chooser ───────────────────────────────────────────────────────── */
+
+.sp-col-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+.sp-col-toggle:hover { background: var(--surface-4); }
+.sp-col-toggle input { cursor: pointer; margin: 0; }
+
+.sp-col-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--surface-5);
+}
+
+.sp-picker-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--surface-5);
+  border-radius: 4px;
+  background: var(--surface-1);
+  color: #eee;
+}
+
+.sp-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.sp-picker-group {
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  margin: 6px 0 2px;
+}
+
+.sp-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #ddd;
+  cursor: pointer;
+  font-size: 1em;
+  font-family: inherit;
+}
+.sp-picker-item:hover { background: var(--surface-4); }
+.sp-picker-item.is-on { color: var(--color-accent); }
+.sp-picker-item img { width: 20px; height: 20px; object-fit: contain; flex: 0 0 auto; }
+.sp-picker-item-label { flex: 1; }
+.sp-picker-item-hint { font-size: 0.8em; color: var(--color-accent); }
+.sp-picker-empty { color: #888; font-style: italic; padding: 4px; }
+
+/* ── filter strip ─────────────────────────────────────────────────────────── */
+
+.sp-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.sp-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.sp-filter-label {
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  min-width: 56px;
+}
+
+.sp-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--surface-5);
+  border-radius: 12px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.sp-chip-label {
+  border: none;
+  background: transparent;
+  color: #bbb;
+  font-family: inherit;
+  font-size: 0.92em;
+  padding: 4px 11px;
+  cursor: pointer;
+}
+
+.sp-chip.is-on {
+  border-color: var(--popup-border-picker);
+  background: color-mix(in srgb, var(--popup-border-picker) 18%, var(--surface-3));
+}
+.sp-chip.is-on .sp-chip-label { color: #fff; font-weight: 600; }
+.sp-chip:hover { border-color: var(--popup-border-picker); }
+
+.sp-chip-x {
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  font-size: 1em;
+  line-height: 1;
+  padding: 2px 7px 3px 2px;
+}
+.sp-chip-x:hover { color: var(--color-danger); }
+
+.sp-addbtn,
+.sp-modebtn,
+.sp-linkbtn {
+  border: 1px dashed var(--surface-5);
+  background: transparent;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.92em;
+  padding: 4px 11px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.sp-addbtn[hidden] { display: none; }
+.sp-addbtn:hover,
+.sp-modebtn:hover,
+.sp-linkbtn:hover { border-color: var(--popup-border-picker); color: #fff; }
+
+.sp-modebtn {
+  border-style: solid;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+}
+.sp-modebtn.is-on { border-color: var(--color-warning); color: var(--color-warning); }
+
+.sp-linkbtn { border: none; text-decoration: underline; }
+
+.sp-warn { font-size: 0.78em; color: var(--color-warning); }
+
+.sp-count-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.88em;
+  color: #888;
+  padding-top: 3px;
+}
+.sp-count { color: #ddd; font-weight: 600; }
+.sp-count-hidden { color: var(--color-warning); }
+.sp-count-used { color: var(--color-danger); }
+
+/* ── tile gallery ─────────────────────────────────────────────────────────── */
+
+.sp-grid {
+  display: grid;
+  /* Cells grow with the type, or a longer tile name stops fitting on one line. */
+  grid-template-columns: repeat(auto-fill, minmax(calc(124px * var(--sp-text-scale)), 1fr));
+  gap: 8px;
+  padding: 8px;
+  overflow-y: auto;
+  align-content: start;
+  outline: none;
+}
+
+.sp-cell {
+  /* The reason 671 image cells are affordable without a virtualizer: the browser
+     skips layout and paint for anything off-screen, and the intrinsic size keeps
+     the scrollbar honest while it does. */
+  content-visibility: auto;
+  contain-intrinsic-size: calc(124px * var(--sp-text-scale)) calc(180px * var(--sp-text-scale));
+
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: #ddd;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+.sp-cell:hover { background: var(--surface-3); border-color: var(--surface-5); }
+.sp-cell.is-active { border-color: var(--color-primary); }
+.sp-cell.is-armed {
+  border-color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 22%, var(--surface-2));
+}
+.sp-cell.is-used { opacity: 0.55; }
+.sp-cell.is-used:hover { opacity: 0.85; }
+
+.sp-cell-art {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sp-cell-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.sp-cell-marks {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 0.8em;
+  line-height: 1;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
+.sp-cell-legendary { color: #ffd700; }
+
+.sp-cell-worms {
+  position: absolute;
+  bottom: 1px;
+  left: 3px;
+  font-size: 0.85em;
+  line-height: 1;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
+
+.sp-cell-placed {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 0.62em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--color-danger);
+  color: #fff;
+  letter-spacing: 0.03em;
+}
+
+.sp-cell-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+/* Deliberately NOT var(--font-mono): at this size Cascadia Code's digits read as a
+   different typeface from everything around them rather than as a deliberate choice.
+   Monospace earns its place in the table, where the ID column has to line up. */
+.sp-cell-id {
+  font-size: 0.88em;
+  font-weight: 600;
+  color: #9aa;
+  letter-spacing: 0.02em;
+}
+.sp-cell-name {
+  font-size: 0.86em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sp-cell-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.86em;
+  min-height: 1.2em;
+}
+
+/* ── dense table ──────────────────────────────────────────────────────────── */
+
+.sp-table-wrap { overflow: auto; outline: none; }
+
+.sp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+  table-layout: fixed;
+}
+
+.sp-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--surface-5);
+  padding: 4px 3px;
+  text-align: center;
+  font-size: 0.9em;
+}
+
+.sp-sort {
+  border: none;
+  background: transparent;
+  color: #bbb;
+  font-family: inherit;
+  font-size: 1em;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+  padding: 2px;
+}
+.sp-sort:hover { color: #fff; }
+.sp-sort.is-on { color: var(--color-accent); }
+
+.sp-table td {
+  padding: 4px 3px;
+  text-align: center;
+  border-bottom: 1px solid var(--surface-3);
+  overflow: hidden;
+}
+
+.sp-row { cursor: pointer; }
+.sp-row:hover { background: var(--surface-3); }
+.sp-row.is-active { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.sp-row.is-armed { background: color-mix(in srgb, var(--color-success) 25%, transparent); }
+.sp-row.is-used { opacity: 0.6; }
+.sp-row.is-used:hover { opacity: 0.9; }
+
+.sp-mono { font-family: var(--font-mono); }
+.sp-name { text-align: left; white-space: nowrap; text-overflow: ellipsis; }
+.sp-eff { color: #00bcd4; font-size: 0.9em; }
+.sp-legendary { color: #ffd700; }
+.sp-anomaly { font-size: 1.2em; }
+.sp-fracture { color: #ff8080; }
+.sp-used-mark { color: var(--color-danger); }
+
+.sp-table mark,
+.sp-cell mark {
+  background: var(--color-accent);
+  color: #000;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* ── hover preview ────────────────────────────────────────────────────────── */
+
+.sp-preview-popup {
+  position: fixed;
+  z-index: 99995;   /* see .sp-picker-panel */
+  pointer-events: none;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-5);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+  padding: 10px;
+  max-width: 440px;
+  color: #ddd;
+  font-size: var(--sp-font);
+}
+.sp-preview-popup[hidden] { display: none; }
+
+.sp-preview { display: flex; gap: 12px; font-size: 0.95em; line-height: 1.45; }
+.sp-preview-img { width: 150px; height: 150px; object-fit: contain; flex: 0 0 auto; }
+.sp-preview-info { min-width: 0; }
+.sp-preview-title { font-weight: bold; color: var(--popup-border-picker); }
+.sp-preview-source { font-size: 0.85em; color: #888; margin-bottom: 4px; }
+.sp-preview-planets { margin: 3px 0; }
+.sp-preview-row { margin: 3px 0; }
+.sp-preview-legendary { margin-top: 4px; color: #ffd700; }
+.sp-preview-legendary-text {
+  font-style: italic;
+  color: #bbb;
+  font-size: 0.92em;
+  margin-left: 10px;
+}
+
+/* ── armed placement ──────────────────────────────────────────────────────── */
+
+/* The map had no way of saying "you are in a placing mode", so a stray click put a
+   tile somewhere you didn't want one and the only way to find out was to see it. */
+body.sp-placing #hexMap,
+body.sp-placing #hexMap polygon {
+  cursor: crosshair;
+}
+
+/* Anchored to the viewport, not to the picker: the popup gets dragged off-screen and
+   the armed state has to stay visible when it does.
+
+   Bottom-centre rather than top: the top of the screen belongs to the toolbar and to
+   wherever popups happen to be, and an overlay there covered the picker's own help and
+   close buttons. pointer-events is scoped to the controls so the banner's empty space
+   never swallows a click meant for something underneath it. */
+.sp-armed {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 99980;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 6px;
+  border: 2px solid var(--color-success);
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+  color: #eee;
+  font-size: calc(var(--sp-font) * 0.95);
+  max-width: 92vw;
+  pointer-events: none;
+}
+.sp-armed button,
+.sp-armed input,
+.sp-armed .sp-armed-mode { pointer-events: auto; }
+
+.sp-armed-thumb {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 4px;
+  flex: 0 0 auto;
+}
+
+.sp-armed-text { min-width: 0; }
+.sp-armed-title { font-weight: bold; white-space: nowrap; }
+.sp-armed-hint { font-size: 0.85em; color: #9c9; white-space: nowrap; }
+
+.sp-armed-modes { display: flex; align-items: center; gap: 3px; }
+
+.sp-armed-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--surface-5);
+  border-radius: 10px;
+  background: transparent;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.92em;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.sp-armed-mode:hover { border-color: var(--color-success); color: #fff; }
+.sp-armed-mode.is-on {
+  border-color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 30%, transparent);
+  color: #fff;
+}
+
+.sp-armed-count { padding-right: 3px; }
+.sp-armed-count-input {
+  width: 34px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 1em;
+  padding: 0 2px;
+}
+
+.sp-armed-close {
+  border: none;
+  background: transparent;
+  color: #999;
+  font-size: 1.3em;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.sp-armed-close:hover { color: var(--color-danger); }
+
+/* ── undo band ────────────────────────────────────────────────────────────── */
+
+/* Stacked above the armed banner rather than beside it: in Keep mode both are on screen
+   at once and they must not overlap. */
+.sp-undo-band {
+  position: fixed;
+  bottom: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 99981;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border: 1px solid var(--surface-5);
+  border-radius: 20px;
+  background: var(--surface-2);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+  color: #ddd;
+  font-size: calc(var(--sp-font) * 0.92);
+}
+
+.sp-undo-btn {
+  border: 1px solid var(--color-accent-outline);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-accent);
+  font-family: inherit;
+  font-size: 1em;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.sp-undo-btn:hover { background: var(--color-accent-outline); color: #000; }
+
+.sp-undo-note { color: var(--color-success); font-size: 0.9em; }

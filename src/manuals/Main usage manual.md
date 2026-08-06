@@ -113,27 +113,41 @@ Repeat steps 2–4 to chain multiple segments through the same or different via 
 
 ---
 
-## 4. Placing tiles — System Search
+## 4. Placing tiles — System Tiles
 
-![System search panel](images/04-system-search.png)
-*The search popup with search box, source/attribute filters, AND/NAND toggle, and system list*
+![System tile picker](images/04-system-search.png)
+*The picker: search box, source chips, active filters, result count, and the tile gallery*
 
-Once your layout is sketched out with Draw Helpers, use the system search to assign real tiles. Open it by clicking **Search system and add to map** (or the associated button in the controls panel).
+Once your layout is sketched out with Draw Helpers, use the **System Tiles** button in the controls panel to assign real tiles.
 
 ### Finding a tile
 
-- **Search by name or ID** — type the tile's name (e.g. "Mecatol") or its number to filter the list immediately.
-- **Show/hide columns** — click column headers to toggle visibility and reduce clutter (e.g. hide the ID column if you're searching by name only).
-- **Source filter** — restrict results to specific expansions. Toggle Base, PoK + Codex, Thunders Edge, Discordant Stars, or Eronous individually. At least one source must be active.
-- **Attribute filters** — show only tiles with specific properties: wormholes, tech specialties, anomalies, planet count, or legendary planets.
-- **AND / NAND toggle** — in **AND** mode, only tiles matching *all* active attribute filters are shown. In **NAND** mode, tiles matching *none* of them are shown — useful for finding "clean" tiles with no anomalies.
-- **DJWizzy Random Tile Bonanza** — picks a random tile from the currently filtered list. Good for variety.
+- **Search** — type anything: tile id, tile name, a planet name, a tech specialty, a wormhole, or a tile alias ("camelot" finds Mecatol Rex). Terms separated by spaces all have to match, and results are ranked by how well they match, so typing `18` puts tile 18 first even though 26 ids contain "18".
+- **Prefixes** — `id:` `name:` `planet:` `tech:` `worm:` `src:` `alias:` search one field only. `src:somno` is the only way to reach a specific source inside the "Others" group. Quote to group words (`name:"new terra"`), prefix with `-` to exclude (`-fow`).
+- **Sources** — always visible, and combined with OR: a tile shows if it comes from any source you have switched on. `All`/`None` toggles them together.
+- **+ Add filter** — everything else: wormholes, tech, legendary, each anomaly, fracture, planet counts, and the hide/only/allow settings for faction homeworlds, hyperlanes and weird tiles. Active filters appear as chips; click the × on a chip to remove it.
+- **Planet counts combine with OR** — "1 Planet" plus "2 Planets" means one *or* two.
+- **AND / NAND** — appears once two or more filters are active. AND wants tiles matching all of them; NAND wants tiles that fail at least one.
+- **Views** — ▦ is the tile gallery (recognise tiles by their art), ☰ is the detailed table with sortable columns. Your choice is remembered.
+- **🎲 Random** — picks a random tile from whatever the list is currently showing.
+
+The line under the filters always tells you how many tiles you are looking at and how many are hidden by what, so an empty list is never a mystery.
 
 ### Placing a tile
 
-Select a tile from the list, then click the hex position where you want to place it. The tile's system data (planets, resources, influence, tech specialties, wormholes, anomalies) is applied to that hex. Any existing content in that hex is replaced.
+Click a tile to **arm** it, then click a hex to place it. While a tile is armed the map shows a crosshair and a banner appears at the bottom of the screen. **Escape** cancels.
 
-> **Note:** Home-system tiles (faction homebases) are excluded from the search results by default.
+- **Once** — place one tile, then disarm. This is the default.
+- **Keep** — stay armed and keep placing until you press Escape. Useful for filling a ring with the same anomaly, or laying a run of hyperlanes.
+- **×N** — place a set number of copies, counting down.
+
+The tile's system data (planets, resources, influence, tech specialties, wormholes, anomalies) is applied to that hex, replacing anything already there. Each placement is a single undo step; a bar offers **Undo** for a few seconds afterwards, and **Ctrl+Z** works as usual.
+
+> **Note:** Faction homeworlds, hyperlanes and FOW/blank tiles are hidden by default. Add the matching filter to show them.
+>
+> Tiles already on the map stay in the list, dimmed and marked *on map* — you often want a second copy, or just to see what you have used. Add **Unplaced only** to hide them.
+
+Filters, search, sort and view are remembered when you close the picker. The armed tile is not.
 
 ---
 

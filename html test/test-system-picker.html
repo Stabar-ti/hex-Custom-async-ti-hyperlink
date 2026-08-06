@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>System picker — standalone test</title>
+<!-- Resolve everything from the repo root, as index.html does. The picker builds tile
+     art paths like "public/data/tiles/x.png"; without this they would resolve against
+     "html test/" and every image would 404. -->
+<base href="../">
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { margin: 0; padding: 12px; background: #121212; color: #ddd; font-family: system-ui, sans-serif; }
+  h1 { font-size: 1.1em; margin: 0 0 8px; }
+  .layout { display: flex; gap: 12px; align-items: flex-start; }
+  .stage { width: 900px; height: 620px; display: flex; flex-direction: column;
+           border: 2px solid var(--popup-border-picker); border-radius: 8px; overflow: hidden; }
+  .results { flex: 1; min-height: 0; display: flex; }
+  .results > * { flex: 1; min-width: 0; }
+  .report { flex: 1; font-family: var(--font-mono, monospace); font-size: 12px; line-height: 1.7; }
+  .ok { color: #4caf50; }
+  .bad { color: #e74c3c; }
+  .bar { margin-bottom: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  button.t { background: #2a2a2a; color: #ddd; border: 1px solid #555; border-radius: 4px;
+             padding: 4px 10px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<h1>System picker — standalone test</h1>
+<p style="font-size:12px;color:#888;margin:0 0 10px">
+  Renders the picker's views against the real <code>SystemInfo.json</code> with a stub editor, and
+  asserts the things <code>tools/test-system-picker.js</code> cannot: that what is on screen matches
+  what the pipeline says should be. Serve the repo (<code>python server.py</code>) and open this page.
+</p>
+
+<div class="bar">
+  <input id="q" placeholder="search..." style="padding:4px 8px;background:#1a1a1a;color:#ddd;border:1px solid #555;border-radius:4px">
+  <button class="t" id="toGrid">Grid</button>
+  <button class="t" id="toTable">Table</button>
+  <button class="t" id="markUsed">Mark 5 tiles used</button>
+  <button class="t" id="rerun">Re-run checks</button>
+</div>
+
+<div class="layout">
+  <div class="stage">
+    <div id="chips"></div>
+    <div class="results" id="results"></div>
+  </div>
+  <div class="report" id="report">loading…</div>
+</div>
+
+<script type="module">
+import { selectSystems } from './src/modules/SystemPicker/pickerSelect.js';
+import * as state from './src/modules/SystemPicker/pickerState.js';
+import * as chips from './src/modules/SystemPicker/pickerChips.js';
+import * as grid  from './src/modules/SystemPicker/pickerGrid.js';
+import * as table from './src/modules/SystemPicker/pickerTable.js';
+
+const report = document.getElementById('report');
+const results = document.getElementById('results');
+let lines = [];
+const check = (name, ok, detail = '') => {
+    lines.push(`<div class="${ok ? 'ok' : 'bad'}">${ok ? 'PASS' : 'FAIL'} ${name}` +
+               `${detail ? ` <span style="color:#888">${detail}</span>` : ''}</div>`);
+};
+
+// Isolated from the app's own stored state so the page always starts from defaults.
+localStorage.removeItem('ti4-system-picker');
+state.__resetForTest();
+
+const data = await (await fetch('public/data/SystemInfo.json')).json();
+const systems = data.systems;
+const used = new Set();
+const isUsed = id => used.has(String(id).toUpperCase());
+
+let cached = null;
+const getResult = () => (cached ??= selectSystems(systems, state.getViewSpec(), { isUsed }));
+
+const ctx = {
+    getResult,
+    isUsed,
+    onSelect: sys => state.arm(sys, 'once'),
+    getArmedId: () => state.getArmed()?.id || null
+};
+
+let mounted = null;
+const view = () => state.getView() === 'table' ? table : grid;
+
+function render() {
+    cached = null;
+    if (mounted !== state.getView()) {
+        results.innerHTML = '';
+        grid.destroy(); table.destroy();
+        results.appendChild(view().create(ctx));
+        mounted = state.getView();
+    }
+    chips.refresh();
+    view().refresh();
+}
+
+document.getElementById('chips').appendChild(chips.create({ getResult }));
+state.subscribe(render);
+render();
+
+// ── checks ───────────────────────────────────────────────────────────────────
+
+function run() {
+    lines = [];
+    const { results: rows, counts } = getResult();
+
+    check('data loaded', systems.length > 600, `${systems.length} systems`);
+
+    const rendered = state.getView() === 'table'
+        ? document.querySelectorAll('.sp-row').length
+        : document.querySelectorAll('.sp-cell').length;
+    check('rendered element count matches counts.afterSearch',
+        rendered === counts.afterSearch, `${rendered} vs ${counts.afterSearch}`);
+
+    check('every rendered element carries its system id',
+        document.querySelectorAll('[data-system-id]').length === rendered);
+
+    // The used-vs-hidden decision: placed tiles are marked, never dropped.
+    const usedRendered = document.querySelectorAll('.is-used').length;
+    check('used tiles are marked, not removed', usedRendered === counts.used,
+        `${usedRendered} marked, ${counts.used} expected`);
+
+    // Scoped to tiles that pass the current filter and search — a used tile that does
+    // not match the query is absent for the ordinary reason, not because it was dropped
+    // for being used.
+    const usedInResults = rows.filter(s => isUsed(s.id)).map(s => String(s.id));
+    if (usedInResults.length) {
+        check('...and every used tile in the results is on screen and marked',
+            usedInResults.every(id =>
+                document.querySelector(`[data-system-id="${id}"]`)?.classList.contains('is-used')),
+            `${usedInResults.length} used tiles in results`);
+    }
+
+    // Lazy loading is the only reason 671 image cells are affordable.
+    const imgs = [...document.querySelectorAll('.sp-cell-img, .sp-thumb')];
+    check('every tile image is lazy', imgs.length === 0 || imgs.every(i => i.loading === 'lazy'),
+        `${imgs.length} images`);
+
+    // Keyboard navigation moves an active element.
+    view().setActive(0);
+    const first = document.querySelector('.is-active');
+    view().handleKey(state.getView() === 'table' ? 'ArrowDown' : 'ArrowRight');
+    const second = document.querySelector('.is-active');
+    check('arrow key moves the active element', first && second && first !== second);
+
+    if (state.getView() === 'grid') {
+        // 2D navigation: down then up must return to where it started.
+        view().setActive(0);
+        view().handleKey('ArrowDown');
+        const down = document.querySelector('.is-active')?.dataset.systemId;
+        view().handleKey('ArrowUp');
+        const back = document.querySelector('.is-active')?.dataset.systemId;
+        check('grid down-then-up returns to the start', back === rows[0]?.id, `${down} -> ${back}`);
+    }
+
+    check('the count line is present and non-empty',
+        (document.querySelector('.sp-count')?.textContent || '').length > 0,
+        document.querySelector('.sp-count')?.textContent);
+
+    const failed = lines.filter(l => l.includes('FAIL')).length;
+    report.innerHTML =
+        `<div style="margin-bottom:6px"><b>${lines.length - failed}/${lines.length} checks passed</b></div>` +
+        lines.join('');
+}
+
+document.getElementById('q').addEventListener('input', e => state.setQuery(e.target.value));
+document.getElementById('toGrid').addEventListener('click', () => { state.setView('grid'); run(); });
+document.getElementById('toTable').addEventListener('click', () => { state.setView('table'); run(); });
+document.getElementById('rerun').addEventListener('click', run);
+document.getElementById('markUsed').addEventListener('click', () => {
+    getResult().results.slice(0, 5).forEach(s => used.add(String(s.id).toUpperCase()));
+    render();
+    run();
+});
+
+run();
+</script>
+</body>
+</html>

@@ -554,27 +554,11 @@
     </div>
   </div> -->
 
-  <!-- System Lookup Modal -->
-  <div id="systemLookupModal" class="modal">
-    <!-- draggable title bar -->
-    <div class="modal-header draggable-handle">
-      <h3>🔍 Search system and add to map</h3>
-      <button data-close="systemLookupModal" class="close-button">✕</button>
-    </div>
-
-    <!-- all the rest of your UI lives here -->
-    <div class="modal-content">
-      <!-- foldable filters panel -->
-      <details id="lookupFilters">
-        <summary>Filters</summary>
-        <div id="uiFiltersContainer"></div>
-      </details>
-
-      <!-- search input + results -->
-      <input type="text" id="systemSearch" placeholder="Type ID or name…" class="modal-input" />
-      <ul id="systemList" class="system-list"></ul>
-    </div>
-  </div>
+  <!-- The old #systemLookupModal lived here. It was a second, unreachable copy of the
+       system lookup: the real picker built its own #systemSearch / #systemList /
+       #uiFiltersContainer, so those ids existed twice in the document and
+       getElementById kept resolving to this one. Replaced by
+       src/modules/SystemPicker/, which owns its own markup. -->
 
   <div id="hexHoverInfo" class="hover-info"></div>
 
