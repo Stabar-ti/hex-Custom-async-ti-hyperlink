@@ -50,6 +50,7 @@
   --popup-border-sector:     #4a9eff;
   --popup-border-automapper: #00d4ff;
   --popup-border-lore:       #9b59b6;
+  --popup-border-picker:     #4ecdc4;
   --popup-border-token:      #3498db;
   --popup-border-special:    #2ecc40;
   --popup-border-spin:       #e67e22;
@@ -1935,3 +1936,414 @@ body.lore-picking #hexMap { cursor: crosshair; }
 .lore-filter-clear:hover { border-color: var(--color-accent); }
 
 .lore-filter-note { font-size: 0.72em; color: #888; }
+
+
+/*──────────────────────────────────────────────────────────────────────────────
+  System picker — tile gallery, dense table, filter strip
+
+  The old picker styled its rows from JS (row.style.backgroundColor = '#522' for
+  used, '#3a5a3a' for selected, '#444' for hover), which overrode the stylesheet's
+  own rules for those same states and meant the whole table ignored dark mode.
+  State lives in classes here — .is-used / .is-armed / .is-active — so the module
+  re-themes with everything else.
+──────────────────────────────────────────────────────────────────────────────*/
+
+/* ── shared bits ──────────────────────────────────────────────────────────── */
+
+.sp-badge {
+  font-weight: bold;
+  margin-right: 2px;
+}
+
+.sp-thumb {
+  object-fit: contain;
+  border-radius: 3px;
+  display: block;
+  margin: 0 auto;
+}
+
+.sp-thumb-fallback {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  color: #999;
+}
+
+.sp-res { color: var(--color-success); }
+.sp-inf { color: var(--color-primary); }
+
+/* ── anchored list picker (src/ui/listPicker.js) ──────────────────────────── */
+
+.sp-picker-panel {
+  position: fixed;
+  z-index: 10050;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--surface-3);
+  border: 1px solid var(--surface-5);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  padding: 8px;
+  color: #eee;
+  font-size: 0.85em;
+}
+
+.sp-picker-title {
+  font-size: 0.9em;
+  color: #aaa;
+  margin-bottom: 6px;
+}
+
+.sp-picker-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--surface-5);
+  border-radius: 4px;
+  background: var(--surface-1);
+  color: #eee;
+}
+
+.sp-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.sp-picker-group {
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  margin: 6px 0 2px;
+}
+
+.sp-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #ddd;
+  cursor: pointer;
+  font-size: 1em;
+  font-family: inherit;
+}
+.sp-picker-item:hover { background: var(--surface-4); }
+.sp-picker-item.is-on { color: var(--color-accent); }
+.sp-picker-item img { width: 20px; height: 20px; object-fit: contain; flex: 0 0 auto; }
+.sp-picker-item-label { flex: 1; }
+.sp-picker-item-hint { font-size: 0.8em; color: var(--color-accent); }
+.sp-picker-empty { color: #888; font-style: italic; padding: 4px; }
+
+/* ── filter strip ─────────────────────────────────────────────────────────── */
+
+.sp-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.sp-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.sp-filter-label {
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  min-width: 52px;
+}
+
+.sp-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--surface-5);
+  border-radius: 12px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.sp-chip-label {
+  border: none;
+  background: transparent;
+  color: #bbb;
+  font-family: inherit;
+  font-size: 0.8em;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+
+.sp-chip.is-on {
+  border-color: var(--popup-border-picker);
+  background: color-mix(in srgb, var(--popup-border-picker) 18%, var(--surface-3));
+}
+.sp-chip.is-on .sp-chip-label { color: #fff; font-weight: 600; }
+.sp-chip:hover { border-color: var(--popup-border-picker); }
+
+.sp-chip-x {
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  font-size: 1em;
+  line-height: 1;
+  padding: 2px 7px 3px 2px;
+}
+.sp-chip-x:hover { color: var(--color-danger); }
+
+.sp-addbtn,
+.sp-modebtn,
+.sp-linkbtn {
+  border: 1px dashed var(--surface-5);
+  background: transparent;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.8em;
+  padding: 3px 9px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.sp-addbtn:hover,
+.sp-modebtn:hover,
+.sp-linkbtn:hover { border-color: var(--popup-border-picker); color: #fff; }
+
+.sp-modebtn {
+  border-style: solid;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+}
+.sp-modebtn.is-on { border-color: var(--color-warning); color: var(--color-warning); }
+
+.sp-linkbtn { border: none; text-decoration: underline; }
+
+.sp-warn { font-size: 0.78em; color: var(--color-warning); }
+
+.sp-count-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.78em;
+  color: #888;
+  padding-top: 2px;
+}
+.sp-count { color: #ddd; font-weight: 600; }
+.sp-count-hidden { color: var(--color-warning); }
+.sp-count-used { color: var(--color-danger); }
+
+/* ── tile gallery ─────────────────────────────────────────────────────────── */
+
+.sp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+  padding: 8px;
+  overflow-y: auto;
+  align-content: start;
+  outline: none;
+}
+
+.sp-cell {
+  /* The reason 671 image cells are affordable without a virtualizer: the browser
+     skips layout and paint for anything off-screen, and the intrinsic size keeps
+     the scrollbar honest while it does. */
+  content-visibility: auto;
+  contain-intrinsic-size: 104px 148px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: #ddd;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+.sp-cell:hover { background: var(--surface-3); border-color: var(--surface-5); }
+.sp-cell.is-active { border-color: var(--color-primary); }
+.sp-cell.is-armed {
+  border-color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 22%, var(--surface-2));
+}
+.sp-cell.is-used { opacity: 0.55; }
+.sp-cell.is-used:hover { opacity: 0.85; }
+
+.sp-cell-art {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sp-cell-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.sp-cell-marks {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 0.8em;
+  line-height: 1;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
+.sp-cell-legendary { color: #ffd700; }
+
+.sp-cell-worms {
+  position: absolute;
+  bottom: 1px;
+  left: 3px;
+  font-size: 0.85em;
+  line-height: 1;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
+
+.sp-cell-placed {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 0.62em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--color-danger);
+  color: #fff;
+  letter-spacing: 0.03em;
+}
+
+.sp-cell-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+.sp-cell-id { font-family: var(--font-mono); font-size: 0.72em; color: #999; }
+.sp-cell-name {
+  font-size: 0.74em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sp-cell-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.74em;
+  min-height: 1.2em;
+}
+
+/* ── dense table ──────────────────────────────────────────────────────────── */
+
+.sp-table-wrap { overflow: auto; outline: none; }
+
+.sp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8em;
+  table-layout: fixed;
+}
+
+.sp-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--surface-5);
+  padding: 4px 3px;
+  text-align: center;
+  font-size: 0.9em;
+}
+
+.sp-sort {
+  border: none;
+  background: transparent;
+  color: #bbb;
+  font-family: inherit;
+  font-size: 1em;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+  padding: 2px;
+}
+.sp-sort:hover { color: #fff; }
+.sp-sort.is-on { color: var(--color-accent); }
+
+.sp-table td {
+  padding: 2px 3px;
+  text-align: center;
+  border-bottom: 1px solid var(--surface-3);
+  overflow: hidden;
+}
+
+.sp-row { cursor: pointer; }
+.sp-row:hover { background: var(--surface-3); }
+.sp-row.is-active { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.sp-row.is-armed { background: color-mix(in srgb, var(--color-success) 25%, transparent); }
+.sp-row.is-used { opacity: 0.6; }
+.sp-row.is-used:hover { opacity: 0.9; }
+
+.sp-mono { font-family: var(--font-mono); }
+.sp-name { text-align: left; white-space: nowrap; text-overflow: ellipsis; }
+.sp-eff { color: #00bcd4; font-size: 0.9em; }
+.sp-legendary { color: #ffd700; }
+.sp-anomaly { font-size: 1.2em; }
+.sp-fracture { color: #ff8080; }
+.sp-used-mark { color: var(--color-danger); }
+
+.sp-table mark,
+.sp-cell mark {
+  background: var(--color-accent);
+  color: #000;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* ── hover preview ────────────────────────────────────────────────────────── */
+
+.sp-preview-popup {
+  position: fixed;
+  z-index: 10060;
+  pointer-events: none;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-5);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+  padding: 10px;
+  max-width: 440px;
+  color: #ddd;
+}
+.sp-preview-popup[hidden] { display: none; }
+
+.sp-preview { display: flex; gap: 12px; font-size: 0.85em; line-height: 1.4; }
+.sp-preview-img { width: 150px; height: 150px; object-fit: contain; flex: 0 0 auto; }
+.sp-preview-info { min-width: 0; }
+.sp-preview-title { font-weight: bold; color: var(--popup-border-picker); }
+.sp-preview-source { font-size: 0.85em; color: #888; margin-bottom: 4px; }
+.sp-preview-planets { margin: 3px 0; }
+.sp-preview-row { margin: 3px 0; }
+.sp-preview-legendary { margin-top: 4px; color: #ffd700; }
+.sp-preview-legendary-text {
+  font-style: italic;
+  color: #bbb;
+  font-size: 0.92em;
+  margin-left: 10px;
+}

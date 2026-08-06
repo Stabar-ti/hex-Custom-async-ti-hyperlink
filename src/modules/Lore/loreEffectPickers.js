@@ -6,9 +6,20 @@
  */
 
 import { hasLinks } from '../../utils/matrix.js';
+import { openListPicker, closeListPicker, registerForeignCloser } from '../../ui/listPicker.js';
+
+// openListPicker now lives in src/ui/listPicker.js — the system picker's "+ Add filter"
+// menu needed it too, and loreOverlay/loreMapPick were already importing it from here.
+// Re-exported so those callers are unaffected.
+export { openListPicker };
 
 let activePicker = null;
 let activeResolve = null;
+
+// The composite pickers below (unit, tech, tile, condition) still own this module's own
+// panel singleton. Cross-register the two closers so opening either kind still dismisses
+// the other — "only one picker at a time" is the behaviour, not "one variable".
+registerForeignCloser(() => closeActivePicker());
 
 /** Closes the open picker. If it's still awaiting a choice (dismissed via outside-click/Escape
  *  rather than an explicit selection), resolves its Promise with null so callers don't hang. */
@@ -37,6 +48,7 @@ function onEscape(e) {
 /** Creates and positions an empty picker panel under/near anchorEl, replacing any open picker. */
 function createPanel(anchorEl, { width = 220 } = {}) {
     closeActivePicker();
+    closeListPicker();
 
     const panel = document.createElement('div');
     panel.className = 'lore-mini-picker';
@@ -106,77 +118,6 @@ export function openNumberPicker(anchorEl, { min, max }) {
             row.appendChild(btn);
         }
         panel.appendChild(row);
-    });
-}
-
-/**
- * Shows a searchable list of {value, label, icon?} items; clicking one resolves immediately.
- * `icon`, if present, is an image src shown at 20x20 to the left of the label.
- */
-export function openListPicker(anchorEl, items, { title = null, searchable = true, width = 240 } = {}) {
-    return new Promise((resolve) => {
-        const panel = createPanel(anchorEl, { width });
-        activeResolve = resolve;
-
-        if (title) {
-            const titleEl = document.createElement('div');
-            titleEl.textContent = title;
-            titleEl.style.cssText = 'font-size:0.85em;color:#aaa;margin-bottom:6px';
-            panel.appendChild(titleEl);
-        }
-
-        const listDiv = document.createElement('div');
-        listDiv.style.cssText = 'display:flex;flex-direction:column;gap:2px;max-height:40vh;overflow-y:auto';
-
-        function renderList(filter) {
-            listDiv.innerHTML = '';
-            const lower = filter.trim().toLowerCase();
-            const filtered = lower
-                ? items.filter(it => it.label.toLowerCase().includes(lower) || it.value.toLowerCase().includes(lower))
-                : items;
-            if (filtered.length === 0) {
-                const empty = document.createElement('div');
-                empty.textContent = 'No matches';
-                empty.style.cssText = 'color:#888;font-style:italic;padding:4px';
-                listDiv.appendChild(empty);
-                return;
-            }
-            filtered.slice(0, 200).forEach(it => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.style.cssText = 'display:flex;align-items:center;gap:6px;text-align:left;padding:4px 6px;' +
-                    'border:none;border-radius:3px;background:transparent;color:#ddd;cursor:pointer;font-size:0.9em';
-                if (it.icon) {
-                    const img = document.createElement('img');
-                    img.src = it.icon;
-                    img.alt = '';
-                    img.style.cssText = 'width:20px;height:20px;object-fit:contain;flex:0 0 auto';
-                    img.onerror = () => { img.style.display = 'none'; };
-                    btn.appendChild(img);
-                }
-                const labelSpan = document.createElement('span');
-                labelSpan.textContent = it.label;
-                btn.appendChild(labelSpan);
-                btn.onmouseover = () => btn.style.backgroundColor = '#34495e';
-                btn.onmouseout = () => btn.style.backgroundColor = 'transparent';
-                btn.onclick = () => { activeResolve = null; closeActivePicker(); resolve(it.value); };
-                listDiv.appendChild(btn);
-            });
-        }
-
-        if (searchable) {
-            const search = document.createElement('input');
-            search.type = 'text';
-            search.placeholder = 'Filter…';
-            search.style.cssText = 'width:100%;margin-bottom:6px;padding:4px 6px;border:1px solid #666;' +
-                'border-radius:4px;background:#1c2733;color:#fff;box-sizing:border-box';
-            search.oninput = () => renderList(search.value);
-            panel.appendChild(search);
-            setTimeout(() => search.focus(), 0);
-        }
-
-        panel.appendChild(listDiv);
-        renderList('');
     });
 }
 
