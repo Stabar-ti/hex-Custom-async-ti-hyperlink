@@ -141,14 +141,27 @@ public/data/   — system info, tokens, attachments (sourced from AsyncTI4 bot)
 ```bash
 npm install   # one time; requires Node 18+
 npm run check # lint + tests
-npm test      # lore footer round-trip tests only
+npm test      # both node suites
 ```
 
-`npm test` exercises the lore footer model against the real modules: an entry's `footerText`
-is the only thing the AsyncTI4 bot ever reads, and the editor parses it into objects and
-writes it back, so a defect there silently corrupts a GM's lore. The suite asserts the
-round-trip is safe over the lore export shipped in `public/data/tempo/` plus constructed
-cases covering gates, roll bins, multi-effect lines, and negated conditions.
+`npm test` runs two suites, both against the real modules and the real data files.
+
+**Lore footer round-trips** (`tools/test-lore-footer.js`). An entry's `footerText` is the only
+thing the AsyncTI4 bot ever reads, and the editor parses it into objects and writes it back, so
+a defect there silently corrupts a GM's lore. The suite asserts the round-trip is safe over the
+lore export shipped in `public/data/tempo/` plus constructed cases covering gates, roll bins,
+multi-effect lines, and negated conditions.
+
+**System picker filter algebra** (`tools/test-system-picker.js`). The picker's filter, search and
+sort logic is pure and lives in `src/modules/SystemPicker/`, so it can be checked against all 671
+systems in `SystemInfo.json` without a browser. The suite keeps a frozen copy of the old
+DOM-driven filter code and asserts the current predicate agrees with it tile-for-tile across 19
+filter states — that equivalence check is what made replacing the picker's UI safe. It also pins
+the two behaviours that were deliberately changed (NAND scope, tri-state filters) and the two
+bugs that were fixed (tiles 101–106 being unreachable, planet counts ANDing to nothing).
+
+`html test/test-system-picker.html` opens the picker's views standalone against real data, for
+the rendering behaviour node cannot check.
 
 ### Linting
 
