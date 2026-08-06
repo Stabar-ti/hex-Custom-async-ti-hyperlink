@@ -2347,3 +2347,123 @@ body.lore-picking #hexMap { cursor: crosshair; }
   font-size: 0.92em;
   margin-left: 10px;
 }
+
+/* ── armed placement ──────────────────────────────────────────────────────── */
+
+/* The map had no way of saying "you are in a placing mode", so a stray click put a
+   tile somewhere you didn't want one and the only way to find out was to see it. */
+body.sp-placing #hexMap,
+body.sp-placing #hexMap polygon {
+  cursor: crosshair;
+}
+
+/* Anchored to the viewport, not to the picker: the popup gets dragged off-screen and
+   the armed state has to stay visible when it does. */
+.sp-armed {
+  position: fixed;
+  top: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10040;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 6px;
+  border: 2px solid var(--color-success);
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+  color: #eee;
+  font-size: 0.85em;
+  max-width: 92vw;
+}
+
+.sp-armed-thumb {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 4px;
+  flex: 0 0 auto;
+}
+
+.sp-armed-text { min-width: 0; }
+.sp-armed-title { font-weight: bold; white-space: nowrap; }
+.sp-armed-hint { font-size: 0.85em; color: #9c9; white-space: nowrap; }
+
+.sp-armed-modes { display: flex; align-items: center; gap: 3px; }
+
+.sp-armed-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--surface-5);
+  border-radius: 10px;
+  background: transparent;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.85em;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.sp-armed-mode:hover { border-color: var(--color-success); color: #fff; }
+.sp-armed-mode.is-on {
+  border-color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 30%, transparent);
+  color: #fff;
+}
+
+.sp-armed-count { padding-right: 3px; }
+.sp-armed-count-input {
+  width: 34px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 1em;
+  padding: 0 2px;
+}
+
+.sp-armed-close {
+  border: none;
+  background: transparent;
+  color: #999;
+  font-size: 1.3em;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.sp-armed-close:hover { color: var(--color-danger); }
+
+/* ── undo band ────────────────────────────────────────────────────────────── */
+
+.sp-undo-band {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10045;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border: 1px solid var(--surface-5);
+  border-radius: 20px;
+  background: var(--surface-2);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+  color: #ddd;
+  font-size: 0.82em;
+}
+
+.sp-undo-btn {
+  border: 1px solid var(--color-accent-outline);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-accent);
+  font-family: inherit;
+  font-size: 1em;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.sp-undo-btn:hover { background: var(--color-accent-outline); color: #000; }
+
+.sp-undo-note { color: var(--color-success); font-size: 0.9em; }
