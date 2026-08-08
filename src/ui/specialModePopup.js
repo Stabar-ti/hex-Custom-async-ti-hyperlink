@@ -163,85 +163,25 @@ export function showSpecialModePopup() {
             };
         }
 
-        // Add click handler for AutoMapper button
+        // Add click handler for AutoMapper button.
+        // openAutoMapperPopup owns the popup and its help — this used to build its own copy
+        // and point onHelp at a help page describing modes and presets that don't exist.
         if (autoMapperBtn) {
             autoMapperBtn.onclick = () => {
                 hidePopup('special-mode-popup');
-                const autoMapperContent = document.createElement('div');
-                autoMapperContent.className = 'automapper-content';
-                autoMapperContent.style.width = '100%';
-                autoMapperContent.style.height = '100%';
-                autoMapperContent.style.display = 'flex';
-                autoMapperContent.style.flexDirection = 'column';
-                autoMapperContent.style.padding = '16px';
-                autoMapperContent.style.boxSizing = 'border-box';
-
-                // Use autoBuilder.js for the UI
-                import('../modules/automapper/autoBuilder.js').then(mod => {
-                    console.log('AutoMapper module loaded:', mod);
-                    const showUI = mod.showAutoBuilderUI || (mod.default && mod.default.showAutoBuilderUI);
-
-                    if (typeof showUI === 'function') {
-                        showUI(autoMapperContent);
-                    } else {
-                        console.error('showAutoBuilderUI is not a function in the loaded module.');
-                        autoMapperContent.innerHTML = '<p style="color: red;">Error: Could not initialize AutoMapper UI.</p>';
-                    }
-
-                    showPopup({
-                        id: 'automapper-popup',
-                        title: '🤖 AutoMapper - Intelligent Map Builder',
-                        content: autoMapperContent,
-                        draggable: true,
-                        dragHandleSelector: '.popup-ui-titlebar',
-                        scalable: true,
-                        rememberPosition: true,
-                        modal: false,
-                        showHelp: true,
-                        onHelp: () => {
-                            // Import and call the help function
-                            import('../modules/automapper/autoBuilderPopups.js').then(helpMod => {
-                                const showHelp = helpMod.showAutoBuilderHelp || (helpMod.default && helpMod.default.showAutoBuilderHelp);
-                                if (typeof showHelp === 'function') {
-                                    showHelp();
-                                } else {
-                                    console.warn('Could not find showAutoBuilderHelp function.');
-                                    alert('Help system temporarily unavailable.');
-                                }
-                            }).catch(err => {
-                                console.warn('Could not load help function:', err);
-                                alert('Help system temporarily unavailable.');
-                            });
-                        },
-                        actions: [
-                            {
-                                label: 'Close',
-                                onClick: () => hidePopup('automapper-popup'),
-                                style: { borderRadius: '0', border: '1px solid #888', padding: '6px 18px', background: '#222', color: '#eee' }
-                            }
-                        ],
-                        style: {
-                            minWidth: '400px',
-                            maxWidth: '800px',
-                            minHeight: '300px',
-                            maxHeight: '90vh',
-                            border: '2px solid var(--popup-border-automapper)',
-                            borderRadius: '10px',
-                            boxShadow: '0 8px 40px #000a',
-                            padding: '24px',
-                            zIndex: 10012
-                        }
+                import('../modules/automapper/autoBuilder.js')
+                    .then(mod => mod.openAutoMapperPopup())
+                    .catch(err => {
+                        console.error('Failed to load autoBuilder.js module:', err);
+                        const errContent = document.createElement('div');
+                        errContent.innerHTML = '<p style="color: red;">Failed to load AutoMapper module. See console for details.</p>';
+                        showPopup({
+                            id: 'automapper-popup',
+                            title: '🤖 AutoMapper - Error',
+                            content: errContent,
+                            actions: [{ label: 'Close', onClick: () => hidePopup('automapper-popup') }]
+                        });
                     });
-                }).catch(err => {
-                    console.error('Failed to load autoBuilder.js module:', err);
-                    autoMapperContent.innerHTML = `<p style="color: red;">Failed to load AutoMapper module. See console for details.</p>`;
-                    showPopup({
-                        id: 'automapper-popup',
-                        title: '🤖 AutoMapper - Error',
-                        content: autoMapperContent,
-                        actions: [{ label: 'Close', onClick: () => hidePopup('automapper-popup') }]
-                    });
-                });
             };
         }
 

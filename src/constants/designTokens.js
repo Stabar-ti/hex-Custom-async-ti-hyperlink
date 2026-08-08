@@ -43,6 +43,25 @@ export const COLORS = {
   autoWarnText:         '#ff9900',
   autoInputBg:          '#2a3a4a',
   autoInputBorder:      '#445566',
+  autoBtnUndo:          '#7f4f00',
+  autoSectionBorder:    '#334455',
+  autoRowBorder:        '#223344',
+
+  // AutoMapper preview rows. The three states have to be told apart at a glance in a
+  // dense two-column grid, so each pairs a tinted background with its own text colour:
+  // green = placed as painted, amber = a fallback the user should look at, grey = opted out.
+  autoRowOkBg:          '#0d1d0d',
+  autoRowOkText:        '#cccccc',
+  autoRowWarnBg:        '#3a1a00',
+  autoRowWarnText:      '#ffb347',
+  autoRowOffBg:         '#1a1a1a',
+  autoRowOffText:       '#777777',
+
+  // Value-bias toggles. Same three hues as the Draw Helpers R/I/T buttons
+  // (uisectorControls.js) — the panel is reading back what was painted there.
+  autoValueR:           '#f5a623',
+  autoValueI:           '#7ecfff',
+  autoValueT:           '#b07cff',
 
   // SVG overlays — used with setAttribute, must be plain hex/named values
   linkLine:             '#1fa3ff',

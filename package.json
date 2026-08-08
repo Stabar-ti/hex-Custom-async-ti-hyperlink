@@ -5,10 +5,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tools/test-lore-footer.js && node tools/test-system-picker.js",
+    "test": "node tools/test-lore-footer.js && node tools/test-system-picker.js && node tools/test-automapper.js",
     "check": "npm run lint && npm test",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
+    "lint": "eslint src tools",
+    "lint:fix": "eslint src tools --fix",
     "lint:lore": "eslint src/modules/Lore src/features/loreOverlay.js src/draw/hexAnchors.js",
     "serve": "python server.py"
   },

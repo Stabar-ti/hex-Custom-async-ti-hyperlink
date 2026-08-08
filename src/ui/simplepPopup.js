@@ -326,12 +326,18 @@ export function showOverlayOptionsPopup() {
 }
 
 export function showLayoutOptionsPopup() {
+    // Sector Controls and Draw Helpers exist only in index.html's static #layoutOptionsPopup
+    // markup, which showPopup() removes before the handler-binding setTimeout below runs —
+    // so both buttons vanished from this menu and their handlers never bound. They live in
+    // the wrapper now, where they are actually part of the popup being shown.
     const wrapper = document.createElement('div');
     wrapper.innerHTML = `
       <div class="popup-section-label">General</div>
       <div class="popup-btn-grid">
         <button id="toggleControlsBtn" class="mode-button">Im/Export & map generation</button>
         <button id="arrangeBtn" class="mode-button">Arrange Controls</button>
+        <button id="sectorControlsBtn" class="mode-button">Sector Controls</button>
+        <button id="drawHelpersBtn" class="mode-button">Draw Helpers</button>
       </div>
       <div class="popup-section-label">Theme</div>
       <div class="popup-btn-grid">
@@ -398,194 +404,16 @@ export function showLayoutOptionsPopup() {
                 });
             };
         }
-        // Draw Helpers
+        // Draw Helpers — opens the one real implementation. This used to inline its own
+        // ~160-line copy of the popup that had drifted well behind uisectorControls.js
+        // (no value hints at all), and which never ran because the button it bound to was
+        // removed from the DOM by showPopup before this handler could find it.
         const drawHelpersBtn = document.getElementById('drawHelpersBtn');
         if (drawHelpersBtn) {
             drawHelpersBtn.onclick = () => {
-                // Import the sector controls function and get the draw helpers functionality
-                import('./uisectorControls.js').then(() => {
-                    if (window.editor) {
-                        // Trigger the draw helpers popup directly
-                        showPopup({
-                            id: 'drawHelpersPopupModal',
-                            className: 'layout-options-popup',
-                            title: 'Draw Helpers',
-                            draggable: true,
-                            dragHandleSelector: '.popup-ui-titlebar',
-                            scalable: true,
-                            rememberPosition: true,
-                            style: {
-                                left: '800px',
-                                top: '120px',
-                                minWidth: '240px',
-                                maxWidth: '600px',
-                                minHeight: '120px',
-                                maxHeight: '600px',
-                                color: '#fff',
-                                border: '2px solid var(--popup-border-special)',
-                                boxShadow: '0 8px 40px #000a',
-                                padding: '0 0 18px 0',
-                                zIndex: 1300
-                            },
-                            content: (() => {
-                                const content = document.createElement('div');
-                                content.className = 'modal-content popup-btn-grid draw-helpers-btn-grid';
-                                content.style.display = 'grid';
-                                content.style.gridTemplateColumns = 'repeat(3, 1fr)'; // 3 columns for compact layout
-                                content.style.gap = '8px';
-                                content.style.padding = '15px';
-
-                                // Define draw helper tools
-                                const drawHelpers = [
-                                    { mode: '1 planet', label: '1 Planet', cls: 'btn-1' },
-                                    { mode: '2 planet', label: '2 Planet', cls: 'btn-2' },
-                                    { mode: '3 planet', label: '3 Planet', cls: 'btn-3' },
-                                    { mode: 'legendary planet', label: 'Legendary', cls: 'btn-legendary' },
-                                    { mode: 'empty', label: 'Empty', cls: 'btn-empty' },
-                                    { mode: 'special', label: 'Special', cls: 'btn-special' },
-                                    { mode: 'fracture', label: 'Fracture', cls: 'btn-fracture', color: '#ffb3b3' }
-                                ];
-
-                                drawHelpers.forEach(({ mode, label, cls, color }) => {
-                                    const btn = document.createElement('button');
-                                    btn.textContent = label;
-                                    btn.className = `mode-button ${cls}`;
-                                    btn.style.border = '1px solid #666';
-                                    btn.style.borderRadius = '4px';
-                                    btn.style.padding = '8px 12px';
-                                    btn.style.fontSize = '0.9em';
-                                    btn.style.fontWeight = 'bold';
-                                    btn.style.maxWidth = '120px';
-                                    btn.style.height = '35px';
-                                    btn.style.overflow = 'hidden';
-                                    btn.style.textOverflow = 'ellipsis';
-                                    btn.style.whiteSpace = 'nowrap';
-                                    if (color) { btn.style.background = color; btn.style.color = '#333'; }
-                                    btn.addEventListener('click', (e) => {
-                                        content.querySelectorAll('.mode-button').forEach(b => {
-                                            b.classList.remove('active');
-                                            b.style.background = b._baseColor || '';
-                                            b.style.color = b._baseColor ? '#333' : '';
-                                            b.style.fontWeight = 'bold';
-                                        });
-                                        e.currentTarget.classList.add('active');
-                                        e.currentTarget.style.background = '#666';
-                                        e.currentTarget.style.color = '#fff';
-                                        e.currentTarget.style.fontWeight = 'bold';
-                                        window.editor.setMode(mode);
-                                    });
-                                    btn._baseColor = color || '';
-                                    content.appendChild(btn);
-                                });
-
-                                // Add separator
-                                const separator = document.createElement('div');
-                                separator.style.gridColumn = '1 / -1'; // Span all columns
-                                separator.style.borderTop = '1px solid #666';
-                                separator.style.margin = '10px 0';
-                                content.appendChild(separator);
-
-                                // Add Effects section
-                                const effectsLabel = document.createElement('div');
-                                effectsLabel.textContent = 'Effects:';
-                                effectsLabel.style.gridColumn = '1 / -1'; // Span all columns
-                                effectsLabel.style.fontWeight = 'bold';
-                                effectsLabel.style.color = '#ffe066';
-                                effectsLabel.style.marginBottom = '8px';
-                                content.appendChild(effectsLabel);
-
-                                const effects = [
-                                    { mode: 'nebula',    label: 'Nebula',    cls: 'btn-nebula' },
-                                    { mode: 'rift',      label: 'Rift',      cls: 'btn-rift' },
-                                    { mode: 'asteroid',  label: 'Asteroid',  cls: 'btn-asteroid' },
-                                    { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova' },
-                                    { mode: 'scar',      label: 'Scar ☄️',   cls: 'btn-scar' }
-                                ];
-
-                                effects.forEach(({ mode, label, cls }) => {
-                                    const btn = document.createElement('button');
-                                    btn.textContent = label;
-                                    btn.className = `mode-button ${cls}`;
-                                    btn.style.border = '1px solid #666';
-                                    btn.style.borderRadius = '4px';
-                                    btn.style.padding = '8px 12px';
-                                    btn.style.fontSize = '0.9em';
-                                    btn.style.fontWeight = 'bold';
-                                    btn.style.maxWidth = '120px'; // Fixed max size for compact grid
-                                    btn.style.height = '35px'; // Fixed height
-                                    btn.style.overflow = 'hidden';
-                                    btn.style.textOverflow = 'ellipsis';
-                                    btn.style.whiteSpace = 'nowrap';
-                                    btn.addEventListener('click', (e) => {
-                                        // Clear active from all buttons in the popup
-                                        content.querySelectorAll('.mode-button').forEach(b => {
-                                            b.classList.remove('active');
-                                            b.style.background = '';
-                                            b.style.color = '';
-                                            b.style.fontWeight = 'bold';
-                                        });
-                                        // Set active state on clicked button
-                                        e.currentTarget.classList.add('active');
-                                        e.currentTarget.style.background = '#666';
-                                        e.currentTarget.style.color = '#fff';
-                                        e.currentTarget.style.fontWeight = 'bold';
-                                        window.editor.setMode(mode);
-                                    });
-                                    content.appendChild(btn);
-                                });
-
-                                // AutoMapper button
-                                const amSeparator = document.createElement('div');
-                                amSeparator.style.gridColumn = '1 / -1';
-                                amSeparator.style.borderTop = '1px solid #666';
-                                amSeparator.style.margin = '10px 0';
-                                content.appendChild(amSeparator);
-
-                                const amBtn = document.createElement('button');
-                                amBtn.textContent = '🤖 AutoMapper';
-                                amBtn.className = 'mode-button';
-                                amBtn.style.gridColumn = '1 / -1';
-                                amBtn.style.width = '100%';
-                                amBtn.style.padding = '8px 12px';
-                                amBtn.style.fontSize = '0.9em';
-                                amBtn.style.fontWeight = 'bold';
-                                amBtn.style.border = '1px solid #00d4ff';
-                                amBtn.style.borderRadius = '4px';
-                                amBtn.style.cursor = 'pointer';
-                                amBtn.onclick = () => {
-                                    import('../modules/automapper/autoBuilder.js').then(mod => {
-                                        const autoMapperContent = document.createElement('div');
-                                        autoMapperContent.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;';
-                                        const showUI = mod.showAutoBuilderUI;
-                                        if (typeof showUI === 'function') showUI(autoMapperContent);
-                                        import('./popupUI.js').then(({ showPopup }) => {
-                                            showPopup({
-                                                id: 'automapper-popup',
-                                                title: '🤖 AutoMapper',
-                                                content: autoMapperContent,
-                                                draggable: true,
-                                                dragHandleSelector: '.popup-ui-titlebar',
-                                                scalable: true,
-                                                rememberPosition: true,
-                                                style: {
-                                                    minWidth: '380px', maxWidth: '700px',
-                                                    border: '2px solid var(--popup-border-automapper)',
-                                                    borderRadius: '10px',
-                                                    boxShadow: '0 8px 40px #000a',
-                                                    padding: '16px',
-                                                    zIndex: 10012
-                                                }
-                                            });
-                                        });
-                                    }).catch(err => console.error('Failed to load AutoMapper:', err));
-                                };
-                                content.appendChild(amBtn);
-
-                                return content;
-                            })()
-                        });
-                    }
-                });
+                import('./uisectorControls.js').then(module => {
+                    if (window.editor) module.openDrawHelpersPopup(window.editor, { launcher: drawHelpersBtn });
+                }).catch(err => console.error('Failed to load Draw Helpers:', err));
             };
         }
         // Reset popup positions

@@ -74,5 +74,28 @@ export default [
             'no-case-declarations': 'warn',
             'no-prototype-builtins': 'warn'
         }
+    },
+
+    // The test harnesses under tools/ run in node, not the browser. They import the same
+    // src/ modules, so they get the same import checks — but `console` and `process` are
+    // theirs to use, and linting them as browser code reported both as undefined.
+    {
+        files: ['tools/**/*.js'],
+        plugins: { import: importPlugin },
+        languageOptions: {
+            ecmaVersion: 2022,
+            sourceType: 'module',
+            globals: { ...globals.node }
+        },
+        settings: {
+            'import/resolver': {
+                node: { extensions: ['.js'] }
+            }
+        },
+        rules: {
+            'import/no-unresolved': 'error',
+            'import/named': 'error',
+            'no-unused-vars': ['warn', { args: 'none', varsIgnorePattern: '^_', caughtErrors: 'none' }]
+        }
     }
 ];

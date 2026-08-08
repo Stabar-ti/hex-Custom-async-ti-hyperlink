@@ -262,9 +262,29 @@ function createSectorControlsContent(editor) {
   drawHelpersBtn.style.whiteSpace = 'nowrap';
   drawHelpersBtn.style.overflow = 'hidden';
   drawHelpersBtn.style.flex = 'none'; // Prevent flex growth
-  drawHelpersBtn.onclick = (e) => {
-    // Clear active state from all buttons in the sector controls first
-    container.querySelectorAll('.mode-button').forEach(btn => {
+  drawHelpersBtn.onclick = () => openDrawHelpersPopup(editor, { launcher: drawHelpersBtn, ownerPanel: container });
+  container.appendChild(drawHelpersBtn);
+
+  return finishSectorControlsContent(editor, container);
+}
+
+/**
+ * Opens the Draw Helpers popup: tile-type and effect painting, the AutoMapper section
+ * with its V1–V5 / R / I / T value hints, and the value overlay controls.
+ *
+ * Extracted from the Sector Controls launcher so every entry point opens the same popup.
+ * simplepPopup.js used to carry a second, hand-maintained copy that had fallen ~200 lines
+ * behind this one — no value hints at all — and was unreachable anyway.
+ *
+ * @param {Object} editor
+ * @param {{launcher?: HTMLElement, ownerPanel?: HTMLElement}} [opts]
+ *        `launcher` is the button that opened it, lit while a paint mode is active;
+ *        `ownerPanel` is the panel whose other buttons should be de-activated first.
+ *        Both are optional — the popup works standalone.
+ */
+export function openDrawHelpersPopup(editor, { launcher = null, ownerPanel = null } = {}) {
+    // Clear active state from all buttons in the owning panel first
+    ownerPanel?.querySelectorAll('.mode-button').forEach(btn => {
       btn.classList.remove('active');
       btn.style.background = '';
       btn.style.color = '';
@@ -280,7 +300,17 @@ function createSectorControlsContent(editor) {
       window.deactivateTokenMode();
     }
 
-    showPopup({
+    // Lights the launcher while a Draw Helpers paint mode is active, so it is obvious the
+    // next map click will paint. No-ops when the popup was opened without one.
+    const setLauncherActive = (on) => {
+      if (!launcher) return;
+      launcher.classList.toggle('active', on);
+      launcher.style.background = on ? '#666' : '';
+      launcher.style.color = on ? '#fff' : '';
+      if (on) launcher.style.fontWeight = 'bold';
+    };
+
+    return showPopup({
       id: 'drawHelpersPopupModal',
       className: 'layout-options-popup',
       title: 'Draw Helpers',
@@ -344,9 +374,7 @@ function createSectorControlsContent(editor) {
               b.style.fontWeight = 'bold';
             });
             if (turningOff) {
-              drawHelpersBtn.classList.remove('active');
-              drawHelpersBtn.style.background = '';
-              drawHelpersBtn.style.color = '';
+              setLauncherActive(false);
               editor.setMode('none');
               return;
             }
@@ -354,10 +382,7 @@ function createSectorControlsContent(editor) {
             e.currentTarget.style.background = '#666';
             e.currentTarget.style.color = '#fff';
             e.currentTarget.style.fontWeight = 'bold';
-            drawHelpersBtn.classList.add('active');
-            drawHelpersBtn.style.background = '#666';
-            drawHelpersBtn.style.color = '#fff';
-            drawHelpersBtn.style.fontWeight = 'bold';
+            setLauncherActive(true);
             editor.setMode(mode);
           });
           btn._baseColor = color || '';
@@ -412,9 +437,7 @@ function createSectorControlsContent(editor) {
               b.style.fontWeight = 'bold';
             });
             if (turningOff) {
-              drawHelpersBtn.classList.remove('active');
-              drawHelpersBtn.style.background = '';
-              drawHelpersBtn.style.color = '';
+              setLauncherActive(false);
               editor.setMode('none');
               return;
             }
@@ -424,10 +447,7 @@ function createSectorControlsContent(editor) {
             e.currentTarget.style.color = '#fff';
             e.currentTarget.style.fontWeight = 'bold';
             // Also show draw helpers button as active in sector controls
-            drawHelpersBtn.classList.add('active');
-            drawHelpersBtn.style.background = '#666';
-            drawHelpersBtn.style.color = '#fff';
-            drawHelpersBtn.style.fontWeight = 'bold';
+            setLauncherActive(true);
             editor.setMode(mode);
           });
           content.appendChild(btn);
@@ -485,9 +505,7 @@ function createSectorControlsContent(editor) {
           if (vtPaintActive) {
             editor._valuePaintConfig = { tier: vt_tier, r: vt_R, i: vt_I, t: vt_T };
             editor.setMode('value-target-apply');
-            drawHelpersBtn.classList.add('active');
-            drawHelpersBtn.style.background = '#666';
-            drawHelpersBtn.style.color = '#fff';
+            setLauncherActive(true);
           } else {
             editor._valuePaintConfig = null;
             if (editor.mode === 'value-target-apply') editor.setMode('');
@@ -559,9 +577,7 @@ function createSectorControlsContent(editor) {
           vtClearBtn.classList.add('active');
           vtClearBtn.style.background = '#555';
           editor.setMode('value-target-clear');
-          drawHelpersBtn.classList.add('active');
-          drawHelpersBtn.style.background = '#666';
-          drawHelpersBtn.style.color = '#fff';
+          setLauncherActive(true);
         });
         skewRow.appendChild(vtClearBtn);
         amSection.appendChild(skewRow);
@@ -578,30 +594,7 @@ function createSectorControlsContent(editor) {
         amBtn.style.cssText = 'width:100%;padding:8px 12px;font-size:0.9em;font-weight:bold;border:2px solid var(--popup-border-special);border-radius:4px;cursor:pointer;color:var(--popup-border-special);background:#0a1a0a;';
         amBtn.onclick = () => {
           import('../modules/automapper/autoBuilder.js').then(mod => {
-            const amContent = document.createElement('div');
-            amContent.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;';
-            if (typeof mod.showAutoBuilderUI === 'function') mod.showAutoBuilderUI(amContent);
-            import('./popupUI.js').then(({ showPopup }) => {
-              showPopup({
-                id: 'automapper-popup',
-                title: '🤖 AutoMapper',
-                content: amContent,
-                draggable: true,
-                dragHandleSelector: '.popup-ui-titlebar',
-                scalable: true,
-                rememberPosition: true,
-                showHelp: true,
-                onHelp: () => import('../modules/automapper/autoBuilder.js').then(m => m.showAutoMapperHelp?.()),
-                style: {
-                  minWidth: '380px', maxWidth: '700px',
-                  border: '2px solid var(--popup-border-special)',
-                  borderRadius: '10px',
-                  boxShadow: '0 8px 40px #000a',
-                  padding: '16px',
-                  zIndex: 10012
-                }
-              });
-            });
+            mod.openAutoMapperPopup();
           }).catch(err => console.error('Failed to load AutoMapper:', err));
         };
         amSection.appendChild(amBtn);
@@ -684,9 +677,13 @@ function createSectorControlsContent(editor) {
         return content;
       })()
     });
-  };
-  container.appendChild(drawHelpersBtn);
+}
 
+/**
+ * The rest of the Sector Controls panel, below the Draw Helpers launcher.
+ * Split out only so openDrawHelpersPopup could be lifted to module scope.
+ */
+function finishSectorControlsContent(editor, container) {
   // ── separator + section label ──
   const separator1 = document.createElement('div');
   separator1.style.borderTop = '1px solid #555';
