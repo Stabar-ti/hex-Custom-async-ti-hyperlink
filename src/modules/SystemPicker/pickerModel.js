@@ -27,9 +27,21 @@ export const SOURCE_GROUPS = [
     { key: 'pok',   label: 'PoK',             sources: ['pok'] },
     { key: 'te',    label: "Thunder's Edge",  sources: ['thunders_edge'] },
     { key: 'ds',    label: 'DS/Uncharted',    sources: ['ds', 'uncharted_space'] },
-    { key: 'eron',  label: 'Eronous',         sources: ['eronous'] },
+    { key: 'eron',  label: 'Eronous',         sources: ['eronous'], hidden: true },
     { key: 'other', label: 'Others',          catchAll: true }
 ];
+
+/**
+ * The groups that get a button. `hidden` marks a group whose tiles the data sync
+ * strips out (see the "Exclude Eronous tiles" step in
+ * .github/workflows/sync-asyncti4.yml) — a control for zero tiles is just confusing.
+ *
+ * The group itself stays in SOURCE_GROUPS and stays ON by default, so the partition
+ * above holds, `sourceGroupOf` keeps its answer, and a tile that somehow survives the
+ * sync is still reachable rather than silently unselectable. Drop the `hidden` flag to
+ * bring the button back.
+ */
+export const VISIBLE_SOURCE_GROUPS = SOURCE_GROUPS.filter(g => !g.hidden);
 
 /**
  * The group a system belongs to, or null when it has no source at all.

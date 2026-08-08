@@ -37,7 +37,7 @@ const systems = JSON.parse(
     readFileSync(join(here, '..', 'public', 'data', 'SystemInfo.json'), 'utf8')
 ).systems;
 
-check('SystemInfo.json loaded', Array.isArray(systems) && systems.length > 600,
+check('SystemInfo.json loaded', Array.isArray(systems) && systems.length > 500,
     `got ${systems?.length}`);
 
 const byId = new Map(systems.map(s => [String(s.id), s]));
@@ -239,28 +239,37 @@ const mkSys = (id, planetCount, extra = {}) => ({
 }
 
 // Every group checkbox yields only systems from that group — the narrowing is real.
+//
+// `eron` is deliberately absent: the data sync strips Eronous tiles out (see the
+// "Exclude Eronous tiles" step in .github/workflows/sync-asyncti4.yml), so that group
+// is empty by design and has no checkbox. It is still a valid group — the emptiness is
+// asserted below rather than left as a silent gap.
 {
     const editor = makeEditor([{ baseType: 'empty' }]);
-    for (const group of ['base', 'pok', 'te', 'ds', 'eron', 'other']) {
+    for (const group of ['base', 'pok', 'te', 'ds', 'other']) {
         const pool = getAvailableSystems(editor, { sources: { [group]: true } });
         check(`sources={${group}} yields only ${group} systems`,
             pool.every(s => sourceGroupOf(s) === group),
             pool.filter(s => sourceGroupOf(s) !== group).map(s => `${s.id}:${sourceGroupOf(s)}`).slice(0, 4).join(', '));
         check(`sources={${group}} is not empty`, pool.length > 0);
     }
+
+    const eron = getAvailableSystems(editor, { sources: { eron: true } });
+    check('sources={eron} is empty — Eronous tiles are excluded from the sync',
+        eron.length === 0, `got ${eron.length}: ${eron.slice(0, 4).map(s => s.id).join(', ')}`);
 }
 
 // ── 3b. The panel's sources REPLACE the picker's, they don't intersect ────────
 //
 // The picker's filter persists in localStorage, so a user who narrowed it while browsing
 // carries that state into the AutoMapper invisibly. Intersecting the two meant ticking
-// Eronous with the picker left on Base produced "0 systems in pool" and a Type breakdown
+// DS with the picker left on Base produced "0 systems in pool" and a Type breakdown
 // that was 0 across the board, with nothing on screen explaining why.
 
 {
     const editor = makeEditor([{ baseType: 'empty' }]);
-    const baseline = getAvailableSystems(editor, { sources: { eron: true, other: true } }).length;
-    check('eron+other is a large pool to begin with', baseline > 100, `got ${baseline}`);
+    const baseline = getAvailableSystems(editor, { sources: { ds: true, other: true } }).length;
+    check('ds+other is a large pool to begin with', baseline > 40, `got ${baseline}`);
 
     // Narrow the picker to Base only, as browsing for a base-game tile would.
     const narrowed = defaultFilter();
@@ -268,12 +277,12 @@ const mkSys = (id, planetCount, extra = {}) => ({
     pickerStore.setFilter(narrowed);
 
     try {
-        const withNarrowedPicker = getAvailableSystems(editor, { sources: { eron: true, other: true } });
+        const withNarrowedPicker = getAvailableSystems(editor, { sources: { ds: true, other: true } });
         check('a narrowed picker does not empty the panel\'s source choice',
             withNarrowedPicker.length === baseline,
             `${withNarrowedPicker.length} vs ${baseline} with the picker on Base only`);
         check('and the tiles really are from the chosen groups',
-            withNarrowedPicker.every(s => ['eron', 'other'].includes(sourceGroupOf(s))));
+            withNarrowedPicker.every(s => ['ds', 'other'].includes(sourceGroupOf(s))));
 
         // The safety guards are NOT part of that override.
         check('overriding sources still excludes weird/FOW/blank tiles',
