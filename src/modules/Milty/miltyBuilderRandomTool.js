@@ -52,7 +52,7 @@ const DEFAULT_SETTINGS = {
         pokCodex: true,      // Prophecy of Kings + Codex
         thundersEdge: false,  // Thunders Edge
         dsUncharted: false,  // Discordant Stars / Uncharted Space
-        eronous: false      // Eronous / Lost_star_charts_of_Ixth / somno
+        lostCharts: false   // Lost Star Charts of Ixth / Somno (and Eronous, whose tiles the data sync excludes)
     }
 };
 
@@ -406,7 +406,7 @@ function getAvailableSystems() {
     const hasAnySource = currentSettings.sources.base ||
         currentSettings.sources.pokCodex ||
         currentSettings.sources.dsUncharted ||
-        currentSettings.sources.eronous ||
+        currentSettings.sources.lostCharts ||
         currentSettings.sources.thundersEdge;
 
     if (!hasAnySource) {
@@ -461,7 +461,7 @@ function getAvailableSystems() {
             (source === 'base' && currentSettings.sources.base) ||
             (source === 'pokCodex' && currentSettings.sources.pokCodex) ||
             (source === 'dsUncharted' && currentSettings.sources.dsUncharted) ||
-            (source === 'eronous' && currentSettings.sources.eronous) ||
+            (source === 'lostCharts' && currentSettings.sources.lostCharts) ||
             (source === 'thundersEdge' && currentSettings.sources.thundersEdge)
         ) {
             // Exclude home systems and special tiles that shouldn't be in slices
@@ -528,7 +528,7 @@ function getSystemSource(system) {
     if (src === 'base') return 'base';
     if (src === 'pok' || src === 'codex') return 'pokCodex';
     if (src === 'ds' || src === 'uncharted_space' || src === 'discordant stars/uncharted space') return 'dsUncharted';
-    if (src === 'eronous' || src === 'lost_star_charts_of_ixth' || src === 'somno' || src === 'eronous/lost_star_charts_of_ixth/somno') return 'eronous';
+    if (src === 'eronous' || src === 'lost_star_charts_of_ixth' || src === 'somno' || src === 'eronous/lost_star_charts_of_ixth/somno') return 'lostCharts';
     if (src === 'thunders_edge' || src === 'thundersedge' || src === 'te') return 'thundersEdge';
     // Dane leaks, draft, or other unknowns can be handled as needed
     return src;

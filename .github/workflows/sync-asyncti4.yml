@@ -62,22 +62,104 @@ jobs:
             echo "tokens directory not found"
           fi
 
+      # --- Eronous exclusion (requested by tile maker, remove this block to re-enable) ---
+      # Deletes only source:"eronous" system/planet files and their tile art before the
+      # bundle step runs, so Eronous tiles never reach SystemInfo.json or the app.
+      # Somno (source: somno) and Lost Star Charts of Ixth (source: lost_star_charts_of_ixth)
+      # are a different source and are intentionally left untouched.
+      # Note: this workflow pushes to ${{ github.ref_name }}, so on a schedule it only
+      # takes effect once this step is merged into the default branch.
+      #
+      # RE-ENABLING ERONOUS: deleting this block is not enough. Also delete the
+      # "Verify Eronous tiles were excluded" step below, or every run fails once the
+      # tiles come back; drop `hidden: true` from the `eron` entry of SOURCE_GROUPS in
+      # src/modules/SystemPicker/pickerModel.js to restore its button; and fix up the
+      # `sources={eron} is empty` check in tools/test-automapper.js, which is the
+      # tripwire that will tell you the data has returned.
+      - name: Exclude Eronous tiles
+        run: |
+          python3 - << 'EOF'
+          import json, glob, os
+
+          EXCLUDED_SOURCE = 'eronous'
+
+          def load(path):
+              with open(path, encoding='utf-8') as f:
+                  return json.load(f)
+
+          # Pass 1: split systems into excluded / kept, and note which planet ids and
+          # tile images each side claims.
+          excluded_paths, excluded_planet_ids, kept_planet_ids, kept_images = [], set(), set(), set()
+          for path in glob.glob('public/data/systems/*.json'):
+              sys = load(path)
+              excluded = sys.get('source') == EXCLUDED_SOURCE
+              target = excluded_planet_ids if excluded else kept_planet_ids
+              for pid in sys.get('planets', []) or []:
+                  if pid:
+                      target.add(pid)
+              if excluded:
+                  excluded_paths.append((path, sys.get('imagePath')))
+              elif sys.get('imagePath'):
+                  kept_images.add(sys['imagePath'].lower())
+
+          # Pass 2: remove the systems and their tile art.
+          for path, image_path in excluded_paths:
+              if image_path:
+                  tile_path = os.path.join('public/data/tiles', image_path)
+                  if os.path.exists(tile_path):
+                      os.remove(tile_path)
+              os.remove(path)
+
+          # Pass 3: only delete planets no surviving system still references, otherwise the
+          # bundle step would silently drop that planet from the system that kept it.
+          shared = sorted(excluded_planet_ids & kept_planet_ids)
+          removed_planets = 0
+          for pid in sorted(excluded_planet_ids - kept_planet_ids):
+              planet_path = os.path.join('public/data/planets', f'{pid}.json')
+              if os.path.exists(planet_path):
+                  os.remove(planet_path)
+                  removed_planets += 1
+
+          # Pass 4: sweep up er_*.png that no system references at all — upstream ships a
+          # few of those, and they are Eronous art too. Anything a surviving system still
+          # points at is left alone, so this cannot delete art that is in use.
+          removed_orphans = 0
+          for tile_path in glob.glob('public/data/tiles/er_*'):
+              if os.path.basename(tile_path).lower() in kept_images:
+                  continue
+              os.remove(tile_path)
+              removed_orphans += 1
+
+          print(f'Excluded {len(excluded_paths)} Eronous systems and {removed_planets} Eronous planets')
+          print(f'Removed {removed_orphans} unreferenced er_* tile image(s)')
+          if shared:
+              print(f'Kept {len(shared)} planet(s) also used by non-Eronous systems: {", ".join(shared)}')
+          EOF
+      # --- end Eronous exclusion ---
+
       - name: Combine into a single bundle
         run: |
           python3 - << 'EOF'
           import json, glob, os
 
+          # encoding is explicit throughout: without it Python uses the platform
+          # default, which mangles the non-ASCII characters in the legendary
+          # ability text anywhere the default is not UTF-8.
+          def load(path):
+            with open(path, encoding='utf-8') as f:
+              return json.load(f)
+
           # Load all planets into a dict by id
           planets = {}
           for path in sorted(glob.glob('public/data/planets/*.json')):
-            p = json.load(open(path))
+            p = load(path)
             planets[p['id']] = p
 
           # For each system, load it and replace its 'planets' list of IDs
           # with a list of full planet objects.
           systems = []
           for path in sorted(glob.glob('public/data/systems/*.json')):
-            sys = json.load(open(path))
+            sys = load(path)
             # sys['planets'] is currently a list of planet IDs (or empty/null entries)
             planet_objs = []
             for pid in sys.get('planets', []):
@@ -89,9 +171,34 @@ jobs:
           # Write the combined bundle
           bundle = { 'systems': systems }
           os.makedirs('public/data', exist_ok=True)
-          with open('public/data/SystemInfo.json', 'w') as out:
+          with open('public/data/SystemInfo.json', 'w', encoding='utf-8') as out:
             json.dump(bundle, out, separators=(',',':'))
-            
+
+          EOF
+
+      # Catches the case where upstream renames the "eronous" source value: the
+      # exclusion step above would then quietly match nothing and the tiles would
+      # return. The source histogram makes such a rename visible in the log.
+      - name: Verify Eronous tiles were excluded
+        run: |
+          python3 - << 'EOF'
+          import collections, json, sys
+
+          with open('public/data/SystemInfo.json', encoding='utf-8') as f:
+              systems = json.load(f)['systems']
+
+          counts = collections.Counter(s.get('source') or '(none)' for s in systems)
+          print(f'{len(systems)} systems by source:')
+          for source, n in sorted(counts.items()):
+              print(f'  {source}: {n}')
+
+          # Substring match, so an upstream rename like "eronous_tiles" trips this too.
+          leaked = [s['id'] for s in systems if 'eronous' in (s.get('source') or '').lower()]
+          if leaked:
+              sources = sorted({s.get('source') for s in systems if 'eronous' in (s.get('source') or '').lower()})
+              print(f'::error::{len(leaked)} Eronous systems (source: {", ".join(sources)}) reached '
+                    f'SystemInfo.json: {", ".join(leaked[:20])}')
+              sys.exit(1)
           EOF
 
       - name: Combine tokens into tokens.json

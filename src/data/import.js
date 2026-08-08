@@ -19,6 +19,41 @@ import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 import { createWormholeOverlay } from '../features/baseOverlays.js';
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { normalizeLoreEntries, shortToLoreEntries, LORE_PHASE_TARGETS, LORE_GAME_TYPES } from '../modules/Lore/loreCore.js';
+import { showToast } from '../ui/uiToast.js';
+
+// Most ids to name in the warning toast before collapsing the rest into a count.
+const MAX_LISTED_UNRESOLVED_IDS = 8;
+
+/**
+ * One toast summarising tile ids in an imported map that no longer resolve to a
+ * known system — a tile set that has since been removed, or a map built against
+ * newer data. Without this the hexes just come out blank with no explanation.
+ *
+ * The unresolved id is still kept on the hex by every caller, so it survives a
+ * re-export and the user can put the tile back if the data returns.
+ *
+ * Silent when sectorIDLookup is empty: that means SystemInfo.json failed to load,
+ * every tile would be "unresolved", and loadSystemInfo has already alerted about
+ * the actual problem.
+ */
+function warnUnresolvedTileIds(editor, unresolvedTileIds) {
+  if (!unresolvedTileIds.size) return;
+  if (!editor.sectorIDLookup || !Object.keys(editor.sectorIDLookup).length) return;
+
+  const all = [...unresolvedTileIds];
+  const n = all.length;
+  console.warn('Unresolved tile IDs in imported map:', all);
+
+  const listed = all.slice(0, MAX_LISTED_UNRESOLVED_IDS).join(', ');
+  const rest = n - MAX_LISTED_UNRESOLVED_IDS;
+  const ids = rest > 0 ? `${listed} …and ${rest} more` : listed;
+  showToast(
+    `${n} tile${n === 1 ? '' : 's'} in this map ${n === 1 ? 'is' : 'are'} no longer available: ` +
+    `${ids}. ${n === 1 ? 'It' : 'They'} will appear as blank hexes.`,
+    'warning',
+    8000
+  );
+}
 
 /**
  * Import map adjacency from a space-separated list of label,hexMatrix pairs.
@@ -166,12 +201,20 @@ export function importSectorTypes(editor, tokenString) {
   // 6. Apply the types to each hex in order
   beginBatch?.();
   try {
+    const unresolvedTileIds = new Set();
     for (let idx = 0; idx < labelList.length; idx++) {
       const id = labelList[idx];
       const code = tokens[idx]?.toUpperCase() || '';
       const info = editor.sectorIDLookup?.[code] || {};
       const hex = editor.hexes[id];
       if (!hex) continue;
+
+      // Tile ids the current data set no longer knows about. '-1' (void) and 'HL'
+      // (bare hyperlane) do resolve, but skip them anyway so a stripped-down
+      // SystemInfo.json cannot turn them into noise.
+      if (!info.id && code && code !== '-1' && code !== 'HL') {
+        unresolvedTileIds.add(code);
+      }
 
       // --- Handle hyperlane tiles (isHyperlane) ---
       if (info.isHyperlane) {
@@ -202,7 +245,9 @@ export function importSectorTypes(editor, tokenString) {
       }
 
       // --- The rest is unchanged, for normal tiles only ---
-      hex.realId = info.id ?? null;
+      // Keep an unrecognised code on the hex (as importFullState does) so the tile
+      // id survives a re-export instead of being silently dropped.
+      hex.realId = info.id ?? (code && code !== '-1' ? code : null);
       if (hex.realId) markRealIDUsed(hex.realId);
       // Don't auto-assign planets from SystemInfo - only assign when explicitly imported
       hex.planets = [];
@@ -287,6 +332,7 @@ export function importSectorTypes(editor, tokenString) {
       if (info.isScar)          editor.applyEffect(id, 'scar');
     }
 
+    warnUnresolvedTileIds(editor, unresolvedTileIds);
 
     // Redraw overlays
     redrawAllRealIDOverlays(editor);
@@ -345,6 +391,7 @@ export function importFullState(editor, jsonText) {
     editor.drawnSegments = [];
 
     // ---- 5. Assign all hexes by label order (EXACT classification order)
+    const unresolvedTileIds = new Set();
     hexesOrdered.forEach((h, i) => {
       const id = labelList[i];
       let hex = editor.hexes[id];
@@ -379,6 +426,8 @@ export function importFullState(editor, jsonText) {
       } else if (h.bt || h.baseType) {
         code = h.bt || h.baseType;
         info = {};
+      } else if (realIdKey) {
+        unresolvedTileIds.add(realIdKey);
       }
 
       // --------- Hyperlane tile logic ---------
@@ -554,6 +603,8 @@ export function importFullState(editor, jsonText) {
       let realIdKey = realId ? realId.toString().toUpperCase() : null;
       if (realIdKey && editor.sectorIDLookup && editor.sectorIDLookup[realIdKey]) {
         info = editor.sectorIDLookup[realIdKey] || {};
+      } else if (realIdKey) {
+        unresolvedTileIds.add(realIdKey);
       }
       hex.planets = h.pl || h.planets || [];
       // Restore baseType (color/classification)
@@ -612,6 +663,8 @@ export function importFullState(editor, jsonText) {
         });
       }
     });
+
+    warnUnresolvedTileIds(editor, unresolvedTileIds);
 
     // ---- Map-global lore state (phase lore + game type)
     editor.phaseLore = { strategy: [], action: [], status: [], agenda: [] };
@@ -864,6 +917,7 @@ export async function importMapInfo(editor, jsonData) {
     editor.drawnSegments = [];
 
     // Process each hex in the mapInfo
+    const unresolvedTileIds = new Set();
     for (const hexData of mapInfo) {
       const position = hexData.position;
       const hex = editor.hexes[position];
@@ -895,6 +949,8 @@ export async function importMapInfo(editor, jsonData) {
       const realIdKey = hex.realId ? hex.realId.toString().toUpperCase() : null;
       if (realIdKey && editor.sectorIDLookup && editor.sectorIDLookup[realIdKey]) {
         info = editor.sectorIDLookup[realIdKey] || {};
+      } else if (realIdKey && !['0G', 'HL'].includes(realIdKey)) {
+        unresolvedTileIds.add(realIdKey);
       }
 
       // Import planets
@@ -1110,6 +1166,8 @@ export async function importMapInfo(editor, jsonData) {
         if (info.isScar)          editor.applyEffect(position, 'scar');
       }
     }
+
+    warnUnresolvedTileIds(editor, unresolvedTileIds);
 
     // Set all remaining hexes without data to void
     // Build label list for all hexes in the generated map

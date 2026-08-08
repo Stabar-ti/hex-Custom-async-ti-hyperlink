@@ -10,7 +10,7 @@ import { refreshSystemList } from '../../ui/uiFilters.js';
 import { redrawAllRealIDOverlays } from '../../features/realIDsOverlays.js';
 import { updateWormholeVisibility } from '../../features/baseOverlays.js';
 import { toggleWormhole } from '../../features/wormholes.js';
-import { SOURCE_GROUPS } from '../SystemPicker/pickerModel.js';
+import { VISIBLE_SOURCE_GROUPS } from '../SystemPicker/pickerModel.js';
 import { COLORS } from '../../constants/designTokens.js';
 
 // ---- Styles ----
@@ -175,7 +175,7 @@ export function showAutoBuilderUI(container) {
             const srcRow = el('div', S.row + 'gap:4px;');
             // Built from the picker's own groups so the two can never disagree about which
             // sources exist or what they are called.
-            SOURCE_GROUPS.forEach(({ key, label }) => {
+            VISIBLE_SOURCE_GROUPS.forEach(({ key, label }) => {
                 const cb = document.createElement('input');
                 cb.type = 'checkbox';
                 cb.style.marginRight = '3px';
@@ -183,7 +183,7 @@ export function showAutoBuilderUI(container) {
                 cb.onchange = () => {
                     if (!opts.sources) opts.sources = {};
                     opts.sources[key] = cb.checked;
-                    if (!SOURCE_GROUPS.some(g => opts.sources[g.key])) opts.sources = null;
+                    if (!VISIBLE_SOURCE_GROUPS.some(g => opts.sources[g.key])) opts.sources = null;
                     render();
                 };
                 const lbl = el('label', 'display:flex;align-items:center;font-size:11px;cursor:pointer;white-space:nowrap;');

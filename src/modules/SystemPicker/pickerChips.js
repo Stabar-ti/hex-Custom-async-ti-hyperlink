@@ -12,7 +12,7 @@
  * at and how many are hidden. Modelled on loreOverlay's filter strip.
  */
 
-import { SOURCE_GROUPS, ATTRIBUTES, PLANET_COUNTS, TRI_STATES } from './pickerModel.js';
+import { VISIBLE_SOURCE_GROUPS, ATTRIBUTES, PLANET_COUNTS, TRI_STATES } from './pickerModel.js';
 import { describeActiveFilters, activeFilterCount } from './pickerSelect.js';
 import { openListPicker } from '../../ui/listPicker.js';
 import * as state from './pickerState.js';
@@ -72,7 +72,7 @@ function buildSourceRow(filter) {
     const row = el('div', 'sp-filter-row');
     row.appendChild(el('span', 'sp-filter-label', 'Sources'));
 
-    for (const group of SOURCE_GROUPS) {
+    for (const group of VISIBLE_SOURCE_GROUPS) {
         const on = !!filter.sources[group.key];
         row.appendChild(chip(group.label, {
             on,
@@ -82,8 +82,11 @@ function buildSourceRow(filter) {
         }));
     }
 
-    const all = Object.values(filter.sources).every(Boolean);
-    const none = !Object.values(filter.sources).some(Boolean);
+    // Only the groups with a chip count towards All/None — a hidden group the user
+    // cannot toggle must not decide what the button says.
+    const shown = VISIBLE_SOURCE_GROUPS.map(g => !!filter.sources[g.key]);
+    const all = shown.every(Boolean);
+    const none = !shown.some(Boolean);
     const toggle = el('button', 'sp-linkbtn', all ? 'None' : 'All');
     toggle.type = 'button';
     toggle.title = all ? 'Turn every source off' : 'Turn every source on';

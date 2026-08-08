@@ -176,7 +176,7 @@ export function createGeneratorPopupContent() {
                         <input type="checkbox" id="sourceDSUncharted" style="margin-right: 8px;"> Discordant Stars / Uncharted Space
                     </label>
                     <label style="display: block; cursor: pointer;">
-                        <input type="checkbox" id="sourceEronous" style="margin-right: 8px;"> Eronous / Lost Star Charts
+                        <input type="checkbox" id="sourceLostCharts" style="margin-right: 8px;"> Lost Star Charts / Somno
                     </label>
                 </div>
             </div>
@@ -720,7 +720,7 @@ export async function updateSettingsFromUI(moduleInstance = null) {
             base:         document.getElementById('sourceBase')?.checked         || false,
             pokCodex:     document.getElementById('sourcePokCodex')?.checked     || false,
             dsUncharted:  document.getElementById('sourceDSUncharted')?.checked  || false,
-            eronous:      document.getElementById('sourceEronous')?.checked      || false,
+            lostCharts:   document.getElementById('sourceLostCharts')?.checked   || false,
             thundersEdge: document.getElementById('sourceThundersEdge')?.checked || false
         },
         sliceGeneration: {

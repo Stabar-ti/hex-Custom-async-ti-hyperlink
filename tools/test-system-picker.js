@@ -44,7 +44,7 @@ const systems = JSON.parse(
     readFileSync(join(here, '..', 'public', 'data', 'SystemInfo.json'), 'utf8')
 ).systems;
 
-check('SystemInfo.json loaded', Array.isArray(systems) && systems.length > 600,
+check('SystemInfo.json loaded', Array.isArray(systems) && systems.length > 500,
     `got ${systems?.length}`);
 
 // ── 1. Equivalence with the old DOM-driven logic ──────────────────────────────
