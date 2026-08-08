@@ -114,9 +114,27 @@ export function refreshSystemList() {
  * The old version read the filter buttons out of the DOM, so it silently allowed
  * everything whenever the picker was closed — which is the normal state of affairs while
  * generating a map.
+ *
+ * Two overrides, and the difference between them is the whole point:
+ *
+ * `sources` REPLACES the picker's source choice. An auto-placer with its own source
+ * checkboxes is asking "use these expansions", and intersecting that with whatever the
+ * picker happens to have saved gives an empty pool whenever the two don't overlap — the
+ * user ticks Eronous, the picker is on Base, nothing is placeable and nothing says why.
+ *
+ * `allowFactionHomeworlds` relaxes one tri-state, for the AutoMapper's "Include HS tiles":
+ * filling a painted home-system hex needs homeworld tiles in the pool and they are hidden
+ * by default. Callers must ensure such a tile can only reach a home-system hex —
+ * autoBuilderCore does that via RESTRICTED_TYPES.
+ *
+ * Nothing relaxes the weird/FOW/blank/hyperlane guards. Those are not negotiable: one of
+ * those tiles landing in a generated map is always a bug, never a request.
  */
-export function passesAutoMapperFilters(sys) {
-  return passesFilter(sys, autoMapperFilter(getFilter()));
+export function passesAutoMapperFilters(sys, { allowFactionHomeworlds = false, sources = null } = {}) {
+  const filter = autoMapperFilter(getFilter());
+  if (sources) filter.sources = sources;
+  if (allowFactionHomeworlds) filter.tri = { ...filter.tri, faction: 'any' };
+  return passesFilter(sys, filter);
 }
 
 /** @deprecated Use passesAutoMapperFilters instead */
