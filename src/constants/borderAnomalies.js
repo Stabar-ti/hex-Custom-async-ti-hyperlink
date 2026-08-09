@@ -2,6 +2,21 @@
 let borderAnomalyTypes = null;
 
 /**
+ * Normalise a stored border-anomaly type to its registry ID.
+ *
+ * Maps in the wild hold either the ID ("SPATIALTEAR") or the legacy display
+ * name ("Spatial Tear"), depending on when and how they were authored. Every
+ * comparison against a type must go through here — comparing against one form
+ * only silently misses half the data.
+ *
+ * @param {string|undefined|null} type - the raw `borderAnomalies[side].type`
+ * @returns {string} the normalised ID, or '' when there is no anomaly
+ */
+export function normalizeAnomalyId(type) {
+    return (type ?? '').replace(/\s+/g, '').toUpperCase();
+}
+
+/**
  * Load border anomaly types from JSON file
  */
 export async function loadBorderAnomalyTypes() {

@@ -14,6 +14,9 @@ import { isMatrixEmpty } from '../utils/matrix.js';
 import { rotated } from '../modules/Hyperlanes/hyperlaneModel.js';
 import { updateHexWormholes, removeWormholeOverlay } from '../features/wormholes.js';
 import { hideWizardPopup, showWizardInfoPopup, hideWizardInfoPopup } from '../ui/tileCopyPasteWizardUI.js';
+import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
+import { isScriptedAnomaly, isBidirectionalAnomaly } from '../distance/index.js';
+import { buildCoordIndex, neighborHex, oppositeSide, normalizeSide } from '../utils/hexGrid.js';
 
 let wizardState = {
     mode: null, // 'select', 'paste', null
@@ -663,39 +666,46 @@ export function startCopyPasteWizard(editor, cut = false) {
     }
 }
 
-const _BIDI_ANOMALY_TYPES = ["Spatial Tear", "Gravity Wave"];
-const _HEX_DIRS = [
-    { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 1, r: 0 },
-    { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }
-];
+/**
+ * Only bidirectional border types live on both hexes of an edge, so only those
+ * have a mirror to move with the tile.
+ *
+ * This used to match on the display names "Spatial Tear"/"Gravity Wave", which
+ * missed every map storing the ID form ("SPATIALTEAR") — and it mirrored Gravity
+ * Wave, which is one-way and is stored on the primary hex only, so copying a
+ * tile turned a one-way border into a wall.
+ */
+function hasMirror(anomaly) {
+    const types = getBorderAnomalyTypes();
+    return isScriptedAnomaly(anomaly?.type) && isBidirectionalAnomaly(anomaly?.type, types);
+}
 
-function clearBorderAnomalyMirrors(editor, hex) {
+/** Walk the mirrored border anomalies of `hex`, handing each neighbour + facing side to `fn`. */
+function forEachMirroredNeighbor(editor, hex, fn) {
     if (!hex || !hex.borderAnomalies) return;
+    const coordIndex = buildCoordIndex(editor.hexes);
     for (const [sideStr, anomaly] of Object.entries(hex.borderAnomalies)) {
-        if (!anomaly || !_BIDI_ANOMALY_TYPES.includes(anomaly.type)) continue;
-        const side = parseInt(sideStr, 10);
-        const nq = hex.q + _HEX_DIRS[side].q;
-        const nr = hex.r + _HEX_DIRS[side].r;
-        const neighbor = Object.values(editor.hexes).find(nb => nb.q === nq && nb.r === nr);
-        if (!neighbor || !neighbor.borderAnomalies) continue;
-        const opp = (side + 3) % 6;
-        delete neighbor.borderAnomalies[opp];
-        if (Object.keys(neighbor.borderAnomalies).length === 0) delete neighbor.borderAnomalies;
+        if (!hasMirror(anomaly)) continue;
+        const side = normalizeSide(sideStr);
+        const neighbor = neighborHex(editor.hexes, coordIndex, hex, side);
+        if (!neighbor) continue;
+        fn(neighbor, oppositeSide(side), anomaly);
     }
 }
 
+function clearBorderAnomalyMirrors(editor, hex) {
+    forEachMirroredNeighbor(editor, hex, (neighbor, opp) => {
+        if (!neighbor.borderAnomalies) return;
+        delete neighbor.borderAnomalies[opp];
+        if (Object.keys(neighbor.borderAnomalies).length === 0) delete neighbor.borderAnomalies;
+    });
+}
+
 function applyBorderAnomalyMirrors(editor, hex) {
-    if (!hex || !hex.borderAnomalies) return;
-    for (const [sideStr, anomaly] of Object.entries(hex.borderAnomalies)) {
-        if (!anomaly || !_BIDI_ANOMALY_TYPES.includes(anomaly.type)) continue;
-        const side = parseInt(sideStr, 10);
-        const nq = hex.q + _HEX_DIRS[side].q;
-        const nr = hex.r + _HEX_DIRS[side].r;
-        const neighbor = Object.values(editor.hexes).find(nb => nb.q === nq && nb.r === nr);
-        if (!neighbor) continue;
+    forEachMirroredNeighbor(editor, hex, (neighbor, opp, anomaly) => {
         if (!neighbor.borderAnomalies) neighbor.borderAnomalies = {};
-        neighbor.borderAnomalies[(side + 3) % 6] = { type: anomaly.type };
-    }
+        neighbor.borderAnomalies[opp] = { type: anomaly.type };
+    });
 }
 
 function closeWizard(editor) {

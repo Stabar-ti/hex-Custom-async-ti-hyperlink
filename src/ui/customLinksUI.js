@@ -2,6 +2,7 @@ import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { toggleCustomLinksOverlay } from '../features/customLinksOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js'; // <-- Add hidePopup import
+import { oppositeSide } from '../utils/hexGrid.js';
 
 export function installCustomLinksUI(editor) {
     // --- Main Custom Links popup using PopupUI ---
@@ -411,7 +412,6 @@ export function installCustomLinksUI(editor) {
         }
         return undefined;
     }
-    function oppositeSide(side) { return (parseInt(side) + 3) % 6; }
 
     // Redraw after map (re)generation
     const oldGenerateMap = editor.generateMap;

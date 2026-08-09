@@ -3,6 +3,7 @@ import { toggleBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js';
 import { loadBorderAnomalyTypes, getEnabledBorderAnomalyTypes, updateBorderAnomalyStyle, updateBorderAnomalyBidirectional } from '../constants/borderAnomalies.js';
+import { buildCoordIndex, neighborHex, sideBetween, oppositeSide } from '../utils/hexGrid.js';
 
 export function installBorderAnomaliesUI(editor) {
     async function showBorderAnomaliesPopup() {
@@ -567,29 +568,14 @@ export function installBorderAnomaliesUI(editor) {
     };
 
     function getSideBetween(hexes, a, b) {
-        const dq = hexes[b].q - hexes[a].q;
-        const dr = hexes[b].r - hexes[a].r;
-        for (let i = 0; i < 6; ++i) {
-            const dir = [
-                { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }
-            ][i];
-            if (dir.q === dq && dir.r === dr) return i;
-        }
-        return undefined;
+        return sideBetween(hexes[a], hexes[b]);
     }
     function getNeighborHex(hexes, label, side) {
         const hex = hexes[label];
         if (!hex) return null;
-        const { q, r } = hex;
-        const dirs = [
-            { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 1, r: 0 },
-            { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }
-        ];
-        const nq = q + dirs[side].q, nr = r + dirs[side].r;
-        for (const h of Object.values(hexes)) if (h.q === nq && h.r === nr) return h;
-        return null;
+        return neighborHex(hexes, buildCoordIndex(hexes), hex, side);
     }
-    function getOppositeSide(side) { return (parseInt(side, 10) + 3) % 6; }
+    const getOppositeSide = oppositeSide;
 
     // Redraw after map (re)generation
     const oldGenerateMap = editor.generateMap;

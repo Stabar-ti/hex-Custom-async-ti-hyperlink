@@ -21,11 +21,12 @@ export const CORNER_LABELS = ['TL', 'TR', 'BL', 'BR'];
 /**
  * The 6 edge directions for moving on a hex grid (axial coordinates).
  * Used for pathfinding, neighbor logic, etc.
+ *
+ * Canonical definition now lives in utils/hexGrid.js — re-exported here so the
+ * many existing `import { edgeDirections } from '.../constants.js'` sites keep
+ * working. Prefer importing EDGE_DIRECTIONS from utils/hexGrid.js in new code.
  */
-export const edgeDirections = [
-  { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 1, r: 0 },
-  { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }
-];
+export { EDGE_DIRECTIONS as edgeDirections } from '../utils/hexGrid.js';
 
 /**
  * Directions for building rings of hexes (used by the grid generator).

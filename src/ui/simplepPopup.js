@@ -31,6 +31,14 @@ export function showOptionsPopup(editor) {
           Use Custom Links
         </label><br>
         <label>
+          <input type="checkbox" id="toggleUseWormholes" ${editor.options.useWormholes !== false ? 'checked' : ''}>
+          Use Wormholes
+        </label><br>
+        <label>
+          <input type="checkbox" id="toggleAdjacencyOverrides" ${editor.options.useAdjacencyOverrides !== false ? 'checked' : ''}>
+          Use Adjacency Overrides
+        </label><br>
+        <label>
           <input type="checkbox" id="toggleBorderAnomalies" ${editor.options.useBorderAnomalies ? 'checked' : ''}>
           Use Border Anomalies
         </label><br>
@@ -56,6 +64,8 @@ export function showOptionsPopup(editor) {
                     const nebulaCB = wrapper.querySelector('#toggleNebula');
                     const riftCB = wrapper.querySelector('#toggleRift');
                     const customLinksCB = wrapper.querySelector('#toggleCustomLinks');
+                    const wormholesCB = wrapper.querySelector('#toggleUseWormholes');
+                    const adjOverridesCB = wrapper.querySelector('#toggleAdjacencyOverrides');
                     const borderAnomaliesCB = wrapper.querySelector('#toggleBorderAnomalies');
                     const maxDistInp = wrapper.querySelector('#maxDistanceInput');
 
@@ -64,6 +74,8 @@ export function showOptionsPopup(editor) {
                     editor.options.useNebula = !!nebulaCB.checked;
                     editor.options.useRift = !!riftCB.checked;
                     editor.options.useCustomLinks = !!customLinksCB.checked;
+                    editor.options.useWormholes = !!wormholesCB.checked;
+                    editor.options.useAdjacencyOverrides = !!adjOverridesCB.checked;
                     editor.options.useBorderAnomalies = !!borderAnomaliesCB.checked;
 
                     // Clamp max distance between 1 and 10

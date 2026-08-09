@@ -39,6 +39,10 @@ export function showHelpPopup() {
     <ul style="margin:0 0 10px 16px;padding:0;">
       <li><strong>Shift+D</strong> — Toggle distance mode on/off</li>
       <li><strong>Right-click</strong> any tile (while Shift+D active) — Calculate distances from that tile</li>
+      <li>Hyperlanes are <em>conduits</em>: they get no number of their own and cost no
+          movement, however long the chain. This applies to hand-drawn hyperlanes as well as
+          imported ones — they used to cost a step each.</li>
+      <li>Which rules apply is set in <strong>Distance Calculator Options</strong>.</li>
     </ul>
 
     <h4 style="color:#ffe066;margin:0 0 6px 0;">✂ Copy/Cut Swap</h4>

@@ -1,18 +1,13 @@
 // Geometry utilities
-// Functions: hexDistance, getNeighbors, axial math
-export function hexDistance(a, b) {
-  return Math.max(
-    Math.abs(a.q - b.q),
-    Math.abs(a.q + a.r - b.q - b.r),
-    Math.abs(a.r - b.r)
-  );
-}
+//
+// Thin compatibility layer over utils/hexGrid.js, which is the canonical home
+// for axial hex math. Prefer importing from hexGrid.js directly in new code.
+import { EDGE_DIRECTIONS, neighborCoord } from './hexGrid.js';
 
-export const directions = [
-  { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 1, r: 0 },
-  { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }
-];
+export { axialDistance as hexDistance } from './hexGrid.js';
+
+export const directions = EDGE_DIRECTIONS;
 
 export function getNeighbors(q, r) {
-  return directions.map(d => ({ q: q + d.q, r: r + d.r }));
+  return EDGE_DIRECTIONS.map((_, side) => neighborCoord(q, r, side));
 }
