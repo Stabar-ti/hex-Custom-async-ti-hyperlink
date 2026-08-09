@@ -14,6 +14,7 @@
 // ───────────────────────────────────────────────────────────────
 
 import { matrixToHex, hasLinks } from '../utils/matrix.js';
+import { symmetrised } from '../modules/Hyperlanes/hyperlaneModel.js';
 import { typeCodeMap } from '../constants/constants.js';
 import { showModal } from '../ui/uiModals.js';
 import { generateRings } from '../draw/drawHexes.js';
@@ -552,12 +553,22 @@ export async function exportMapInfo(editor, options = {}) {
     // Build hyperlane string (matrix to comma-separated format)
     let hyperlaneString = '';
     if (hex.matrix) {
+      // Mirror the links first. AsyncTI4 reads this matrix literally, so a cell set in only
+      // one direction becomes a hyperlane a ship can traverse one way and not back — the
+      // map then behaves differently in the bot than it does here, where the distance
+      // calculation symmetrises before traversing. exportMap does the same thing for its
+      // own format (see the mirror loop in exportMap above).
+      //
+      // Drawing now records both directions, so this matters for matrices that came from
+      // somewhere else: an older save file, or an import of a map that was itself exported
+      // one-way.
+      const matrix = symmetrised(hex.matrix);
       // Convert 6x6 matrix to comma-separated format with semicolons between rows
       const rows = [];
       for (let row = 0; row < 6; row++) {
         const rowValues = [];
         for (let col = 0; col < 6; col++) {
-          rowValues.push((hex.matrix[row] && hex.matrix[row][col]) ? '1' : '0');
+          rowValues.push((matrix[row] && matrix[row][col]) ? '1' : '0');
         }
         rows.push(rowValues.join(','));
       }
@@ -645,8 +656,11 @@ export async function exportMapInfo(editor, options = {}) {
     // Determine tileID based on baseType and other conditions
     let tileID = '';
     if (hyperlaneString) {
-      // If there are hyperlanes, use 'hl'
-      tileID = 'hl';
+      // A hex can carry drawn links AND be a real system tile. This used to hardcode 'hl',
+      // which threw the system away: the tile exported as a blank hyperlane and the planets
+      // it held were gone from the map AsyncTI4 received. Fall back to 'hl' only when there
+      // is genuinely no tile to name.
+      tileID = hex.realId || hex.systemId || 'hl';
       //} else if (hex.baseType === 'void') {
       //  // Void tiles get -1
       //  tileID = '-1';

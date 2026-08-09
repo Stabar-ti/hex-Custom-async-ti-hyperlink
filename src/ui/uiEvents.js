@@ -8,9 +8,9 @@
 // or linking hyperlanes, wormhole toggles, or changing sector type.
 // ───────────────────────────────────────────────────────────────
 
-import { assignSystem } from '../features/assignSystem.js';
 import { wormholeTypes } from '../constants/constants.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
+import { handleHexClick } from '../modules/Hyperlanes/hyperlaneEditing.js';
 
 export function registerClickHandler(editor) {
   editor._onHexClick = function (e, label) {
@@ -19,17 +19,10 @@ export function registerClickHandler(editor) {
       return; // Let the lore selection handler process the click
     }
 
-    // 3. Hyperlane editing: delete/link/unlink
-    // deleteAllSegments, _selectHex, etc. MUST saveState internally
+    // 3. Hyperlane editing: delete/link/unlink.
+    // The module owns its own history grouping and its own reading of the modifier keys.
     if (this.mode === 'hyperlane') {
-      if (e.shiftKey) {
-        this.deleteAllSegments(label); // should save history itself
-      } else if (e.altKey) {
-        this.unlinking = true;
-        this._selectHex(label);
-      } else {
-        this._selectHex(label);
-      }
+      handleHexClick(this, label, e);
       return;
     }
 

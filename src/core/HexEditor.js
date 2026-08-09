@@ -32,9 +32,9 @@ import { applyEffectToHex, clearAllEffects, refreshEffectsOverlays } from '../fe
 // Change sector fill and type (e.g., planet, void, etc.)
 import { setSectorType } from '../features/sectorTypes.js';
 // Draw links between hexes (for hyperlanes)
-import { drawCurveLink, drawLoopCircle, drawLoopbackCurve } from '../draw/links.js';
+import { areNeighbors } from '../modules/Hyperlanes/hyperlaneModel.js';
 // Allow editor to create/erase hyperlane links with clicks
-import { bindHyperlaneEditing } from '../features/hyperlanes.js';
+import { installHyperlanes } from '../modules/Hyperlanes/hyperlaneUI.js';
 // Main hex click handling logic (sector mode/effect mode/wormhole mode)
 import { registerClickHandler } from '../ui/uiEvents.js';
 // Theme support (auto-switch dark/light mode)
@@ -68,7 +68,6 @@ export default class HexEditor {
   constructor({ svg, confirmReset = null }) {
     // ─── Core state variables ───
     this.hexes = {};            // Map of all hexes by label/id
-    this.selectedPath = [];     // Used for drawing hyperlane paths
     this.mode = 'hyperlane';    // Current editing mode ("hyperlane", "nebula", etc.)
     this.hoveredHexLabel = null;// Which hex is being hovered (for highlight)
     this.fillCorners = true;   // If true, adds corner hexes to map grid
@@ -122,11 +121,10 @@ export default class HexEditor {
     });
 
     // ─── Hyperlane path/segment creation and core click logic ───
-    bindHyperlaneEditing(this);   // Allows drawing hyperlane links with clicks
+    // Installs the selectedPath/linking/unlinking accessors onto this instance, so they
+    // must not be assigned here — a plain assignment would shadow them.
+    installHyperlanes(this);      // Allows drawing hyperlane links with clicks
     registerClickHandler(this);   // Handles click mode (effect/sector/wormhole/hyperlane)
-    this.drawnSegments = [];      // Track drawn SVG links for undo/delete
-    this.linking = true;          // If true, in path-creation mode
-    this.unlinking = false;       // If true, in path-deletion mode
 
     // ─── DEFERRED: Wait for system info to load before generating grid ───
     // This ensures all system/sector metadata is ready before drawing.
@@ -293,8 +291,11 @@ export default class HexEditor {
     const svg = this.svg;
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     this.hexes = {};
-    this.drawnSegments.length = 0;
-    this.selectedPath.length = 0;
+    // Hyperlane SVG needs no explicit reset: emptying the svg took the layer with it, and
+    // the renderer recreates it on demand.
+    // Assign rather than mutate: selectedPath is a store-backed accessor that hands out a
+    // copy, so `.length = 0` would silently no-op.
+    this.selectedPath = [];
 
     // Draw main map hexes
     const layout = generateRings(rings, this.fillCorners);
@@ -557,11 +558,10 @@ export default class HexEditor {
 
   /**
    * Checks if two hexes are direct neighbors on the grid.
+   * Takes hex LABELS; the axial test itself lives in hyperlaneModel so there is one copy.
    */
   areNeighbors(a, b) {
-    const dq = this.hexes[b].q - this.hexes[a].q;
-    const dr = this.hexes[b].r - this.hexes[a].r;
-    return this.edgeDirections.some(d => d.q === dq && d.r === dr);
+    return areNeighbors(this.hexes[a], this.hexes[b]);
   }
 
   /**
@@ -774,36 +774,10 @@ export default class HexEditor {
     return calculateDistancesFrom(this, sourceLabel, maxDist);
   }
 
-  // ──────── SVG LINK/DRAWING HELPERS ────────
-
-  /**
-   * Draw a curve link from one hex to another (for hyperlane overlays).
-   */
-  drawCurveLink(from, to, entry, exit) {
-    return drawCurveLink(this.svg, this.hexes[to], entry, exit, to, this.hexRadius);
-  }
-
-  /**
-   * Draw a circular "loop" overlay on a hex (for loopback links).
-   */
-  drawLoopCircle(label) {
-    const hex = this.hexes[label];
-    if (hex?.center) {
-      const { x, y } = hex.center;
-      const loop = drawLoopCircle(this.svg, x, y, label);
-      this.drawnSegments.push(loop);
-    }
-  }
-
-  /**
-   * Draw a "loopback" curve (entry→entry) on the hex.
-   */
-  drawLoopbackCurve(label, entry) {
-    const hex = this.hexes[label];
-    if (hex) {
-      const loop = drawLoopbackCurve(this.svg, hex, entry, label);
-      this.drawnSegments.push(loop);
-      hex.matrix[entry][entry] = 1;
-    }
-  }
+  // The drawCurveLink / drawLoopCircle / drawLoopbackCurve wrappers that used to live here
+  // had no callers anywhere in src or tools. drawLoopbackCurve also wrote
+  // hex.matrix[entry][entry] = 1 without a saveState, so anything that had started using it
+  // would have made an un-undoable edit. Drawing now goes through
+  // renderHex (modules/Hyperlanes/hyperlaneRender.js), which derives the SVG from the
+  // matrix rather than the other way round.
 }

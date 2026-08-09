@@ -168,12 +168,19 @@ export const SVG_LAYER_ORDER = [
   'idealRILayer',
   'realIDLabelLayer',
   'tileImageLayer',         // images
+  // Above the tile images, which are opaque and used to hide drawn links entirely; below
+  // the icon/token/lore layers, which are small centre-adjacent badges that a link
+  // crossing the hex centre would otherwise obscure.
+  'hyperlane-layer',        // user-drawn hyperlane links
   'wormholeIconLayer',      // <--- wormhole icons (NOT tokens!)
   'customAdjacencyLayer',
   'borderAnomalyLayer',
   'token-overlay-group',    // token indicators (separate from wormholes)
   'lore-link-layer',        // arcs from a lore entry to the tiles its effects act on
-  'lore-overlay'            // lore markers sit above their own arcs
+  'lore-overlay',           // lore markers sit above their own arcs
+  // Transient "what will the next click do" cue for hyperlane drawing. Topmost on purpose:
+  // it is only on screen mid-gesture, and it is useless if an overlay covers it.
+  'hyperlane-indicator-layer'
 
   // top-most
 ];

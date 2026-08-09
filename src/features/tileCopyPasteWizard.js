@@ -11,6 +11,7 @@ import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { markRealIDUsed } from '../ui/uiFilters.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { isMatrixEmpty } from '../utils/matrix.js';
+import { rotated } from '../modules/Hyperlanes/hyperlaneModel.js';
 import { updateHexWormholes, removeWormholeOverlay } from '../features/wormholes.js';
 import { hideWizardPopup, showWizardInfoPopup, hideWizardInfoPopup } from '../ui/tileCopyPasteWizardUI.js';
 
@@ -368,18 +369,10 @@ export function startCopyPasteWizard(editor, cut = false) {
             // Rotate arrays of length 6 (edges): borderAnomalies, customAdjacents, adjacencyOverrides
             const rotateArr = arr => Array.isArray(arr) && arr.length === 6 ? arr.map((_, i, a) => a[(i - (dir) + 6) % 6]) : arr;
             // --- Matrix and links: rotate both rows and columns ---
-            function rotateMatrix(mat, dir) {
-                if (!Array.isArray(mat) || mat.length !== 6) return mat;
-                const out = Array.from({ length: 6 }, () => Array(6).fill(0));
-                for (let i = 0; i < 6; ++i) for (let j = 0; j < 6; ++j) {
-                    const ni = (i + dir + 6) % 6;
-                    const nj = (j + dir + 6) % 6;
-                    out[ni][nj] = mat[i][j];
-                }
-                return out;
-            }
-            if (tile.matrix) tile.matrix = rotateMatrix(tile.matrix, dir);
-            if (tile.links) tile.links = rotateMatrix(tile.links, dir);
+            // `rotated` lives in hyperlaneModel.js and is checked against a frozen copy of
+            // the implementation that used to sit here (tools/test-hyperlanes.js).
+            if (tile.matrix) tile.matrix = rotated(tile.matrix, dir);
+            if (tile.links) tile.links = rotated(tile.links, dir);
             if (tile.borderAnomalies) {
                 if (Array.isArray(tile.borderAnomalies)) {
                     tile.borderAnomalies = rotateArr(tile.borderAnomalies);
