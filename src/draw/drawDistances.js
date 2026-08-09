@@ -1,3 +1,5 @@
+import { symmetrised } from '../modules/Hyperlanes/hyperlaneModel.js';
+
 // ---- DEBUGGING TOGGLE ----
 const DEBUG_DIST = false; // Set to true to enable verbose pathfinding logs (covers BFS + hyperlanes)
 
@@ -49,6 +51,28 @@ function isBlocked(editor, fromHex, toHex, context, opts) {
 // ---- Hyperlane detection helper ----
 function isHyperlane(hex) {
   return !!(hex?.matrix?.some(row => row.includes(1)));
+}
+
+/**
+ * True for a hex that is PURELY a hyperlane — links and nothing else.
+ *
+ * These are conduits: they connect other tiles and are never a destination, so they take
+ * no distance number of their own and cost no movement to pass through.
+ *
+ * The two ways one comes about differ only in `baseType`:
+ *   - drawn by hand      → updateHyperlaneBaseType sets baseType 'hyperlane'
+ *   - an AsyncTI4 tile   → assignSystem returns before assigning a baseType, leaving ''
+ *
+ * Only the second used to be handled, because `isPassable` keyed off `baseType !== ''` and
+ * so happened to reject it. Hand-drawn hyperlanes looked like an ordinary sector, got
+ * stepped onto as a neighbour, and every tile beyond them came out one too far.
+ *
+ * A hex that carries links but is also a real system (it has a sector type of its own) is
+ * deliberately NOT a conduit — it is a place, and it stays reachable.
+ */
+function isHyperlaneConduit(hex) {
+  if (!isHyperlane(hex)) return false;
+  return hex.baseType === '' || hex.baseType === 'hyperlane';
 }
 
 // ---- Default core neighbor providers ----
@@ -155,6 +179,11 @@ registerMovementBlocker((editor, fromHex, toHex, ctx, opts) => {
 // ---- isPassable utility ----
 function isPassable(hex, opts, isSource = false) {
   if (!hex) return false;
+  // A hyperlane is a conduit, not a destination. It describes a path BETWEEN two other
+  // tiles and is never somewhere a ship can be, so it must never be stepped onto as an
+  // ordinary neighbour — the BFS has to fall through to the hyperlane-traversal branch
+  // that follows the links to the real tiles on the far side.
+  if (isHyperlaneConduit(hex)) return false;
   if (!isSource) {
     if (opts.useSupernova && hex.effects?.has('supernova')) return false;
     if (opts.useAsteroid && hex.effects?.has('asteroid')) return false;
@@ -183,9 +212,11 @@ export function calculateDistancesFrom(
     ...opts,
   };
 
-  // Pre-build coordinate lookup, wormhole index, and symmetrize hyperlane matrices — all in one pass
+  // Pre-build coordinate lookup, wormhole index, and symmetrized hyperlane matrices —
+  // all in one pass
   const coordToLabel = new Map();
   const wormholeIndex = new Map(); // wormhole type → Set<label>
+  const symMatrices = new Map();   // label → symmetrized COPY of that hex's matrix
   for (const [label, h] of Object.entries(editor.hexes)) {
     coordToLabel.set(`${h.q},${h.r}`, label);
     if (h.wormholes?.size) {
@@ -195,12 +226,12 @@ export function calculateDistancesFrom(
       }
     }
     if (!h.matrix) continue;
-    // Symmetrize hyperlane matrices in-place so traversal is bidirectional
-    for (let i = 0; i < 6; i++) {
-      for (let j = 0; j < 6; j++) {
-        if (h.matrix[i][j]) h.matrix[j][i] = 1;
-      }
-    }
+    // Traversal needs links to work in both directions, but drawing only ever writes
+    // matrix[entry][exit]. This used to symmetrize h.matrix IN PLACE — a read-only
+    // distance query permanently rewrote the user's one-way drawn links, so pressing
+    // Shift+D silently changed what the map exported. Symmetrize into a copy this
+    // calculation owns and leave the hex untouched.
+    symMatrices.set(label, symmetrised(h.matrix));
   }
   opts.coordToLabel = coordToLabel;
   opts.wormholeIndex = wormholeIndex;
@@ -271,7 +302,7 @@ export function calculateDistancesFrom(
           nextLayer.add(nLabel);
         }
         // Hyperlane expansion
-        else if (isHyperlane(neighbor) && dirIdx != null) {
+        else if (isHyperlaneConduit(neighbor) && dirIdx != null) {
           const entryDir = (dirIdx + 3) % 6;
           dbg(` [Hyperlane] Begin expansion from ${nLabel} (entry ${entryDir})`);
           const endpoints = mapHyperlaneReachables(nLabel, entryDir);
@@ -319,7 +350,7 @@ export function calculateDistancesFrom(
           visited.set(outLabel, dist);
           nextLayer.add(outLabel);
         }
-        if (isHyperlane(outNeighbor) && outDirIdx != null) {
+        if (isHyperlaneConduit(outNeighbor) && outDirIdx != null) {
           const entryDir = (outDirIdx + 3) % 6;
           dbg(` [RIFT Hyperlane] from ${outLabel} (entry ${entryDir})`);
           const endpoints = mapHyperlaneReachables(outLabel, entryDir);
@@ -387,7 +418,10 @@ export function calculateDistancesFrom(
     while (queue.length) {
       const { label, entryDir } = queue.shift();
       const tile = editor.hexes[label];
-      if (!tile?.matrix) continue;
+      // Read the symmetrized copy built above, never tile.matrix — traversal must see
+      // links in both directions without the hex's own data being altered.
+      const matrix = symMatrices.get(label);
+      if (!tile || !matrix) continue;
       const key = `${label}:${entryDir}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -395,20 +429,20 @@ export function calculateDistancesFrom(
       // Self-loop directions at this tile
       const loopDirs = [];
       for (let d = 0; d < 6; d++) {
-        if (tile.matrix[d][d] === 1) loopDirs.push(d);
+        if (matrix[d][d] === 1) loopDirs.push(d);
       }
 
       // Find exits from this entryDir
       const exits = [];
       let hasNonLoopExit = false;
       for (let exit = 0; exit < 6; exit++) {
-        if (tile.matrix[entryDir][exit] === 1 && exit !== entryDir) {
+        if (matrix[entryDir][exit] === 1 && exit !== entryDir) {
           exits.push(exit);
           hasNonLoopExit = true;
         }
       }
       // Special case: only loopback available
-      if (!hasNonLoopExit && tile.matrix[entryDir][entryDir] === 1) exits.push(entryDir);
+      if (!hasNonLoopExit && matrix[entryDir][entryDir] === 1) exits.push(entryDir);
 
       // Chain via self-loops
       if (loopDirs.includes(entryDir)) {
@@ -427,7 +461,7 @@ export function calculateDistancesFrom(
         if (!far || !farLabel) continue;
 
         // Border anomaly check for hyperlane-to-hyperlane transitions
-        if (opts?.useBorderAnomalies && isHyperlane(far)) {
+        if (opts?.useBorderAnomalies && isHyperlaneConduit(far)) {
           const entrySide = (exit + 3) % 6;
           if (
             anomalyId(far.borderAnomalies?.[entrySide]) === 'SPATIALTEAR' ||
@@ -440,7 +474,9 @@ export function calculateDistancesFrom(
           }
         }
 
-        if (isHyperlane(far)) {
+        // Keep following the chain only through further conduits. A hex that carries links
+        // but is also a real system is a destination, not something to pass through.
+        if (isHyperlaneConduit(far)) {
           dbg(`[HL Chain] ${label} → ${farLabel} (exit ${exit})`);
           queue.push({ label: farLabel, entryDir: (exit + 3) % 6 });
         } else if (isPassable(far, opts)) {

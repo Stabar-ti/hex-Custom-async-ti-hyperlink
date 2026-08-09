@@ -388,7 +388,6 @@ export function importFullState(editor, jsonText) {
     const cornerToggle = document.getElementById('cornerToggle');
     if (cornerToggle) cornerToggle.checked = true;
     editor.generateMap();
-    editor.drawnSegments = [];
 
     // ---- 5. Assign all hexes by label order (EXACT classification order)
     const unresolvedTileIds = new Set();
@@ -914,7 +913,6 @@ export async function importMapInfo(editor, jsonData) {
     const cornerToggle = document.getElementById('cornerToggle');
     if (cornerToggle) cornerToggle.checked = true;
     editor.generateMap();
-    editor.drawnSegments = [];
 
     // Process each hex in the mapInfo
     const unresolvedTileIds = new Set();

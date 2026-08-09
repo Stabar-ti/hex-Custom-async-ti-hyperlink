@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tools/test-lore-footer.js && node tools/test-system-picker.js && node tools/test-automapper.js && node tools/test-import-warning.js",
+    "test": "node tools/test-lore-footer.js && node tools/test-system-picker.js && node tools/test-automapper.js && node tools/test-import-warning.js && node tools/test-hyperlanes.js && node tools/test-distances.js",
     "check": "npm run lint && npm test",
     "lint": "eslint src tools",
     "lint:fix": "eslint src tools --fix",
