@@ -161,5 +161,10 @@ function getNeighborHex(editor, label, side) {
     return neighborHex(editor.hexes, buildCoordIndex(editor.hexes), hex, side);
 }
 
-const getOppositeSide = oppositeSide;
+// A function declaration, not `const getOppositeSide = oppositeSide` — this sits
+// below its call sites, and a const would be in the temporal dead zone for any
+// caller that ran before module evaluation reached this line.
+function getOppositeSide(side) {
+    return oppositeSide(side);
+}
 
