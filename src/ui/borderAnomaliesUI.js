@@ -575,7 +575,12 @@ export function installBorderAnomaliesUI(editor) {
         if (!hex) return null;
         return neighborHex(hexes, buildCoordIndex(hexes), hex, side);
     }
-    const getOppositeSide = oppositeSide;
+    // A function declaration, not `const getOppositeSide = oppositeSide` — this
+    // sits below its call sites (500, 553), and a const would be in the temporal
+    // dead zone for any handler that fired before this line was reached.
+    function getOppositeSide(side) {
+        return oppositeSide(side);
+    }
 
     // Redraw after map (re)generation
     const oldGenerateMap = editor.generateMap;
