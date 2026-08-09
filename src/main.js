@@ -55,6 +55,8 @@ editor.options = {
   useNebula: true,
   useRift: true,
   useCustomLinks: true,
+  useWormholes: true,
+  useAdjacencyOverrides: true,
   useBorderAnomalies: true
 };
 editor.maxDistance = 3; // Used for BFS calculations

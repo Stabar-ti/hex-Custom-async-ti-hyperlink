@@ -21,6 +21,9 @@ import { generateRings } from '../draw/drawHexes.js';
 import { wormholeTypes } from '../constants/constants.js'; // Adjust import path if needed
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import { normalizeLoreEntries, isNonEmptyLoreEntry, loreEntryToShort, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
+// Aliased: a local `neighborLabel` string variable is destructured in
+// exportAdjacencyOverrides below, and shadowing the helper there would be a trap.
+import { buildCoordIndex, neighborLabel as neighborLabelAt, oppositeSide } from '../utils/hexGrid.js';
 
 /**
  * Cache for wormhole token mappings loaded from tokens.json
@@ -100,6 +103,7 @@ async function getWormholeTokenMap() {
  */
 export function exportMap(editor) {
   const out = [];
+  const coordIndex = buildCoordIndex(editor.hexes);
 
   for (const id in editor.hexes) {
     const hex = editor.hexes[id];
@@ -108,20 +112,16 @@ export function exportMap(editor) {
     // Clone matrix for mutation
     const matrix = hex.matrix.map(r => [...r]);
 
-    // Mirror all links to make bidirectional (symmetric)
-    editor.edgeDirections.forEach((dir, entry) => {
-      matrix[entry].forEach((val, exit) => {
-        if (val === 1) {
-          const nbrQ = hex.q + editor.edgeDirections[exit].q;
-          const nbrR = hex.r + editor.edgeDirections[exit].r;
-          const nbr = Object.values(editor.hexes).find(h => h.q === nbrQ && h.r === nbrR);
-          if (nbr) {
-            const rev = editor.edgeDirections.findIndex(d => d.q === -dir.q && d.r === -dir.r);
-            if (rev >= 0) matrix[exit][entry] = 1;
-          }
-        }
-      });
-    });
+    // Mirror all links so the exported matrix is bidirectional. A link is only
+    // mirrored when there is actually a tile across that side — a link pointing
+    // off the edge of the map has nothing to be bidirectional with.
+    for (let entry = 0; entry < 6; entry++) {
+      for (let exit = 0; exit < 6; exit++) {
+        if (matrix[entry][exit] !== 1) continue;
+        if (!neighborLabelAt(coordIndex, hex, exit)) continue;
+        matrix[exit][entry] = 1;
+      }
+    }
 
     if (!hasLinks(matrix)) continue; // Only export hexes with links
 
@@ -230,7 +230,10 @@ export function exportFullState(editor) {
     if (hex.customAdjacents && Object.keys(hex.customAdjacents).length) h.ca = JSON.parse(JSON.stringify(hex.customAdjacents));
     if (hex.adjacencyOverrides && Object.keys(hex.adjacencyOverrides).length) h.ao = JSON.parse(JSON.stringify(hex.adjacencyOverrides));
     if (hex.borderAnomalies && Object.keys(hex.borderAnomalies).length) h.ba = JSON.parse(JSON.stringify(hex.borderAnomalies));
-    if (hex.matrix && hex.matrix.flat().some(x => x !== 0)) h.ln = hex.matrix;
+    // Deep-copy: assigning hex.matrix directly made the exported object alias
+    // the live map, so anything that later touched the matrix rewrote data that
+    // had already been "exported".
+    if (hex.matrix && hex.matrix.flat().some(x => x !== 0)) h.ln = hex.matrix.map(row => [...row]);
 
     // Add system lore if it exists (array of entries; legacy single objects normalize)
     const systemEntries = normalizeLoreEntries(hex.systemLore).filter(isNonEmptyLoreEntry);
@@ -375,7 +378,7 @@ export function exportAdjacencyOverrides(editor) {
       if (!dirMap[side] || !neighborLabel) return;
       // Build a normalized unique key for this connection
       const [a, aSide, b] = [label, side, neighborLabel];
-      const [bSide] = [(side + 3) % 6];
+      const bSide = oppositeSide(side);
       // Sort labels to always use the lower label first for the key
       const key = (a < b)
         ? `${a}-${aSide}-${b}-${bSide}`
@@ -778,18 +781,8 @@ export function exportBorderAnomaliesGrouped(editor, doubleSided = true) {
 }
 
 
-// The new helper:
 function getNeighborHexLabel(hexes, label, side) {
-  const dirs = [
-    { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 1, r: 0 },
-    { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }
-  ];
   const hex = hexes[label];
   if (!hex) return null;
-  const { q, r } = hex;
-  const nq = q + dirs[side].q, nr = r + dirs[side].r;
-  for (const [neighborLabel, neighborHex] of Object.entries(hexes)) {
-    if (neighborHex.q === nq && neighborHex.r === nr) return neighborLabel;
-  }
-  return null;
+  return neighborLabelAt(buildCoordIndex(hexes), hex, side);
 }

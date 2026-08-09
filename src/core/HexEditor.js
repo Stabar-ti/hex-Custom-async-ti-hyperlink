@@ -32,7 +32,6 @@ import { applyEffectToHex, clearAllEffects, refreshEffectsOverlays } from '../fe
 // Change sector fill and type (e.g., planet, void, etc.)
 import { setSectorType } from '../features/sectorTypes.js';
 // Draw links between hexes (for hyperlanes)
-import { areNeighbors } from '../modules/Hyperlanes/hyperlaneModel.js';
 // Allow editor to create/erase hyperlane links with clicks
 import { installHyperlanes } from '../modules/Hyperlanes/hyperlaneUI.js';
 // Main hex click handling logic (sector mode/effect mode/wormhole mode)
@@ -40,7 +39,11 @@ import { registerClickHandler } from '../ui/uiEvents.js';
 // Theme support (auto-switch dark/light mode)
 import { applySavedTheme } from '../ui/uiTheme.js';
 // Calculate shortest path distances for overlays, etc.
-import { calculateDistancesFrom } from '../draw/drawDistances.js';
+import { calculateDistancesFrom, isScriptedAnomaly } from '../distance/index.js';
+import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
+import {
+  buildCoordIndex, neighborHex, oppositeSide, normalizeSide, areAxialNeighbors,
+} from '../utils/hexGrid.js';
 // Helper for unmarking real system IDs in overlays
 import { unmarkRealIDUsed, clearRealIDUsage } from '../ui/uiFilters.js';
 // RealID/overlay features (sector ID overlays, toggles, etc.)
@@ -558,10 +561,10 @@ export default class HexEditor {
 
   /**
    * Checks if two hexes are direct neighbors on the grid.
-   * Takes hex LABELS; the axial test itself lives in hyperlaneModel so there is one copy.
+   * Takes hex LABELS; the axial test itself lives in utils/hexGrid.js.
    */
   areNeighbors(a, b) {
-    return areNeighbors(this.hexes[a], this.hexes[b]);
+    return areAxialNeighbors(this.hexes[a], this.hexes[b]);
   }
 
   /**
@@ -714,53 +717,35 @@ export default class HexEditor {
     delete hex.customAdjacents;
     delete hex.adjacencyOverrides;
 
+    // One index for the whole routine, instead of a full-map scan per side.
+    const coordIndex = buildCoordIndex(this.hexes);
+
+    /** Drop the anomaly facing this hex from `neighbor`, if it is a scripted one. */
+    const clearFacingAnomaly = (neighbor, side) => {
+      const opp = oppositeSide(side);
+      if (!neighbor?.borderAnomalies) return;
+      // Compare on the normalised ID — stored types are "SPATIALTEAR" on some
+      // maps and the display name "Spatial Tear" on others.
+      if (!isScriptedAnomaly(neighbor.borderAnomalies[opp]?.type)) return;
+      delete neighbor.borderAnomalies[opp];
+      if (Object.keys(neighbor.borderAnomalies).length === 0) delete neighbor.borderAnomalies;
+    };
+
     // For border anomalies, also clear reciprocal/blocked anomalies on neighbors
     if (hex.borderAnomalies) {
       for (const [sideStr, anomaly] of Object.entries(hex.borderAnomalies)) {
-        const side = parseInt(sideStr, 10);
-        // Get the neighbor hex
-        const dirs = [
-          { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 1, r: 0 },
-          { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }
-        ];
-        const nq = hex.q + dirs[side].q;
-        const nr = hex.r + dirs[side].r;
-        const neighbor = Object.values(this.hexes).find(h => h.q === nq && h.r === nr);
-        if (!neighbor) continue;
-
-        // Remove on both ends for Spatial Tear, and for Gravity Wave if present
-        if (anomaly.type === "Spatial Tear" || anomaly.type === "Gravity Wave") {
-          const opp = (side + 3) % 6;
-          if (neighbor.borderAnomalies && neighbor.borderAnomalies[opp]) {
-            // For Spatial Tear, always remove. For Gravity Wave, only if it's present.
-            delete neighbor.borderAnomalies[opp];
-            if (Object.keys(neighbor.borderAnomalies).length === 0)
-              delete neighbor.borderAnomalies;
-          }
-        }
+        const side = normalizeSide(sideStr);   // object keys arrive as strings
+        if (!isScriptedAnomaly(anomaly?.type)) continue;
+        clearFacingAnomaly(neighborHex(this.hexes, coordIndex, hex, side), side);
       }
       // Remove all borderAnomalies from this hex
       delete hex.borderAnomalies;
     }
 
-    // Now check every neighbor to see if they have an anomaly that blocks THIS hex, but this hex doesn't have a record
-    const dirs = [
-      { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 1, r: 0 },
-      { q: 0, r: 1 }, { q: -1, r: 1 }, { q: -1, r: 0 }
-    ];
+    // Now check every neighbor to see if they have an anomaly that blocks THIS
+    // hex even though this hex has no record of it.
     for (let side = 0; side < 6; side++) {
-      const nq = hex.q + dirs[side].q;
-      const nr = hex.r + dirs[side].r;
-      const neighbor = Object.values(this.hexes).find(h => h.q === nq && h.r === nr);
-      if (!neighbor || !neighbor.borderAnomalies) continue;
-      const opp = (side + 3) % 6;
-      // If the neighbor has a Spatial Tear or Gravity Wave on the edge facing us, clear it.
-      const anomaly = neighbor.borderAnomalies[opp];
-      if (anomaly && (anomaly.type === "Spatial Tear" || anomaly.type === "Gravity Wave")) {
-        delete neighbor.borderAnomalies[opp];
-        if (Object.keys(neighbor.borderAnomalies).length === 0)
-          delete neighbor.borderAnomalies;
-      }
+      clearFacingAnomaly(neighborHex(this.hexes, coordIndex, hex, side), side);
     }
   }
 
@@ -769,9 +754,16 @@ export default class HexEditor {
 
   /**
    * Calculate shortest-path map distances for overlays.
+   *
+   * This is the browser boundary for the distance engine: it hands over the
+   * live border-anomaly registry so the per-type "bidirectional" setting from
+   * the border anomaly panel is honoured, and the engine itself stays free of
+   * any browser-dependent import.
    */
   calculateDistancesFrom(sourceLabel, maxDist) {
-    return calculateDistancesFrom(this, sourceLabel, maxDist);
+    return calculateDistancesFrom(this, sourceLabel, maxDist, {
+      anomalyTypes: getBorderAnomalyTypes(),
+    });
   }
 
   // The drawCurveLink / drawLoopCircle / drawLoopbackCurve wrappers that used to live here

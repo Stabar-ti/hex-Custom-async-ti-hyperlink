@@ -3,6 +3,7 @@
 
 import { COLORS } from '../../constants/designTokens.js';
 import { defaultSlices, applyMiltyDisplay } from './miltyBuilderCore.js';
+import { buildCoordIndex, neighborLabel } from '../../utils/hexGrid.js';
 
 // Draws red number overlays (1-12) in specified sectors
 export function drawSlicePositionOverlays(editor, show = true) {
@@ -197,22 +198,8 @@ function getHexVertices(center, radius) {
 function getNeighborHex(editor, label, side) {
     const hex = editor.hexes[label];
     if (!hex) return null;
-    const { q, r } = hex;
-    // Sides: 0=NW, 1=NE, 2=E, 3=SE, 4=SW, 5=W
-    const dirs = [
-        { q: 0, r: -1 }, // NW
-        { q: 1, r: -1 }, // NE
-        { q: 1, r: 0 },  // E
-        { q: 0, r: 1 },  // SE
-        { q: -1, r: 1 }, // SW
-        { q: -1, r: 0 }, // W
-    ];
-    const nq = q + dirs[side].q;
-    const nr = r + dirs[side].r;
-    for (const [lab, h] of Object.entries(editor.hexes)) {
-        if (h.q === nq && h.r === nr) return { ...h, label: lab };
-    }
-    return null;
+    const lab = neighborLabel(buildCoordIndex(editor.hexes), hex, side);
+    return lab ? { ...editor.hexes[lab], label: lab } : null;
 }
 
 function insetPoint(pt, center, inset) {

@@ -40,18 +40,15 @@ export { matrixToHex, hexToMatrix, hasLinks, isMatrixEmpty } from '../../utils/m
 export const SIDES = 6;
 
 /**
- * Axial offsets per edge index. A local copy rather than an import from constants.js so
- * this module stays free of app imports and keeps loading under node.
- * Must stay in step with `edgeDirections` (constants.js:25).
+ * Axial offsets per edge index.
+ *
+ * This used to be a local copy, kept separate so the module stayed free of app imports and
+ * went on loading under node. `utils/hexGrid.js` is now the one home for axial grid math
+ * and is itself dependency-free and DOM-free, so the copy is gone and the two can no longer
+ * drift apart. Re-exported here because callers of this module expect the name.
  */
-export const EDGE_DIRECTIONS = [
-    { q: 0, r: -1 },  // 0 NW
-    { q: 1, r: -1 },  // 1 NE
-    { q: 1, r: 0 },   // 2 E
-    { q: 0, r: 1 },   // 3 SE
-    { q: -1, r: 1 },  // 4 SW
-    { q: -1, r: 0 }   // 5 W
-];
+import { EDGE_DIRECTIONS } from '../../utils/hexGrid.js';
+export { EDGE_DIRECTIONS };
 
 // ── Construction ──────────────────────────────────────────────────────────────
 

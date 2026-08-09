@@ -1,4 +1,5 @@
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
+import { buildCoordIndex, neighborHex, oppositeSide } from '../utils/hexGrid.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -157,25 +158,8 @@ function getHexVertices(center, radius) {
 function getNeighborHex(editor, label, side) {
     const hex = editor.hexes[label];
     if (!hex) return null;
-    const { q, r } = hex;
-    // Sides: 0=NW, 1=NE, 2=E, 3=SE, 4=SW, 5=W
-    const dirs = [
-        { q: 0, r: -1 }, // NW
-        { q: 1, r: -1 }, // NE
-        { q: 1, r: 0 },  // E
-        { q: 0, r: 1 },  // SE
-        { q: -1, r: 1 }, // SW
-        { q: -1, r: 0 }, // W
-    ];
-    const nq = q + dirs[side].q;
-    const nr = r + dirs[side].r;
-    for (const [lab, h] of Object.entries(editor.hexes)) {
-        if (h.q === nq && h.r === nr) return h;
-    }
-    return null;
+    return neighborHex(editor.hexes, buildCoordIndex(editor.hexes), hex, side);
 }
 
-function getOppositeSide(side) {
-    return (parseInt(side, 10) + 3) % 6;
-}
+const getOppositeSide = oppositeSide;
 
