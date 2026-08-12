@@ -6,6 +6,7 @@ import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { createWormholeOverlay } from '../features/baseOverlays.js';
 import { markRealIDUsed } from '../ui/uiFilters.js';
 import { emitSystemPlaced } from '../modules/SystemPicker/pickerEvents.js';
+import { isFractureTile } from '../modules/SystemPicker/pickerModel.js';
 
 /**
  * Assigns a system object to a hex tile, updating all overlays, type, and state.
@@ -65,7 +66,9 @@ export function assignSystem(editor, sys, hexID) {
   // 6. Classify sector type for color and overlays
   let baseType;
   const planets = Array.isArray(sys.planets) ? sys.planets : [];
-  if (planets.some(p => p.legendaryAbilityName && p.legendaryAbilityText)) {
+  if (isFractureTile(sys)) {
+    baseType = 'fracture';
+  } else if (planets.some(p => p.legendaryAbilityName && p.legendaryAbilityText)) {
     baseType = 'legendary planet';
   } else if (planets.some(p => p.planetType === 'FACTION')) {
     baseType = 'homesystem';

@@ -5,7 +5,7 @@
 
 import { passesAutoMapperFilters } from '../../ui/uiFilters.js';
 import { calculateSystemValue, getFactors, getTypeGroup } from '../../features/valueOverlay.js';
-import { hasFactionHomeworld } from '../SystemPicker/pickerModel.js';
+import { hasFactionHomeworld, isFractureTile } from '../SystemPicker/pickerModel.js';
 
 // ---- Scoring weights (mirrors miltyBuilderRandomTool DEFAULT_WEIGHTS) ----
 // Open Milty Slice Designer → Weighting Settings to tune these values.
@@ -20,7 +20,7 @@ export const SCORING_WEIGHTS = {
 // ---- System classification (mirrors assignSystem.js) ----
 export function classifySystem(sys) {
     // Fracture is checked first — fracture tiles are a distinct category regardless of planet content
-    if (sys.tileBack === 'fracture') return 'fracture';
+    if (isFractureTile(sys)) return 'fracture';
     const planets = Array.isArray(sys.planets) ? sys.planets : [];
     // Faction homeworlds are tested before legendary: five systems (92, br1, br5b, et11,
     // th13) are both, and for auto-placement "never drop a homeworld on a normal hex" wins.

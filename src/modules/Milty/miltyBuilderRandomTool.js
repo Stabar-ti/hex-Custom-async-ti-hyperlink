@@ -1,3 +1,5 @@
+import { isFractureTile } from '../SystemPicker/pickerModel.js';
+
 // List of tile IDs to always exclude from possible tiles (e.g., all hyperlanes)
 const EXCLUDED_TILE_IDS = [
     // Add all known hyperlane tile IDs here (string or number as in SystemInfo.json)
@@ -452,7 +454,7 @@ function getAvailableSystems() {
         // Strict source filtering: only include if the system's source matches a selected source
         const source = getSystemSource(system);
         // Exclude fracture tiles — they are TE special tiles not suited for normal slices
-        if (system.tileBack === 'fracture') {
+        if (isFractureTile(system)) {
             if (debugMode) console.log(`Excluding system ${system.id} - fracture tile`);
             return false;
         }

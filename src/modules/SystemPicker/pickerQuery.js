@@ -15,7 +15,7 @@
 
 import {
     COLUMNS, wormholesOf, techsOf, planetTypesOf,
-    totalResources, totalInfluence, effectiveValue, anomaliesOf, sourceGroupOf
+    totalResources, totalInfluence, effectiveValue, anomaliesOf, sourceGroupOf, isFractureTile
 } from './pickerModel.js';
 
 /** Prefixes accepted in a query. Anything else before a `:` is treated as literal text. */
@@ -234,7 +234,7 @@ function sortKey(sys, column, isUsed) {
             const as = anomaliesOf(sys);
             return [as.length, sum(as, a => ANOMALY_PRIORITY[a.key] || 5)];
         }
-        case 'fracture':  return [sys.tileBack === 'fracture' ? 1 : 0];
+        case 'fracture':  return [isFractureTile(sys) ? 1 : 0];
         case 'source':    return [sourceGroupOf(sys) || '', systemHaystacks(sys).src];
         case 'used':      return [isUsed && isUsed(sys.id) ? 1 : 0];
         default:          return null;

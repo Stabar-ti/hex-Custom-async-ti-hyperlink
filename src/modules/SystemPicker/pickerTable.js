@@ -15,7 +15,7 @@ import {
     anomalyText, anomalyTitle, effectiveText, legendaryPlanet
 } from './pickerCells.js';
 import { attachPreview } from './pickerPreview.js';
-import { COLUMNS, totalResources, totalInfluence } from './pickerModel.js';
+import { COLUMNS, totalResources, totalInfluence, isFractureTile } from './pickerModel.js';
 import { highlightMatches } from './pickerQuery.js';
 import { createPanel, closeListPicker } from '../../ui/listPicker.js';
 import * as state from './pickerState.js';
@@ -250,7 +250,7 @@ function fillCell(td, key, sys, tokens, used) {
             td.classList.add('sp-anomaly');
             break;
         case 'fracture':
-            if (sys.tileBack === 'fracture') {
+            if (isFractureTile(sys)) {
                 td.textContent = '◈';
                 td.classList.add('sp-fracture');
                 td.title = 'Fracture tile';

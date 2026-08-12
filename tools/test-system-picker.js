@@ -68,7 +68,7 @@ const LEGACY_ATTR_TESTS = {
     twoPlanets:  (sys, a) => { if (!a) return true; return Array.isArray(sys.planets) && sys.planets.length === 2; },
     threePlanets:(sys, a) => { if (!a) return true; return Array.isArray(sys.planets) && sys.planets.length === 3; },
     isLegendary: (sys, a) => { if (!a) return true; return Array.isArray(sys.planets) && sys.planets.some(p => !!p.legendaryAbilityName); },
-    isFracture:  (sys, a) => { if (!a) return true; return sys.tileBack === 'fracture'; },
+    isFracture:  (sys, a) => { if (!a) return true; return sys.isFracture === true; },
     noFaction:   (sys, a) => { if (!a) return true; return Array.isArray(sys.planets) && !sys.planets.some(p => !!p.factionHomeworld); },
     showHyperlanes: (sys, active) => active ? !!sys.isHyperlane : !sys.isHyperlane,
     weirdTiles:  (sys, a) => {

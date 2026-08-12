@@ -605,7 +605,7 @@ const mkSys = (id, planetCount, extra = {}) => ({
 // and handed a fracture hex an ordinary blue tile.
 
 {
-    const noFracture = systems.filter(s => s.tileBack !== 'fracture');
+    const noFracture = systems.filter(s => !s.isFracture);
     const editor = makeEditor([{ label: '401', baseType: 'fracture' }], noFracture);
     const result = fillRemaining(editor, {});
 
@@ -624,7 +624,7 @@ const mkSys = (id, planetCount, extra = {}) => ({
     const result = fillRemaining(editor, {});
     const placed = byId.get(ids(result)[0]);
     check('fracture hex takes a fracture tile when one exists',
-        placed?.tileBack === 'fracture', `got ${placed?.id} tileBack=${placed?.tileBack}`);
+        placed?.isFracture === true, `got ${placed?.id} isFracture=${placed?.isFracture}`);
 }
 
 // Home-system hexes are restricted the same way.

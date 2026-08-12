@@ -88,7 +88,7 @@ export const ATTRIBUTES = [
     { key: 'hasAsteroids', label: 'Has Asteroids', group: 'Anomalies', test: sys => sys.isAsteroidField === true },
     { key: 'hasSupernova', label: 'Has Supernova', group: 'Anomalies', test: sys => sys.isSupernova === true },
     { key: 'hasScar',      label: 'Has Scar',      group: 'Anomalies', test: sys => sys.isScar === true },
-    { key: 'isFracture',   label: 'Fracture',      group: 'Tile',      test: sys => sys.tileBack === 'fracture' }
+    { key: 'isFracture',   label: 'Fracture',      group: 'Tile',      test: isFractureTile }
 ];
 
 export const ATTRIBUTE_BY_KEY = new Map(ATTRIBUTES.map(a => [a.key, a]));
@@ -144,6 +144,15 @@ export const TRI_VALUES = ['hide', 'only', 'any'];
 
 export function hasFactionHomeworld(sys) {
     return (sys.planets || []).some(p => !!p.factionHomeworld);
+}
+
+/**
+ * Fracture tiles are flagged via `isFracture` in the JSON. Some newer fracture tiles
+ * (e.g. ef3/ef4/ef6/ef7/ef8/ef9) carry an ordinary `tileBack` value like "red", so
+ * `tileBack === 'fracture'` is no longer a reliable check — this is the single source.
+ */
+export function isFractureTile(sys) {
+    return sys.isFracture === true;
 }
 
 /**
