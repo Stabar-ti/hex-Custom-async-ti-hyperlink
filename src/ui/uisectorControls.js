@@ -1004,6 +1004,42 @@ function finishSectorControlsContent(editor, container) {
   };
   container.appendChild(selectHexForLoreBtn);
 
+  // ── separator + section label ──
+  const separator2 = document.createElement('div');
+  separator2.style.borderTop = '1px solid #555';
+  separator2.style.margin = '10px 0 6px 0';
+  container.appendChild(separator2);
+
+  const externalLabel = document.createElement('div');
+  externalLabel.className = 'popup-section-label';
+  externalLabel.textContent = 'External setup links';
+  container.appendChild(externalLabel);
+
+  // ───────────── Deck Modification (external tool) ─────────────
+  const deckModBtn = document.createElement('button');
+  deckModBtn.id = 'openDeckModificationTool';
+  deckModBtn.className = 'mode-button';
+  deckModBtn.textContent = 'Deck modification...';
+  deckModBtn.title = 'Open the AsyncTI4 deck card tool in a new tab';
+  deckModBtn.style.width = '100%';
+  deckModBtn.style.maxWidth = '200px';
+  deckModBtn.style.minWidth = '70px';
+  deckModBtn.style.height = '38px';
+  deckModBtn.style.marginBottom = '6px';
+  deckModBtn.style.fontSize = '0.9em';
+  deckModBtn.style.padding = '8px 12px';
+  deckModBtn.style.boxSizing = 'border-box';
+  deckModBtn.style.textOverflow = 'ellipsis';
+  deckModBtn.style.whiteSpace = 'nowrap';
+  deckModBtn.style.overflow = 'hidden';
+  deckModBtn.style.flex = 'none';
+  deckModBtn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.open('https://stabar-ti.github.io/Ti-Async-Deckcard-tool/', '_blank', 'noopener');
+  };
+  container.appendChild(deckModBtn);
+
   return container;
 }
 
