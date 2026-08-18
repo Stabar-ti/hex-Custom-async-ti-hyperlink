@@ -419,6 +419,260 @@ jobs:
                 f'{len(factions)} factions, {len(colors)} colors, {len(unit_aliases)} unit codes')
           EOF
 
+      - name: Build tokenSemantics.json (effects, card text, bot-code references)
+        run: |
+          python3 - << 'EOF'
+          import json, glob, os, re
+
+          # Source: the read-only clone of AsyncTI4/TI4_map_generator_bot.
+          BOT = os.environ.get('BOT_REPO', 'temp-bot-repo')
+          OUT = os.environ.get('OUT_DIR', 'public/data')
+          RES = os.path.join(BOT, 'src/main/resources')
+          JAVA = os.path.join(BOT, 'src/main/java')
+
+          # Fields that carry gameplay meaning. Everything else (imagePath, placement,
+          # scale, aliasList, source) is presentation or provenance, so a token/attachment
+          # carrying none of these is "bare bones" as far as the synced data can tell.
+          TOKEN_SEMANTIC_KEYS = ('wormholes', 'isAnomaly', 'isRift', 'isNebula', 'isNova',
+                                 'isScar', 'isAsteroids', 'isPlanet', 'tokenPlanetName', 'attachmentID')
+          ATTACH_SEMANTIC_KEYS = ('resourcesModifier', 'influenceModifier', 'techSpeciality',
+                                  'planetTypes', 'isLegendary', 'spaceCannonHitsOn',
+                                  'spaceCannonDieCount', 'token', 'isFakeAttachment')
+
+          # Ids shorter than this collide with unrelated Java string literals ("ul", "ds"),
+          # so they are reported as not-measured rather than with a number we cannot trust.
+          MIN_SCAN_ID_LEN = 4
+
+
+          def load_all(pattern):
+              out = []
+              for path in sorted(glob.glob(os.path.join(RES, pattern))):
+                  try:
+                      data = json.load(open(path, encoding='utf-8'))
+                      out.extend(data if isinstance(data, list) else [data])
+                  except Exception as e:
+                      print(f'skipping {path}: {e}')
+              return out
+
+
+          def load_bundle(name):
+              """tokens.json / attachments.json are arrays of arrays (one per source file)."""
+              path = os.path.join(OUT, name)
+              try:
+                  data = json.load(open(path, encoding='utf-8'))
+              except Exception as e:
+                  print(f'skipping {path}: {e}')
+                  return []
+              out = []
+              for group in data:
+                  out.extend(group if isinstance(group, list) else [group])
+              return out
+
+
+          def pretty(text):
+              text = re.sub(r'^token_', '', str(text or ''))
+              words = [w for w in re.split(r'[_\s]+', text) if w]
+              return ' '.join('DMZ' if w.lower() == 'dmz' else w[:1].upper() + w[1:] for w in words)
+
+
+          def pretty_wormhole(hole):
+              """Wormhole ids are SHOUTED (ALPHA, CUSTOM_ERONOUS_WHIOTA); title-case them."""
+              text = re.sub(r'^CUSTOM_', '', str(hole or ''))
+              return ' '.join(w.capitalize() for w in re.split(r'[_\s]+', text) if w)
+
+
+          def norm_name(text):
+              return re.sub(r'[^a-z0-9]', '', str(text or '').lower())
+
+
+          def signed(n):
+              return f'+{n}' if n > 0 else str(n)
+
+
+          # ── Prose sources ────────────────────────────────────────────────────────────
+          # ExploreModel is the only model with an attachmentId, so explore cards are the
+          # authoritative join. Relics and agendas carry text but no link, so they are
+          # matched on normalised name and only used as a fallback.
+          explore_by_attachment = {}
+          for card in load_all('data/explores/*.json'):
+              att_id = card.get('attachmentId')
+              if att_id and att_id not in explore_by_attachment:
+                  explore_by_attachment[att_id] = card
+
+          prose_by_name = {}
+          for kind, pattern, id_key in (('relic', 'data/relics/*.json', 'alias'),
+                                        ('agenda', 'data/agendas/*.json', 'alias')):
+              for card in load_all(pattern):
+                  key = norm_name(card.get('name'))
+                  text = card.get('text') or card.get('text1')
+                  if key and text and key not in prose_by_name:
+                      prose_by_name[key] = (f"{kind}:{card.get(id_key) or key}", text)
+
+
+          def find_prose(entry_id, name):
+              card = explore_by_attachment.get(entry_id)
+              if card and card.get('text'):
+                  return f"explore:{card.get('id') or entry_id}", card['text'], card.get('name')
+              hit = prose_by_name.get(norm_name(name))
+              if hit:
+                  return hit[0], hit[1], None
+              return None, None, None
+
+
+          # ── Bot source scan ──────────────────────────────────────────────────────────
+          # Counts each id as an exact quoted Java string literal. This proves the id is
+          # REFERENCED in bot code; it is not proof the effect is automated. Short ids are
+          # skipped because they collide with unrelated literals.
+          def scan_java_literals():
+              hits = {}
+              literal_re = re.compile(r'"([^"\\\n]*)"')
+              for root, _dirs, files in os.walk(JAVA):
+                  for fname in sorted(files):
+                      if not fname.endswith('.java'):
+                          continue
+                      path = os.path.join(root, fname)
+                      try:
+                          body = open(path, encoding='utf-8', errors='replace').read()
+                      except Exception as e:
+                          print(f'skipping {path}: {e}')
+                          continue
+                      rel = os.path.relpath(path, JAVA).replace(os.sep, '/')
+                      for literal in literal_re.findall(body):
+                          if len(literal) < MIN_SCAN_ID_LEN:
+                              continue
+                          bucket = hits.setdefault(literal, {'count': 0, 'files': set()})
+                          bucket['count'] += 1
+                          bucket['files'].add(rel)
+              return hits
+
+
+          java_hits = scan_java_literals() if os.path.isdir(JAVA) else {}
+          if not java_hits:
+              print(f'WARNING: no Java sources scanned under {JAVA}; botCodeRefs will be null')
+
+
+          def bot_code_refs(entry_id):
+              if not java_hits or len(entry_id) < MIN_SCAN_ID_LEN:
+                  return {'count': None, 'files': []}
+              hit = java_hits.get(entry_id)
+              if not hit:
+                  return {'count': 0, 'files': []}
+              return {'count': hit['count'], 'files': sorted(hit['files'])[:5]}
+
+
+          # ── Effect derivation ────────────────────────────────────────────────────────
+          def attachment_effects(att):
+              effects = []
+              res, inf = att.get('resourcesModifier'), att.get('influenceModifier')
+              if isinstance(res, int) and res != 0:
+                  effects.append(f'{signed(res)} resources')
+              if isinstance(inf, int) and inf != 0:
+                  effects.append(f'{signed(inf)} influence')
+              if att.get('techSpeciality'):
+                  effects.append('Tech: ' + ', '.join(att['techSpeciality']))
+              if att.get('planetTypes'):
+                  effects.append('Planet type: ' + ', '.join(att['planetTypes']))
+              if att.get('isLegendary'):
+                  effects.append('Legendary')
+              if att.get('spaceCannonHitsOn'):
+                  dice = att.get('spaceCannonDieCount') or 1
+                  effects.append(f"Space cannon {att['spaceCannonHitsOn']}" + (f' (x{dice})' if dice > 1 else ''))
+              if att.get('token'):
+                  effects.append(f"Places token {att['token']}")
+              if att.get('isFakeAttachment'):
+                  effects.append('Fake attachment')
+              return effects
+
+
+          def token_effects(tok):
+              effects = []
+              for hole in tok.get('wormholes') or []:
+                  effects.append(f'{pretty_wormhole(hole)} wormhole')
+              if tok.get('isAnomaly'):
+                  effects.append('Anomaly')
+              if tok.get('isRift'):
+                  effects.append('Gravity rift')
+              if tok.get('isNebula'):
+                  effects.append('Nebula')
+              if tok.get('isNova'):
+                  effects.append('Supernova')
+              if tok.get('isScar'):
+                  effects.append('Scar')
+              if tok.get('isAsteroids'):
+                  effects.append('Asteroid field')
+              if tok.get('tokenPlanetName'):
+                  effects.append(f"Creates planet: {tok['tokenPlanetName']}")
+              elif tok.get('isPlanet'):
+                  effects.append('Adds a planet')
+              if tok.get('attachmentID'):
+                  effects.append(f"Attaches {tok['attachmentID']}")
+              return effects
+
+
+          # ── Build ────────────────────────────────────────────────────────────────────
+          attachments_out, attachment_names = {}, {}
+          for att in load_bundle('attachments.json'):
+              att_id = att.get('id')
+              if not att_id or att_id in attachments_out:
+                  continue
+              text_source, text, card_name = find_prose(att_id, att.get('name'))
+              display = card_name or att.get('name') or pretty(att_id)
+              attachment_names[att_id] = display
+              attachments_out[att_id] = {
+                  'displayName': display,
+                  'kind': 'attachment',
+                  'source': att.get('source', ''),
+                  'effects': attachment_effects(att),
+                  'text': text,
+                  'textSource': text_source,
+                  'botCodeRefs': bot_code_refs(att_id),
+                  'hasData': any(k in att for k in ATTACH_SEMANTIC_KEYS),
+              }
+
+          tokens_out = {}
+          for tok in load_bundle('tokens.json'):
+              tok_id = tok.get('id')
+              if not tok_id or tok_id in tokens_out:
+                  continue
+              linked = tok.get('attachmentID')
+              text_source, text, card_name = find_prose(linked or tok_id, None)
+              if linked and linked in attachment_names:
+                  display = attachment_names[linked]
+              elif card_name:
+                  display = card_name
+              elif tok.get('tokenPlanetName'):
+                  display = pretty(tok['tokenPlanetName'])
+              elif tok.get('wormholes'):
+                  display = pretty_wormhole(tok['wormholes'][0]) + ' Wormhole'
+              else:
+                  display = pretty(tok_id)
+              tokens_out[tok_id] = {
+                  'displayName': display,
+                  'kind': 'token',
+                  'source': tok.get('source', ''),
+                  'spaceOrPlanet': tok.get('spaceOrPlanet', ''),
+                  'effects': token_effects(tok),
+                  'text': text,
+                  'textSource': text_source,
+                  'botCodeRefs': bot_code_refs(tok_id),
+                  'hasData': any(k in tok for k in TOKEN_SEMANTIC_KEYS),
+              }
+
+          bundle = {
+              'tokens': {k: tokens_out[k] for k in sorted(tokens_out)},
+              'attachments': {k: attachments_out[k] for k in sorted(attachments_out)},
+          }
+          os.makedirs(OUT, exist_ok=True)
+          with open(os.path.join(OUT, 'tokenSemantics.json'), 'w', encoding='utf-8') as out:
+              json.dump(bundle, out, separators=(',', ':'), ensure_ascii=False)
+
+          scanned = sum(1 for e in list(tokens_out.values()) + list(attachments_out.values())
+                        if (e['botCodeRefs']['count'] or 0) > 0)
+          prose = sum(1 for e in list(tokens_out.values()) + list(attachments_out.values()) if e['text'])
+          print(f'tokenSemantics.json: {len(tokens_out)} tokens, {len(attachments_out)} attachments, '
+                f'{prose} with card text, {scanned} referenced in bot code')
+          EOF
+
       - name: Commit & push changes
         run: |
           git add public/data/systems \
@@ -431,12 +685,13 @@ jobs:
                   public/data/border.json \
                   public/data/hyperlanes.json \
                   public/data/loreData.json \
+                  public/data/tokenSemantics.json \
                   public/data/hyperlanes.properties \
                   public/data/tokens.properties \
                   public/data/tiles \
                   public/attachment_token \
                   public/tokens
-          git commit -m "🤖 Sync AsyncTI4 data + build SystemInfo.json, tokens.json, attachments.json, border.json, hyperlanes.json + token images" \
+          git commit -m "🤖 Sync AsyncTI4 data + build SystemInfo.json, tokens.json, attachments.json, border.json, hyperlanes.json, tokenSemantics.json + token images" \
                      || echo "No changes to commit"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git \
                    HEAD:${{ github.ref_name }}

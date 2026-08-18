@@ -5,11 +5,35 @@
 
 import { categorizeTokens, findTokenById } from './tokenCategories.js';
 
+// tokenSemantics.json is built by .github/workflows/sync-asyncti4.yml. It is optional:
+// a checkout from before that step existed (or a fork that has never run the sync) simply
+// has no file, and the picker then falls back to ids with no hints. Never let it throw.
+const EMPTY_SEMANTICS = { tokens: {}, attachments: {} };
+
+/**
+ * Fields the semantics bundle contributes to a token/attachment record.
+ * Kept in one place so tokens and attachments are enriched identically.
+ */
+function enrich(entry, semantics) {
+    const info = semantics?.[entry.id];
+    if (!info) return entry;
+    return {
+        ...entry,
+        displayName: info.displayName,
+        effects: info.effects || [],
+        effectText: info.text || null,
+        effectTextSource: info.textSource || null,
+        botCodeRefs: info.botCodeRefs || null,
+        hasData: info.hasData === true
+    };
+}
+
 export class TokenManager {
     constructor(editor) {
         this.editor = editor;
         this.tokenData = null;           // Raw token data from tokens.json
         this.attachmentData = null;      // Raw attachment data from attachments.json
+        this.semantics = EMPTY_SEMANTICS; // Effects/card text/bot-code refs from tokenSemantics.json
         this.categorizedTokens = null;   // Categorized and filtered tokens (includes attachments)
         this.initialized = false;
     }
@@ -27,26 +51,40 @@ export class TokenManager {
             console.log('Loading tokens.json and attachments.json...');
             
             // Load both tokens and attachments in parallel
-            const [tokensResponse, attachmentsResponse] = await Promise.all([
+            const [tokensResponse, attachmentsResponse, semanticsResponse] = await Promise.all([
                 fetch('./public/data/tokens.json'),
-                fetch('./public/data/attachments.json')
+                fetch('./public/data/attachments.json'),
+                fetch('./public/data/tokenSemantics.json').catch(() => null)
             ]);
-            
+
             if (!tokensResponse.ok) {
                 throw new Error(`Failed to load tokens.json: ${tokensResponse.status}`);
             }
             if (!attachmentsResponse.ok) {
                 throw new Error(`Failed to load attachments.json: ${attachmentsResponse.status}`);
             }
-            
+
             this.tokenData = await tokensResponse.json();
             this.attachmentData = await attachmentsResponse.json();
-            
+
+            // Optional bundle - the picker degrades to plain ids when it is absent.
+            this.semantics = EMPTY_SEMANTICS;
+            if (semanticsResponse?.ok) {
+                try {
+                    const parsed = await semanticsResponse.json();
+                    this.semantics = { tokens: parsed.tokens || {}, attachments: parsed.attachments || {} };
+                } catch (e) {
+                    console.warn('tokenSemantics.json is unreadable, continuing without it:', e);
+                }
+            } else {
+                console.warn('tokenSemantics.json not found - token hints and tooltips will be limited');
+            }
+
             console.log('Tokens loaded:', this.tokenData.flat().length, 'total tokens');
             console.log('Attachments loaded:', this.attachmentData.flat().length, 'total attachments');
-            
+
             // Mark attachments as planet-only and add properties
-            const processedAttachments = this.attachmentData.flat().map(att => ({
+            const processedAttachments = this.attachmentData.flat().map(att => enrich({
                 ...att,
                 isPlanet: true,
                 isAttachment: true,
@@ -55,12 +93,13 @@ export class TokenManager {
                 modifiesResources: att.resourcesModifier !== undefined,
                 modifiesInfluence: att.influenceModifier !== undefined,
                 addsTechSpeciality: att.techSpeciality !== undefined,
-                isLegendary: att.isLegendary === true,
-                modifiesPlanetType: att.planetType !== undefined
-            }));
-            
+                isLegendary: att.isLegendary === true
+            }, this.semantics.attachments));
+
+            const processedTokens = this.tokenData.flat().map(tok => enrich(tok, this.semantics.tokens));
+
             // Merge tokens and attachments for categorization
-            const mergedData = [...this.tokenData, processedAttachments];
+            const mergedData = [processedTokens, processedAttachments];
             
             // Categorize tokens (excluding wormholes)
             this.categorizedTokens = categorizeTokens(mergedData);
@@ -277,11 +316,65 @@ export class TokenManager {
     }
 
     /**
+     * Semantics for a token or attachment id, or null when the bundle is missing.
+     */
+    getTokenSemantics(tokenId) {
+        return this.semantics?.tokens?.[tokenId] || this.semantics?.attachments?.[tokenId] || null;
+    }
+
+    /**
      * Get categorized tokens for UI display
      */
     getCategorizedTokens() {
         return this.categorizedTokens;
     }
+}
+
+/**
+ * The one tooltip formatter, shared by the picker cards (tokenUI.js) and the placed-token
+ * overlay (tokenOverlay.js) so the two never drift apart.
+ *
+ * @param {object|null} tokenInfo  merged token/attachment record (already enriched)
+ * @param {string} tokenId         fallback when tokenInfo is missing
+ * @param {object} [opts]          { type: 'system'|'planet'|..., planetName }
+ */
+export function buildTokenTooltip(tokenInfo, tokenId, opts = {}) {
+    const { type, planetName } = opts;
+    const lines = [];
+
+    let heading = tokenInfo?.displayName || tokenInfo?.name || tokenId;
+    if (type) heading += ` (${type})`;
+    if (planetName) heading += ` - ${planetName}`;
+    lines.push(heading);
+
+    if (!tokenInfo) return lines.join('\n');
+
+    lines.push(`Source: ${tokenInfo.source || 'unknown'}`);
+
+    const effects = tokenInfo.effects || [];
+    if (effects.length) {
+        lines.push('---');
+        effects.forEach(effect => lines.push(`• ${effect}`));
+    }
+
+    if (tokenInfo.effectText) {
+        lines.push('---');
+        lines.push(tokenInfo.effectText);
+    }
+
+    // Deliberately worded as "referenced", not "automated": the build step counts the id
+    // as a quoted Java string literal in the bot source, which cannot prove automation.
+    const refs = tokenInfo.botCodeRefs;
+    if (refs && typeof refs.count === 'number') {
+        lines.push('---');
+        lines.push(refs.count > 0
+            ? `⚙ Referenced in bot code (${refs.count} place${refs.count === 1 ? '' : 's'})`
+            : (tokenInfo.hasData
+                ? '○ Not referenced by id in bot code'
+                : '○ No effect data - likely cosmetic only'));
+    }
+
+    return lines.join('\n');
 }
 
 // Export convenience function
