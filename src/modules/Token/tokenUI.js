@@ -4,6 +4,7 @@
 
 import { showPopup, hidePopup } from '../../ui/popupUI.js';
 import { getCategories } from './tokenCategories.js';
+import { buildTokenTooltip } from './tokenCore.js';
 
 let tokenManager = null;
 let currentHexLabel = null;
@@ -482,7 +483,10 @@ function createTokenCard(token) {
         transition: all 0.2s;
         text-align: center;
     `;
-    
+
+    // Full description on hover, shared with the map overlay via buildTokenTooltip
+    card.title = buildTokenTooltip(token, token.id, { type: token.isAttachment ? 'attachment' : 'token' });
+
     // Token image
     const img = document.createElement('img');
     // Use correct folder based on whether it's an attachment or token
@@ -498,20 +502,27 @@ function createTokenCard(token) {
         object-fit: contain;
         margin-bottom: 4px;
     `;
+    // Dedicated placeholder element: writing to card.innerHTML here would re-parse the
+    // card and silently drop the click handler, making the token unplaceable.
+    const imgFallback = document.createElement('div');
+    imgFallback.style.cssText = `font-size: 2.5em; line-height: 60px; margin-bottom: 4px;`;
+    imgFallback.hidden = true;
     img.onerror = () => {
         img.style.display = 'none';
-        card.innerHTML += '🎲';
+        imgFallback.hidden = false;
+        imgFallback.textContent = '🎲';
     };
-    
-    // Token ID
+
+    // Token name - displayName comes from tokenSemantics.json; without it, tokens
+    // (which carry no name field at all) would fall back to their raw ids.
     const label = document.createElement('div');
-    label.textContent = token.name || token.id;
+    label.textContent = token.displayName || token.name || token.id;
     label.style.cssText = `
         color: #fff;
         font-size: 0.75em;
         word-break: break-word;
     `;
-    
+
     // Placement type indicator with attachment info
     const typeIndicator = document.createElement('div');
     typeIndicator.style.cssText = `
@@ -538,11 +549,33 @@ function createTokenCard(token) {
     } else if (token.spaceOrPlanet === 'space') {
         typeIndicator.textContent = '🚀 Space';
     }
-    
+
+    // Bot-code marker. Worded as "referenced" everywhere: the build step counts the id as
+    // a quoted Java string literal, which is evidence of a reference, not of automation.
+    const refs = token.botCodeRefs;
+    if (refs && typeof refs.count === 'number') {
+        typeIndicator.textContent += refs.count > 0 ? ' ⚙' : ' ○';
+    }
+
     card.appendChild(img);
+    card.appendChild(imgFallback);
     card.appendChild(label);
     card.appendChild(typeIndicator);
-    
+
+    // Compact effect summary; omitted entirely when there is nothing to say
+    const effects = token.effects || [];
+    if (effects.length) {
+        const hint = document.createElement('div');
+        hint.textContent = effects.slice(0, 3).join(' · ');
+        hint.style.cssText = `
+            color: #7f8c8d;
+            font-size: 0.65em;
+            margin-top: 2px;
+            word-break: break-word;
+        `;
+        card.appendChild(hint);
+    }
+
     // Hover effects
     card.onmouseover = () => {
         card.style.backgroundColor = '#4a6fa5';
@@ -745,12 +778,12 @@ function createPlacedTokenItem(tokenId, type, planetIndex, planetName) {
     
     const label = document.createElement('span');
     label.style.color = '#fff';
-    if (type === 'planet') {
-        label.textContent = `${tokenId} (${planetName})`;
-    } else {
-        label.textContent = tokenId;
-    }
-    
+    const info = tokenManager.getTokenInfo(tokenId);
+    const name = info?.displayName || info?.name || tokenId;
+    label.textContent = type === 'planet' ? `${name} (${planetName})` : name;
+    // The raw id stays reachable on hover - it is what removal and export key off.
+    label.title = buildTokenTooltip(info, tokenId, { type, planetName });
+
     const removeBtn = document.createElement('button');
     removeBtn.textContent = 'Remove';
     removeBtn.style.cssText = `

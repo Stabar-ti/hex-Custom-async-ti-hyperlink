@@ -4,6 +4,7 @@
  */
 
 import { enforceSvgLayerOrder } from '../../draw/enforceSvgLayerOrder.js';
+import { buildTokenTooltip } from './tokenCore.js';
 
 // Planet positions mirror drawPlanetTypeLayer in realIDsOverlays.js:
 // angles [-90, 0, 180] (top, right, left), distance (r-17) from center, circle r=10
@@ -209,7 +210,10 @@ export class TokenOverlay {
         group.appendChild(text);
 
         const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-        const names = tokens.map(id => this.tokenManager?.getTokenInfo(id)?.name || id);
+        const names = tokens.map(id => {
+            const info = this.tokenManager?.getTokenInfo(id);
+            return info?.displayName || info?.name || id;
+        });
         title.textContent = (planetName ? `${planetName}:\n` : 'System tokens:\n') + names.join('\n');
         group.appendChild(title);
 
@@ -372,22 +376,9 @@ export class TokenOverlay {
             });
         }
 
-        // Tooltip
+        // Tooltip - shared with the picker cards so the two descriptions never drift
         const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-        let tooltipText = tokenInfo?.name || tokenId;
-        tooltipText += ` (${type})`;
-        if (planetName) tooltipText += ` - ${planetName}`;
-        if (tokenInfo) {
-            tooltipText += `\nSource: ${tokenInfo.source || 'unknown'}`;
-            if (tokenInfo.isAttachment) {
-                tooltipText += '\n---';
-                if (tokenInfo.isLegendary) tooltipText += '\n⭐ LEGENDARY';
-                if (tokenInfo.addsTechSpeciality) tooltipText += `\n🔬 Tech: ${tokenInfo.techSpeciality.join(', ')}`;
-                if (tokenInfo.modifiesResources) tooltipText += `\n⚙️ Resources: ${tokenInfo.resourcesModifier > 0 ? '+' : ''}${tokenInfo.resourcesModifier}`;
-                if (tokenInfo.modifiesInfluence) tooltipText += `\n🏛️ Influence: ${tokenInfo.influenceModifier > 0 ? '+' : ''}${tokenInfo.influenceModifier}`;
-            }
-        }
-        title.textContent = tooltipText;
+        title.textContent = buildTokenTooltip(tokenInfo, tokenId, { type, planetName });
         group.appendChild(title);
 
         group.style.cursor = 'pointer';

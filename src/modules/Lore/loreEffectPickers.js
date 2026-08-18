@@ -294,7 +294,14 @@ export async function openTokenPicker(anchorEl, scope = 'space') {
             const icon = t.imagePath
                 ? (t.isAttachment ? `./public/attachment_token/${t.imagePath}` : `./public/tokens/${t.imagePath}`)
                 : null;
-            items.push({ value: t.id, label: t.id, icon });
+            // The picker's search also matches `value`, so showing a readable name here
+            // does not cost the ability to type a raw token id.
+            items.push({
+                value: t.id,
+                label: t.displayName || t.name || t.id,
+                icon,
+                hint: (t.effects || []).slice(0, 2).join(' · ')
+            });
         });
     });
     items.sort((a, b) => a.label.localeCompare(b.label));
