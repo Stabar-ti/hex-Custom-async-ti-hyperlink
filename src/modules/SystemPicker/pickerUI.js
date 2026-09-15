@@ -22,6 +22,7 @@ import { destroyPreview } from './pickerPreview.js';
 import { tileImage } from './pickerCells.js';
 import { showRandomTilePopup } from './pickerRandom.js';
 import { showPickerHelp } from './pickerHelp.js';
+import { exportSystemsCsv } from './pickerExport.js';
 import * as state from './pickerState.js';
 import * as chips from './pickerChips.js';
 import * as grid from './pickerGrid.js';
@@ -344,6 +345,18 @@ export function showSystemPicker() {
     emptyState.className = 'sp-empty';
     emptyState.hidden = true;
     content.appendChild(emptyState);
+
+    const footer = document.createElement('div');
+    footer.className = 'sp-footer-row';
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button';
+    exportBtn.className = 'sp-linkbtn';
+    exportBtn.textContent = 'Export CSV';
+    exportBtn.title = 'Export the current filtered results and visible columns as CSV';
+    exportBtn.addEventListener('click', () =>
+        exportSystemsCsv(getResult().results, table.visibleColumns(), isUsed));
+    footer.appendChild(exportBtn);
+    content.appendChild(footer);
 
     open = true;
     mountedView = null;

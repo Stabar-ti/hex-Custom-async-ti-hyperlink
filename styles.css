@@ -2230,6 +2230,26 @@ body.lore-picking #hexMap {
   font-size: var(--sp-font);
 }
 
+/* .popup-ui-titlebar and .sp-panel are both plain block children of #system-picker-popup,
+   each independently sized (titlebar to its own content, sp-panel to height:100% of the
+   popup). Stacked in normal flow that's taller than the popup itself, by exactly the
+   titlebar's height — the popup has always shown a spurious outer scrollbar because of it.
+   Making the popup a column flex container lets the flex algorithm shrink sp-panel by that
+   same amount instead of letting the two boxes double-claim the popup's height. */
+#system-picker-popup {
+  display: flex;
+  flex-direction: column;
+}
+
+#system-picker-popup>.popup-ui-titlebar {
+  flex: 0 0 auto;
+}
+
+#system-picker-popup>.sp-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .sp-search-row {
   display: flex;
   align-items: center;
@@ -2356,6 +2376,12 @@ body.lore-picking #hexMap {
 
 .sp-recent-row {
   padding-bottom: 2px;
+}
+
+.sp-footer-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
 }
 
 .sp-recent {

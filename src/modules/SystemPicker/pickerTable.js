@@ -42,7 +42,7 @@ export function destroy() {
     root = null; ctx = null; rows = []; activeIndex = -1;
 }
 
-function visibleColumns() {
+export function visibleColumns() {
     const vis = state.getColumns();
     return COLUMNS.filter(c => vis[c.key] !== false);
 }
