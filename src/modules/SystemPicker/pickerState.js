@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * What the picker is currently showing, and what tile is armed for placement.
  *
@@ -31,6 +32,31 @@ export const TEXT_SCALE_MIN = 0.8;
 export const TEXT_SCALE_MAX = 1.6;
 export const TEXT_SCALE_STEP = 0.1;
 
+/**
+ * A tile armed for placement. Lives here rather than on the editor because it is a
+ * property of this browsing session, not of the map.
+ *
+ * @typedef {object} ArmedTile
+ * @property {string} id
+ * @property {string} name
+ * @property {object} system
+ * @property {string} mode
+ * @property {number|null} remaining - placements left, or null for unlimited
+ */
+
+/**
+ * @typedef {object} PickerState
+ * @property {import("./pickerModel.js").PickerFilter} filter
+ * @property {string} query
+ * @property {{column: string|null, direction: "asc"|"desc"|null}} sort
+ * @property {"grid"|"table"} view
+ * @property {Record<string, boolean>} columns
+ * @property {number} textScale
+ * @property {ArmedTile|null} armed
+ * @property {string[]} recent
+ */
+
+/** @type {PickerState} */
 const state = {
     filter: defaultFilter(),
     query: '',
@@ -160,6 +186,7 @@ export function toggleSource(key) {
 }
 
 export function setSourcesAll(on) {
+    /** @type {Record<string, boolean>} */
     const sources = {};
     for (const key of Object.keys(state.filter.sources)) sources[key] = !!on;
     state.filter = { ...state.filter, sources };
@@ -324,7 +351,7 @@ export function consumeArmed() {
 
     if (armed.mode === 'keep') { notifyOnly(); return true; }
     if (armed.mode === 'count') {
-        const remaining = armed.remaining - 1;
+        const remaining = (armed.remaining ?? 0) - 1;
         if (remaining > 0) {
             state.armed = { ...armed, remaining };
             notifyOnly();

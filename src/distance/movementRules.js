@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Movement blockers and tile-occupancy rules.
  *

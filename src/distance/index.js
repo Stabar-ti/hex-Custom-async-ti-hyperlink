@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Map distance calculation.
  *

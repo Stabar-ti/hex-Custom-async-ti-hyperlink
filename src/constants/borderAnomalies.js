@@ -1,3 +1,4 @@
+// @ts-check
 // Border anomalies configuration
 let borderAnomalyTypes = null;
 

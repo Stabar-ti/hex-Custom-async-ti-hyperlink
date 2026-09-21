@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * A per-query, read-only snapshot of the map.
  *

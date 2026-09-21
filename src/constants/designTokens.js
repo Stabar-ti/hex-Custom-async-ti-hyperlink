@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Design tokens — single source of truth for colours used in JavaScript.
  *

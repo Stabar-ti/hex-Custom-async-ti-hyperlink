@@ -1,3 +1,4 @@
+// @ts-check
 // also double check realIDsOverlay
 export const overlayDefaults = {
     showPlanetTypes: true,

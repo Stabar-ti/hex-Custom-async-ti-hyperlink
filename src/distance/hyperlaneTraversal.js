@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Walking hyperlane conduits.
  *
@@ -29,7 +30,7 @@ export function mapHyperlaneReachables(ctx, startLabel, startEntryDir) {
   const queue = [{ label: startLabel, entryDir: startEntryDir }];
 
   while (queue.length) {
-    const { label, entryDir } = queue.shift();
+    const { label, entryDir } = /** @type {{label: string, entryDir: number}} */ (queue.shift());
     const tile = editor.hexes[label];
     const matrix = index.matrixOf(label);
     // A conduit has to sit on the grid for "the tile across side N" to mean
@@ -102,10 +103,15 @@ export function mapHyperlaneReachables(ctx, startLabel, startEntryDir) {
  * Crossing conduits is free, so the endpoints get the SAME distance as the hex
  * that entered the chain rather than one more.
  *
- * @param {object} state    - `{ visited }`, mutated in place
- * @param {Function} onRift - called with a destination that is a gravity rift,
- *                            instead of visiting it directly; the two callers
- *                            handle rifts differently.
+ * @param {object} state  - `{ visited }`, mutated in place
+ * @param {object} opts   - the chain to walk, and where to put what it finds
+ * @param {string} opts.entryLabel - conduit the chain is entered at
+ * @param {number} opts.entryDir   - side of that conduit the ship enters through
+ * @param {number} opts.dist       - distance recorded on every endpoint found
+ * @param {Array}  opts.nextLayer  - BFS frontier the endpoints are appended to
+ * @param {Function} opts.onRift   - called with a destination that is a gravity rift,
+ *                                   instead of visiting it directly; the two callers
+ *                                   handle rifts differently.
  */
 export function expandHyperlaneEndpoints(ctx, state, { entryLabel, entryDir, dist, nextLayer, onRift }) {
   const { editor, opts } = ctx;

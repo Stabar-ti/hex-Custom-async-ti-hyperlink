@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Border anomaly semantics for pathfinding.
  *

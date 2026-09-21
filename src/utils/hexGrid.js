@@ -1,3 +1,4 @@
+// @ts-check
 // ─────────────────────────────────────────────────────────────────────────────
 // hexGrid.js — the single home for axial hex-grid math.
 //

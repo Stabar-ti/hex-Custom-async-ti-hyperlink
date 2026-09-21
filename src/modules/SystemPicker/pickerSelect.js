@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The one place the app answers "which tiles are selectable right now".
  *
@@ -91,6 +92,7 @@ export function selectSystems(systems, view = {}, opts = {}) {
     const all = Array.isArray(systems) ? systems : [];
     const filter = view.filter || defaultFilter();
     const parsed = parseQuery(view.query || '');
+    /** @type {{column?: string, direction?: string}} */
     const sort = view.sort || {};
 
     const filtered = all.filter(sys => passesFilter(sys, filter, opts));
