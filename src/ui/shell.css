@@ -266,6 +266,148 @@ body {
   background: var(--surface-4);
 }
 
+/* ── Tile colours in the rail ─────────────────────────────────────────────────
+
+   The rail inherited its tile colours from the .btn-* classes the popups use: a
+   full-bleed fill per type, in a dozen unrelated hues, plus gold for System Tiles.
+   Against a shell that is otherwise black and grey that reads as a paint palette,
+   and the loudest button in it was the one that opens a picker.
+
+   TI4 codes its tiles on the back — blue for systems, red for anomalies, green for
+   home systems — so the rail uses those three and nothing else. Every button keeps
+   the neutral surface the rest of the tools have and carries its family as a stripe
+   down the left edge, with the icon in the same colour; lightness inside a family
+   separates its members. The stripe survives collapsing the rail, so the colour
+   coding still reads when the labels are gone.
+
+   Two of them are not one flat colour: hyperlanes are blue with white striping on
+   the tile, and the wormhole button covers fourteen types at once, so its stripe
+   runs through the type colours themselves.
+
+   --rail-accent is the solid colour (icon, and the stripe unless overridden).
+   --rail-stripe overrides the stripe with an image.
+   ────────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Systems — blue. Light to dark by planet count. */
+  --tile-blue-1: #8fbde8;
+  --tile-blue-2: #5e93cc;
+  --tile-blue-3: #3d6da8;
+  --tile-blue-empty: #4b6d8c;
+
+  /* Anomalies — red, warm through to dark. */
+  --tile-red-asteroid: #c08f80;
+  --tile-red-nebula: #b2645f;
+  --tile-red-supernova: #d1714c;
+  --tile-red-rift: #8b423c;
+  --tile-red-scar: #a15448;
+
+  /* Home systems — green. */
+  --tile-green: #55a05c;
+
+  /* Neither a system nor an anomaly: no place in the three-colour language. */
+  --tile-grey: #6f6f6f;
+  --tile-violet: #8f7bb8;
+  --tile-gold: #d9ae4f;
+}
+
+#toolRail .ui-rail-btn {
+  background-color: var(--surface-3) !important;
+  background-image: var(--rail-stripe, linear-gradient(var(--rail-accent, transparent), var(--rail-accent, transparent))) !important;
+  background-repeat: no-repeat;
+  background-size: 3px calc(100% - 8px);
+  background-position: left center;
+  border: 1px solid var(--surface-4) !important;
+  color: var(--text-color) !important;
+  padding-left: 11px;
+  /* .mode-button bolds on hover, which shifts every label in the rail. */
+  font-weight: 500;
+}
+
+#toolRail .ui-rail-btn:hover {
+  background-color: #343434 !important;
+  font-weight: 500;
+}
+
+/* .mode-button.active sets its own background, so the armed state has to be restated
+   here or it would paint over the family stripe. */
+#toolRail .ui-rail-btn.active {
+  background-color: #3c3c3c !important;
+  background-size: 4px calc(100% - 4px);
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-accent-outline-dark);
+  color: var(--text-color) !important;
+  font-weight: 600;
+}
+
+/* The same variable, with a different fallback: a button with no family keeps the icon
+   colour every other control has. */
+#toolRail .ui-rail-btn .ui-rail-btn__icon {
+  color: var(--rail-accent, currentColor);
+  opacity: 1;
+}
+
+/* Systems */
+#toolRail .ui-rail-btn.btn-1 { --rail-accent: var(--tile-blue-1); }
+#toolRail .ui-rail-btn.btn-2 { --rail-accent: var(--tile-blue-2); }
+#toolRail .ui-rail-btn.btn-3 { --rail-accent: var(--tile-blue-3); }
+#toolRail .ui-rail-btn.btn-empty { --rail-accent: var(--tile-blue-empty); }
+
+/* Legendary planets sit on an ordinary blue tile; the gold is on the star. */
+#toolRail .ui-rail-btn.btn-legendary { --rail-accent: var(--tile-blue-2); }
+#toolRail .ui-rail-btn.btn-legendary .ui-rail-btn__icon { color: var(--tile-gold); }
+
+/* Anomalies */
+#toolRail .ui-rail-btn.btn-asteroid { --rail-accent: var(--tile-red-asteroid); }
+#toolRail .ui-rail-btn.btn-nebula { --rail-accent: var(--tile-red-nebula); }
+#toolRail .ui-rail-btn.btn-supernova { --rail-accent: var(--tile-red-supernova); }
+#toolRail .ui-rail-btn.btn-rift { --rail-accent: var(--tile-red-rift); }
+#toolRail .ui-rail-btn.btn-scar { --rail-accent: var(--tile-red-scar); }
+
+/* Home systems */
+#toolRail .ui-rail-btn.btn-homesystem { --rail-accent: var(--tile-green); }
+
+/* Neither */
+#toolRail .ui-rail-btn.btn-void { --rail-accent: var(--tile-grey); }
+#toolRail .ui-rail-btn.btn-special,
+#toolRail .ui-rail-btn.btn-fracture { --rail-accent: var(--tile-violet); }
+
+/* The two fold headers take their family's colour, so a folded group still says
+   which one it is. */
+#toolRail .ui-rail-btn--group.is-planets { --rail-accent: var(--tile-blue-2); }
+#toolRail .ui-rail-btn--group.is-anomalies { --rail-accent: var(--tile-red-nebula); }
+
+/* The picker covers every tile in the game, so its stripe is all three backs. */
+#toolRail .ui-rail-btn.btn-lookup-id {
+  --rail-accent: var(--tile-blue-2);
+  --rail-stripe: linear-gradient(180deg,
+      var(--tile-blue-2) 0 34%,
+      var(--tile-red-nebula) 34% 67%,
+      var(--tile-green) 67%);
+  border-radius: var(--ui-radius) !important;
+  padding: 5px 8px 5px 11px !important;
+}
+
+/* Hyperlane tiles are blue with white striping across them. */
+#toolRail .ui-rail-btn.btn-hyperlane {
+  --rail-accent: #6aa6de;
+  --rail-stripe: repeating-linear-gradient(135deg,
+      #3f7fc4 0 4px,
+      #e4eefa 4px 7px);
+}
+
+/* Fourteen wormhole types behind one button, so the stripe carries their colours
+   rather than picking one. */
+#toolRail .ui-rail-btn.btn-wormhole-all {
+  --rail-accent: #b98ad6;
+  --rail-stripe: linear-gradient(180deg,
+      orange 0 20%,
+      green 20% 40%,
+      #d46a9f 40% 60%,
+      #4a7fd0 60% 80%,
+      #8a4fa8 80%);
+}
+
 .rail-collapse-btn {
   margin-top: auto;
   align-self: stretch;

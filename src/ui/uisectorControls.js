@@ -143,11 +143,14 @@ function writePaintGroup(key, open) {
  *
  * @param {HTMLElement} container
  * @param {any} editor
- * @param {{key: string, icon: string, label: string, title: string,
+ * @param {{key: string, icon: string, label: string, title: string, headerClass?: string,
  *          items: Array<{mode: string, label: string, cls: string, icon: string}>}} group
  */
-function addPaintGroup(container, editor, { key, icon, label, title, items }) {
-  const header = railButton({ icon, text: label, title, className: 'ui-rail-btn--group' });
+function addPaintGroup(container, editor, { key, icon, label, title, headerClass = '', items }) {
+  const header = railButton({
+    icon, text: label, title,
+    className: ('ui-rail-btn--group ' + headerClass).trim(),
+  });
   const caret = document.createElement('span');
   caret.className = 'ui-rail-btn__caret';
   header.appendChild(caret);
@@ -234,6 +237,7 @@ function createSectorControlsContent(editor) {
     icon: '◍',
     label: 'Planets',
     title: 'Paint tile types',
+    headerClass: 'is-planets',
     items: [
       { mode: '1 planet', label: '1 Planet', cls: 'btn-1', icon: '1' },
       { mode: '2 planet', label: '2 Planet', cls: 'btn-2', icon: '2' },
@@ -247,10 +251,11 @@ function createSectorControlsContent(editor) {
   });
 
   addPaintGroup(container, editor, {
-    key: 'effects',
+    key: 'anomalies',
     icon: '✦',
-    label: 'Effects',
-    title: 'Paint anomalies and effects',
+    label: 'Anomalies',
+    title: 'Paint anomalies',
+    headerClass: 'is-anomalies',
     items: [
       { mode: 'nebula', label: 'Nebula', cls: 'btn-nebula', icon: '☁' },
       { mode: 'rift', label: 'Rift', cls: 'btn-rift', icon: '◉' },
@@ -288,11 +293,7 @@ function createSectorControlsContent(editor) {
         return;
       }
 
-      // Set active state on clicked button (like wormhole popup)
       e.currentTarget.classList.add('active');
-      e.currentTarget.style.background = '#666';
-      e.currentTarget.style.color = '#fff';
-      e.currentTarget.style.fontWeight = 'bold';
       editor.setMode(mode);
     });
     container.appendChild(btn);
@@ -570,7 +571,7 @@ function finishSectorControlsContent(editor, container) {
 
   const hyperlanesBtn = railButton({
     id: 'toolHyperlanes',
-    className: 'btn-empty',
+    className: 'btn-hyperlane',
     icon: '∿',
     text: 'Hyperlanes',
     title: 'Draw hyperlane arcs between tiles',
@@ -583,11 +584,16 @@ function finishSectorControlsContent(editor, container) {
     hyperlanesBtn.classList.add('active');
     editor.setMode('hyperlane');
   });
+  // The editor boots in 'hyperlane' mode, so on a fresh load the status bar and the
+  // inspector both say hyperlane while nothing in the rail is lit — and a click on the map
+  // really does start drawing one. Light the button that owns the mode instead.
+  hyperlanesBtn.classList.toggle('active', editor.mode === 'hyperlane');
   container.appendChild(hyperlanesBtn);
 
   // ───────────── Wormholes Modal Launcher ─────────────
   const wormholesBtn = railButton({
     id: 'launchWormholesPopup',
+    className: 'btn-wormhole-all',
     icon: '◎',
     text: 'Wormholes…',
     title: 'Place a wormhole',
