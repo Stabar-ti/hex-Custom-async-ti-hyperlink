@@ -1,10 +1,8 @@
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
-import { toggleCustomLinksOverlay } from '../features/customLinksOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js';
-import { provide, COMMANDS } from '../core/registry.js';
+import { provide, COMMANDS, registerMode, activateMode, deactivateMode } from '../core/registry.js';
 import { setInspectorTool, clearInspectorTool, isInspectorToolShowing } from './inspector.js';
-import { registerMode, activateMode, deactivateMode } from '../core/registry.js';
 
 const MODE_CUSTOM_LINKS = 'customLinks';
 import { oppositeSide } from '../utils/hexGrid.js';
@@ -381,7 +379,7 @@ export function installCustomLinksUI(editor) {
             }
 
             if (hex.adjacencyOverrides) {
-                for (const [side, neighbor] of Object.entries(hex.adjacencyOverrides)) {
+                for (const neighbor of Object.values(hex.adjacencyOverrides)) {
                     const nhex = this.hexes[neighbor];
                     if (nhex && nhex.adjacencyOverrides) {
                         for (const [s2, n2] of Object.entries(nhex.adjacencyOverrides)) {

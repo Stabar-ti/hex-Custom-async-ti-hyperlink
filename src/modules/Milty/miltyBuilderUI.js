@@ -7,9 +7,8 @@
 // - UI helper functions for form creation and DOM manipulation
 // - Reusable UI components moved from miltyBuilderPopups.js for better separation of concerns
 
-import { defaultSlices, slotPositions, moveSlice, analyzeSliceOccupancy, generateOutputString, capitalizeTech, applyMiltyDisplay } from './miltyBuilderCore.js';
+import { defaultSlices, slotPositions, moveSlice, analyzeSliceOccupancy, applyMiltyDisplay } from './miltyBuilderCore.js';
 import { drawSlicePositionOverlays, drawSliceBordersOverlay, highlightSliceOnMap, clearSliceHighlights, ensureHighlightStyles } from './miltyBuilderDraw.js';
-import { showOutputCopyPopup, showDraftValuesPopup } from './miltyBuilderPopups.js';
 import { showMiltyDraftGeneratorPopup } from './miltyRandomToolUI.js';
 import { showSanityCheckPopup } from '../../ui/simplepPopup.js';
 import { showSliceExportPopup } from './miltyBuilderExport.js';
@@ -19,8 +18,6 @@ export function showMiltyBuilderUI(container) {
     // Slice state tracking
     const sliceMap = { ...defaultSlices };
     const sliceSlots = Array(12).fill(null);
-    let selectedMapSlice = null;
-    let selectedSlot = null;
     let selectedSource = null; // Can be 'A'-'F' or 1-12
     let selectedSourceType = null; // 'map' or 'slot'
 
@@ -128,8 +125,6 @@ export function showMiltyBuilderUI(container) {
                 observer.observe(window.editor.svg, { childList: true, subtree: true });
             }
         }
-        // Import wormholes for custom wormhole transfer
-        const { updateHexWormholes } = await import('../../features/wormholes.js');
         let sliceBordersVisible = false;
         let sliceNumbersVisible = false;
         let homeInfoVisible     = true;   // ON by default
@@ -534,8 +529,6 @@ export function showMiltyBuilderUI(container) {
         function clearSelection() {
             selectedSource = null;
             selectedSourceType = null;
-            selectedMapSlice = null;
-            selectedSlot = null;
             clearSliceHighlights();
             updateSliceButtonStyles();
         }

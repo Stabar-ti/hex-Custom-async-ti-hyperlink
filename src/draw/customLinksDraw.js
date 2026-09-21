@@ -1,12 +1,5 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-function edgeCoord(center, angle, radius, shrink = 0) {
-    return {
-        x: center.x + (radius - shrink) * Math.cos(angle),
-        y: center.y + (radius - shrink) * Math.sin(angle)
-    };
-}
-
 export function drawCustomAdjacencyLayer(editor) {
     let layer = editor.svg.querySelector('#customAdjacencyLayer');
     if (layer) layer.remove();

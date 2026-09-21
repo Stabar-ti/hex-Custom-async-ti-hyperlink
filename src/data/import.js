@@ -7,16 +7,14 @@
 // Also loads system info (names, planet//s, IDs) for the sector lookup.
 // ───────────────────────────────────────────────────────────────
 
-import { hexToMatrix } from '../utils/matrix.js';
+import { hexToMatrix, isMatrixEmpty } from '../utils/matrix.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { updateHexWormholes } from '../features/wormholes.js';
 import { markRealIDUsed, beginBatch, endBatch, clearRealIDUsage } from '../ui/uiFilters.js';
 import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
-import { updateEffectsVisibility, updateWormholeVisibility } from '../features/baseOverlays.js';
-import { isMatrixEmpty } from '../utils/matrix.js';
+import { updateEffectsVisibility, updateWormholeVisibility, createWormholeOverlay } from '../features/baseOverlays.js';
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
-import { createWormholeOverlay } from '../features/baseOverlays.js';
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { normalizeLoreEntries, shortToLoreEntries, LORE_PHASE_TARGETS, LORE_GAME_TYPES } from '../modules/Lore/loreCore.js';
 import { showToast } from '../ui/uiToast.js';

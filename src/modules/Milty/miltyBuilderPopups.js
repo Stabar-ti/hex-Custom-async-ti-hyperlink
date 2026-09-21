@@ -6,7 +6,6 @@
 // and business logic while delegating UI element creation to the UI module.
 
 import { showPopup } from '../../ui/popupUI.js';
-import { wormholeTypes, planetTypeColors, techSpecialtyColors } from '../../constants/constants.js';
 import { slotPositions, capitalizeTech, generateOutputString } from './miltyBuilderCore.js';
 
 // Show output copy popup with generated string and analysis
@@ -31,7 +30,7 @@ export function showOutputCopyPopup() {
         const copyAction = createCopyToClipboardAction(outputString);
 
         // Show the popup using PopupUI
-        const popup = showPopup({
+        showPopup({
             content: container,
             actions: totalSlices > 0 ? [copyAction] : [],
             title: 'Draft Output Copy',

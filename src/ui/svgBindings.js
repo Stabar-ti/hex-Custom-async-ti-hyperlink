@@ -8,7 +8,7 @@
 // to user input. Used by HexEditor to make the map feel like a real app.
 // ───────────────────────────────────────────────────────────────
 import { showDistanceOverlays, clearDistanceOverlays } from '../features/baseOverlays.js';
-import { startSwapMode, cancelSwapMode, isSwapModeActive } from '../features/tileSwap.js';
+import { startSwapMode, isSwapModeActive } from '../features/tileSwap.js';
 
 export function bindSvgHandlers(editor) {
   // Reference to the main SVG map element
@@ -180,7 +180,7 @@ export function bindSvgHandlers(editor) {
   // ---- Smooth pan loop using requestAnimationFrame ----
   function panLoop() {
     if (isPanning && pendingPan) {
-      const [x, y, w, h] = editor._currentViewBox;
+      const [, , w, h] = editor._currentViewBox;
       // Convert mouse delta to SVG units (based on viewBox size)
       const dx = (pendingPan.clientX - panStart.x) * w / svg.clientWidth;
       const dy = (pendingPan.clientY - panStart.y) * h / svg.clientHeight;

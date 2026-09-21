@@ -369,13 +369,6 @@ export function showPopup({
         popup.focus();
     });
 
-    // Debug: log popup bounding rect and child count after append
-    setTimeout(() => {
-        const rect = popup.getBoundingClientRect();
-        //   console.log('Popup bounding rect after append:', rect);
-        //   console.log('Popup child node count:', popup.childNodes.length);
-    }, 0);
-
     // Focus for accessibility
     setTimeout(() => popup.focus?.(), 0);
     return popup;

@@ -17,7 +17,7 @@ const EXCLUDED_TILE_IDS = [
 // UI functions have been moved to miltyRandomToolUI.js for better separation of concerns
 
 import { assignSystem } from '../../features/assignSystem.js';
-import { markRealIDUsed, unmarkRealIDUsed } from '../../ui/uiFilters.js';
+import { markRealIDUsed } from '../../ui/uiFilters.js';
 import { slotPositions } from './miltyBuilderCore.js';
 
 // Default generation settings
@@ -828,7 +828,7 @@ function generateSliceSet(availableSystems) {
         slice.systems.forEach(sys => {
             if (sys.wormholes) {
                 sys.wormholes.forEach(wh => {
-                    if (wh && wormholeTracker.hasOwnProperty(wh.toLowerCase())) {
+                    if (wh && Object.prototype.hasOwnProperty.call(wormholeTracker, wh.toLowerCase())) {
                         wormholeTracker[wh.toLowerCase()]++;
                     } else if (wh) {
                         // Initialize unknown wormhole types dynamically
@@ -1136,9 +1136,8 @@ function calculateSystemOptimalValue(system) {
 function selectConstraintAwareSystems(highValue, mediumValue, lowValue, targetCount, settings) {
     const selected = [];
 
-    // Calculate how much optimal value we need
-    const minOptimalTotal = settings.sliceGeneration.minOptimalTotal;
-    let currentOptimal = 0;
+    // Note: settings.sliceGeneration.minOptimalTotal is *not* enforced here. Systems are
+    // picked by value band and count; the caller checks the total afterwards.
 
     // First, try to get some high-value systems
     const highValueNeeded = Math.min(2, Math.floor(targetCount * 0.4), highValue.length);
@@ -1146,7 +1145,6 @@ function selectConstraintAwareSystems(highValue, mediumValue, lowValue, targetCo
         const system = highValue[Math.floor(Math.random() * highValue.length)];
         if (!selected.includes(system)) {
             selected.push(system);
-            currentOptimal += calculateSystemOptimalValue(system);
             // Remove from array to avoid duplicates
             highValue.splice(highValue.indexOf(system), 1);
         }
@@ -1157,7 +1155,6 @@ function selectConstraintAwareSystems(highValue, mediumValue, lowValue, targetCo
         const system = mediumValue[Math.floor(Math.random() * mediumValue.length)];
         if (!selected.includes(system)) {
             selected.push(system);
-            currentOptimal += calculateSystemOptimalValue(system);
             mediumValue.splice(mediumValue.indexOf(system), 1);
         }
     }
@@ -1167,7 +1164,6 @@ function selectConstraintAwareSystems(highValue, mediumValue, lowValue, targetCo
         const system = lowValue[Math.floor(Math.random() * lowValue.length)];
         if (!selected.includes(system)) {
             selected.push(system);
-            currentOptimal += calculateSystemOptimalValue(system);
             lowValue.splice(lowValue.indexOf(system), 1);
         }
     }

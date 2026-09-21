@@ -138,11 +138,6 @@ function drawStyledEdgeLine(layer, p1, p2, style) {
     });
 }
 
-// Backward compatibility function
-function drawEdgeLine(layer, p1, p2, color, width) {
-    drawStyledEdgeLine(layer, p1, p2, { color, width, pattern: 'solid' });
-}
-
 function getHexVertices(center, radius) {
     let pts = [];
     for (let i = 0; i < 6; ++i) {

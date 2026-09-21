@@ -1,10 +1,8 @@
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
-import { toggleBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js';
-import { provide, COMMANDS } from '../core/registry.js';
+import { provide, COMMANDS, registerMode, activateMode, deactivateMode } from '../core/registry.js';
 import { setInspectorTool, clearInspectorTool, isInspectorToolShowing } from './inspector.js';
-import { registerMode, activateMode, deactivateMode } from '../core/registry.js';
 
 const MODE_BORDER_ANOMALIES = 'borderAnomalies';
 import { loadBorderAnomalyTypes, getEnabledBorderAnomalyTypes, updateBorderAnomalyStyle, updateBorderAnomalyBidirectional } from '../constants/borderAnomalies.js';

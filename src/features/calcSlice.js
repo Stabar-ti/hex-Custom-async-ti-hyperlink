@@ -2,8 +2,6 @@ import { wormholeTypes, planetTypeColors, techSpecialtyColors } from '../constan
 import { showPopup, hidePopup } from '../ui/popupUI.js';
 import { showOptionsPopup } from '../ui/simplepPopup.js';
 
-let calcSlicePopup = null;
-
 export function openCalcSlicePopup() {
     // Build content wrapper
     const wrapper = document.createElement('div');

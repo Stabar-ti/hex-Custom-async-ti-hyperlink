@@ -143,7 +143,7 @@ export function drawValueOverlay(editor, rOn = false, iOn = false, tOn = false) 
 
     const r = (editor.hexRadius || 40) * 0.90;
 
-    for (const [label, { tier, value }] of tierMap) {
+    for (const [label, { tier }] of tierMap) {
         const hex = editor.hexes[label];
         if (!hex?.center) continue;
         const { x, y } = hex.center;

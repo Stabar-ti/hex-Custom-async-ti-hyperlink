@@ -20,9 +20,9 @@ import { drawHexGrid, drawHex, drawSpecialHexes, generateRings, autoscaleView, c
 // Exporting helpers for map, hyperlane tiles, wormholes
 import { exportMap, exportHyperlaneTilePositions, exportWormholePositions } from '../data/export.js';
 // Importers for map string (hyperlanes) and sector types
-import { importMap, importSectorTypes } from '../data/import.js';
+import { importMap, importSectorTypes, loadSystemInfo, loadHyperlaneMatrices } from '../data/import.js';
 // Logic for toggling wormhole overlays and visibility
-import { toggleWormhole, removeWormholeOverlay, redrawWormholeOverlays, updateHexWormholes } from '../features/wormholes.js';
+import { toggleWormhole, updateHexWormholes } from '../features/wormholes.js';
 // Hex-grid geometry math utilities (distance, neighbors)
 import { hexDistance, getNeighbors } from '../utils/geometry.js';
 // Common constants: directions, colors, icon offsets, etc.
@@ -48,8 +48,6 @@ import {
 import { unmarkRealIDUsed, clearRealIDUsage } from '../ui/uiFilters.js';
 // RealID/overlay features (sector ID overlays, toggles, etc.)
 import { initRealIDFeatures, updateLayerVisibility, redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
-// Loads system data for all tiles (names, IDs, etc.)
-import { loadSystemInfo, loadHyperlaneMatrices } from '../data/import.js';
 import { updateEffectsVisibility, updateWormholeVisibility, createWormholeOverlay } from '../features/baseOverlays.js'
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
@@ -188,7 +186,7 @@ export default class HexEditor {
 
     // Group hexes by which wormholes they contain
     const groups = {};
-    for (const [label, hex] of Object.entries(this.hexes)) {
+    for (const hex of Object.values(this.hexes)) {
       if (hex.wormholes && hex.wormholes.size) {
         hex.wormholes.forEach((type) => {
           if (!groups[type]) groups[type] = [];
@@ -306,7 +304,7 @@ export default class HexEditor {
 
     // Initialize empty state for all hexes - don't auto-assign planets
     // Planets should only be assigned when user explicitly assigns a system
-    for (const [label, hex] of Object.entries(this.hexes)) {
+    for (const hex of Object.values(this.hexes)) {
       hex.planets = [];
       hex.wormholes = new Set();
       hex.realId = null;
