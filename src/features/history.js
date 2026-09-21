@@ -19,7 +19,7 @@
 //   editor.undo() / editor.redo()  — restore previous/next state
 //   editor._historyLocked          — set externally (import, automapper) to suppress saves
 //
-// Original file preserved at: src/features/history_original.js
+// The pre-refactor full-map-snapshot version is in git history (see: git log -- src/features/history_original.js).
 // ───────────────────────────────────────────────────────────────
 
 import { clearAllEffects, applyEffectToHex } from './effects.js';

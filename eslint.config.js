@@ -15,8 +15,6 @@ import globals from 'globals';
 export default [
     {
         ignores: [
-            'src/Depricated/**',          // dead code, imported by nothing
-            'src/features/history_original.js', // pre-refactor copy, kept for reference
             'node_modules/**',
             'public/**',
             'html test/**',
