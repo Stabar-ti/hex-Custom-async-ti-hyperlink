@@ -375,6 +375,37 @@ export function showPopup({
 }
 
 /**
+ * Is a popup with this id on screen?
+ *
+ * @param {string} id
+ * @returns {boolean}
+ */
+export function isPopupOpen(id) {
+    return !!document.getElementById(id);
+}
+
+/**
+ * Open a popup, or close it if that same popup is already open.
+ *
+ * showPopup removes any popup with the id it is given and builds a fresh one, so a button
+ * that calls it twice re-opens rather than closes. Every launcher that opens a window and
+ * stays on screen — a rail tool, a bar menu — needs the second press to put it away, and
+ * this is that behaviour in one place rather than at each of them.
+ *
+ * @param {string} id     the popup's id
+ * @param {() => void} open  what to call when it is not already open
+ * @returns {boolean} true if it opened, false if it closed
+ */
+export function togglePopup(id, open) {
+    if (isPopupOpen(id)) {
+        hidePopup(id);
+        return false;
+    }
+    open();
+    return true;
+}
+
+/**
  * Hide and remove a popup element.
  * @param {HTMLElement|string} popup - The popup element or its id.
  */

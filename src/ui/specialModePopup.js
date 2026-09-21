@@ -1,6 +1,6 @@
 // src/ui/specialModePopup.js
 // Popup for special setup modes using PopupUI mechanics
-import { showPopup, hidePopup } from './popupUI.js';
+import { showPopup, hidePopup, togglePopup } from './popupUI.js';
 import { showAnchoredPanel } from './dropdownMenu.js';
 
 export function showSpecialModePopup() {
@@ -204,7 +204,8 @@ if (typeof window !== 'undefined') {
     window.showSpecialModePopup = showSpecialModePopup;
     const _wireBtn = () => {
         const btn = document.getElementById('specialModesBtn');
-        if (btn) btn.addEventListener('click', showSpecialModePopup);
+        // Pressing Generate again puts the panel away, the same as every other menu.
+        if (btn) btn.addEventListener('click', () => togglePopup('special-mode-popup', showSpecialModePopup));
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _wireBtn);
     else _wireBtn();

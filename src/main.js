@@ -26,7 +26,7 @@ import { overlayDefaults } from './config/toggleSettings.js';
 import { setupTileCopySingleButtonAndPopup } from './ui/tileCopyPasteWizardUI.js';
 import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup, showSanityCheckPopup } from './ui/simplepPopup.js';
 import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
-import { resetAllPopupPositions, hidePopup } from './ui/popupUI.js';
+import { resetAllPopupPositions, togglePopup } from './ui/popupUI.js';
 import { installFileMenu } from './ui/fileMenu.js';
 import { installTopBarMenus } from './ui/topBarMenus.js';
 import { installInspector } from './ui/inspector.js';
@@ -127,7 +127,9 @@ tokenManager.initialize().then(success => {
 clearCache();
 loadBorderAnomalyTypes().catch(console.error);
 
-document.getElementById('optionsBtn').onclick = () => showOptionsPopup(editor);
+// Distance Options is an anchored panel under the Analyse menu; the button opens and
+// closes it like the rest of them.
+bindMenuToggle('optionsBtn', 'options-popup', () => showOptionsPopup(editor));
 
 // The overlay toggles (planet types, R/I, ideal R/I, RealID, tile images, wormholes,
 // effects, link wormholes) all live in the Toggle Overlays popup and are wired by
@@ -217,9 +219,6 @@ if (importBtn) {
     showModal('importFullModal');
   });
 }
-
-// ---- Slice Calculation -----
-document.getElementById('calcSliceBtn')?.addEventListener('click', openCalcSlicePopup);
 
 // Parse and apply imported map JSON from text input
 document.getElementById('doImportFull')?.addEventListener('click', () => {
@@ -326,37 +325,29 @@ _onDOMReady(() => {
   installTopBarMenus();
 });
 
-document.getElementById('helpToggle').onclick = showHelpPopup;
-document.getElementById('infoToggle').onclick = showInfoPopup;
-document.getElementById('featuresToggle').onclick = showFeaturesPopup;
-
-// A button labelled with a ▾ has to close what it opened. showPopup removes any popup
-// with the same id and builds a fresh one, so calling it again re-opens rather than
-// closes — the toggle has to be here, at the button.
+// Any button that stays on screen while the thing it opened is open has to close it
+// again. togglePopup is the rule; this adds the aria the bar's menu buttons need.
 function bindMenuToggle(buttonId, popupId, open) {
   const btn = document.getElementById(buttonId);
   if (!btn) return;
   btn.setAttribute('aria-haspopup', 'true');
   btn.setAttribute('aria-expanded', 'false');
   btn.onclick = () => {
-    const existing = document.getElementById(popupId);
-    if (existing) {
-      hidePopup(existing);
-      btn.setAttribute('aria-expanded', 'false');
-      return;
-    }
-    open();
-    btn.setAttribute('aria-expanded', 'true');
+    const opened = togglePopup(popupId, open);
+    btn.setAttribute('aria-expanded', opened ? 'true' : 'false');
   };
 }
 
 bindMenuToggle('overlayToggleBtn', 'overlayOptionsPopup', showOverlayOptionsPopup);
 bindMenuToggle('layoutToggleBtn', 'layoutOptionsPopup', showLayoutOptionsPopup);
 
-const sanityCheckBtn = document.getElementById('sanityCheckBtn');
-if (sanityCheckBtn) {
-  sanityCheckBtn.onclick = () => showSanityCheckPopup();
-}
+// The three Analyse items and the three Help items opened a window each and left the
+// button that opened it sitting there doing nothing on a second press.
+bindMenuToggle('sanityCheckBtn', 'sanity-check-popup', () => showSanityCheckPopup());
+bindMenuToggle('calcSliceBtn', 'calcSlicePopup', openCalcSlicePopup);
+bindMenuToggle('helpToggle', 'help-popup', showHelpPopup);
+bindMenuToggle('infoToggle', 'info-popup', showInfoPopup);
+bindMenuToggle('featuresToggle', 'features-popup', showFeaturesPopup);
 
 window.editor = editor;
 

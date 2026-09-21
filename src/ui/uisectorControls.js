@@ -5,7 +5,7 @@
 // ───────────────────────────────────────────────────────────────
 
 import { wormholeTypes } from '../constants/constants.js';
-import { showPopup } from './popupUI.js';
+import { showPopup, togglePopup } from './popupUI.js';
 import { railButton, railGroupLabel, setRailLabel } from './kit/index.js';
 import { setInspectorTool, clearInspectorTool, isInspectorToolShowing } from './inspector.js';
 import {
@@ -706,10 +706,10 @@ function finishSectorControlsContent(editor, container) {
     text: 'Value hints…',
     title: 'Paint V1–V5 and R/I/T targets, and weight the value overlay',
   });
-  balanceBtn.onclick = () => {
+  balanceBtn.onclick = () => togglePopup('balancePopupModal', () => {
     deactivateModes();
     openBalancePopup(editor);
-  };
+  });
   container.appendChild(balanceBtn);
 
   // The same overlay also has a switch in Toggle Overlays. Neither holds the state —
@@ -749,12 +749,12 @@ function finishSectorControlsContent(editor, container) {
     text: 'AutoMapper…',
     title: 'Fill the painted tiles with real systems',
   });
-  autoMapperBtn.onclick = () => {
+  autoMapperBtn.onclick = () => togglePopup('automapper-popup', () => {
     deactivateModes();
     import('../modules/automapper/autoBuilder.js')
       .then(mod => mod.openAutoMapperPopup())
       .catch(err => console.error('Failed to load AutoMapper:', err));
-  };
+  });
   container.appendChild(autoMapperBtn);
 
   // ───────────── Distance ─────────────
