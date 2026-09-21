@@ -94,57 +94,76 @@
   <!-- The Toggle Overlays popup lived here. Built by src/ui/simplepPopup.js now. -->
 
 
-  <!-- Main Controls Panel -->
-  <!-- The File menu's contents. Shown as a dropdown under the File button by
-       src/ui/fileMenu.js; this used to be a permanent panel over the top-left of the map.
-       The markup is deliberately unchanged — ~20 handlers in uiBindings.js and main.js
-       bind these controls by id. -->
-  <div id="controlsPanel" class="size-large">
+  <!-- The File menu.
+       Shown as a dropdown under the File button by src/ui/fileMenu.js; this used to be a
+       permanent panel over the top-left of the map, and before that a stack of buttons at
+       one weight with no grouping.
 
-    <!-- Advanced Fragmented Export Toggle Button -->
-    <button id="advancedExportToggle" class="mode-button dropdown-toggle">Advanced Fragmented Export and Import
-      ▾</button>
+       Every id here is bound by handlers in uiBindings.js and main.js, so ids and element
+       types are kept exactly as they were — only the grouping, the labels and the classes
+       have changed. -->
+  <div id="controlsPanel" class="file-menu">
+    <div class="fm-body">
 
-    <!-- Collapsible Export Buttons Container -->
-    <div id="advancedExportContainer" style="display: none;">
-      <div id="exportBtns">
-        <button id="exportTypes" class="mode-button">Export Map String</button>
-        <button id="exportHL" class="mode-button">Export HL</button>
-        <button id="exportWormholePos" class="mode-button">Export Wormholes</button>
-        <button id="exportPos" class="mode-button">Export HL Pos</button>
+      <div class="fm-label">This computer</div>
+      <button id="exportFullBtn" class="fm-item">Save map locally</button>
+      <!-- <button id="exportMapInfoBtn" class="fm-item">Export Map Info</button> -->
+      <button id="importFullBtn" class="fm-item">Load a saved map</button>
+
+      <div class="fm-sep"></div>
+
+      <div class="fm-label">AsyncTI4</div>
+      <button id="importMapInfoBtn" class="fm-item fm-item--in">Import map from AsyncTI4</button>
+      <button id="saveMapInfoCloudflareBtn" class="fm-item fm-item--out">Upload final map to AsyncTI4</button>
+      <!-- <button id="saveMapCloudflareBtn" class="fm-item">Save (48h link)</button> -->
+
+      <div class="fm-sep"></div>
+
+      <button id="newMapToggle" class="fm-item fm-item--flyout" aria-haspopup="true" aria-expanded="false">
+        <span>New map</span><span class="fm-caret">▸</span>
+      </button>
+
+      <button id="advancedExportToggle" class="fm-item fm-item--fold" aria-expanded="false">
+        <span>Advanced fragmented export and import</span><span class="fm-caret">▾</span>
+      </button>
+
+      <div id="advancedExportContainer" class="fm-fold" style="display: none;">
+        <div class="fm-label">Export</div>
+        <div id="exportBtns" class="fm-grid">
+          <button id="exportTypes" class="fm-chip">Map String</button>
+          <button id="exportHL" class="fm-chip">Hyperlanes</button>
+          <button id="exportWormholePos" class="fm-chip">Wormholes</button>
+          <button id="exportPos" class="fm-chip">Hyperlane Pos</button>
+          <button id="exportAdjOverridesBtn" class="fm-chip">Adjacency Overrides</button>
+          <button id="exportCustomAdjBtn" class="fm-chip">Custom Links</button>
+          <button id="exportBorderAnomaliesBtn" class="fm-chip">Border Anomalies</button>
+        </div>
+        <div class="fm-label">Import</div>
+        <div class="fm-grid">
+          <button id="importTypesBtn" class="fm-chip">Map String</button>
+          <button id="importHLBtn" class="fm-chip">Hyperlanes</button>
+        </div>
       </div>
-      <div>
-        <button id="exportAdjOverridesBtn" class="mode-button">Export Adjacency Overrides</button>
-        <button id="exportCustomAdjBtn" class="mode-button">Export Custom Links</button>
-        <button id="exportBorderAnomaliesBtn" class="mode-button">Export Border Anomalies</button>
-      </div>
-      <div>
-        <button id="importTypesBtn" class="mode-button">Import Map String</button>
-        <button id="importHLBtn" class="mode-button">Import HL</button>
-      </div>
+
     </div>
 
-    <div>
-      <div>
-        <button id="exportFullBtn" class="mode-button dropdown-toggle">Save Map locally</button>
-        <!-- <button id="exportMapInfoBtn" class="mode-button">Export Map Info</button> -->
-        <button id="importFullBtn" class="mode-button dropdown-toggle">Load locally savedMap</button>
+    <!-- The New map drop-out. A child of the panel rather than of .fm-body, which
+         scrolls — a flyout inside a scrolling box gets clipped by it. -->
+    <div id="newMapFlyout" class="fm-flyout">
+      <div class="fm-label">New map</div>
+      <div class="fm-row">
+        <label for="ringCount">Rings</label>
+        <button id="removeRingBtn" class="fm-step" title="One ring fewer">−</button>
+        <input id="ringCount" type="number" min="1" max="15" value="6" />
+        <button id="addRingBtn" class="fm-step" title="One ring more">+</button>
       </div>
-      <div>
-        <button id="importMapInfoBtn" class="mode-button" style="background-color: #f59f00; color: white;">Import map
-          from AsyncTI</button>
-        <!--  <button id="saveMapCloudflareBtn" class="mode-button">Save (48h link)</button> -->
-        <button id="saveMapInfoCloudflareBtn" class="mode-button"
-          style="background-color: #059f00; color: white;">Upload final map to AsyncTI</button>
-
-      </div>
+      <label class="fm-check">
+        <input id="cornerToggle" type="checkbox" checked>
+        <span>Limit to AsyncTI4 map boundaries</span>
+      </label>
+      <button id="genMapBtn" class="fm-item fm-item--primary">Generate Empty Map</button>
+      <div class="fm-note">Replaces everything on the map.</div>
     </div>
-    Rings: <input id="ringCount" type="number" min="1" max="15" value="6" />
-    <button id="addRingBtn" class="primary-button" title=" + ">+</button>
-    <button id="removeRingBtn" class="primary-button" title=" - ">−</button>
-    <input id="cornerToggle" type="checkbox" checked>
-    <label for="cornerToggle">Limit to async map bounderies</label>
-    <button id="genMapBtn" class="primary-button">Generate Map</button>
   </div>
 
   <div id="sectorControlsContainer" class="pos-left"></div>

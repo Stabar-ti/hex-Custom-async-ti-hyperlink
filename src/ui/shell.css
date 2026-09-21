@@ -721,20 +721,246 @@ body {
 /* ── The File menu ────────────────────────────────────────────────────────────
    #controlsPanel held import, export and map generation, and sat permanently over the
    top-left of the map — the largest surface in the app, for the jobs you do once a
-   session. It is a dropdown under the File button now. Its contents are untouched;
-   only where it appears has changed.
+   session. It is a dropdown under the File button now.
+
+   It kept the panel's own look when it moved: a 600px-wide box of full-width buttons at
+   one weight, two of them painted orange and green with inline styles, and the ring
+   controls loose at the bottom as a bare label, a number box and three buttons. This is
+   the same set of controls as a menu — grouped, one row per action, the destinations
+   named rather than the mechanism.
 
    Hidden by default and positioned in JS, since it hangs off a button whose position
    depends on how the bar has wrapped. */
-#controlsPanel {
+#controlsPanel.file-menu {
   display: none;
+  position: fixed;
+  width: 292px;
+  max-width: 95vw;
+  padding: 6px;
+  box-sizing: border-box;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-4);
+  border-radius: 8px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  color: var(--text-color);
   z-index: var(--layer-floating);
-  max-height: calc(100vh - var(--shell-topbar-h) - 24px);
-  overflow-y: auto;
-  border-radius: 6px;
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+  /* The New map drop-out hangs outside the panel, so this cannot clip. */
+  overflow: visible;
 }
 
-#controlsPanel.file-menu-open {
+#controlsPanel.file-menu.file-menu-open {
   display: block;
 }
+
+/* The list scrolls if it ever has to; the drop-out is outside it for that reason. */
+.file-menu .fm-body {
+  max-height: calc(100vh - var(--shell-topbar-h) - 32px);
+  overflow-y: auto;
+}
+
+.file-menu .fm-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--surface-5);
+  margin: 9px 0 3px 9px;
+}
+
+.file-menu .fm-body > .fm-label:first-child,
+.file-menu .fm-flyout > .fm-label:first-child {
+  margin-top: 2px;
+}
+
+.file-menu .fm-sep {
+  border-top: 1px solid var(--surface-4);
+  margin: 7px 4px;
+}
+
+/* One row per action. .mode-button is gone from these, so the panel's old
+   #controlsPanel button rule no longer reaches them. */
+#controlsPanel.file-menu .fm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  color: var(--text-color);
+  font-family: var(--font-ui);
+  font-size: 0.9em;
+  text-align: left;
+  cursor: pointer;
+}
+
+#controlsPanel.file-menu .fm-item:hover {
+  background: var(--surface-3);
+}
+
+#controlsPanel.file-menu .fm-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* The two AsyncTI4 rows were a solid orange and a solid green fill. The colours said
+   something worth keeping — in, and out — so they are a stripe rather than the button. */
+#controlsPanel.file-menu .fm-item--in,
+#controlsPanel.file-menu .fm-item--out {
+  padding-left: 13px;
+}
+
+#controlsPanel.file-menu .fm-item--in {
+  box-shadow: inset 3px 0 0 #c9832a;
+}
+
+#controlsPanel.file-menu .fm-item--out {
+  box-shadow: inset 3px 0 0 #43914a;
+}
+
+#controlsPanel.file-menu .fm-item--primary {
+  justify-content: center;
+  margin-top: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+#controlsPanel.file-menu .fm-item--primary:hover {
+  background: #3bb0ff;
+}
+
+.file-menu .fm-caret {
+  flex: none;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--surface-5);
+}
+
+#controlsPanel.file-menu .fm-item[aria-expanded="true"] {
+  background: var(--surface-3);
+}
+
+#controlsPanel.file-menu .fm-item[aria-expanded="true"] .fm-caret {
+  color: var(--text-color);
+}
+
+/* ── The Advanced fold ────────────────────────────────────────────────────── */
+
+.file-menu .fm-fold {
+  margin: 2px 0 4px 10px;
+  padding-left: 7px;
+  border-left: 1px solid var(--surface-4);
+}
+
+.file-menu .fm-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+
+#controlsPanel.file-menu .fm-chip {
+  margin: 0;
+  padding: 5px 7px;
+  background: var(--surface-3);
+  border: 1px solid var(--surface-4);
+  border-radius: var(--ui-radius);
+  color: var(--text-color);
+  font-family: var(--font-ui);
+  font-size: var(--ui-font-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+#controlsPanel.file-menu .fm-chip:hover {
+  background: #343434;
+}
+
+/* ── The New map drop-out ─────────────────────────────────────────────────── */
+
+.file-menu .fm-flyout {
+  display: none;
+  position: absolute;
+  top: 6px;
+  left: calc(100% + 6px);
+  width: 214px;
+  padding: 6px;
+  box-sizing: border-box;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-4);
+  border-radius: 8px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+}
+
+.file-menu .fm-flyout.is-open {
+  display: block;
+}
+
+.file-menu .fm-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 4px;
+  font-size: 0.9em;
+}
+
+.file-menu .fm-row label {
+  flex: 1;
+}
+
+.file-menu .fm-row input[type="number"] {
+  width: 46px;
+  padding: 4px 5px;
+  background: var(--surface-1);
+  border: 1px solid var(--surface-4);
+  border-radius: var(--ui-radius);
+  color: var(--text-color);
+  font-family: var(--font-ui);
+  text-align: center;
+}
+
+#controlsPanel.file-menu .fm-step {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  background: var(--surface-3);
+  border: 1px solid var(--surface-4);
+  border-radius: var(--ui-radius);
+  color: var(--text-color);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#controlsPanel.file-menu .fm-step:hover {
+  background: #343434;
+}
+
+.file-menu .fm-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 4px;
+  font-size: 0.85em;
+  line-height: 1.3;
+  cursor: pointer;
+  user-select: none;
+}
+
+.file-menu .fm-check input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+.file-menu .fm-note {
+  margin: 5px 4px 2px;
+  font-size: var(--ui-font-xs);
+  color: var(--surface-5);
+}
+

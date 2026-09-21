@@ -8,10 +8,9 @@
  * Meanwhile the work you do every few seconds had no home at all. That inversion is what
  * the whole layout pass is about, and this is the last piece of it.
  *
- * Nothing inside the panel is rebuilt. Its controls are bound by id all over uiBindings.js
- * and main.js, so the markup is kept exactly as it was and simply shown as a dropdown under
- * the File button instead of floating over the map. That keeps ~20 handlers working
- * untouched, which is worth more here than tidier markup.
+ * The panel's controls are bound by id all over uiBindings.js and main.js, so every id and
+ * element type in it is kept exactly as it was — the menu is a regrouping and a restyling,
+ * not a rebuild, and all ~20 handlers keep working untouched.
  */
 
 const OPEN_CLASS = 'file-menu-open';
@@ -48,12 +47,22 @@ function position() {
     el.style.left = left + 'px';
 }
 
+/** Show or hide the New map drop-out. @param {boolean} open */
+function setNewMapOpen(open) {
+    const flyout = document.getElementById('newMapFlyout');
+    const btn = document.getElementById('newMapToggle');
+    if (flyout) flyout.classList.toggle('is-open', open);
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
 /** @param {boolean} open */
 export function setFileMenuOpen(open) {
     const el = panel();
     if (!el) return;
 
     el.classList.toggle(OPEN_CLASS, open);
+    // A drop-out left open would be the first thing you saw next time the menu opened.
+    if (!open) setNewMapOpen(false);
     if (open) position();
 
     const btn = trigger();
@@ -94,6 +103,14 @@ export function installFileMenu(_editor) {
     btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         toggleFileMenu();
+    });
+
+    // Generating a map is destructive and takes a ring count and a bounds setting with it,
+    // so it sits behind its own drop-out rather than in the list beside Save and Load.
+    const newMapBtn = document.getElementById('newMapToggle');
+    newMapBtn?.addEventListener('click', () => {
+        const flyout = document.getElementById('newMapFlyout');
+        setNewMapOpen(!flyout?.classList.contains('is-open'));
     });
 
     // A menu closes when you click away from it or press Escape. Clicks inside must not

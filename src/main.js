@@ -317,7 +317,6 @@ _onDOMReady(() => {
 
   // Import, export and map generation now live behind the File button rather than in a
   // panel permanently covering the map.
-  document.getElementById('controlsPanel')?.classList.add('size-xlarge');
   installFileMenu(editor);
 
   // Group the rest of the bar by purpose. After installFileMenu and installTopBarControls,

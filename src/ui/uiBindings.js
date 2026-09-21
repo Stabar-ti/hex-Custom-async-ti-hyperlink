@@ -25,14 +25,17 @@ export function bindUI(editor) {
   // also resets the ring count; binding it here as well fired toggleCorners twice per change.
   document.getElementById('genMapBtn')?.addEventListener('click', () => editor.generateMap());
 
-  // Advanced Export Toggle
+  // Advanced Export Toggle. This used to set the button's textContent, which meant the
+  // label and the caret were one string — and would now wipe out the caret element.
   document.getElementById('advancedExportToggle')?.addEventListener('click', () => {
     const container = document.getElementById('advancedExportContainer');
     const button = document.getElementById('advancedExportToggle');
     if (container && button) {
-      const isHidden = container.style.display === 'none';
-      container.style.display = isHidden ? 'block' : 'none';
-      button.textContent = isHidden ? 'Advanced Fragmented Export ▴' : 'Advanced Fragmented Export ▾';
+      const open = container.style.display === 'none';
+      container.style.display = open ? 'block' : 'none';
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      const caret = button.querySelector('.fm-caret');
+      if (caret) caret.textContent = open ? '▴' : '▾';
     }
   });
 
