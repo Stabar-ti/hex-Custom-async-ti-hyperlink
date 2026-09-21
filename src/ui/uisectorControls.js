@@ -222,7 +222,7 @@ function createSectorControlsContent(editor) {
   realIdBtn.addEventListener('click', () => {
     deactivateModes();
 
-    invoke(COMMANDS.showSystemPicker);
+    invoke(COMMANDS.toggleSystemPicker);
   });
   container.appendChild(realIdBtn);
 

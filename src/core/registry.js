@@ -62,6 +62,7 @@
 export const COMMANDS = Object.freeze({
     // SystemPicker
     showSystemPicker:          'picker.show',
+    toggleSystemPicker:        'picker.toggle',
 
     // Token
     showTokenPopup:            'token.showPopup',

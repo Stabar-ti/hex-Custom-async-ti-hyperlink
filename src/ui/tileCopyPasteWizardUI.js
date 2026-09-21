@@ -232,6 +232,15 @@ export function setupTileCopySingleButtonAndPopup() {
     }
 
     btn.onclick = () => {
+        // Pressing the tool again puts it away and disarms it — exactly what Cancel inside the
+        // wizard does, and what every other tool in the rail does on a second press.
+        if (document.getElementById('wizard-popup')) {
+            selectedAction = null;
+            cancelSwapMode(window.editor, swapStatus);
+            hideWizardPopup();
+            return;
+        }
+
         // Show the base wizard popup with Copy, Cut, and Swap buttons
         function getActions(selected) {
             return [

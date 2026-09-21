@@ -58,6 +58,7 @@ export function installSystemPickerUI(editor) {
     installPlacement(editor);
 
     provide(COMMANDS.showSystemPicker, showSystemPicker);
+    provide(COMMANDS.toggleSystemPicker, toggleSystemPicker);
 
     // Console affordances only — no module should reach for these.
     window.showSystemPicker = showSystemPicker;
@@ -412,4 +413,16 @@ export function showSystemPicker() {
 
 export function hideSystemPicker() {
     hidePopup(POPUP_ID);
+}
+
+/**
+ * What the rail's System Tiles button does.
+ *
+ * showSystemPicker is deliberately idempotent — placement and the random tool call it to
+ * make sure the picker is up — so it cannot be the toggle as well. A button that stays on
+ * screen while the picker is open needs the second press to put it away.
+ */
+export function toggleSystemPicker() {
+    if (document.getElementById(POPUP_ID)) hideSystemPicker();
+    else showSystemPicker();
 }

@@ -2,6 +2,18 @@
 // General-purpose popup UI module for consistent popups across the site
 
 /**
+ * A popup's onClose, keyed by its element.
+ *
+ * onClose used to be wired to the × button alone, so every other way a popup goes away
+ * skipped it: hidePopup, the system picker's own Escape key, and showPopup rebuilding a
+ * popup under an id that is already on screen. Only two popups pass one, and both do real
+ * work in it — the Lore editor commits unsaved edits, so closing it any other way lost
+ * them, and the picker unsubscribes from two stores and destroys three views, so every
+ * reopen leaked a set.
+ */
+const closeHandlers = new WeakMap();
+
+/**
  * Show a popup with flexible content and options.
  * @param {Object} config - Popup configuration object.
  * @param {string|HTMLElement} config.content - HTML string or DOM node for the popup body.
@@ -35,15 +47,14 @@ export function showPopup({
     title = '',
     confineTo = null
 }) {
-    // Remove any existing popup with the same id
-    if (id) {
-        const old = document.getElementById(id);
-        if (old) old.remove();
-    }
+    // Remove any existing popup with the same id — through hidePopup, so the one being
+    // replaced gets to tear itself down.
+    if (id) hidePopup(id);
     // Create popup container
     const popup = document.createElement('div');
     popup.className = 'popup-ui' + (className ? ' ' + className : '');
     if (id) popup.id = id;
+    if (typeof onClose === 'function') closeHandlers.set(popup, onClose);
 
     // Set initial z-index and make focusable
     popup.style.zIndex = '1000';
@@ -189,10 +200,7 @@ export function showPopup({
         closeBtn.style.justifyContent = 'center';
         closeBtn.style.borderRadius = '0'; // Force square appearance
         closeBtn.style.border = '1px solid #666'; // Consistent border
-        closeBtn.onclick = () => {
-            hidePopup(popup);
-            if (typeof onClose === 'function') onClose();
-        };
+        closeBtn.onclick = () => hidePopup(popup);
         // --- NEW: Help button ---
         if (showHelp) {
             const helpBtn = document.createElement('button');
@@ -411,7 +419,15 @@ export function togglePopup(id, open) {
  */
 export function hidePopup(popup) {
     if (typeof popup === 'string') popup = document.getElementById(popup);
-    if (popup && popup.parentNode) popup.parentNode.removeChild(popup);
+    if (!popup) return;
+
+    // Taken before the node goes, and cleared before it runs: a handler that closes its own
+    // popup would otherwise come back round here forever.
+    const onClose = closeHandlers.get(popup);
+    closeHandlers.delete(popup);
+
+    if (popup.parentNode) popup.parentNode.removeChild(popup);
+    if (typeof onClose === 'function') onClose();
 }
 
 /**
