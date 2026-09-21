@@ -414,16 +414,16 @@ export function showLayoutOptionsPopup() {
         if (themeBtn) {
             themeBtn.onclick = () => toggleTheme();
         }
-        // Sector Controls
+        // Tool rail. It is docked now rather than a floating popup, so this entry
+        // collapses and expands it instead of opening a window.
         const sectorControlsBtn = document.getElementById('sectorControlsBtn');
         if (sectorControlsBtn) {
+            sectorControlsBtn.textContent = 'Tool Rail';
+            sectorControlsBtn.title = 'Collapse or expand the tool rail';
             sectorControlsBtn.onclick = () => {
-                // Import the sector controls function and open the popup
-                import('./uisectorControls.js').then(module => {
-                    if (window.editor && typeof module.openSectorControlsPopup === 'function') {
-                        module.openSectorControlsPopup(window.editor);
-                    }
-                });
+                import('./uisectorControls.js')
+                    .then(({ toggleToolRail }) => toggleToolRail())
+                    .catch(err => console.error('Failed to toggle the tool rail:', err));
             };
         }
         // Draw Helpers — opens the one real implementation. This used to inline its own

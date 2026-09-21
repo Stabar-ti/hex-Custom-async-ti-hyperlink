@@ -14,47 +14,80 @@
   <title>Hex Hyperlane Editor</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="src/ui/kit/kit.css" />
+  <link rel="stylesheet" href="src/ui/shell.css" />
   <!-- Load Turnstile SDK with optimized loading -->
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 
 <body>
 
-  <!-- Top Bar -->
-  <div id="topBar">
-    <div id="leftControls">
+  <!-- ─────────────────────────────────────────────────────────────────────────
+       App shell. One grid owns the five regions: the bar across the top, the tool
+       rail, the map, the inspector, and the status line. Before this the page had
+       no layout at all — seventeen position:fixed rules floating over an SVG that
+       was width:95% and centred, which is why every panel covered the map.
 
-      <!-- Dropdown: Layout Options -->
-      <button id="layoutToggleBtn" class="mode-button dropdown-toggle">Layout Options ▾</button>
+       Things that genuinely float — the import/export panel, modals, popups, the
+       hover tooltip — stay outside the shell and layer above it.
+       ───────────────────────────────────────────────────────────────────────── -->
+  <div id="appShell">
 
-      <!-- Dropdown: Toggle Overlays -->
-      <button id="overlayToggleBtn" class="mode-button dropdown-toggle">Toggle Overlays ▾</button>
+    <!-- Top Bar -->
+    <div id="topBar">
+      <div id="leftControls">
+
+        <!-- Dropdown: Layout Options -->
+        <button id="layoutToggleBtn" class="mode-button dropdown-toggle">Layout Options ▾</button>
+
+        <!-- Dropdown: Toggle Overlays -->
+        <button id="overlayToggleBtn" class="mode-button dropdown-toggle">Toggle Overlays ▾</button>
 
 
-      <!-- Always-visible button -->
-      <button id="calcSliceBtn" class="mode-button">Calculate Slice</button>
+        <!-- Always-visible button -->
+        <button id="calcSliceBtn" class="mode-button">Calculate Slice</button>
 
-      <!-- Copy/Cut Swap button -->
-      <button id="tileCopySingleBtn" class="mode-button">Copy/Cut Swap</button>
+        <!-- Copy/Cut Swap button -->
+        <button id="tileCopySingleBtn" class="mode-button">Copy/Cut Swap</button>
 
-      <!-- Sanity Check button -->
-      <button id="sanityCheckBtn" class="mode-button">Sanity Check</button>
+        <!-- Sanity Check button -->
+        <button id="sanityCheckBtn" class="mode-button">Sanity Check</button>
 
-      <!-- Special Setup Modes button -->
-      <button id="specialModesBtn" class="mode-button">🛠️ Special Modes</button>
+        <!-- Special Setup Modes button -->
+        <button id="specialModesBtn" class="mode-button">🛠️ Special Modes</button>
 
+      </div>
+
+      <div id="rightControls">
+        <button id="optionsBtn" class="mode-button">Distance Options</button>
+        <button id="helpToggle" class="mode-button">Help</button>
+        <button id="infoToggle" class="mode-button">Import/Export How-To</button>
+        <button id="featuresToggle" class="mode-button">Features</button>
+      </div>
+
+      <div id="versionTag">v2.1</div>
+      <script>document.getElementById('versionTag').textContent = 'v' + (window.APP_VERSION || '2.1');</script>
     </div>
 
-    <div id="rightControls">
-      <button id="optionsBtn" class="mode-button">Distance Options</button>
-      <button id="helpToggle" class="mode-button">Help</button>
-      <button id="infoToggle" class="mode-button">Import/Export How-To</button>
-      <button id="featuresToggle" class="mode-button">Features</button>
-    </div>
+    <!-- Tool rail. Populated by src/ui/toolRail.js; collapses to icons. -->
+    <nav id="toolRail" aria-label="Tools"></nav>
 
-    <div id="versionTag">v2.1</div>
-    <script>document.getElementById('versionTag').textContent = 'v' + (window.APP_VERSION || '2.1');</script>
+    <main id="mapArea">
+      <svg id="hexMap" viewBox="0 0 1400 1000" preserveAspectRatio="xMidYMid meet">
+        <g id="wormholeLineLayer"></g>
+      </svg>
+    </main>
+
+    <!-- Contextual inspector. Reserved here; filled as panels move in. -->
+    <aside id="inspector" aria-label="Inspector" hidden></aside>
+
+    <footer id="statusBar">
+      <span id="statusTool" class="status-item">Tool: <b>none</b></span>
+      <span id="statusHex" class="status-item">Hex: <b>—</b></span>
+      <span id="statusZoom" class="status-item">Zoom: <b>100%</b></span>
+      <span id="statusHint" class="status-item status-hint">Shift+D distance &middot; Shift+R clear &middot; middle-drag pan</span>
+    </footer>
   </div>
+
 
   <!-- Layout Options is built at runtime by src/ui/simplepPopup.js. A hidden static copy
        used to live here carrying the same button ids; showPopup deleted it on first open,
@@ -117,13 +150,6 @@
   <button id="controlsPanelOpenBtn" title="Show controls">&laquo;</button>
 
   <div id="sectorControlsContainer" class="pos-left"></div>
-
-  <!-- The hex-grid SVG -->
-  <!---- <svg id="hexMap" viewBox="0 0 1400 1000" preserveAspectRatio="xMidYMid meet"></svg> -->
-
-  <svg id="hexMap" viewBox="0 0 1400 1000" preserveAspectRatio="xMidYMid meet">
-    <g id="wormholeLineLayer"></g>
-  </svg>
 
 
   <!-- Export wormhole Modal -->

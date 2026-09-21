@@ -28,6 +28,7 @@ import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup, show
 import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
 import { resetAllPopupPositions, hidePopup } from './ui/popupUI.js';
 import { initControlsPanel, setControlsPanelCollapsed } from './ui/controlsPanel.js';
+import { installStatusBar } from './ui/statusBar.js';
 import { checkRealIdUniqueness } from './features/sanityCheck.js';
 import './ui/specialModePopup.js';
 import { installLoreUI } from './modules/Lore/loreUI.js';
@@ -67,6 +68,9 @@ window.checkRealIdUniqueness = checkRealIdUniqueness;
 
 // Enable undo/redo history tracking
 initHistory(editor);
+
+// The shell's status line: armed tool, hovered hex, zoom.
+installStatusBar(editor);
 //initHexHoverInfo(editor); // <- Add this line
 
 installCustomLinksUI(editor);

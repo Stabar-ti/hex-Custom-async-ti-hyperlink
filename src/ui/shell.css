@@ -1,0 +1,284 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   App shell — the layout the application did not have.
+
+   Before this file, nothing was laid out. The map was an SVG at `width: 95%;
+   margin: 10px auto`, and every panel was one of seventeen `position: fixed`
+   rules floating over it. Panels always covered the map because nothing reserved
+   space for anything, and the stacking order was settled by an arms race of
+   nineteen different z-index values running from 1 to 99995.
+
+   #appShell replaces that with one grid holding five regions:
+
+       ┌──────────────────────────────────────────┐
+       │ topbar                                   │
+       ├──────┬────────────────────┬──────────────┤
+       │ rail │        map         │  inspector   │
+       ├──────┴────────────────────┴──────────────┤
+       │ status                                   │
+       └──────────────────────────────────────────┘
+
+   The rail and the inspector are `auto` tracks: they take the width they need and
+   collapse to nothing when empty, so the map gets everything left over and is
+   never covered by them.
+
+   Loaded after styles.css and kit.css, so the handful of overrides below win
+   without any !important. Things that genuinely float — the import/export panel,
+   modals, popups, the hover tooltip — are outside the shell and unaffected.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Layers ────────────────────────────────────────────────────────────────
+     Named steps, in the order things sit on top of each other. Existing rules
+     still carry their own numbers; these are what new work should use, and what
+     the old values get folded into as each panel is touched. The gaps are
+     deliberate — room to slot something in without renumbering. */
+  --layer-map:       0;    /* the SVG and its overlays */
+  --layer-shell:    10;    /* rail, inspector, status */
+  --layer-topbar:   20;    /* above the rail, below anything floating */
+  --layer-floating: 100;   /* the import/export panel and friends */
+  --layer-popup:    200;   /* draggable tool popups */
+  --layer-modal:    300;   /* the export/import modals */
+  --layer-overlay:  400;   /* transient: toasts, pickers, drag ghosts */
+
+  --shell-topbar-h: 46px;
+  --shell-status-h: 26px;
+  --shell-rail-w: 178px;
+  --shell-rail-w-collapsed: 48px;
+}
+
+/* ── The grid ─────────────────────────────────────────────────────────────── */
+
+html {
+  height: 100%;
+}
+
+body {
+  /* The fixed top bar is a grid row now, so the body no longer pads around it. */
+  padding-top: 0;
+  height: 100%;
+  /* The map area scrolls if it must; the page itself does not. Modals and popups
+     are position:fixed, so they still escape. */
+  overflow: hidden;
+}
+
+#appShell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "topbar topbar topbar"
+    "rail   map    inspector"
+    "status status status";
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── Top bar ──────────────────────────────────────────────────────────────── */
+
+#topBar {
+  grid-area: topbar;
+  /* Was position: fixed with the body padded to match. It is a grid row now, so
+     it reserves its own space and nothing has to compensate for it. */
+  position: static;
+  z-index: var(--layer-topbar);
+  min-height: var(--shell-topbar-h);
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+/* #rightControls was absolutely positioned to dodge the version tag. In a flex
+   row with `justify-content: space-between` it can simply be the second group. */
+#rightControls {
+  position: static;
+  right: auto;
+  top: auto;
+}
+
+/* ── Map ──────────────────────────────────────────────────────────────────── */
+
+#mapArea {
+  grid-area: map;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-color);
+}
+
+#hexMap {
+  /* Was width:95%; height:calc(95vh - 60px); margin:10px auto — sized against the
+     viewport because there was no container to fill. Now it fills its cell. */
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  display: block;
+}
+
+/* ── Tool rail ────────────────────────────────────────────────────────────── */
+
+#toolRail {
+  grid-area: rail;
+  z-index: var(--layer-shell);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: var(--shell-rail-w);
+  padding: 8px 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--surface-2);
+  border-right: 1px solid var(--surface-4);
+  box-sizing: border-box;
+}
+
+/* Empty until toolRail.js fills it — take no space rather than leaving a strip. */
+#toolRail:empty {
+  display: none;
+}
+
+/* The tool list fills the rail; the collapse button is pinned under it. */
+#toolRail .sector-controls-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+#toolRail.is-collapsed {
+  width: var(--shell-rail-w-collapsed);
+  padding-inline: 4px;
+  align-items: stretch;
+}
+
+/* Collapsed, every button is just its icon — but it still works, which is the point of an
+   icon rail rather than a drawer that has to be reopened to do anything. */
+#toolRail.is-collapsed .ui-rail-btn {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+#toolRail.is-collapsed .ui-rail-btn__label {
+  display: none;
+}
+
+/* Group names would not fit; the rules between groups carry the grouping instead. */
+#toolRail.is-collapsed .ui-rail-group {
+  height: 1px;
+  margin: 7px 4px;
+  padding: 0;
+  overflow: hidden;
+  text-indent: -999px;
+  background: var(--surface-4);
+}
+
+.rail-collapse-btn {
+  margin-top: auto;
+  align-self: stretch;
+  padding: 5px 0;
+  border: 1px solid transparent;
+  border-top: 1px solid var(--surface-4);
+  border-radius: 0;
+  background: none;
+  color: var(--info-color);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rail-collapse-btn:hover {
+  color: var(--text-color);
+  background: var(--surface-3);
+}
+
+.rail-collapse-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* The SVG sits flush in its cell; without this it reports 2px larger than the cell. */
+#hexMap {
+  box-sizing: border-box;
+}
+
+/* ── Inspector ────────────────────────────────────────────────────────────── */
+
+#inspector {
+  grid-area: inspector;
+  z-index: var(--layer-shell);
+  width: 232px;
+  padding: 10px 12px;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border-left: 1px solid var(--surface-4);
+  box-sizing: border-box;
+}
+
+#inspector[hidden] {
+  display: none;
+}
+
+/* ── Status bar ───────────────────────────────────────────────────────────── */
+
+#statusBar {
+  grid-area: status;
+  z-index: var(--layer-shell);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: var(--shell-status-h);
+  padding: 0 12px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--surface-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--info-color);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.status-item b {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+/* The hint is the first thing to go when the window is narrow — it is a reminder,
+   not information. */
+.status-hint {
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .status-hint { display: none; }
+}
+
+/* ── Floating panels, now that the shell owns the page ────────────────────── */
+
+/* The import/export panel still floats; it moves into a File menu later. Anchor it under
+   the top bar and to the right of the rail, rather than at a hard-coded 70px/0 from the
+   viewport corner — at 0 it sat on top of the rail and hid the whole Draw group.
+
+   It is position:fixed, so it cannot see #toolRail.is-collapsed; the rail mirrors that
+   state onto <body> for exactly this. */
+#controlsPanel {
+  top: var(--shell-topbar-h);
+  left: var(--shell-rail-w);
+  z-index: var(--layer-floating);
+  transition: transform 0.3s, opacity 0.3s, left 0.2s;
+}
+
+body.rail-collapsed #controlsPanel {
+  left: var(--shell-rail-w-collapsed);
+}
+
+#controlsPanelOpenBtn {
+  top: calc(var(--shell-topbar-h) + 30px);
+  left: var(--shell-rail-w);
+  z-index: var(--layer-floating);
+}
+
+body.rail-collapsed #controlsPanelOpenBtn {
+  left: var(--shell-rail-w-collapsed);
+}

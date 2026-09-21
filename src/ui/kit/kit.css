@@ -88,6 +88,54 @@
   align-items: center;
 }
 
+/* ── Rail buttons ─────────────────────────────────────────────────────────── */
+
+.ui-btn.ui-rail-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 30px;
+  margin: 0;
+  padding: 5px 8px;
+  text-align: left;
+  font-size: var(--ui-font-sm);
+  border-radius: var(--ui-radius);
+  box-sizing: border-box;
+}
+
+.ui-rail-btn__icon {
+  flex: none;
+  width: 18px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+/* A long tool name truncates rather than widening the rail. */
+.ui-rail-btn__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ui-rail-group {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--surface-5);
+  margin: 10px 0 3px 9px;
+}
+
+.ui-rail-group:first-child {
+  margin-top: 2px;
+}
+
 /* ── Checkbox ─────────────────────────────────────────────────────────────── */
 
 .ui-checkbox {

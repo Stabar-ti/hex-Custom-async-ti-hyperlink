@@ -56,6 +56,7 @@ class FakeElement {
         this._classList.set = new Set(String(v).split(/\s+/).filter(Boolean));
     }
     appendChild(child) { this.children.push(child); return child; }
+    append(...kids) { for (const k of kids) this.children.push(k); }
     setAttribute(name, value) { this.attributes[name] = value; }
     removeAttribute(name) { delete this.attributes[name]; }
     addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
@@ -82,7 +83,7 @@ globalThis.document = {
 
 const { el, apply, append, setActive } = await import('../src/ui/kit/el.js');
 const {
-    button, panelButton, buttonRow, checkbox, field, select,
+    button, panelButton, railButton, railGroupLabel, buttonRow, checkbox, field, select,
     stack, row, section, separator, note,
 } = await import('../src/ui/kit/controls.js');
 
@@ -203,6 +204,37 @@ function noInlineStyles(label, node) {
     noInlineStyles('panelButton writes no inline styles', b);
 
     ok('buttonRow lays out', buttonRow([b]).classList.contains('ui-btn-row'));
+}
+
+// ── Rail button ───────────────────────────────────────────────────────────────
+{
+    const b = railButton({ icon: '▦', text: 'System Tiles' });
+
+    ok('railButton is a rail button', b.classList.contains('ui-rail-btn'));
+    ok('railButton is still a mode-button', b.classList.contains('mode-button'));
+    check('railButton has two children', b.children.length, 2);
+    check('icon first', b.children[0].className, 'ui-rail-btn__icon');
+    check('label second', b.children[1].className, 'ui-rail-btn__label');
+    check('label text', b.children[1].textContent, 'System Tiles');
+
+    // The icon and label are separate elements specifically so CSS can hide the label;
+    // if they ever merge into one node the collapsed rail silently shows nothing.
+    check('icon is its own element', b.children[0].textContent, '▦');
+    check('icon is hidden from screen readers', b.children[0].attributes['aria-hidden'], 'true');
+
+    // Collapsed, the tooltip is the only thing naming the tool.
+    check('title falls back to the label', b.title, 'System Tiles');
+    check('an explicit title wins',
+        railButton({ icon: 'x', text: 'Lore', title: 'Attach lore to a hex' }).title,
+        'Attach lore to a hex');
+
+    ok('railButton can start active', railButton({ icon: 'x', text: 'y', active: true }).classList.contains('active'));
+    noInlineStyles('railButton writes no inline styles', b);
+
+    const g = railGroupLabel('Connect');
+    ok('railGroupLabel has its class', g.classList.contains('ui-rail-group'));
+    check('railGroupLabel renders its text', g.textContent, 'Connect');
+    noInlineStyles('railGroupLabel writes no inline styles', g);
 }
 
 // ── Checkbox ──────────────────────────────────────────────────────────────────

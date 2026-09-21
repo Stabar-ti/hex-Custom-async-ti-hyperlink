@@ -53,6 +53,40 @@ export function panelButton({ className = '', ...rest } = {}) {
 }
 
 /**
+ * A button for the docked tool rail: an icon and a label, laid out as a row.
+ *
+ * The icon and the label are separate elements on purpose — that is what lets the rail
+ * collapse to an icon strip by hiding one of them in CSS, rather than rebuilding the
+ * button with different content. The label doubles as the tooltip when none is given,
+ * because once collapsed the icon is all there is to go on.
+ *
+ * @param {ElOptions & {icon: string, text: string, active?: boolean}} opts
+ * @returns {HTMLButtonElement}
+ */
+export function railButton({ icon, text, active = false, className = '', title, ...rest }) {
+    const node = button({
+        ...rest,
+        active,
+        title: title || text,
+        className: ('ui-rail-btn ' + className).trim(),
+    });
+    node.append(
+        el('span', { className: 'ui-rail-btn__icon', text: icon, attrs: { 'aria-hidden': 'true' } }),
+        el('span', { className: 'ui-rail-btn__label', text }),
+    );
+    return node;
+}
+
+/**
+ * A heading above a group of rail buttons.
+ *
+ * @param {string} text
+ */
+export function railGroupLabel(text) {
+    return el('div', { className: 'ui-rail-group', text });
+}
+
+/**
  * A row of buttons that sit together.
  *
  * @param {Array<Node|string|null|undefined|false>} children

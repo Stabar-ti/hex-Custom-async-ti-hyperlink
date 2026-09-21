@@ -5,8 +5,8 @@
 // ───────────────────────────────────────────────────────────────
 
 import { wormholeTypes } from '../constants/constants.js';
-import { showPopup, hidePopup } from './popupUI.js';
-import { panelButton } from './kit/index.js';
+import { showPopup } from './popupUI.js';
+import { railButton, railGroupLabel } from './kit/index.js';
 import {
   invoke, tryInvoke, hasCommand,
   registerMode, activateMode, deactivateMode, deactivateModes, COMMANDS
@@ -18,161 +18,109 @@ import {
 const MODE_LORE = 'lore';
 const MODE_TOKEN = 'token';
 
-let sectorControlsPopup = null;
+// Where the rail's collapsed state is remembered between sessions.
+const RAIL_COLLAPSED_KEY = 'ti4-tool-rail-collapsed';
 
-export function populateSectorControls(editor) {
-  // Legacy function - now just opens the popup
-  openSectorControlsPopup(editor);
+/** @returns {boolean} */
+function readRailCollapsed() {
+  try {
+    return localStorage.getItem(RAIL_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;   // private mode / storage disabled — start expanded
+  }
 }
 
+/** @param {boolean} collapsed */
+function writeRailCollapsed(collapsed) {
+  try {
+    localStorage.setItem(RAIL_COLLAPSED_KEY, collapsed ? '1' : '0');
+  } catch { /* the rail just forgets between sessions */ }
+}
+
+/**
+ * Collapse or expand the rail. Collapsed, it is a strip of icons — still usable, which is
+ * the point: you can keep working with it shut. The labels are hidden by CSS rather than
+ * removed, so every button keeps its tooltip.
+ *
+ * @param {boolean} collapsed
+ */
+export function setToolRailCollapsed(collapsed) {
+  const rail = document.getElementById('toolRail');
+  if (!rail) return;
+  rail.classList.toggle('is-collapsed', collapsed);
+  // Mirrored onto <body> so floating panels can keep clear of the rail in CSS — they are
+  // position:fixed and cannot see the rail's own class.
+  document.body.classList.toggle('rail-collapsed', collapsed);
+  writeRailCollapsed(collapsed);
+
+  const btn = rail.querySelector('.rail-collapse-btn');
+  if (btn) {
+    btn.textContent = collapsed ? '\u00BB' : '\u00AB';
+    btn.title = collapsed ? 'Expand the tool rail' : 'Collapse the tool rail to icons';
+    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  }
+}
+
+/** Flip the rail between its expanded and icon-only states. */
+export function toggleToolRail() {
+  const rail = document.getElementById('toolRail');
+  if (!rail) return;
+  setToolRailCollapsed(!rail.classList.contains('is-collapsed'));
+}
+
+/**
+ * Build the tool rail into #toolRail.
+ *
+ * This used to be a floating popup that auto-opened on load, could not be closed (its close
+ * button was removed and replaced with a minimize), and sat on top of the map like a small
+ * window. It is a docked region of the app shell now, so it reserves its own space instead
+ * of covering the map, and it collapses to an icon strip rather than to a stub of window
+ * chrome. Everything it contains — the modes, the registry wiring, the arm/disarm rules —
+ * is unchanged.
+ */
+export function mountToolRail(editor) {
+  const rail = document.getElementById('toolRail');
+  if (!rail) {
+    console.warn('[toolRail] #toolRail is missing from the page; tools have nowhere to go');
+    return null;
+  }
+
+  rail.textContent = '';
+  rail.appendChild(createSectorControlsContent(editor));
+
+  const collapseBtn = document.createElement('button');
+  collapseBtn.type = 'button';
+  collapseBtn.className = 'rail-collapse-btn';
+  rail.appendChild(collapseBtn);
+  collapseBtn.addEventListener('click', () => toggleToolRail());
+
+  setToolRailCollapsed(readRailCollapsed());
+  return rail;
+}
+
+/** The name the rest of the app already calls. The rail replaced the popup. */
 export function openSectorControlsPopup(editor) {
-  // Close existing popup if any
-  if (sectorControlsPopup) {
-    hidePopup('sectorControlsPopupModal');
-  }
-
-  // Create the content for the popup
-  const content = createSectorControlsContent(editor);
-
-  // Show the popup
-  sectorControlsPopup = showPopup({
-    id: 'sectorControlsPopupModal',
-    className: 'layout-options-popup sector-controls-popup',
-    title: 'Sector Controls',
-    draggable: true,
-    dragHandleSelector: '.popup-ui-titlebar',
-    scalable: true, // Allow users to resize the popup
-    rememberPosition: true,
-    modal: false, // Allow title bar creation, we'll manually remove close button
-    style: {
-      left: '20px', // Position on the left side like the original container
-      top: '80px',
-      minWidth: '180px',
-      maxWidth: '400px',
-      minHeight: '200px',
-      maxHeight: '800px',
-      color: '#fff',
-      border: '2px solid var(--popup-border-sector)',
-      boxShadow: '0 8px 40px #000a',
-      padding: '0',
-      zIndex: 1200,
-      borderRadius: '8px'
-    },
-    content: content,
-    onClose: () => {
-      sectorControlsPopup = null;
-    }
-  });
-
-  // Remove the close button and add custom minimize button
-  customizeTitleBar(sectorControlsPopup);
-
-  return sectorControlsPopup;
+  return mountToolRail(editor);
 }
 
-function customizeTitleBar(popup) {
-  const titleBar = popup.querySelector('.popup-ui-titlebar');
-  if (!titleBar) return;
-
-  // Remove the close button
-  const closeBtn = titleBar.querySelector('.popup-ui-close');
-  if (closeBtn) {
-    closeBtn.remove();
-  }
-
-  // Add custom minimize button
-  addMinimizeButton(popup);
-}
-
-function addMinimizeButton(popup) {
-  const titleBar = popup.querySelector('.popup-ui-titlebar');
-  if (!titleBar) return;
-
-  // Create minimize button
-  const minimizeBtn = document.createElement('button');
-  minimizeBtn.className = 'popup-ui-minimize wizard-btn';
-  minimizeBtn.innerHTML = '▾';
-  minimizeBtn.title = 'Collapse';
-  minimizeBtn.style.fontSize = '1.2rem';
-  minimizeBtn.style.width = '28px';
-  minimizeBtn.style.height = '28px';
-  minimizeBtn.style.lineHeight = '28px';
-  minimizeBtn.style.position = 'relative';
-  minimizeBtn.style.marginLeft = '8px';
-  minimizeBtn.style.display = 'flex';
-  minimizeBtn.style.alignItems = 'center';
-  minimizeBtn.style.justifyContent = 'center';
-  minimizeBtn.style.borderRadius = '0';
-  minimizeBtn.style.border = '1px solid #666';
-  minimizeBtn.style.background = '#333';
-  minimizeBtn.style.color = '#fff';
-  minimizeBtn.style.cursor = 'pointer';
-
-  let isMinimized = false;
-  let originalWidth = popup.style.width;
-  let originalDisplay = '';
-  let originalShadow = popup.style.boxShadow;
-  let originalRadius = popup.style.borderRadius;
-
-  minimizeBtn.onclick = (e) => {
-    e.stopPropagation(); // Prevent popup dragging
-    const content = popup.querySelector('.sector-controls-content');
-    if (!content) return;
-
-    if (isMinimized) {
-      content.style.display = originalDisplay;
-      minimizeBtn.innerHTML = '▾';
-      minimizeBtn.title = 'Collapse';
-      popup.classList.remove('popup-ui--collapsed');
-      popup.style.width = originalWidth || '';
-      popup.style.boxShadow = originalShadow;
-      popup.style.borderRadius = originalRadius;
-      popup.style.resize = 'both'; // Re-enable resizing
-      isMinimized = false;
-    } else {
-      originalDisplay = content.style.display;   // flex column, set when the panel is built
-      // Pin the width before the content goes. The panel is sized by its contents and
-      // scrolls, so hiding them took the scrollbar with it and the collapsed bar came out
-      // ten pixels WIDER than the panel — it jumped sideways as it shrank.
-      originalWidth = popup.style.width;
-      popup.style.width = popup.getBoundingClientRect().width + 'px';
-      content.style.display = 'none';
-      // ▸ not □: U+25A1 WHITE SQUARE reads as a missing-glyph box, not a control.
-      minimizeBtn.innerHTML = '▸';
-      minimizeBtn.title = 'Expand';
-      popup.classList.add('popup-ui--collapsed');
-      // A collapsed panel is furniture, not a tiny window: drop the deep drop-shadow and
-      // the large radius that made the 40px bar look like a broken popup.
-      originalShadow = popup.style.boxShadow;
-      originalRadius = popup.style.borderRadius;
-      popup.style.boxShadow = '0 2px 10px rgba(0,0,0,0.35)';
-      popup.style.borderRadius = '6px';
-      popup.style.resize = 'none'; // Disable resizing when minimized
-      isMinimized = true;
-    }
-  };
-
-  titleBar.appendChild(minimizeBtn);
+/** Older alias still imported in one or two places. */
+export function populateSectorControls(editor) {
+  return mountToolRail(editor);
 }
 
 function createSectorControlsContent(editor) {
+  // Laid out by #toolRail in shell.css; nothing to set here.
   const container = document.createElement('div');
   container.className = 'sector-controls-content';
-  container.style.padding = '15px';
-  container.style.overflow = 'auto'; // Allow scrolling if content is too long
-  container.style.width = '100%'; // Explicit width constraint
-  container.style.maxWidth = '100%'; // Never exceed parent
-  container.style.boxSizing = 'border-box';
-  container.style.display = 'flex';
-  container.style.flexDirection = 'column';
-  container.style.minWidth = '0'; // Prevent flex items from growing beyond container
 
-  // ───────────── System Tiles Button ─────────────
-  const realIdBtn = panelButton({
+  container.appendChild(railGroupLabel('Draw'));
+
+  const realIdBtn = railButton({
     id: 'jumpToSystemBtn',
     className: 'btn-lookup-id',
+    icon: '▦',
     text: 'System Tiles',
-    title: 'Choose Async Tile',
+    title: 'Choose a real system tile to place',
   });
   realIdBtn.addEventListener('click', () => {
     deactivateModes();
@@ -181,26 +129,15 @@ function createSectorControlsContent(editor) {
   });
   container.appendChild(realIdBtn);
 
-  // ── separator + section label ──
-  const sep0 = document.createElement('div');
-  sep0.style.borderTop = '1px solid #555';
-  sep0.style.margin = '10px 0 6px 0';
-  container.appendChild(sep0);
-
-  const drawLabel = document.createElement('div');
-  drawLabel.className = 'popup-section-label';
-  drawLabel.textContent = 'Draw your design';
-  container.appendChild(drawLabel);
-
   // ───────────── Essential System Types ─────────────
   const essentialSystemTypes = [
-    { mode: 'hyperlane', label: 'Hyperlanes', cls: 'btn-empty' },
-    { mode: 'void', label: 'Void', cls: 'btn-void' },
-    { mode: 'homesystem', label: 'Homesystem', cls: 'btn-homesystem' }
+    { mode: 'hyperlane', label: 'Hyperlanes', cls: 'btn-empty', icon: '∿' },
+    { mode: 'void', label: 'Void', cls: 'btn-void', icon: '○' },
+    { mode: 'homesystem', label: 'Homesystem', cls: 'btn-homesystem', icon: '⌂' }
   ];
 
-  essentialSystemTypes.forEach(({ mode, label, cls }) => {
-    const btn = panelButton({ className: cls, text: label });
+  essentialSystemTypes.forEach(({ mode, label, cls, icon }) => {
+    const btn = railButton({ className: cls, icon, text: label });
     btn.dataset.mode = mode;
     btn.addEventListener('click', (e) => {
       const turningOff = e.currentTarget.classList.contains('active');
@@ -231,10 +168,11 @@ function createSectorControlsContent(editor) {
   });
 
   // ───────────── Draw Helpers Modal Launcher ─────────────
-  const drawHelpersBtn = panelButton({
+  const drawHelpersBtn = railButton({
     id: 'launchDrawHelpersPopup',
+    icon: '✎',
     text: 'Draw Helpers…',
-    title: 'Quick Drawing Tools',
+    title: 'Tile types, effects and value hints',
   });
   drawHelpersBtn.onclick = () => openDrawHelpersPopup(editor, { launcher: drawHelpersBtn, ownerPanel: container });
   container.appendChild(drawHelpersBtn);
@@ -674,22 +612,14 @@ export function openDrawHelpersPopup(editor, { launcher = null, ownerPanel = nul
  * Split out only so openDrawHelpersPopup could be lifted to module scope.
  */
 function finishSectorControlsContent(editor, container) {
-  // ── separator + section label ──
-  const separator1 = document.createElement('div');
-  separator1.style.borderTop = '1px solid #555';
-  separator1.style.margin = '10px 0 6px 0';
-  container.appendChild(separator1);
-
-  const advLabel = document.createElement('div');
-  advLabel.className = 'popup-section-label';
-  advLabel.textContent = 'Advanced map tools';
-  container.appendChild(advLabel);
+  container.appendChild(railGroupLabel('Connect'));
 
   // ───────────── Wormholes Modal Launcher ─────────────
-  const wormholesBtn = panelButton({
+  const wormholesBtn = railButton({
     id: 'launchWormholesPopup',
+    icon: '◎',
     text: 'Wormholes…',
-    title: 'Pick Wormhole',
+    title: 'Place a wormhole',
   });
   wormholesBtn.onclick = (e) => {
     // Clear active state from all buttons in the sector controls first
@@ -768,10 +698,11 @@ function finishSectorControlsContent(editor, container) {
   container.appendChild(wormholesBtn);
 
   // ───────────── Custom Links Modal Launcher ─────────────
-  const customLinksBtn = panelButton({
+  const customLinksBtn = railButton({
     id: 'launchCustomLinksPopup',
+    icon: '⇄',
     text: 'Custom Links…',
-    title: 'Manage Custom Links',
+    title: 'Manage custom adjacency links',
   });
   customLinksBtn.onclick = (e) => {
     // Clear active state from all buttons in the sector controls first
@@ -789,10 +720,11 @@ function finishSectorControlsContent(editor, container) {
   container.appendChild(customLinksBtn);
 
   // ───────────── Border Anomalies Modal Launcher ─────────────
-  const borderAnomaliesBtn = panelButton({
+  const borderAnomaliesBtn = railButton({
     id: 'launchBorderAnomaliesPopup',
+    icon: '⌗',
     text: 'Border Anomalies…',
-    title: 'Manage Border Anomalies',
+    title: 'Manage border anomalies',
   });
   borderAnomaliesBtn.onclick = (e) => {
     // Clear active state from all buttons in the sector controls first
@@ -810,10 +742,13 @@ function finishSectorControlsContent(editor, container) {
   container.appendChild(borderAnomaliesBtn);
 
   // ───────────── Token Placement Button ─────────────
-  const tokenPlacementBtn = panelButton({
+  container.appendChild(railGroupLabel('Annotate'));
+
+  const tokenPlacementBtn = railButton({
     id: 'launchTokenPlacementPopup',
+    icon: '⬢',
     text: 'Token Placement…',
-    title: 'Place tokens on systems and planets',
+    title: 'Place tokens on hexes',
   });
   tokenPlacementBtn.onclick = (e) => {
     e.preventDefault();
@@ -849,10 +784,11 @@ function finishSectorControlsContent(editor, container) {
   container.appendChild(tokenPlacementBtn);
 
   // ───────────── Select Hex for Lore Button ─────────────
-  const selectHexForLoreBtn = panelButton({
+  const selectHexForLoreBtn = railButton({
     id: 'selectHexForLoreBtn',
-    text: 'Add Lore...',
-    title: 'Click to activate hex selection mode for lore editing',
+    icon: '✒',
+    text: 'Add Lore…',
+    title: 'Select a hex to add lore to',
   });
 
   selectHexForLoreBtn.onclick = (e) => {
@@ -890,22 +826,13 @@ function finishSectorControlsContent(editor, container) {
   };
   container.appendChild(selectHexForLoreBtn);
 
-  // ── separator + section label ──
-  const separator2 = document.createElement('div');
-  separator2.style.borderTop = '1px solid #555';
-  separator2.style.margin = '10px 0 6px 0';
-  container.appendChild(separator2);
+  container.appendChild(railGroupLabel('External'));
 
-  const externalLabel = document.createElement('div');
-  externalLabel.className = 'popup-section-label';
-  externalLabel.textContent = 'External setup links';
-  container.appendChild(externalLabel);
-
-  // ───────────── Deck Modification (external tool) ─────────────
-  const deckModBtn = panelButton({
+  const deckModBtn = railButton({
     id: 'openDeckModificationTool',
-    text: 'Deck modification...',
-    title: 'Open the AsyncTI4 deck card tool in a new tab',
+    icon: '↗',
+    text: 'Deck modification…',
+    title: 'Open the AsyncTI deck card tool in a new tab',
   });
   deckModBtn.onclick = (e) => {
     e.preventDefault();
