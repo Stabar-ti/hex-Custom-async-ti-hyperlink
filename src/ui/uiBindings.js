@@ -8,9 +8,6 @@ import { populateSectorControls, openSectorControlsPopup } from './uisectorContr
 import { showModal, closeModal } from './uiModals.js';
 import { updateLayerVisibility } from '../features/realIDsOverlays.js';
 import { generateRings } from '../draw/drawHexes.js';
-import { syncToggleButtons } from './uiUtils.js';
-import { toggleBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay.js';
-import { toggleCustomLinksOverlay } from '../features/customLinksOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 
 import { exportAdjacencyOverrides, exportCustomAdjacents, exportBorderAnomaliesGrouped } from '../data/export.js'; // use your actual path
@@ -61,36 +58,12 @@ export function bindUI(editor) {
     enforceSvgLayerOrder(editor.svg);
   });
 
-  // IDs for all toggles of each overlay
-  const borderAnomalyBtnIds = ['toggleBorderAnomaliesOverlay', 'toggleBorderAnomalies'];
-  const customLinksBtnIds = ['toggleCustomLinksOverlay', 'toggleCustomLinks'];
-
-  // Generalized handlers
-  function toggleBorderAnomaliesAll() {
-    toggleBorderAnomaliesOverlay(editor);  // This toggles editor.showBorderAnomalies and SVG
-    syncToggleButtons(borderAnomalyBtnIds, editor.showBorderAnomalies);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  }
-  function toggleCustomLinksAll() {
-    editor.showCustomLinks = !editor.showCustomLinks;
-    toggleCustomLinksOverlay(editor);
-    syncToggleButtons(customLinksBtnIds, editor.showCustomLinks);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  }
-
-  // Attach all buttons (repeat if you add more UI for these overlays)
-  borderAnomalyBtnIds.forEach(id => {
-    document.getElementById(id)?.addEventListener('click', toggleBorderAnomaliesAll);
-  });
-  customLinksBtnIds.forEach(id => {
-    document.getElementById(id)?.addEventListener('click', toggleCustomLinksAll);
-  });
-
-  // Set initial state on page load/UI refresh (after all DOM exists)
-  syncToggleButtons(borderAnomalyBtnIds, editor.showBorderAnomalies); // On load
-  syncToggleButtons(customLinksBtnIds, editor.showCustomLinks);
+  // The border-anomaly and custom-links overlay toggles live inside the Toggle Overlays
+  // popup, which simplepPopup.js builds on demand — it does not exist when bindUI runs.
+  // A second set of handlers used to be attached here against those ids; they bound
+  // nothing, and the custom-links one flipped editor.showCustomLinks, which is not the
+  // property this overlay uses (that is showCustomAdjacency, owned by
+  // toggleCustomLinksOverlay). setupToggle in simplepPopup.js is the live wiring.
 
   // Rearrange control panel (left/top/right)
   document.getElementById('arrangeBtn')?.addEventListener('click', () => editor.cycleControlPanelPosition());

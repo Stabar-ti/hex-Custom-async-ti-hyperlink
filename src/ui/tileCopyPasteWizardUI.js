@@ -16,9 +16,9 @@ export function showWizardPopup(message, actions = []) {
       <div class="wizard-main-message"></div>
       <div class="wizard-actions"></div>
       <div class="wizard-toggles" style="margin-top:18px; display: flex; flex-direction: column; gap: 8px;">
-        <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" id="toggleWormholes" checked> <span>Include Wormholes</span></label>
-        <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" id="toggleCustomAdj" checked> <span>Include Custom Links</span></label>
-        <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" id="toggleBorderAnomalies" checked> <span>Include Border Anomalies</span></label>
+        <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" id="wizardIncludeWormholes" checked> <span>Include Wormholes</span></label>
+        <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" id="wizardIncludeCustomAdj" checked> <span>Include Custom Links</span></label>
+        <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" id="wizardIncludeBorderAnomalies" checked> <span>Include Border Anomalies</span></label>
       </div>
     `;
     wizardPopup = showPopup({
@@ -112,9 +112,9 @@ export function showWizardPopup(message, actions = []) {
     // Setup toggles to update global options
     setTimeout(() => {
         const opts = window.tileCopyOptions = window.tileCopyOptions || { wormholes: true, customAdjacents: true, borderAnomalies: true };
-        const w = document.getElementById('toggleWormholes');
-        const c = document.getElementById('toggleCustomAdj');
-        const b = document.getElementById('toggleBorderAnomalies');
+        const w = document.getElementById('wizardIncludeWormholes');
+        const c = document.getElementById('wizardIncludeCustomAdj');
+        const b = document.getElementById('wizardIncludeBorderAnomalies');
         if (w) w.checked = opts.wormholes;
         if (c) c.checked = opts.customAdjacents;
         if (b) b.checked = opts.borderAnomalies;

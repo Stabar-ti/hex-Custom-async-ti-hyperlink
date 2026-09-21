@@ -28,7 +28,7 @@ export function showOptionsPopup(editor) {
           Enable Rift chaining
         </label><br>
         <label>
-          <input type="checkbox" id="toggleCustomLinks" ${editor.options.useCustomLinks ? 'checked' : ''}>
+          <input type="checkbox" id="distUseCustomLinks" ${editor.options.useCustomLinks ? 'checked' : ''}>
           Use Custom Links
         </label><br>
         <label>
@@ -40,7 +40,7 @@ export function showOptionsPopup(editor) {
           Use Adjacency Overrides
         </label><br>
         <label>
-          <input type="checkbox" id="toggleBorderAnomalies" ${editor.options.useBorderAnomalies ? 'checked' : ''}>
+          <input type="checkbox" id="distUseBorderAnomalies" ${editor.options.useBorderAnomalies ? 'checked' : ''}>
           Use Border Anomalies
         </label><br>
         <br>
@@ -64,10 +64,10 @@ export function showOptionsPopup(editor) {
                     const asteroidCB = wrapper.querySelector('#toggleAsteroid');
                     const nebulaCB = wrapper.querySelector('#toggleNebula');
                     const riftCB = wrapper.querySelector('#toggleRift');
-                    const customLinksCB = wrapper.querySelector('#toggleCustomLinks');
+                    const customLinksCB = wrapper.querySelector('#distUseCustomLinks');
                     const wormholesCB = wrapper.querySelector('#toggleUseWormholes');
                     const adjOverridesCB = wrapper.querySelector('#toggleAdjacencyOverrides');
-                    const borderAnomaliesCB = wrapper.querySelector('#toggleBorderAnomalies');
+                    const borderAnomaliesCB = wrapper.querySelector('#distUseBorderAnomalies');
                     const maxDistInp = wrapper.querySelector('#maxDistanceInput');
 
                     editor.options.useSupernova = !!supernovaCB.checked;
@@ -187,10 +187,9 @@ export function showOverlayOptionsPopup() {
                 }
                 // Special handling for custom links: call redraw after toggle
                 if (btnId === 'toggleCustomLinks') {
-                    editor.showCustomAdjacency = !editor.showCustomAdjacency;
-                    btn.classList.toggle('active', editor.showCustomAdjacency);
                     import('../features/customLinksOverlay.js').then(({ toggleCustomLinksOverlay }) => {
-                        toggleCustomLinksOverlay(editor);
+                        toggleCustomLinksOverlay(editor);   // owns showCustomAdjacency
+                        btn.classList.toggle('active', !!editor.showCustomAdjacency);
                     });
                     return;
                 }
@@ -301,15 +300,26 @@ export function showOverlayOptionsPopup() {
         if (voBtn) {
             const active = () => !!editor.svg?.querySelector('#valueOverlayLayer');
             voBtn.classList.toggle('active', active());
+
+            // The twin switch is in Draw Helpers; follow it rather than keeping our own idea
+            // of the state. Self-removing for the same reason as there.
+            import('../features/valueOverlay.js').then(({ VALUE_OVERLAY_CHANGED }) => {
+                const onChange = () => {
+                    if (!voBtn.isConnected) {
+                        document.removeEventListener(VALUE_OVERLAY_CHANGED, onChange);
+                        return;
+                    }
+                    voBtn.classList.toggle('active', active());
+                };
+                document.addEventListener(VALUE_OVERLAY_CHANGED, onChange);
+            }).catch(console.error);
             voBtn.onclick = () => {
                 import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
-                    if (isValueOverlayActive(editor)) {
-                        clearValueOverlay(editor);
-                        voBtn.classList.remove('active');
-                    } else {
-                        drawValueOverlay(editor, false, false, false);
-                        voBtn.classList.add('active');
-                    }
+                    if (isValueOverlayActive(editor)) clearValueOverlay(editor);
+                    else drawValueOverlay(editor, false, false, false);
+                    // Read the layer back rather than assuming: with nothing on the map to
+                    // tier, drawValueOverlay draws nothing and the overlay is still off.
+                    voBtn.classList.toggle('active', active());
                 }).catch(console.error);
             };
         }

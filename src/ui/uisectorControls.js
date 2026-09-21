@@ -566,8 +566,10 @@ export function openDrawHelpersPopup(editor, { launcher = null, ownerPanel = nul
         let vo_R = false, vo_I = false, vo_T = false;
 
         function refreshValueOverlay() {
-          import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay }) => {
-            if (voToggleBtn._voActive) {
+          import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
+            // The drawn layer is the state. Redrawing only makes sense while it is shown —
+            // changing a weight with the overlay off must not switch it on.
+            if (isValueOverlayActive(editor)) {
               drawValueOverlay(editor, vo_R, vo_I, vo_T);
             } else {
               clearValueOverlay(editor);
@@ -578,19 +580,40 @@ export function openDrawHelpersPopup(editor, { launcher = null, ownerPanel = nul
         // Expose refresh on editor so assignSystem and other callers can trigger it
         editor._refreshValueOverlay = refreshValueOverlay;
 
-        // Main on/off toggle
+        // Main on/off toggle. The same overlay has a second switch in Toggle Overlays, so
+        // this button holds no state of its own: it reads the drawn layer, and re-syncs
+        // whenever anything changes it.
         const voToggleBtn = document.createElement('button');
-        voToggleBtn.textContent      = '📊 Show Value Overlay';
-        voToggleBtn.className        = 'mode-button';
-        voToggleBtn._voActive        = false;
-        voToggleBtn.style.cssText    = 'width:100%;padding:6px 10px;font-size:0.85em;font-weight:bold;border:1px solid #888;border-radius:4px;cursor:pointer;';
+        voToggleBtn.className     = 'mode-button';
+        voToggleBtn.textContent   = '📊 Show Value Overlay';
+        voToggleBtn.style.cssText = 'width:100%;padding:6px 10px;font-size:0.85em;font-weight:bold;border:1px solid #888;border-radius:4px;cursor:pointer;';
+
+        function syncVoButton(on) {
+          voToggleBtn.textContent  = on ? '📊 Hide Value Overlay' : '📊 Show Value Overlay';
+          voToggleBtn.style.border = on ? '1px solid #ffe066' : '1px solid #888';
+        }
+
         voToggleBtn.onclick = () => {
-          voToggleBtn._voActive = !voToggleBtn._voActive;
-          voToggleBtn.textContent  = voToggleBtn._voActive ? '📊 Hide Value Overlay' : '📊 Show Value Overlay';
-          voToggleBtn.style.border = voToggleBtn._voActive ? '1px solid #ffe066' : '1px solid #888';
-          refreshValueOverlay();
+          import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
+            if (isValueOverlayActive(editor)) clearValueOverlay(editor);
+            else drawValueOverlay(editor, vo_R, vo_I, vo_T);
+          }).catch(console.error);
         };
         amSection.appendChild(voToggleBtn);
+
+        import('../features/valueOverlay.js').then(({ VALUE_OVERLAY_CHANGED, isValueOverlayActive }) => {
+          syncVoButton(isValueOverlayActive(editor));
+          // Self-removing: the popup is rebuilt on every open, so without this each reopen
+          // would leave another listener behind holding a detached button.
+          const onChange = () => {
+            if (!voToggleBtn.isConnected) {
+              document.removeEventListener(VALUE_OVERLAY_CHANGED, onChange);
+              return;
+            }
+            syncVoButton(isValueOverlayActive(editor));
+          };
+          document.addEventListener(VALUE_OVERLAY_CHANGED, onChange);
+        }).catch(console.error);
 
         // Weight toggle row
         const voWeightRow = document.createElement('div');

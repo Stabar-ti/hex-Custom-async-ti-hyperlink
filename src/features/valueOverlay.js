@@ -178,15 +178,35 @@ export function drawValueOverlay(editor, rOn = false, iOn = false, tOn = false) 
         txt.textContent = `T${tier}`;
         layer.appendChild(txt);
     }
+
+    announceValueOverlayChange();
 }
 
 export function clearValueOverlay(editor) {
     editor?.svg?.querySelector('#valueOverlayLayer')?.remove();
+    announceValueOverlayChange();
 }
 
 /** True if the overlay is currently shown. */
 export function isValueOverlayActive(editor) {
     return !!editor?.svg?.querySelector('#valueOverlayLayer');
+}
+
+/**
+ * Fired whenever the value overlay is drawn or cleared.
+ *
+ * This overlay has two switches, in different popups: "Value Tiers (T1-T5)" in Toggle
+ * Overlays, and "Show Value Overlay" in Draw Helpers. They used to keep separate state —
+ * one probed the DOM, the other held a flag on its own button — so using one left the
+ * other showing the opposite. The drawn layer is the only truth; this event is how a
+ * button that did not cause the change hears about it.
+ */
+export const VALUE_OVERLAY_CHANGED = 'ti4:value-overlay-changed';
+
+function announceValueOverlayChange() {
+    // The pure helpers in this file are imported under node, where there is no document.
+    if (typeof document === 'undefined') return;
+    document.dispatchEvent(new CustomEvent(VALUE_OVERLAY_CHANGED));
 }
 
 // ── Value TARGET layer ─────────────────────────────────────────────────────
