@@ -71,6 +71,10 @@ initHistory(editor);
 
 // The shell's status line: armed tool, hovered hex, zoom.
 installStatusBar(editor);
+
+// Tell the boot guard in index.html that the module graph resolved and the editor is
+// alive. Without this it shows a "failed to load" notice ten seconds in.
+window.dispatchEvent(new CustomEvent('ti4:booted'));
 //initHexHoverInfo(editor); // <- Add this line
 
 installCustomLinksUI(editor);

@@ -308,17 +308,57 @@
           var url = new URL(location.href);
           url.searchParams.set('_v', v);
           location.replace(url.toString());
-          // page reloads here — nothing below runs
+          // location.replace does NOT stop this script — the navigation is queued and
+          // the rest of the function keeps running. Without this return we inject
+          // main.js and begin loading 117 modules that the pending navigation then
+          // throws away, which is a blank page for as long as the race lasts.
+          return;
         }
         localStorage.setItem('appVersion', v);
       } catch (e) { /* localStorage unavailable — ignore */ }
+
+      // Nothing on this page is rendered by HTML alone: the map, the tool rail and
+      // every panel are built by main.js. So if the module graph fails to load —
+      // a dead dev server, a network blip, a syntax error — the user gets a bare
+      // top bar and no indication that anything went wrong. Say so instead.
+      var booted = false;
+      window.addEventListener('ti4:booted', function () { booted = true; });
+
+      function reportBootFailure(detail) {
+        if (booted || document.getElementById('bootFailure')) return;
+        var box = document.createElement('div');
+        box.id = 'bootFailure';
+        box.setAttribute('role', 'alert');
+        box.style.cssText =
+          'position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:99999;' +
+          'max-width:520px;padding:20px 24px;border-radius:8px;border:1px solid #e74c3c;' +
+          'background:#1e1e1e;color:#f0f0f0;font:14px/1.5 system-ui,Segoe UI,sans-serif;' +
+          'box-shadow:0 8px 40px rgba(0,0,0,.6)';
+        box.innerHTML =
+          '<strong style="color:#e74c3c">The editor failed to load.</strong>' +
+          '<p style="margin:10px 0 0">The page itself loaded, but its scripts did not, so the map ' +
+          'and the tools are missing.</p>' +
+          '<p style="margin:10px 0 0">If you are running it locally, check the dev server is still ' +
+          'up and reload. Otherwise the browser console will have the underlying error.</p>' +
+          '<p style="margin:10px 0 0;color:#888;font-size:12px">' + detail + '</p>';
+        document.body.appendChild(box);
+      }
 
       // Inject main.js with the version in the URL so Chrome never serves a
       // bytecode-cached copy from a previous version.
       var s = document.createElement('script');
       s.type = 'module';
       s.src = './src/main.js' + (v ? '?v=' + v : '');
+      s.addEventListener('error', function () {
+        reportBootFailure('src/main.js could not be fetched.');
+      });
       document.body.appendChild(s);
+
+      // A module deeper in the graph can fail without the top-level script erroring,
+      // so also check that the editor actually came up.
+      setTimeout(function () {
+        reportBootFailure('Scripts did not finish starting within 10 seconds.');
+      }, 10000);
     })();
   </script>
 </body>
