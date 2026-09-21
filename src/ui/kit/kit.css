@@ -1,0 +1,201 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   UI kit — the classes src/ui/kit/ emits.
+
+   Every value here comes from a token in the `:root` block of styles.css. Nothing in
+   this file hard-codes a colour, which is the property that makes it worth having:
+   change --color-accent once and every kit control follows.
+
+   The spacing and sizing tokens below (--ui-*) are new. They are defined here rather
+   than in styles.css so the kit is self-contained and can be dropped without leaving
+   orphans behind; if the kit ever becomes the only way the UI is built, they should
+   move into the main `:root`.
+
+   This file is loaded by a <link> in index.html, after styles.css so it can rely on the
+   tokens being defined. It adds classes and never restyles existing selectors — the
+   map, the toolbar and the popups keep the appearance they have today.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Spacing scale. Four steps is enough for a control panel; more invites drift. */
+  --ui-gap-tight: 4px;
+  --ui-gap: 8px;
+  --ui-gap-loose: 14px;
+  --ui-pad: 8px 12px;
+
+  /* The side-panel button, previously eleven inline styles per button. */
+  --ui-btn-height: 38px;
+  --ui-btn-min-width: 70px;
+  --ui-btn-max-width: 200px;
+
+  --ui-radius: 4px;
+  --ui-radius-lg: 8px;
+
+  --ui-font-sm: 0.9em;
+  --ui-font-xs: 0.82em;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+/* .ui-btn is additive: .mode-button in styles.css still supplies the base look and the
+   .active state, so a kit button and a hand-built one are indistinguishable. */
+.ui-btn {
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
+/* The side-panel launcher. This one class is the twelve-line inline recipe that
+   uisectorControls.js repeated for every button in the panel.
+
+   Written as .ui-btn.ui-btn--panel, not .ui-btn--panel, on purpose. The recipe it
+   replaces was inline, so it beat every rule in styles.css — including two that target
+   these very buttons at (0,2,0): `.layout-options-popup .mode-button`, which sets the
+   margin, and `.mode-button.btn-lookup-id`, which sets the padding on System Tiles.
+   A single class would lose to both and quietly change how the panel looks. Doubling
+   the class matches their specificity, and kit.css loads after styles.css so the tie
+   goes to the kit. */
+.ui-btn.ui-btn--panel {
+  display: block;
+  width: 100%;
+  max-width: var(--ui-btn-max-width);
+  min-width: var(--ui-btn-min-width);
+  height: var(--ui-btn-height);
+  margin-bottom: 6px;
+  padding: var(--ui-pad);
+  font-size: var(--ui-font-sm);
+  box-sizing: border-box;
+  /* Long labels truncate rather than widening the panel — the reason the original had
+     a max-width comment reading "Hard limit to prevent infinite growth". */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  flex: none;
+}
+
+.ui-btn--primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.ui-btn--danger {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.ui-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-gap-tight);
+  align-items: center;
+}
+
+/* ── Checkbox ─────────────────────────────────────────────────────────────── */
+
+.ui-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-gap-tight);
+  cursor: pointer;
+  font-size: var(--ui-font-sm);
+  color: var(--text-color);
+  /* A checkbox row is a click target; stop a double-click selecting the label text. */
+  user-select: none;
+}
+
+.ui-checkbox__input {
+  accent-color: var(--color-primary);
+  cursor: pointer;
+  margin: 0;
+  flex: none;
+}
+
+.ui-checkbox__label {
+  line-height: 1.3;
+}
+
+/* ── Field and select ─────────────────────────────────────────────────────── */
+
+.ui-field,
+.ui-select {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ui-field__label,
+.ui-select__label,
+.ui-section__title {
+  font-size: var(--ui-font-xs);
+  color: var(--info-color);
+  letter-spacing: 0.02em;
+}
+
+.ui-field__input,
+.ui-select__input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-ui);
+  font-size: var(--ui-font-sm);
+  border-radius: var(--ui-radius);
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+
+.ui-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.ui-stack--tight  { gap: var(--ui-gap-tight); }
+.ui-stack--normal { gap: var(--ui-gap); }
+.ui-stack--loose  { gap: var(--ui-gap-loose); }
+
+.ui-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-gap);
+}
+
+.ui-row--start   { align-items: center; justify-content: flex-start; }
+.ui-row--center  { align-items: center; justify-content: center; }
+.ui-row--between { align-items: center; justify-content: space-between; }
+
+.ui-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-gap-tight);
+}
+
+.ui-section__title {
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.ui-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-gap-tight);
+}
+
+.ui-separator {
+  border-top: 1px solid var(--surface-4);
+  margin: var(--ui-gap) 0;
+}
+
+/* ── Notes ────────────────────────────────────────────────────────────────── */
+
+.ui-note {
+  font-size: var(--ui-font-xs);
+  line-height: 1.4;
+}
+
+.ui-note--muted   { color: var(--info-color); }
+.ui-note--warning { color: var(--color-warning); }
+.ui-note--danger  { color: var(--color-danger); }
+
+/* ── State ────────────────────────────────────────────────────────────────── */
+
+/* The generic "this control is on" class. Buttons keep using .active, which styles.css
+   already defines; .is-active is for everything that is not a .mode-button. */
+.is-active {
+  outline: 2px solid var(--color-accent-outline);
+}

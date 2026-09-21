@@ -8,6 +8,7 @@ import { sectorModes, wormholeTypes } from '../constants/constants.js';
 import { showModal } from './uiModals.js';
 import { makePopupDraggable } from './uiUtils.js';
 import { showPopup, hidePopup } from './popupUI.js';
+import { panelButton } from './kit/index.js';
 import {
   invoke, tryInvoke, hasCommand,
   registerMode, activateMode, deactivateMode, deactivateModes, COMMANDS
@@ -153,23 +154,12 @@ function createSectorControlsContent(editor) {
   container.style.minWidth = '0'; // Prevent flex items from growing beyond container
 
   // ───────────── System Tiles Button ─────────────
-  const realIdBtn = document.createElement('button');
-  realIdBtn.id = 'jumpToSystemBtn';
-  realIdBtn.className = 'mode-button btn-lookup-id';
-  realIdBtn.textContent = 'System Tiles';
-  realIdBtn.title = 'Choose Async Tile';
-  realIdBtn.style.width = '100%';
-  realIdBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-  realIdBtn.style.minWidth = '70px'; // Same as wormhole popup buttons
-  realIdBtn.style.height = '38px'; // Same as wormhole popup buttons
-  realIdBtn.style.marginBottom = '6px';
-  realIdBtn.style.fontSize = '0.9em';
-  realIdBtn.style.padding = '8px 12px';
-  realIdBtn.style.boxSizing = 'border-box';
-  realIdBtn.style.textOverflow = 'ellipsis';
-  realIdBtn.style.whiteSpace = 'nowrap';
-  realIdBtn.style.overflow = 'hidden';
-  realIdBtn.style.flex = 'none'; // Prevent flex growth
+  const realIdBtn = panelButton({
+    id: 'jumpToSystemBtn',
+    className: 'btn-lookup-id',
+    text: 'System Tiles',
+    title: 'Choose Async Tile',
+  });
   realIdBtn.addEventListener('click', () => {
     deactivateModes();
 
@@ -196,22 +186,8 @@ function createSectorControlsContent(editor) {
   ];
 
   essentialSystemTypes.forEach(({ mode, label, cls }) => {
-    const btn = document.createElement('button');
-    btn.textContent = label;
-    btn.className = `mode-button ${cls}`;
+    const btn = panelButton({ className: cls, text: label });
     btn.dataset.mode = mode;
-    btn.style.width = '100%';
-    btn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-    btn.style.minWidth = '70px'; // Same as wormhole popup buttons
-    btn.style.height = '38px'; // Same as wormhole popup buttons
-    btn.style.marginBottom = '6px';
-    btn.style.fontSize = '0.9em';
-    btn.style.padding = '8px 12px';
-    btn.style.boxSizing = 'border-box';
-    btn.style.textOverflow = 'ellipsis';
-    btn.style.whiteSpace = 'nowrap';
-    btn.style.overflow = 'hidden';
-    btn.style.flex = 'none'; // Prevent flex growth
     btn.addEventListener('click', (e) => {
       const turningOff = e.currentTarget.classList.contains('active');
 
@@ -241,23 +217,11 @@ function createSectorControlsContent(editor) {
   });
 
   // ───────────── Draw Helpers Modal Launcher ─────────────
-  const drawHelpersBtn = document.createElement('button');
-  drawHelpersBtn.id = 'launchDrawHelpersPopup';
-  drawHelpersBtn.className = 'mode-button';
-  drawHelpersBtn.textContent = 'Draw Helpers…';
-  drawHelpersBtn.title = 'Quick Drawing Tools';
-  drawHelpersBtn.style.width = '100%';
-  drawHelpersBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-  drawHelpersBtn.style.minWidth = '70px'; // Same as wormhole popup buttons
-  drawHelpersBtn.style.height = '38px'; // Same as wormhole popup buttons
-  drawHelpersBtn.style.marginBottom = '6px';
-  drawHelpersBtn.style.fontSize = '0.9em';
-  drawHelpersBtn.style.padding = '8px 12px';
-  drawHelpersBtn.style.boxSizing = 'border-box';
-  drawHelpersBtn.style.textOverflow = 'ellipsis';
-  drawHelpersBtn.style.whiteSpace = 'nowrap';
-  drawHelpersBtn.style.overflow = 'hidden';
-  drawHelpersBtn.style.flex = 'none'; // Prevent flex growth
+  const drawHelpersBtn = panelButton({
+    id: 'launchDrawHelpersPopup',
+    text: 'Draw Helpers…',
+    title: 'Quick Drawing Tools',
+  });
   drawHelpersBtn.onclick = () => openDrawHelpersPopup(editor, { launcher: drawHelpersBtn, ownerPanel: container });
   container.appendChild(drawHelpersBtn);
 
@@ -685,23 +649,11 @@ function finishSectorControlsContent(editor, container) {
   container.appendChild(advLabel);
 
   // ───────────── Wormholes Modal Launcher ─────────────
-  const wormholesBtn = document.createElement('button');
-  wormholesBtn.id = 'launchWormholesPopup';
-  wormholesBtn.className = 'mode-button';
-  wormholesBtn.textContent = 'Wormholes…';
-  wormholesBtn.title = 'Pick Wormhole';
-  wormholesBtn.style.width = '100%';
-  wormholesBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-  wormholesBtn.style.minWidth = '70px'; // Same as wormhole popup buttons
-  wormholesBtn.style.height = '38px'; // Same as wormhole popup buttons
-  wormholesBtn.style.marginBottom = '6px';
-  wormholesBtn.style.fontSize = '0.9em';
-  wormholesBtn.style.padding = '8px 12px';
-  wormholesBtn.style.boxSizing = 'border-box';
-  wormholesBtn.style.textOverflow = 'ellipsis';
-  wormholesBtn.style.whiteSpace = 'nowrap';
-  wormholesBtn.style.overflow = 'hidden';
-  wormholesBtn.style.flex = 'none'; // Prevent flex growth
+  const wormholesBtn = panelButton({
+    id: 'launchWormholesPopup',
+    text: 'Wormholes…',
+    title: 'Pick Wormhole',
+  });
   wormholesBtn.onclick = (e) => {
     // Clear active state from all buttons in the sector controls first
     container.querySelectorAll('.mode-button').forEach(btn => {
@@ -779,23 +731,11 @@ function finishSectorControlsContent(editor, container) {
   container.appendChild(wormholesBtn);
 
   // ───────────── Custom Links Modal Launcher ─────────────
-  const customLinksBtn = document.createElement('button');
-  customLinksBtn.id = 'launchCustomLinksPopup';
-  customLinksBtn.className = 'mode-button';
-  customLinksBtn.textContent = 'Custom Links…';
-  customLinksBtn.title = 'Manage Custom Links';
-  customLinksBtn.style.width = '100%';
-  customLinksBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-  customLinksBtn.style.minWidth = '70px'; // Same as wormhole popup buttons
-  customLinksBtn.style.height = '38px'; // Same as wormhole popup buttons
-  customLinksBtn.style.marginBottom = '6px';
-  customLinksBtn.style.fontSize = '0.9em';
-  customLinksBtn.style.padding = '8px 12px';
-  customLinksBtn.style.boxSizing = 'border-box';
-  customLinksBtn.style.textOverflow = 'ellipsis';
-  customLinksBtn.style.whiteSpace = 'nowrap';
-  customLinksBtn.style.overflow = 'hidden';
-  customLinksBtn.style.flex = 'none'; // Prevent flex growth
+  const customLinksBtn = panelButton({
+    id: 'launchCustomLinksPopup',
+    text: 'Custom Links…',
+    title: 'Manage Custom Links',
+  });
   customLinksBtn.onclick = (e) => {
     // Clear active state from all buttons in the sector controls first
     container.querySelectorAll('.mode-button').forEach(btn => {
@@ -812,23 +752,11 @@ function finishSectorControlsContent(editor, container) {
   container.appendChild(customLinksBtn);
 
   // ───────────── Border Anomalies Modal Launcher ─────────────
-  const borderAnomaliesBtn = document.createElement('button');
-  borderAnomaliesBtn.id = 'launchBorderAnomaliesPopup';
-  borderAnomaliesBtn.className = 'mode-button';
-  borderAnomaliesBtn.textContent = 'Border Anomalies…';
-  borderAnomaliesBtn.title = 'Manage Border Anomalies';
-  borderAnomaliesBtn.style.width = '100%';
-  borderAnomaliesBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-  borderAnomaliesBtn.style.minWidth = '70px'; // Same as wormhole popup buttons
-  borderAnomaliesBtn.style.height = '38px'; // Same as wormhole popup buttons
-  borderAnomaliesBtn.style.marginBottom = '6px';
-  borderAnomaliesBtn.style.fontSize = '0.9em';
-  borderAnomaliesBtn.style.padding = '8px 12px';
-  borderAnomaliesBtn.style.boxSizing = 'border-box';
-  borderAnomaliesBtn.style.textOverflow = 'ellipsis';
-  borderAnomaliesBtn.style.whiteSpace = 'nowrap';
-  borderAnomaliesBtn.style.overflow = 'hidden';
-  borderAnomaliesBtn.style.flex = 'none'; // Prevent flex growth
+  const borderAnomaliesBtn = panelButton({
+    id: 'launchBorderAnomaliesPopup',
+    text: 'Border Anomalies…',
+    title: 'Manage Border Anomalies',
+  });
   borderAnomaliesBtn.onclick = (e) => {
     // Clear active state from all buttons in the sector controls first
     container.querySelectorAll('.mode-button').forEach(btn => {
@@ -845,23 +773,11 @@ function finishSectorControlsContent(editor, container) {
   container.appendChild(borderAnomaliesBtn);
 
   // ───────────── Token Placement Button ─────────────
-  const tokenPlacementBtn = document.createElement('button');
-  tokenPlacementBtn.id = 'launchTokenPlacementPopup';
-  tokenPlacementBtn.className = 'mode-button';
-  tokenPlacementBtn.textContent = 'Token Placement…';
-  tokenPlacementBtn.title = 'Place tokens on systems and planets';
-  tokenPlacementBtn.style.width = '100%';
-  tokenPlacementBtn.style.maxWidth = '200px';
-  tokenPlacementBtn.style.minWidth = '70px';
-  tokenPlacementBtn.style.height = '38px';
-  tokenPlacementBtn.style.marginBottom = '6px';
-  tokenPlacementBtn.style.fontSize = '0.9em';
-  tokenPlacementBtn.style.padding = '8px 12px';
-  tokenPlacementBtn.style.boxSizing = 'border-box';
-  tokenPlacementBtn.style.textOverflow = 'ellipsis';
-  tokenPlacementBtn.style.whiteSpace = 'nowrap';
-  tokenPlacementBtn.style.overflow = 'hidden';
-  tokenPlacementBtn.style.flex = 'none';
+  const tokenPlacementBtn = panelButton({
+    id: 'launchTokenPlacementPopup',
+    text: 'Token Placement…',
+    title: 'Place tokens on systems and planets',
+  });
   tokenPlacementBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -896,23 +812,11 @@ function finishSectorControlsContent(editor, container) {
   container.appendChild(tokenPlacementBtn);
 
   // ───────────── Select Hex for Lore Button ─────────────
-  const selectHexForLoreBtn = document.createElement('button');
-  selectHexForLoreBtn.id = 'selectHexForLoreBtn';
-  selectHexForLoreBtn.className = 'mode-button';
-  selectHexForLoreBtn.textContent = 'Add Lore...';
-  selectHexForLoreBtn.title = 'Click to activate hex selection mode for lore editing';
-  selectHexForLoreBtn.style.width = '100%';
-  selectHexForLoreBtn.style.maxWidth = '200px';
-  selectHexForLoreBtn.style.minWidth = '70px';
-  selectHexForLoreBtn.style.height = '38px';
-  selectHexForLoreBtn.style.marginBottom = '6px';
-  selectHexForLoreBtn.style.fontSize = '0.9em';
-  selectHexForLoreBtn.style.padding = '8px 12px';
-  selectHexForLoreBtn.style.boxSizing = 'border-box';
-  selectHexForLoreBtn.style.textOverflow = 'ellipsis';
-  selectHexForLoreBtn.style.whiteSpace = 'nowrap';
-  selectHexForLoreBtn.style.overflow = 'hidden';
-  selectHexForLoreBtn.style.flex = 'none';
+  const selectHexForLoreBtn = panelButton({
+    id: 'selectHexForLoreBtn',
+    text: 'Add Lore...',
+    title: 'Click to activate hex selection mode for lore editing',
+  });
 
   selectHexForLoreBtn.onclick = (e) => {
     e.preventDefault();
@@ -961,23 +865,11 @@ function finishSectorControlsContent(editor, container) {
   container.appendChild(externalLabel);
 
   // ───────────── Deck Modification (external tool) ─────────────
-  const deckModBtn = document.createElement('button');
-  deckModBtn.id = 'openDeckModificationTool';
-  deckModBtn.className = 'mode-button';
-  deckModBtn.textContent = 'Deck modification...';
-  deckModBtn.title = 'Open the AsyncTI4 deck card tool in a new tab';
-  deckModBtn.style.width = '100%';
-  deckModBtn.style.maxWidth = '200px';
-  deckModBtn.style.minWidth = '70px';
-  deckModBtn.style.height = '38px';
-  deckModBtn.style.marginBottom = '6px';
-  deckModBtn.style.fontSize = '0.9em';
-  deckModBtn.style.padding = '8px 12px';
-  deckModBtn.style.boxSizing = 'border-box';
-  deckModBtn.style.textOverflow = 'ellipsis';
-  deckModBtn.style.whiteSpace = 'nowrap';
-  deckModBtn.style.overflow = 'hidden';
-  deckModBtn.style.flex = 'none';
+  const deckModBtn = panelButton({
+    id: 'openDeckModificationTool',
+    text: 'Deck modification...',
+    title: 'Open the AsyncTI4 deck card tool in a new tab',
+  });
   deckModBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
