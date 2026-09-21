@@ -93,8 +93,8 @@ function addMinimizeButton(popup) {
   // Create minimize button
   const minimizeBtn = document.createElement('button');
   minimizeBtn.className = 'popup-ui-minimize wizard-btn';
-  minimizeBtn.innerHTML = '−';
-  minimizeBtn.title = 'Minimize';
+  minimizeBtn.innerHTML = '▾';
+  minimizeBtn.title = 'Collapse';
   minimizeBtn.style.fontSize = '1.2rem';
   minimizeBtn.style.width = '28px';
   minimizeBtn.style.height = '28px';
@@ -111,7 +111,10 @@ function addMinimizeButton(popup) {
   minimizeBtn.style.cursor = 'pointer';
 
   let isMinimized = false;
-  let originalHeight = popup.style.height;
+  let originalWidth = popup.style.width;
+  let originalDisplay = '';
+  let originalShadow = popup.style.boxShadow;
+  let originalRadius = popup.style.borderRadius;
 
   minimizeBtn.onclick = (e) => {
     e.stopPropagation(); // Prevent popup dragging
@@ -119,20 +122,33 @@ function addMinimizeButton(popup) {
     if (!content) return;
 
     if (isMinimized) {
-      // Restore
-      content.style.display = 'block';
-      minimizeBtn.innerHTML = '−';
-      minimizeBtn.title = 'Minimize';
-      popup.style.height = originalHeight || 'auto';
+      content.style.display = originalDisplay;
+      minimizeBtn.innerHTML = '▾';
+      minimizeBtn.title = 'Collapse';
+      popup.classList.remove('popup-ui--collapsed');
+      popup.style.width = originalWidth || '';
+      popup.style.boxShadow = originalShadow;
+      popup.style.borderRadius = originalRadius;
       popup.style.resize = 'both'; // Re-enable resizing
       isMinimized = false;
     } else {
-      // Minimize
-      originalHeight = popup.style.height; // Store current height
+      originalDisplay = content.style.display;   // flex column, set when the panel is built
+      // Pin the width before the content goes. The panel is sized by its contents and
+      // scrolls, so hiding them took the scrollbar with it and the collapsed bar came out
+      // ten pixels WIDER than the panel — it jumped sideways as it shrank.
+      originalWidth = popup.style.width;
+      popup.style.width = popup.getBoundingClientRect().width + 'px';
       content.style.display = 'none';
-      minimizeBtn.innerHTML = '□';
-      minimizeBtn.title = 'Restore';
-      popup.style.height = '40px';
+      // ▸ not □: U+25A1 WHITE SQUARE reads as a missing-glyph box, not a control.
+      minimizeBtn.innerHTML = '▸';
+      minimizeBtn.title = 'Expand';
+      popup.classList.add('popup-ui--collapsed');
+      // A collapsed panel is furniture, not a tiny window: drop the deep drop-shadow and
+      // the large radius that made the 40px bar look like a broken popup.
+      originalShadow = popup.style.boxShadow;
+      originalRadius = popup.style.borderRadius;
+      popup.style.boxShadow = '0 2px 10px rgba(0,0,0,0.35)';
+      popup.style.borderRadius = '6px';
       popup.style.resize = 'none'; // Disable resizing when minimized
       isMinimized = true;
     }
@@ -929,7 +945,6 @@ registerMode(MODE_LORE, { deactivate: deactivateLoreMode });
 // ───────────── Token Hex Selection Helper Functions ─────────────
 let tokenHexSelectorActive = false;
 let tokenHexClickHandler = null;
-let previousTokenMode = null;
 
 function deactivateTokenMode() {
   tokenHexSelectorActive = false;
@@ -951,10 +966,10 @@ function enableTokenHexSelection() {
   // Remove any existing handler first
   disableTokenHexSelection();
 
-  // Store the current editor mode and switch to a special token mode
+  // Take over map clicks. Whatever was armed before is deliberately dropped rather than
+  // remembered — see disableTokenHexSelection.
   const editor = window.editor;
   if (editor) {
-    previousTokenMode = editor.mode;
     editor.mode = 'token-selection'; // Special mode to prevent other click handlers
   }
 
@@ -989,11 +1004,17 @@ function enableTokenHexSelection() {
 }
 
 function disableTokenHexSelection() {
-  // Restore the previous editor mode
+  // Leaving token mode disarms the map, it does not restore whatever was armed before.
+  //
+  // This used to stash editor.mode on the way in and put it back on the way out. Arming
+  // Token Placement while a paint mode was active therefore re-armed that paint mode when
+  // you switched tokens off, and the next map click painted a nebula the user had selected
+  // several minutes earlier. Every other tool in this panel ends on setMode('none'); so
+  // does this one now.
   const editor = window.editor;
-  if (editor && previousTokenMode !== null) {
-    editor.mode = previousTokenMode;
-    previousTokenMode = null;
+  if (editor && editor.mode === 'token-selection') {
+    if (typeof editor.setMode === 'function') editor.setMode('none');
+    else editor.mode = 'none';
   }
 
   // Remove event listener

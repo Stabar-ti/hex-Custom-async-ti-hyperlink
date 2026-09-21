@@ -4,6 +4,13 @@
   overflow: auto;
 }
 
+/* The collapsed Sector Controls bar. border/radius/shadow are written inline by
+   showPopup, so those are overridden in addMinimizeButton rather than here. */
+.popup-ui.popup-ui--collapsed {
+  overflow: hidden;
+  min-height: 0;
+}
+
 /*──────────────────────────────────────────────────────────────────────────────
   Theme variables
 ──────────────────────────────────────────────────────────────────────────────*/
