@@ -12,21 +12,17 @@ applySavedTheme();
 // Import main components and features required for the app
 import HexEditor from './core/HexEditor.js';
 import { exportFullState, exportMapInfo } from './data/export.js';
-import { importFullState } from './data/import.js';
+import { importFullState, loadSystemInfo, loadLoreData } from './data/import.js';
 import { initHistory } from './features/history.js';
 import { showModal, closeModal } from './ui/uiModals.js';
-import { loadSystemInfo, loadLoreData } from './data/import.js';
 import { assignSystem } from './features/assignSystem.js';
 import { installSystemPickerUI } from './modules/SystemPicker/pickerUI.js';
 //import { initHexHoverInfo } from './ui/hexHoverInfo.js';
 import { openCalcSlicePopup } from './features/calcSlice.js';
 import { installCustomLinksUI } from './ui/customLinksUI.js';
 import { installBorderAnomaliesUI } from './ui/borderAnomaliesUI.js';
-import { loadBorderAnomalyTypes } from './constants/borderAnomalies.js';
+import { loadBorderAnomalyTypes, clearCache } from './constants/borderAnomalies.js';
 import { overlayDefaults } from './config/toggleSettings.js';
-import { updateTileImageLayer } from './features/imageSystemsOverlay.js';
-import { enforceSvgLayerOrder } from './draw/enforceSvgLayerOrder.js';
-import { startCopyPasteWizard } from './features/tileCopyPasteWizard.js';
 import { setupTileCopySingleButtonAndPopup } from './ui/tileCopyPasteWizardUI.js';
 import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup, showSanityCheckPopup } from './ui/simplepPopup.js';
 import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
@@ -108,78 +104,16 @@ tokenManager.initialize().then(success => {
   console.error('Error initializing token system:', error);
 });
 
-// Initialize border anomaly types (force reload)
-import { clearCache } from './constants/borderAnomalies.js';
-clearCache(); // Clear any cached types
+// Border anomaly types, reloaded rather than taken from cache.
+clearCache();
 loadBorderAnomalyTypes().catch(console.error);
 
-/*// Add Copy/Move and Cut buttons to top bar
-const leftControls = document.getElementById('leftControls');
-if (leftControls && !document.getElementById('tileCopyBtn')) {
-  const copyBtn = document.createElement('button');
-  copyBtn.id = 'tileCopyBtn';
-  copyBtn.className = 'mode-button';
-  copyBtn.textContent = 'Copy Tiles';
-  leftControls.appendChild(copyBtn);
-  copyBtn.onclick = () => startCopyPasteWizard(editor, false);
-  const cutBtn = document.createElement('button');
-  cutBtn.id = 'tileCutBtn';
-  cutBtn.className = 'mode-button';
-  cutBtn.textContent = 'Cut Tiles';
-  leftControls.appendChild(cutBtn);
-  cutBtn.onclick = () => startCopyPasteWizard(editor, true);
-}*/
-
-// ───── Options Modal: Save settings and update map behavior ─────
-/*
-document.getElementById('saveOptionsBtn').addEventListener('click', () => {
-  const supernovaCB = document.getElementById('toggleSupernova');
-  const asteroidCB = document.getElementById('toggleAsteroid');
-  const nebulaCB = document.getElementById('toggleNebula');
-  const riftCB = document.getElementById('toggleRift');
-  const customLinksCB = document.getElementById('toggleCustomLinks');
-  const borderAnomaliesCB = document.getElementById('toggleBorderAnomalies');
-  const maxDistInp = document.getElementById('maxDistanceInput');
-
-  editor.options.useSupernova = !!supernovaCB.checked;
-  editor.options.useAsteroid = !!asteroidCB.checked;
-  editor.options.useNebula = !!nebulaCB.checked;
-  editor.options.useRift = !!riftCB.checked;
-  editor.options.useCustomLinks = !!customLinksCB.checked;
-  editor.options.useBorderAnomalies = !!borderAnomaliesCB.checked;
-
-  // Clamp max distance between 1 and 10
-  let md = parseInt(maxDistInp.value, 10);
-  if (isNaN(md) || md < 1) md = 1;
-  if (md > 10) md = 10;
-  editor.maxDistance = md;
-  maxDistInp.value = md;
-
-  closeModal('optionsModal');
-});*/
 document.getElementById('optionsBtn').onclick = () => showOptionsPopup(editor);
 
-const btnPlanetTypes = document.getElementById('togglePlanetTypes');
-if (btnPlanetTypes) btnPlanetTypes.classList.toggle('active', editor.showPlanetTypes);
-
-const btnResInf = document.getElementById('toggleResInf');
-if (btnResInf) btnResInf.classList.toggle('active', editor.showResInf);
-
-const btnIdealRI = document.getElementById('toggleIdealRI');
-if (btnIdealRI) btnIdealRI.classList.toggle('active', editor.showIdealRI);
-
-const btnRealID = document.getElementById('toggleRealID');
-if (btnRealID) btnRealID.classList.toggle('active', editor.showRealID);
-
-
-
-// ───── Event handler to render wormhole connections ─────
-const linkWormholesBtn = document.getElementById('linkWormholesBtn');
-if (linkWormholesBtn) {
-  linkWormholesBtn.addEventListener('click', () => {
-    editor.drawWormholeLinks();
-  });
-}
+// The overlay toggles (planet types, R/I, ideal R/I, RealID, tile images, wormholes,
+// effects, link wormholes) all live in the Toggle Overlays popup and are wired by
+// setupToggle in ui/simplepPopup.js as that popup is built. Blocks that bound them here
+// at startup found nothing and never ran.
 
 // ───── Export full map state to JSON string ─────
 const exportBtn = document.getElementById('exportFullBtn');
@@ -239,15 +173,7 @@ document.getElementById('downloadExportMapInfo')?.addEventListener('click', asyn
 
 // ───── Cloudflare upload handlers ─────
 // Import Cloudflare functions
-import { saveMap, saveMapInfo } from './data/cloudflare.js';
-
-// Save map to Cloudflare with 48h link
-const saveMapCloudflareBtn = document.getElementById('saveMapCloudflareBtn');
-if (saveMapCloudflareBtn) {
-  saveMapCloudflareBtn.addEventListener('click', () => {
-    saveMap(editor);
-  });
-}
+import { saveMapInfo } from './data/cloudflare.js';
 
 // Save map info to Cloudflare with 48h link
 const saveMapInfoCloudflareBtn = document.getElementById('saveMapInfoCloudflareBtn');
@@ -326,48 +252,6 @@ document.getElementById('importMapInfoFile')?.addEventListener('change', (e) => 
   };
   reader.readAsText(file);
 });
-
-// ───── Toggle visibility of wormhole or effect icons ─────
-const btnToggleWormholes = document.getElementById('toggleWormholes');
-if (btnToggleWormholes) {
-  btnToggleWormholes.classList.toggle('active', !!editor.showWormholes);
-
-  btnToggleWormholes.addEventListener('click', () => {
-    editor.showWormholes = !editor.showWormholes;
-    import('./features/baseOverlays.js').then(({ updateWormholeVisibility }) => {
-      updateWormholeVisibility(editor);
-      enforceSvgLayerOrder(editor.svg); // <--- ENSURE PROPER LAYER ORDER
-    });
-    btnToggleWormholes.classList.toggle('active', editor.showWormholes);
-  });
-}
-
-const btnToggleEffects = document.getElementById('toggleEffects');
-if (btnToggleEffects) {
-  // Set initial .active state (on page load)
-  btnToggleEffects.classList.toggle('active', !!editor.showEffects);
-
-  btnToggleEffects.addEventListener('click', () => {
-    editor.showEffects = !editor.showEffects;
-    import('./features/baseOverlays.js').then(({ updateEffectsVisibility }) => {
-      updateEffectsVisibility(editor);
-      enforceSvgLayerOrder(editor.svg); // <--- ENSURE PROPER LAYER ORDER
-    });
-    btnToggleEffects.classList.toggle('active', editor.showEffects);
-  });
-}
-
-const btnTileImages = document.getElementById('toggleTileImagesBtn');
-if (btnTileImages) {
-  editor.showTileImages = !!editor.showTileImages; // default (or from localStorage)
-  btnTileImages.classList.toggle('active', editor.showTileImages);
-  btnTileImages.addEventListener('click', () => {
-    editor.showTileImages = !editor.showTileImages;
-    btnTileImages.classList.toggle('active', editor.showTileImages);
-    updateTileImageLayer(editor);
-    enforceSvgLayerOrder(editor.svg); // <--- ENSURE PROPER LAYER ORDER
-  });
-}
 
 // Enable keyboard focus for global hotkeys
 document.body.tabIndex = -1;

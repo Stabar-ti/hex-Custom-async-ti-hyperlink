@@ -78,15 +78,10 @@ function showCalcSliceHelpPopup() {
     });
 }
 
-// Modal close (for compatibility with old close button)
-document.getElementById('closeCalcSlice')?.addEventListener('click', () => {
-    hidePopup('calcSlicePopup');
-});
-
-// Optional: Dismiss on background click (if popupUI is used, this is not needed, but kept for legacy)
-document.getElementById('calcSlicePopup')?.addEventListener('mousedown', (e) => {
-    if (e.target === e.currentTarget) hidePopup('calcSlicePopup');
-});
+// Two handlers used to be bound here at import time, for a static #calcSlicePopup in
+// index.html with its own ✕ and a click-outside dismiss. showPopup replaces that element
+// the first time this popup opens, so both listeners died with it; the popup's own titlebar
+// close is what actually works. The static markup is gone now.
 
 // ---------- MAIN RENDER FUNCTION ----------
 export function renderSliceAnalysis(editor, container) {

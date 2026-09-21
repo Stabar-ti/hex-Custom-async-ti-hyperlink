@@ -4,9 +4,7 @@
 // Converted to popup-based system that auto-opens and is minimizable only
 // ───────────────────────────────────────────────────────────────
 
-import { sectorModes, wormholeTypes } from '../constants/constants.js';
-import { showModal } from './uiModals.js';
-import { makePopupDraggable } from './uiUtils.js';
+import { wormholeTypes } from '../constants/constants.js';
 import { showPopup, hidePopup } from './popupUI.js';
 import { panelButton } from './kit/index.js';
 import {

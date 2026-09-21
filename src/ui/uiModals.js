@@ -86,13 +86,6 @@ function makeModalDraggableByHeader(modalId, handleSelector = '.draggable-handle
   });
 }
 
-// ───────────────────────────────────────────────────────────────
-// Enable draggable headers for select modals on page load
-// (Add more calls here to enable dragging for additional modals.)
-// ───────────────────────────────────────────────────────────────
-const _initModals = () => {
-  makeModalDraggableByHeader('systemLookupModal');
-  makeModalDraggableByHeader('optionsModal');
-};
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initModals);
-else _initModals();
+// makeModalDraggableByHeader is still exported for any modal that wants it. It used to be
+// called on load for #systemLookupModal and #optionsModal, both of which have since been
+// replaced by popups that showPopup already makes draggable by their titlebar.

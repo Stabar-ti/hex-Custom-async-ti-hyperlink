@@ -3,74 +3,27 @@
 // Wires up all UI controls, buttons, and interactive elements
 // ───────────────────────────────────────────────────────────────
 
-import { toggleTheme } from './uiTheme.js';
-import { populateSectorControls, openSectorControlsPopup } from './uisectorControls.js';
+import { openSectorControlsPopup } from './uisectorControls.js';
 import { showModal, closeModal } from './uiModals.js';
-import { updateLayerVisibility } from '../features/realIDsOverlays.js';
 import { generateRings } from '../draw/drawHexes.js';
-import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 
 import { exportAdjacencyOverrides, exportCustomAdjacents, exportBorderAnomaliesGrouped } from '../data/export.js'; // use your actual path
 
 export function bindUI(editor) {
-  // Theme switcher
-  document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
-
-  // Modal openers
-  document.getElementById('helpToggle')?.addEventListener('click', () => showModal('controlsModal'));
-  document.getElementById('infoToggle')?.addEventListener('click', () => showModal('infoModal'));
-  document.getElementById('featuresToggle')?.addEventListener('click', () => showModal('featuresModal'));
-
-  // Overlay toggles (Planet Types, R/I, IdealRI, RealID)
-  const btnPlanetTypes = document.getElementById('togglePlanetTypes');
-  btnPlanetTypes?.addEventListener('click', () => {
-    editor.showPlanetTypes = !editor.showPlanetTypes;
-    updateLayerVisibility(editor, 'planetTypeLayer', editor.showPlanetTypes);
-    btnPlanetTypes.classList.toggle('active', editor.showPlanetTypes);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  });
-
-  const btnResInf = document.getElementById('toggleResInf');
-  btnResInf?.addEventListener('click', () => {
-    editor.showResInf = !editor.showResInf;
-    updateLayerVisibility(editor, 'resInfLayer', editor.showResInf);
-    btnResInf.classList.toggle('active', editor.showResInf);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  });
-
-  const btnIdealRI = document.getElementById('toggleIdealRI');
-  btnIdealRI?.addEventListener('click', () => {
-    editor.showIdealRI = !editor.showIdealRI;
-    updateLayerVisibility(editor, 'idealRILayer', editor.showIdealRI);
-    btnIdealRI.classList.toggle('active', editor.showIdealRI);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  });
-
-  const btnRealID = document.getElementById('toggleRealID');
-  btnRealID?.addEventListener('click', () => {
-    editor.showRealID = !editor.showRealID;
-    updateLayerVisibility(editor, 'realIDLabelLayer', editor.showRealID);
-    btnRealID.classList.toggle('active', editor.showRealID);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  });
-
-  // The border-anomaly and custom-links overlay toggles live inside the Toggle Overlays
-  // popup, which simplepPopup.js builds on demand — it does not exist when bindUI runs.
-  // A second set of handlers used to be attached here against those ids; they bound
-  // nothing, and the custom-links one flipped editor.showCustomLinks, which is not the
-  // property this overlay uses (that is showCustomAdjacency, owned by
-  // toggleCustomLinksOverlay). setupToggle in simplepPopup.js is the live wiring.
+  // Nothing to do here for the theme switcher, the three help buttons or any of the
+  // overlay toggles. Those controls all live inside popups that simplepPopup.js builds on
+  // demand, so none of them exists when bindUI runs — binding them here attached to
+  // nothing. (The help buttons pointed at #controlsModal, #infoModal and #featuresModal,
+  // which were removed from index.html; showModal on a missing id is a silent no-op, which
+  // is why it never surfaced.) setupToggle in simplepPopup.js is the live wiring, and
+  // main.js binds the help buttons to the real popups.
 
   // Rearrange control panel (left/top/right)
   document.getElementById('arrangeBtn')?.addEventListener('click', () => editor.cycleControlPanelPosition());
 
-  // Map generation controls
+  // Map generation controls. cornerToggle is bound further down, in the handler that
+  // also resets the ring count; binding it here as well fired toggleCorners twice per change.
   document.getElementById('genMapBtn')?.addEventListener('click', () => editor.generateMap());
-  document.getElementById('cornerToggle')?.addEventListener('change', e => editor.toggleCorners(e.target.checked));
 
   // Advanced Export Toggle
   document.getElementById('advancedExportToggle')?.addEventListener('click', () => {
@@ -144,8 +97,7 @@ export function bindUI(editor) {
     const rings = ringsInput ? parseInt(ringsInput.value, 10) : 1;
     if (rings <= 1) return; // Don't go below 1
 
-    // Gather which labels/hexes would be lost
-    const layout = editor.ringDirections ? generateRings(rings, editor.fillCorners) : [];
+    // Which labels/hexes would be lost by shrinking to one ring fewer.
     const nextLayout = editor.ringDirections ? generateRings(rings - 1, editor.fillCorners) : [];
     const nextLabels = new Set(nextLayout.map(h => h.label));
     const lostHexes = Object.values(editor.hexes).filter(h => !nextLabels.has(h.label) && (
@@ -167,37 +119,18 @@ export function bindUI(editor) {
     editor.toggleCorners(e.target.checked);
   });
 
-  // Distance overlay maximum distance
+  // Default BFS radius. The control that sets it is #maxDistanceInput in the Distance
+  // Options popup, read by that popup's Save button; a handler here bound #distanceCalcLimit,
+  // an id that does not exist anywhere in the project.
   editor.maxDistance = 3;
-  document.getElementById('distanceCalcLimit')?.addEventListener('change', (e) => {
-    editor.maxDistance = parseInt(e.target.value, 10);
-  });
-
-  // Dropdown open/close logic for .popup-group .dropdown-toggle (effects/wormholes)
-  document.querySelectorAll('.popup-group .dropdown-toggle').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const group = btn.closest('.popup-group');
-      if (!group) return;
-      group.classList.toggle('open');
-      // Hide other open dropdowns
-      document.querySelectorAll('.popup-group').forEach(g => {
-        if (g !== group) g.classList.remove('open');
-      });
-    });
-  });
-
-  // (Any popups you want to initialize for draggable, etc, can go here)
-
 
   // layoutToggleBtn and overlayToggleBtn are bound in main.js, which opens the popups
   // simplepPopup.js builds. A second binding used to live here that toggled the *static*
   // markup's display and injected its own ✕; it ran first on every click and was then
   // undone by the rebuild, which is why neither button ever closed its own popup.
 
-
-  // Make popup draggable if you want (optional)
-  // makePopupDraggable('exportLinksModal');
+  // A dropdown handler for '.popup-group .dropdown-toggle' also lived here. No markup in
+  // the project uses either class.
 
   // Show popup for Adjacency Overrides
   document.getElementById('exportAdjOverridesBtn')?.addEventListener('click', () => {
