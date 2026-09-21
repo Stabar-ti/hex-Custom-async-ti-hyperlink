@@ -91,9 +91,13 @@ Python 3.7, so it is fine; `-p HTTP/1.1` is worth adding so those 117 requests r
 connections instead of opening one each. Any real static host serves concurrently, so this
 only ever bites locally.
 
-`npm run serve:nocache` runs `server.py` instead, which is the same thing plus
-`Cache-Control: no-cache` on every response — useful while editing, because a plain F5 then
-always fetches fresh modules rather than relying on the browser to revalidate.
+**Use `npm run serve` (server.py) while developing.** It is the same threaded server plus
+`Cache-Control: no-cache` on every response, and that header is not a nicety: without it the
+browser caches the ~117 modules heuristically and keeps serving stale ones. An edit then
+appears not to take, or the page fails to boot with an error about a module not exporting
+something it plainly does — and the stale copies survive a normal reload, so it looks like a
+code fault rather than a cache. `npm run serve:stdlib` runs `python -m http.server` for the
+cases where you want no project-specific server at all.
 
 ### Testing Cloud Export Locally (Optional)
 

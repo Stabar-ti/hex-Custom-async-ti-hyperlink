@@ -11,8 +11,8 @@
     "lint:fix": "eslint src tools --fix",
     "lint:lore": "eslint src/modules/Lore src/features/loreOverlay.js src/draw/hexAnchors.js",
     "typecheck": "tsc -p tsconfig.json",
-    "serve": "py -m http.server 5173 -p HTTP/1.1 || python3 -m http.server 5173 -p HTTP/1.1",
-    "serve:nocache": "py server.py || python3 server.py"
+    "serve": "py server.py || python3 server.py",
+    "serve:stdlib": "py -m http.server 5173 -p HTTP/1.1 || python3 -m http.server 5173 -p HTTP/1.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
