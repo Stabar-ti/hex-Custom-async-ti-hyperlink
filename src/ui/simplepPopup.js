@@ -110,7 +110,8 @@ export function showOverlayOptionsPopup() {
     // Build content for overlay options
     const wrapper = document.createElement('div');
     wrapper.innerHTML = `
-      <li><strong>IMPORTANT </strong> In rare occasions the visual ques on the buttons get flipped </li>
+      <div class="overlay-note">If a button ever looks like the opposite of what the map is
+      showing, press it twice — a couple of overlays could get out of step with their button.</div>
       <div class="popup-section-label">System Wide</div>
       <div class="popup-btn-grid">
         <button id="toggleTileImagesBtn" class="mode-button">Show Tile Images</button>
@@ -127,16 +128,19 @@ export function showOverlayOptionsPopup() {
         <button id="toggleLore" class="mode-button">Lore Indicators</button>
         <button id="toggleTokens" class="mode-button">Token Indicators</button>
       </div>
-      <div class="popup-section-label">Tile Information</div>
+      <div class="popup-section-label">Connections</div>
       <div class="popup-btn-grid">
         <button id="toggleBorderAnomalies" class="mode-button">Border Anomalies Overlay</button>
         <button id="toggleCustomLinks" class="mode-button">Custom Links Overlay</button>
-        <button id="linkWormholesBtn" class="mode-button">Link Wormholes</button>
       </div>
       <div class="popup-section-label">Value Overlays</div>
       <div class="popup-btn-grid">
         <button id="toggleValueTargetLayer" class="mode-button">Value Hints (V·R·I·T)</button>
         <button id="toggleValueOverlay" class="mode-button">Value Tiers (T1–T5)</button>
+      </div>
+      <div class="popup-section-label">Actions</div>
+      <div class="popup-btn-grid">
+        <button id="linkWormholesBtn" class="mode-button">Link Wormholes</button>
       </div>
     `;
 

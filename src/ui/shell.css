@@ -299,6 +299,15 @@ body {
 
 /* ── Floating panels, now that the shell owns the page ────────────────────── */
 
+/* A note inside a popup: quieter than the controls it sits above. Replaces an
+   orphan <li> that rendered as a stray bullet outside any list. */
+.overlay-note {
+  margin: 0 0 10px;
+  font-size: 0.8em;
+  line-height: 1.4;
+  color: var(--info-color);
+}
+
 /* ── Top-bar dropdown menus ───────────────────────────────────────────────────
    Analyse, Generate and Help. Each holds buttons that used to sit in the bar at full
    weight; the elements are moved rather than rebuilt, so their handlers survive. */
