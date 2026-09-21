@@ -261,6 +261,90 @@ body {
   display: none;
 }
 
+/* ── Inspector contents ───────────────────────────────────────────────────── */
+
+.insp-title {
+  font-family: var(--font-ui);
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--surface-5);
+  padding-bottom: 7px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--surface-4);
+}
+
+.insp-field {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.insp-field__label {
+  flex: none;
+  color: var(--info-color);
+}
+
+/* Values can be long (a system name, a list of wormholes); they wrap rather than
+   widening the column or being clipped. */
+.insp-field__value {
+  min-width: 0;
+  text-align: right;
+  color: var(--text-color);
+  overflow-wrap: anywhere;
+}
+
+.insp-field--tool .insp-field__value {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.insp-field--total {
+  margin-top: 4px;
+  padding-top: 5px;
+  border-top: 1px solid var(--surface-4);
+}
+
+.insp-heading {
+  margin: 12px 0 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--surface-5);
+}
+
+.insp-planet {
+  padding: 5px 7px;
+  margin-bottom: 4px;
+  background: var(--surface-3);
+  border-radius: var(--ui-radius);
+}
+
+.insp-planet__name {
+  font-size: 12px;
+  color: var(--text-color);
+}
+
+.insp-planet__stats {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--info-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.insp-empty {
+  margin-top: 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--surface-5);
+}
+
 /* ── Status bar ───────────────────────────────────────────────────────────── */
 
 #statusBar {
@@ -349,6 +433,16 @@ body {
   padding-bottom: 6px;
   margin-bottom: 8px;
   border-bottom: 1px solid var(--surface-4);
+}
+
+/* A settings panel's own Save/Close, which used to be the popup's titlebar actions. */
+.tb-menu__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--surface-4);
 }
 
 /* Inside a menu a button is a row, not a chip: full width and left-aligned, so the

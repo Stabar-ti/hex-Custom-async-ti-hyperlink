@@ -29,6 +29,7 @@ import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopu
 import { resetAllPopupPositions, hidePopup } from './ui/popupUI.js';
 import { installFileMenu } from './ui/fileMenu.js';
 import { installTopBarMenus } from './ui/topBarMenus.js';
+import { installInspector } from './ui/inspector.js';
 import { installStatusBar } from './ui/statusBar.js';
 import { installTopBarControls } from './ui/topBarControls.js';
 import { installDistanceTool } from './features/distanceTool.js';
@@ -74,6 +75,9 @@ initHistory(editor);
 
 // The shell's status line: armed tool, hovered hex, zoom.
 installStatusBar(editor);
+
+// The inspector column: what is on the hex under the pointer.
+installInspector(editor);
 
 // Undo/redo, zoom, pan mode and reset view — the verbs that had no buttons.
 installTopBarControls(editor);

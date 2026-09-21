@@ -52,58 +52,57 @@ export function showOptionsPopup(editor) {
       </div>
     `;
 
-    showPopup({
+    // Save/Close were popup actions in a titlebar footer. As an anchored panel the
+    // buttons belong in the content.
+    const actions = document.createElement('div');
+    actions.className = 'tb-menu__actions';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'mode-button ui-btn';
+    saveBtn.textContent = 'Save';
+    saveBtn.onclick = () => {
+        const read = (sel) => wrapper.querySelector(sel);
+        editor.options.useSupernova = !!read('#toggleSupernova').checked;
+        editor.options.useAsteroid = !!read('#toggleAsteroid').checked;
+        editor.options.useNebula = !!read('#toggleNebula').checked;
+        editor.options.useRift = !!read('#toggleRift').checked;
+        editor.options.useCustomLinks = !!read('#distUseCustomLinks').checked;
+        editor.options.useWormholes = !!read('#toggleUseWormholes').checked;
+        editor.options.useAdjacencyOverrides = !!read('#toggleAdjacencyOverrides').checked;
+        editor.options.useBorderAnomalies = !!read('#distUseBorderAnomalies').checked;
+
+        // Clamp max distance between 1 and 10
+        const maxDistInp = read('#maxDistanceInput');
+        let md = parseInt(maxDistInp.value, 10);
+        if (isNaN(md) || md < 1) md = 1;
+        if (md > 10) md = 10;
+        editor.maxDistance = md;
+        maxDistInp.value = md;
+
+        hidePopup('options-popup');
+    };
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'mode-button ui-btn';
+    closeBtn.textContent = 'Close';
+    closeBtn.onclick = () => hidePopup('options-popup');
+
+    actions.append(saveBtn, closeBtn);
+    wrapper.appendChild(actions);
+
+    // Hangs off whichever button is actually on screen: Distance Options lives inside the
+    // Analyse menu, and that menu closes as you choose an item — so anchoring to the item
+    // itself would anchor to something no longer visible.
+    const anchorId = document.getElementById('analyseMenuBtn') ? 'analyseMenuBtn' : 'optionsBtn';
+
+    showAnchoredPanel({
         id: 'options-popup',
+        anchorId,
+        title: 'Distance Options',
         className: 'options-popup',
         content: wrapper,
-        actions: [
-            {
-                label: 'Save',
-                action: () => {
-                    // Save logic
-                    const supernovaCB = wrapper.querySelector('#toggleSupernova');
-                    const asteroidCB = wrapper.querySelector('#toggleAsteroid');
-                    const nebulaCB = wrapper.querySelector('#toggleNebula');
-                    const riftCB = wrapper.querySelector('#toggleRift');
-                    const customLinksCB = wrapper.querySelector('#distUseCustomLinks');
-                    const wormholesCB = wrapper.querySelector('#toggleUseWormholes');
-                    const adjOverridesCB = wrapper.querySelector('#toggleAdjacencyOverrides');
-                    const borderAnomaliesCB = wrapper.querySelector('#distUseBorderAnomalies');
-                    const maxDistInp = wrapper.querySelector('#maxDistanceInput');
-
-                    editor.options.useSupernova = !!supernovaCB.checked;
-                    editor.options.useAsteroid = !!asteroidCB.checked;
-                    editor.options.useNebula = !!nebulaCB.checked;
-                    editor.options.useRift = !!riftCB.checked;
-                    editor.options.useCustomLinks = !!customLinksCB.checked;
-                    editor.options.useWormholes = !!wormholesCB.checked;
-                    editor.options.useAdjacencyOverrides = !!adjOverridesCB.checked;
-                    editor.options.useBorderAnomalies = !!borderAnomaliesCB.checked;
-
-                    // Clamp max distance between 1 and 10
-                    let md = parseInt(maxDistInp.value, 10);
-                    if (isNaN(md) || md < 1) md = 1;
-                    if (md > 10) md = 10;
-                    editor.maxDistance = md;
-                    maxDistInp.value = md;
-
-                    hidePopup('options-popup');
-                }
-            },
-            { label: 'Close', action: () => hidePopup('options-popup') }
-        ],
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        modal: false,
-        title: 'Distance Calculator Options',
-        style: {
-            minWidth: '340px',
-            borderRadius: '12px',
-            zIndex: 10010
-        },
-        showHelp: false
     });
 }
 
