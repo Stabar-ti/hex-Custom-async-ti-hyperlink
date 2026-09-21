@@ -12,7 +12,7 @@ export {
 } from './el.js';
 
 export {
-    button, panelButton, railButton, railGroupLabel, buttonRow,
+    button, panelButton, railButton, railGroupLabel, setRailLabel, buttonRow,
     checkbox, field, select,
     stack, row, section, separator, note,
 } from './controls.js';

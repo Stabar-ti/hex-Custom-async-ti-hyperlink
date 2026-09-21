@@ -141,13 +141,30 @@ export function bindSvgHandlers(editor) {
 
   // ────────────── Middle Mouse Button Panning (SMOOTH/THROTTLED) ──────────────
 
+  // Middle-drag always pans. Left-drag pans too while pan mode is on — a trackpad has no
+  // middle button, so without that panning is simply unavailable to some people.
+  let panDragged = false;
+
   svg.addEventListener('mousedown', (e) => {
-    if (e.button === 1) { // Only respond to middle mouse button
+    const leftWithPanMode = e.button === 0 && editor._panMode;
+    if (e.button === 1 || leftWithPanMode) {
       e.preventDefault();
       isPanning = true;
+      panDragged = false;
       panStart = { x: e.clientX, y: e.clientY };
+      if (leftWithPanMode) svg.style.cursor = 'grabbing';
     }
   });
+
+  // A left-drag that panned must not also count as a click on the hex underneath, or
+  // dragging across the map would paint everything it passed over.
+  svg.addEventListener('click', (e) => {
+    if (panDragged) {
+      e.preventDefault();
+      e.stopPropagation();
+      panDragged = false;
+    }
+  }, true);
 
   window.addEventListener('mousemove', (e) => {
     if (!isPanning) return;
@@ -155,6 +172,7 @@ export function bindSvgHandlers(editor) {
   });
 
   window.addEventListener('mouseup', () => {
+    if (isPanning && editor._panMode) svg.style.cursor = 'grab';
     isPanning = false;
     pendingPan = null;
   });
@@ -170,6 +188,7 @@ export function bindSvgHandlers(editor) {
       editor._currentViewBox[1] -= dy;
       panStart = { x: pendingPan.clientX, y: pendingPan.clientY };
       svg.setAttribute('viewBox', editor._currentViewBox.join(' '));
+      if (dx || dy) panDragged = true;
       pendingPan = null;
     }
     requestAnimationFrame(panLoop);

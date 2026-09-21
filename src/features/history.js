@@ -34,6 +34,27 @@ const HISTORY_LIMIT = 20;
 const verbose = false;
 
 /**
+ * Fired whenever the undo or redo stack changes, carrying whether each is now possible.
+ *
+ * Undo and redo had no buttons at all — Ctrl+Z and Ctrl+Shift+Z were the only way to reach
+ * them, and Ctrl+Y was never bound despite being what half of Windows expects. Buttons need
+ * to know when they are live, and polling two array lengths on a timer to find out would be
+ * worse than saying so here.
+ */
+export const HISTORY_CHANGED = 'ti4:history-changed';
+
+/** @param {any} editor */
+function announceHistoryChange(editor) {
+    if (typeof document === 'undefined') return;   // imported under node by the tests
+    document.dispatchEvent(new CustomEvent(HISTORY_CHANGED, {
+        detail: {
+            canUndo: (editor.undoStack?.length || 0) > 0,
+            canRedo: (editor.redoStack?.length || 0) > 0,
+        },
+    }));
+}
+
+/**
  * Attaches undo/redo history to the editor instance.
  * @param {HexEditor} editor
  */
@@ -67,6 +88,7 @@ export function initHistory(editor) {
             if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
             this.redoStack = [];
             if (verbose) console.log('[history] snap:', label);
+            announceHistoryChange(this);
         }
     };
 
@@ -98,6 +120,7 @@ export function initHistory(editor) {
             if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
             this.redoStack = [];
             if (verbose) console.log('[history] commitUndoGroup, hexes:', currentGroup.length);
+            announceHistoryChange(this);
         }
         currentGroup = null;
     };
@@ -280,6 +303,8 @@ export function initHistory(editor) {
 
 // ── Rebuild all visual overlays after undo/redo ───────────────────
 function _rebuildOverlays(editor) {
+    // Both undo() and redo() finish here, so this is the one place that catches either.
+    announceHistoryChange(editor);
     redrawAllRealIDOverlays(editor);
     drawCustomAdjacencyLayer(editor);
     drawBorderAnomaliesLayer(editor);

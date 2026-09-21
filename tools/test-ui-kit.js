@@ -57,6 +57,12 @@ class FakeElement {
     }
     appendChild(child) { this.children.push(child); return child; }
     append(...kids) { for (const k of kids) this.children.push(k); }
+    /** Supports only the '.class' form, which is all the kit uses. */
+    querySelector(sel) {
+        const cls = sel.startsWith('.') ? sel.slice(1) : null;
+        if (!cls) return null;
+        return this.find(n => n !== this && n.classList?.contains?.(cls)) || null;
+    }
     setAttribute(name, value) { this.attributes[name] = value; }
     removeAttribute(name) { delete this.attributes[name]; }
     addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
@@ -83,7 +89,7 @@ globalThis.document = {
 
 const { el, apply, append, setActive } = await import('../src/ui/kit/el.js');
 const {
-    button, panelButton, railButton, railGroupLabel, buttonRow, checkbox, field, select,
+    button, panelButton, railButton, railGroupLabel, setRailLabel, buttonRow, checkbox, field, select,
     stack, row, section, separator, note,
 } = await import('../src/ui/kit/controls.js');
 
@@ -230,6 +236,20 @@ function noInlineStyles(label, node) {
 
     ok('railButton can start active', railButton({ icon: 'x', text: 'y', active: true }).classList.contains('active'));
     noInlineStyles('railButton writes no inline styles', b);
+
+    // Relabelling must not eat the icon. The tools that rename themselves while armed
+    // ("Click a Hex…") used to assign textContent, which replaced the icon and the label
+    // with one text node — the icon was gone for good and the collapsed rail showed a
+    // blank button.
+    const relabelled = railButton({ icon: '⬢', text: 'Token Placement' });
+    setRailLabel(relabelled, 'Click a Hex');
+    check('setRailLabel changes the label', relabelled.children[1].textContent, 'Click a Hex');
+    check('and leaves the icon alone', relabelled.children[0].textContent, '⬢');
+    check('and keeps both elements', relabelled.children.length, 2);
+
+    const plain = el('button', { text: 'ordinary' });
+    setRailLabel(plain, 'changed');
+    check('setRailLabel falls back to textContent off the rail', plain.textContent, 'changed');
 
     const g = railGroupLabel('Connect');
     ok('railGroupLabel has its class', g.classList.contains('ui-rail-group'));

@@ -78,6 +78,23 @@ export function railButton({ icon, text, active = false, className = '', title, 
 }
 
 /**
+ * Change a rail button's label, leaving its icon alone.
+ *
+ * Use this rather than writing `button.textContent`. A rail button is an icon element plus
+ * a label element, and assigning textContent replaces both with a single text node — the
+ * icon disappears and never comes back, so the collapsed rail shows an empty button. The
+ * tools that relabel themselves while armed ("Click a Hex…") hit exactly that.
+ *
+ * @param {HTMLElement} node
+ * @param {string} text
+ */
+export function setRailLabel(node, text) {
+    const label = node.querySelector('.ui-rail-btn__label');
+    if (label) label.textContent = text;
+    else node.textContent = text;   // not a rail button — behave like the plain assignment
+}
+
+/**
  * A heading above a group of rail buttons.
  *
  * @param {string} text

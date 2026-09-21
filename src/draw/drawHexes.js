@@ -240,7 +240,15 @@ export function autoscaleView(editor) {
   const minY = Math.min(...ys) - margin;
   const maxY = Math.max(...ys) + margin;
 
-  svg.setAttribute('viewBox', `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
+  const box = [minX, minY, maxX - minX, maxY - minY];
+  svg.setAttribute('viewBox', box.join(' '));
+
+  // Keep the editor's copy in step. svgBindings drives wheel-zoom and panning from
+  // editor._currentViewBox rather than from the attribute, and this function only wrote
+  // the attribute — so after an autoscale the two disagreed (the attribute held the
+  // fitted box, the copy still held its [0,0,1000,1000] initial value) and the first
+  // scroll of the wheel jumped the view instead of zooming it.
+  editor._currentViewBox = box;
 }
 
 export function clearSpecialCorners(editor) {

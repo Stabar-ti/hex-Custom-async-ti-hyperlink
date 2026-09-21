@@ -6,7 +6,10 @@
 
 import { wormholeTypes } from '../constants/constants.js';
 import { showPopup } from './popupUI.js';
-import { railButton, railGroupLabel } from './kit/index.js';
+import { railButton, railGroupLabel, setRailLabel } from './kit/index.js';
+import {
+  toggleDistanceTool, isDistanceToolArmed, DISTANCE_TOOL_CHANGED,
+} from '../features/distanceTool.js';
 import {
   invoke, tryInvoke, hasCommand,
   registerMode, activateMode, deactivateMode, deactivateModes, COMMANDS
@@ -741,6 +744,41 @@ function finishSectorControlsContent(editor, container) {
   };
   container.appendChild(borderAnomaliesBtn);
 
+  // ───────────── Distance ─────────────
+  // The calculation had no button at all: Shift+D held, then a *right*-click, documented
+  // only inside the help popup — while its settings had one of the widest buttons in the
+  // top bar. Armed, a left-click on any hex paints the distances from it.
+  container.appendChild(railGroupLabel('Analyse'));
+
+  const distanceBtn = railButton({
+    id: 'toolDistance',
+    icon: '↔',
+    text: 'Distance',
+    title: 'Click a hex to show how far everything is from it',
+  });
+  distanceBtn.onclick = () => toggleDistanceTool(editor);
+  container.appendChild(distanceBtn);
+
+  // Follow the tool however it was changed — arming another tool disarms this one through
+  // the registry, and the button has to show that.
+  const applyDistanceState = () => {
+    distanceBtn.classList.toggle('active', isDistanceToolArmed(editor));
+  };
+
+  // The isConnected check belongs only in the listener. Calling it on the initial sync
+  // unregistered the listener immediately: this content is built into a detached container
+  // and only appended to the rail afterwards, so at this point the button is not in the
+  // document yet and never would be by that test.
+  const onDistanceChange = () => {
+    if (!distanceBtn.isConnected) {
+      document.removeEventListener(DISTANCE_TOOL_CHANGED, onDistanceChange);
+      return;
+    }
+    applyDistanceState();
+  };
+  document.addEventListener(DISTANCE_TOOL_CHANGED, onDistanceChange);
+  applyDistanceState();
+
   // ───────────── Token Placement Button ─────────────
   container.appendChild(railGroupLabel('Annotate'));
 
@@ -775,7 +813,7 @@ function finishSectorControlsContent(editor, container) {
       tokenPlacementBtn.style.background = '#2980b9';
       tokenPlacementBtn.style.color = '#fff';
       tokenPlacementBtn.style.fontWeight = 'bold';
-      tokenPlacementBtn.textContent = 'Click a Hex...';
+      setRailLabel(tokenPlacementBtn, 'Click a Hex…');
       enableTokenHexSelection();
     } else {
       deactivateMode(MODE_TOKEN);
@@ -813,7 +851,7 @@ function finishSectorControlsContent(editor, container) {
     selectHexForLoreBtn.style.background = '#27ae60';
     selectHexForLoreBtn.style.color = '#fff';
     selectHexForLoreBtn.style.fontWeight = 'bold';
-    selectHexForLoreBtn.textContent = 'Click a Hex...';
+    setRailLabel(selectHexForLoreBtn, 'Click a Hex…');
 
     // The lore module owns the picking mode and the editor entry point; this button only
     // turns it on. Previously this file drove the popup by filling #hexLabelInput and
@@ -858,7 +896,7 @@ function deactivateLoreMode() {
     btn.style.background = '';
     btn.style.color = '';
     btn.style.fontWeight = '';
-    btn.textContent = 'Add Lore...';
+    setRailLabel(btn, 'Add Lore…');
   }
   import('../modules/Lore/loreMapPick.js')
     .then(({ disarmLoreMapPick }) => disarmLoreMapPick(window.editor))
@@ -879,7 +917,7 @@ function deactivateTokenMode() {
     btn.style.background = '';
     btn.style.color = '';
     btn.style.fontWeight = '';
-    btn.textContent = 'Token Placement…';
+    setRailLabel(btn, 'Token Placement…');
   }
   disableTokenHexSelection();
 }

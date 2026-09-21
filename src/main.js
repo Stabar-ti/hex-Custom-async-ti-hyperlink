@@ -29,6 +29,8 @@ import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopu
 import { resetAllPopupPositions, hidePopup } from './ui/popupUI.js';
 import { initControlsPanel, setControlsPanelCollapsed } from './ui/controlsPanel.js';
 import { installStatusBar } from './ui/statusBar.js';
+import { installTopBarControls } from './ui/topBarControls.js';
+import { installDistanceTool } from './features/distanceTool.js';
 import { checkRealIdUniqueness } from './features/sanityCheck.js';
 import './ui/specialModePopup.js';
 import { installLoreUI } from './modules/Lore/loreUI.js';
@@ -71,6 +73,10 @@ initHistory(editor);
 
 // The shell's status line: armed tool, hovered hex, zoom.
 installStatusBar(editor);
+
+// Undo/redo, zoom, pan mode and reset view — the verbs that had no buttons.
+installTopBarControls(editor);
+installDistanceTool(editor);
 
 // Tell the boot guard in index.html that the module graph resolved and the editor is
 // alive. Without this it shows a "failed to load" notice ten seconds in.
