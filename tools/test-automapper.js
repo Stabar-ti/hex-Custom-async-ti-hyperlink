@@ -18,8 +18,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import {
-    fillRemaining, analyzeMap, getAvailableSystems, classifySystem, resolveRequirement
+    fillRemaining, analyzeMap, getAvailableSystems, classifySystem, resolveRequirement,
+    buildPoolTierMap,
 } from '../src/modules/automapper/autoBuilderCore.js';
+import { getFactors } from '../src/features/valueOverlay.js';
 import { isWeirdTile, hasFactionHomeworld, sourceGroupOf, defaultFilter } from '../src/modules/SystemPicker/pickerModel.js';
 import * as pickerStore from '../src/modules/SystemPicker/pickerState.js';
 
@@ -746,6 +748,126 @@ const mkSys = (id, planetCount, extra = {}) => ({
     ]);
     const pool = getAvailableSystems(editor, {}).map(s => String(s.id).toUpperCase());
     check('a tile already on the map is not in the pool', !pool.includes('19'));
+}
+
+// ── Value-tier hints ──────────────────────────────────────────────────────────
+//
+// The greedy engine these replace honoured a tier only while the exact band held out. Past
+// that it tried plus or minus one, and past that it ignored the tier entirely and drew
+// uniformly from the whole bucket. It was also order-dependent: the same map scored 60% or
+// 80% exact hits depending on which hexes happened to come first in editor.hexes, which is
+// map generation order and invisible to the user.
+//
+// These measure the two properties that fixes, so neither can quietly come back.
+
+/** The tier ranking the fill will use, rebuilt here so the grader is independent of it. */
+function tierMapOf(editor) {
+    const available = getAvailableSystems(editor, {});
+    return buildPoolTierMap(available, getFactors(false, false, false));
+}
+
+/** Run `runs` fills and report how the delivered tiers compare with the asked-for ones. */
+function gradeHints(specs, opts = {}, runs = 40) {
+    let total = 0, exact = 0, worseThanNearest = 0;
+    const seen = new Map();
+
+    for (let n = 0; n < runs; n++) {
+        const editor = makeEditor(specs);
+        const tiers = tierMapOf(editor);
+        const result = fillRemaining(editor, opts);
+        for (const { label, sys } of result.assignments) {
+            const want = editor.hexes[label].valueTarget?.tier;
+            if (!want) continue;
+            const got = tiers.get(String(sys.id).toUpperCase()) ?? null;
+            total++;
+            if (got === want) exact++;
+            seen.set(got, (seen.get(got) || 0) + 1);
+        }
+    }
+    return { total, exactPct: (100 * exact) / total, seen, worseThanNearest };
+}
+
+const tierHex = (baseType, tier) => ({ baseType, valueTarget: { tier, r: false, i: false, t: false } });
+
+// Demand inside the band: every hex gets the tier it asked for.
+{
+    const g = gradeHints(repeat(6, tierHex('2 planet', 4)));
+    check('6 hexes at tier 4 all get tier 4', g.exactPct === 100, `${g.exactPct.toFixed(1)}%`);
+}
+
+// Demand past the band. Tiers are percentiles, so roughly a fifth of the 2-planet systems
+// sit in each — about 8. Twenty hexes asking for tier 5 is asking for something that does
+// not exist, and what matters is where the other twelve land: the nearest tiers that do
+// exist, never a uniform draw across the whole pool.
+{
+    const g = gradeHints(repeat(20, tierHex('2 planet', 5)));
+    const tiersUsed = [...g.seen.keys()].filter(t => t != null).sort();
+    check('20 hexes at tier 5 fall back downward only',
+        tiersUsed.every(t => t >= 3), `used tiers ${tiersUsed.join(', ')}`);
+    check('20 hexes at tier 5 never reach tier 1 or 2',
+        !g.seen.has(1) && !g.seen.has(2), JSON.stringify([...g.seen]));
+}
+
+// The order the hexes happen to sit in must not change the answer. Twelve hexes want tier 5
+// and eight want tier 4, against a supply of eight each: the best possible is 16 of 20,
+// reached by sending the four that cannot have tier 5 down to tier 3 rather than letting
+// them eat the tier-4 stock the tier-4 hexes need. A greedy pass cannot see that trade.
+{
+    const t5First = [...repeat(12, tierHex('2 planet', 5)), ...repeat(8, tierHex('2 planet', 4))];
+    const t5Last = [...repeat(8, tierHex('2 planet', 4)), ...repeat(12, tierHex('2 planet', 5))];
+
+    const a = gradeHints(t5First, {}, 20);
+    const b = gradeHints(t5Last, {}, 20);
+
+    check('tier assignment does not depend on hex order',
+        Math.abs(a.exactPct - b.exactPct) < 0.01,
+        `${a.exactPct.toFixed(1)}% vs ${b.exactPct.toFixed(1)}%`);
+    check('and it reaches the optimum, not the greedy answer',
+        a.exactPct >= 79.9, `${a.exactPct.toFixed(1)}% (greedy scored 60%)`);
+}
+
+// The fallback direction is a setting, and it has to actually move the answer.
+{
+    const specs = repeat(20, tierHex('2 planet', 3));
+    const down = gradeHints(specs, { tierPolicy: 'down' }, 20);
+    const up = gradeHints(specs, { tierPolicy: 'up' }, 20);
+
+    const below = m => [...m.entries()].filter(([t]) => t != null && t < 3).reduce((s, [, n]) => s + n, 0);
+    const above = m => [...m.entries()].filter(([t]) => t != null && t > 3).reduce((s, [, n]) => s + n, 0);
+
+    check('policy "down" sends the overflow to lower tiers',
+        below(down.seen) > above(down.seen), JSON.stringify([...down.seen]));
+    check('policy "up" sends it to higher ones',
+        above(up.seen) > below(up.seen), JSON.stringify([...up.seen]));
+}
+
+// "Leave it empty" is an edge with a price, so lowering that price has to leave hexes alone
+// rather than accept a bad substitution. Nothing else in the engine special-cases it.
+{
+    const specs = repeat(20, tierHex('2 planet', 5));
+    const patient = fillRemaining(makeEditor(specs), { unfilledCost: 1000 });
+    const fussy = fillRemaining(makeEditor(specs), { unfilledCost: 3 });
+
+    check('a high price for an empty hex fills them all',
+        patient.unmatched.length === 0, `${patient.unmatched.length} unfilled`);
+    check('a low one leaves the ones it cannot match properly',
+        fussy.unmatched.length > 0 && fussy.assignments.length > 0,
+        `${fussy.assignments.length} filled, ${fussy.unmatched.length} unfilled`);
+}
+
+// The preview used to be handed a null tier map, so it reported every row green while the
+// fill delivered a fraction of the tiers asked for.
+{
+    const editor = makeEditor(repeat(20, tierHex('2 planet', 5)));
+    const analysis = analyzeMap(editor, {});
+    const row = analysis.requirements.find(r => r.type === '2 planet');
+    check('the analysis counts tier misses', row && row.tierMissed > 0,
+        JSON.stringify(row && { need: row.need, tierExact: row.tierExact, tierMissed: row.tierMissed }));
+    check('and does not call a tier-missing row OK', row && row.ok === false,
+        JSON.stringify(row && { ok: row.ok }));
+    check('the analysis reports what the pool holds per tier',
+        Array.isArray(analysis.tierSupply) && analysis.tierSupply.some(g => g.group === '2'),
+        JSON.stringify(analysis.tierSupply?.map(g => `${g.group}:${g.tiers.join('/')}`)));
 }
 
 // ── report ────────────────────────────────────────────────────────────────────

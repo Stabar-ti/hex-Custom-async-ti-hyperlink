@@ -6,6 +6,9 @@
 import { passesAutoMapperFilters } from '../../ui/uiFilters.js';
 import { calculateSystemValue, getFactors, getTypeGroup } from '../../features/valueOverlay.js';
 import { hasFactionHomeworld, isFractureTile } from '../SystemPicker/pickerModel.js';
+import {
+    solveAssignment, DOWNGRADE_CHAIN, RESTRICTED_TYPES, TIER_POLICIES, TYPE_RANK,
+} from './assignSolver.js';
 
 // ---- Scoring weights (mirrors miltyBuilderRandomTool DEFAULT_WEIGHTS) ----
 // Open Milty Slice Designer → Weighting Settings to tune these values.
@@ -59,31 +62,6 @@ function axialDist(a, b) {
     const dq = a.q - b.q, dr = a.r - b.r;
     return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
 }
-
-// ---- Downgrade chain: if no systems of required type, try these in order ----
-// A bare 'special' key never exists in the pool — classifySystem only returns 'special' for
-// systems carrying an anomaly flag, and those always get an effect suffix — so a 'special'
-// request that couldn't be met by its exact effect bucket falls to a plain 'empty' tile
-// and has the anomaly drawn on with a token. Deliberately NOT another anomaly: putting a
-// nebula tile on a hex painted asteroid is a worse answer than an asteroid token.
-const DOWNGRADE_CHAIN = {
-    '3 planet':         ['3 planet', '2 planet', '1 planet'],
-    '2 planet':         ['2 planet', '1 planet'],
-    '1 planet':         ['1 planet'],
-    'legendary planet': ['legendary planet', '2 planet', '1 planet'],
-    'special':          ['empty'],
-    'empty':            ['empty'],
-    'homesystem':       ['homesystem'],
-    'fracture':         ['fracture'],  // fracture positions only accept fracture tiles — no downgrade
-};
-
-/**
- * Types that may only ever be filled by a system of that same type. They are excluded
- * from the last-resort fallback in both directions: a homesystem/fracture tile is never
- * used to fill something else, and such a hex is never filled with something else.
- * Running out means "unmatched", not "close enough".
- */
-const RESTRICTED_TYPES = new Set(['homesystem', 'fracture']);
 
 /**
  * Types whose systems never carry planets, so "Duplicate empty/anomaly" can satisfy any
@@ -237,174 +215,84 @@ function buildPools(systems) {
     return pools;
 }
 
-// Make a deep-copy of pools for one assignment attempt. `deterministic` skips the shuffle
-// so the analysis pass produces the same counts on every render — a Type breakdown that
-// flickers between numbers as you toggle an unrelated option is worse than no breakdown.
-function copyPools(pools, deterministic = false) {
-    const copy = {};
-    for (const [k, arr] of Object.entries(pools)) copy[k] = deterministic ? [...arr] : shuffle([...arr]);
-    return copy;
-}
-
 // ---- Assignment engine ----
+//
+// One optimal assignment for the whole map, not a greedy walk through it.
+//
+// Hexes asking for the same thing are interchangeable, and so are tiles sharing a type, an
+// effect set and a value tier. That collapses the problem to a transportation problem
+// between a few dozen demand groups and a few dozen supply cells, which assignSolver.js
+// solves exactly. This file turns the map into that shape and turns the answer back into
+// placements.
+//
+// What the solver does not decide is which individual tile comes out of a chosen cell —
+// every tile in one is equivalent at the level the cost function can see. The R/I/T skew
+// picks between them here, inside the cell.
+
+/** How well a system matches an R/I/T skew preference. Higher is better; 0 if none asked. */
+function skewScore(sys, vt) {
+    if (!vt || !(vt.r || vt.i || vt.t)) return 0;
+    const planets = Array.isArray(sys.planets) ? sys.planets : [];
+    let idealR = 0, idealI = 0, techCount = 0;
+    for (const p of planets) {
+        const r = p.resources || 0, i = p.influence || 0;
+        if (r > i) idealR += r; else if (i > r) idealI += i; else { idealR += r / 2; idealI += i / 2; }
+        if (p.techSpecialty) techCount++;
+        if (Array.isArray(p.techSpecialties)) techCount += p.techSpecialties.length;
+    }
+    return (vt.r ? idealR * 1.5 : 0) + (vt.i ? idealI * 1.5 : 0) + (vt.t ? techCount * 3 : 0);
+}
 
 /**
- * Choose an index within a bucket given a {tier, r, i, t} preference.
+ * Split each pool bucket into (bucket, tier) cells — the unit the solver trades in.
  *
- * Priority:
- *  1. Exact tier match, then ranked by R/I/T skew score
- *  2. Adjacent tier (±1), ranked by skew score
- *  3. Any system — pick highest skew score
- *
- * Ties are broken randomly. Without that, a skewed value target collapses to a
- * deterministic greedy pick and every balanced-mode iteration produces the same
- * assignment for those hexes, which made `iterations` a no-op wherever it mattered most.
+ * A tile with no tier lands in a tier-less cell, and pairCost charges nothing against those.
+ * That is the honest answer rather than a default: calculateSystemValue returns 0 for every
+ * planet-free tile, so their order inside the 'empty' group is sort order, not quality.
  */
-function chooseIndex(bucket, vt, valueTierMap, deterministic = false) {
-    if (!bucket.length) return -1;
-    // The bucket is already shuffled, so the last entry is a uniform random draw.
-    if (!vt || !valueTierMap) return deterministic ? 0 : bucket.length - 1;
+function buildCells(pools, valueTierMap, { allowDuplicatesNoPlanet = false } = {}) {
+    const cells = [];
+    for (const [poolKey, systems] of Object.entries(pools)) {
+        if (!systems.length) continue;
+        const [type, effectPart] = poolKey.split('|');
+        const effects = new Set(effectPart ? effectPart.split(',') : []);
 
-    const tier    = vt.tier || null;
-    const hasSkew = vt.r || vt.i || vt.t;
-
-    // Score a system by how well it matches the R/I/T skew preference
-    function skewScore(sys) {
-        if (!hasSkew) return 0;
-        const planets = Array.isArray(sys.planets) ? sys.planets : [];
-        let idealR = 0, idealI = 0, techCount = 0;
-        for (const p of planets) {
-            const r = p.resources || 0, i = p.influence || 0;
-            if (r > i) idealR += r; else if (i > r) idealI += i; else { idealR += r/2; idealI += i/2; }
-            if (p.techSpecialty) techCount++;
-            if (Array.isArray(p.techSpecialties)) techCount += p.techSpecialties.length;
+        const byTier = new Map();
+        for (const sys of systems) {
+            const tier = valueTierMap ? (valueTierMap.get(String(sys.id).toUpperCase()) ?? null) : null;
+            const k = tier ?? 0;
+            if (!byTier.has(k)) byTier.set(k, []);
+            byTier.get(k).push(sys);
         }
-        return (vt.r ? idealR * 1.5 : 0) + (vt.i ? idealI * 1.5 : 0) + (vt.t ? techCount * 3 : 0);
+
+        for (const [tierKey, group] of byTier) {
+            cells.push({
+                key: poolKey + '#' + tierKey,
+                poolKey,
+                type,
+                effects,
+                tier: tierKey || null,
+                count: group.length,
+                systems: group,
+                repeatable: allowDuplicatesNoPlanet && NO_PLANET_TYPES.has(type),
+            });
+        }
     }
-
-    // Partition bucket by tier match
-    const getTier = s => valueTierMap.get(s.id?.toString().toUpperCase());
-    const exact   = tier ? bucket.filter(s => getTier(s) === tier)               : bucket;
-    const adj     = tier ? bucket.filter(s => { const t = getTier(s); return t !== undefined && t !== tier && Math.abs(t - tier) <= 1; }) : [];
-
-    const pool = exact.length ? exact : adj.length ? adj : bucket;
-    if (!pool.length) return deterministic ? 0 : bucket.length - 1;
-
-    // Best skew score within the chosen tier band, then a uniform draw among near-ties.
-    let bestScore = -Infinity;
-    for (const s of pool) bestScore = Math.max(bestScore, skewScore(s));
-    const EPSILON = 0.5;
-    const contenders = pool.filter(s => skewScore(s) >= bestScore - EPSILON);
-    const winner = deterministic ? contenders[0] : contenders[Math.floor(Math.random() * contenders.length)];
-
-    return bucket.indexOf(winner);
+    return cells;
 }
 
 /**
- * Remove and return one system from `pools[key]`, or null if that bucket is empty.
- *
- * The ONLY function permitted to consume from a pool. The previous engine kept a
- * `flatMap`ped `anyPool` alongside the real buckets — a separate array over the same
- * object references — so a system spliced out of one was still present in the other and
- * could be placed on two hexes. Routing every consumption through here is what makes
- * "each tile is used once" enforceable rather than merely intended.
- *
- * The take is unconditional, including under `allowDuplicatesNoPlanet`. Leaving a
- * repeatable system in the bucket instead looked equivalent and was not: with no value
- * target, chooseIndex always returns the last index, so the same tile came back on every
- * call and a map with 22 distinct empty tiles available got one of them twelve times.
- * Repeats are a fallback for exhaustion, so the bucket is restocked only once it runs
- * dry — every distinct tile is spent before any is reused.
- */
-function takeSystem(pools, key, vt, valueTierMap, { allowDuplicatesNoPlanet = false, seed = null, deterministic = false } = {}) {
-    const bucket = pools[key];
-    if (!bucket?.length) return null;
-
-    const idx = chooseIndex(bucket, vt, valueTierMap, deterministic);
-    if (idx < 0) return null;
-
-    const sys = bucket[idx];
-    bucket.splice(idx, 1);
-
-    if (allowDuplicatesNoPlanet && !bucket.length && seed) {
-        // Only planet-free tiles may come back — repeating a planet system would change
-        // the map's resource total, which is never what this option is asking for.
-        const repeatable = (seed[key] || []).filter(s => !s.planets?.length);
-        if (repeatable.length) bucket.push(...(deterministic ? [...repeatable] : shuffle([...repeatable])));
-    }
-    return sys;
-}
-
-/**
- * How far apart two tile types are, for choosing filler. Planet count is the axis the
- * map designer actually cares about, so a 1-planet hex short of stock should reach for a
- * 2-planet tile long before a 3-planet one.
- *
- * Legendary sits at the far end deliberately. It is a scarce, game-defining tile, and
- * dropping Primor onto a hex someone painted "1 planet" is a balance change, not a
- * near-miss — so it ranks below every ordinary alternative and is only ever used when
- * nothing else is left.
- */
-const TYPE_RANK = {
-    'empty': 0, 'special': 0,
-    '1 planet': 1, '2 planet': 2, '3 planet': 3,
-    'legendary planet': 9,
-};
-
-/**
- * Pool keys eligible for the last-resort fallback, best-fitting first.
- *
- * Two hard exclusions, then a ranking:
- *
- *   - Restricted types are never filler for anything.
- *   - The tile's own effects must be a SUBSET of what the hex asked for. This is a filter,
- *     not a preference. Ranking incompatible buckets last still placed them once compatible
- *     stock ran out: a hex painted 'asteroid' would take the last rift tile and then have an
- *     asteroid token dropped on top, ending up showing both anomalies — one of which nobody
- *     painted. An unfilled hex is reported and obvious; a surprise anomaly is neither.
- *
- * What remains is ranked by distance from the requested type (see TYPE_RANK), so filler
- * resembles the request, then by bucket size so plentiful stock is spent before scarce.
- * Ranking used to be "whatever order Object.keys returned", which made every clean bucket
- * interchangeable: ten hexes painted '1 planet' against a short PoK pool came back holding
- * Primor and Hope's End.
- */
-function fallbackKeys(pools, reqType, reqEffects) {
-    const reqEffectSet = new Set(reqEffects);
-    const wantRank = TYPE_RANK[reqType] ?? 0;
-
-    return Object.keys(pools)
-        .filter(key => {
-            if (!pools[key].length) return false;
-            const [type, effectPart] = key.split('|');
-            if (RESTRICTED_TYPES.has(type)) return false;
-            const effects = effectPart ? effectPart.split(',') : [];
-            return effects.every(e => reqEffectSet.has(e));
-        })
-        .map(key => ({
-            key,
-            distance: Math.abs((TYPE_RANK[key.split('|')[0]] ?? 0) - wantRank),
-            size: pools[key].length,
-        }))
-        .sort((a, b) =>
-            a.distance - b.distance ||
-            b.size - a.size ||
-            a.key.localeCompare(b.key))     // stable, so the analysis pass is reproducible
-        .map(c => c.key);
-}
-
-/**
- * One assignment attempt. Returns:
+ * One assignment pass. Returns:
  *   assignments:      [{label, sys}]
- *   tokenPlacements:  [{label, effects: []}]  — apply effects via applyEffect after assignSystem
- *   downgrades:       [{label, from, to}]
+ *   tokenPlacements:  [{label, effects: []}]  — apply via applyEffect after assignSystem
+ *   downgrades:       [{label, from, to, reason}]
  *   unmatched:        [{label, reason}]
- *   resolutions:      [{label, reqKey, reqType, reqEffects, painted, outcome}]
+ *   resolutions:      [{label, reqKey, reqType, reqEffects, painted, outcome, wantTier, gotTier}]
  *
  * `resolutions` is what the Type breakdown is built from. Reporting the outcome of a real
- * assignment pass, rather than predicting one from pool sizes, is the only way the panel
- * and the fill cannot disagree — every previous version of that table was a second,
- * drifting implementation of these matching rules.
+ * assignment pass, rather than predicting one from pool sizes, is the only way the panel and
+ * the fill cannot disagree — every previous version of that table was a second, drifting
+ * implementation of these matching rules.
  *
  * outcome is one of:
  *   'exact'       — the tile the hex was painted for
@@ -412,103 +300,161 @@ function fallbackKeys(pools, reqType, reqEffects) {
  *   'substituted' — a different tile type was used
  *   (hexes with no assignment are listed in `unmatched` instead)
  */
-function tryAssign(unfilled, pools, valueTierMap = null, { allowDuplicatesNoPlanet = false, deterministic = false } = {}) {
-    const p = copyPools(pools, deterministic);
+function tryAssign(unfilled, pools, valueTierMap = null, {
+    allowDuplicatesNoPlanet = false,
+    deterministic = false,
+    costs = {},
+} = {}) {
+    // ── Demand: group the hexes asking for exactly the same thing ──
+    const groups = new Map();
+    for (const { label, hex } of unfilled) {
+        const { reqType, reqEffects, effectKey, remapped } = resolveRequirement(hex);
+        const vt = (hex.valueTarget && typeof hex.valueTarget === 'object') ? hex.valueTarget : null;
+        const tier = vt?.tier || null;
+        const reqKey = effectKey ? reqType + '|' + effectKey : reqType;
+        const skew = vt ? `${+!!vt.r}${+!!vt.i}${+!!vt.t}` : '000';
+        const key = `${reqKey}#${tier ?? 0}#${skew}`;
+
+        let g = groups.get(key);
+        if (!g) {
+            g = {
+                key, count: 0, reqType, reqEffects, tier, vt, reqKey,
+                painted: remapped ? hex.baseType : null,
+                labels: [],
+            };
+            groups.set(key, g);
+        }
+        g.count++;
+        g.labels.push(label);
+    }
+
+    const demands = [...groups.values()];
+    const cells = buildCells(pools, valueTierMap, { allowDuplicatesNoPlanet });
+    const { plan, unfilled: skipped } = solveAssignment(demands, cells, costs);
+
+    const cellByKey = new Map(cells.map(c => [c.key, c]));
+    // Tiles are consumed from these copies, so one tile can never be placed twice. The
+    // engine this replaced kept a flattened `anyPool` alongside the real buckets, over the
+    // same object references, and a tile spliced out of one was still present in the other.
+    const stock = new Map(cells.map(c =>
+        [c.key, deterministic ? [...c.systems] : shuffle([...c.systems])]));
 
     const assignments = [];
     const tokenPlacements = [];
     const downgrades = [];
     const unmatched = [];
     const resolutions = [];
-    // `pools` is the untouched master copy — takeSystem restocks a drained bucket from it
-    // when repeats are allowed.
-    const take = (key, vt) => takeSystem(p, key, vt, valueTierMap, { allowDuplicatesNoPlanet, seed: pools, deterministic });
 
-    for (const { label, hex } of unfilled) {
-        const { reqType, reqEffects, effectKey, remapped } = resolveRequirement(hex);
-        const vt = (hex.valueTarget && typeof hex.valueTarget === 'object') ? hex.valueTarget : null;
-        const reqKey = effectKey ? `${reqType}|${effectKey}` : reqType;
-        const record = outcome => resolutions.push({
-            label, reqKey, reqType, reqEffects,
-            painted: remapped ? hex.baseType : null,
-            outcome,
-        });
+    for (const g of demands) {
+        // Hexes inside a group are interchangeable by construction — same request, same
+        // tier, same skew — so which one gets which tile is arbitrary. Shuffling keeps a
+        // re-roll from producing the same map.
+        const labels = deterministic ? [...g.labels] : shuffle([...g.labels]);
+        const row = plan.get(g.key) || new Map();
+        let at = 0;
 
-        // 1. Try exact-effect-matched system first.
-        let assigned = null;
-        if (effectKey) {
-            const sys = take(reqKey, vt);
-            if (sys) assigned = { sys, usedEffect: effectKey };
-        }
+        for (const [cellKey, howMany] of row) {
+            const cell = cellByKey.get(cellKey);
+            const bucket = stock.get(cellKey);
 
-        // 2. Fall back to clean system of the same/downgraded type. Downgrades are reported
-        //    against the RESOLVED type — comparing against hex.baseType flagged every plain
-        //    'special' hex as a failed downgrade when 'special' → 'empty' is the intent.
-        if (!assigned) {
-            for (const tryType of (DOWNGRADE_CHAIN[reqType] || [reqType])) {
-                const sys = take(tryType, vt);
-                if (!sys) continue;
-                assigned = { sys, usedEffect: null };
-                if (tryType !== reqType) downgrades.push({
-                    label, from: reqType, to: tryType,
-                    // Say which shortage actually bit. For an anomaly hex the type was fine
-                    // and the effect was not, and "no 'special' systems left" reads as though
-                    // the whole category were empty.
-                    reason: effectKey
-                        ? `No '${effectKey}' tile left in the pool — used a plain '${tryType}' tile and drew the anomaly with a token.`
-                        : `No '${reqType}' systems left in the pool — used a '${tryType}' system instead.`,
+            for (let n = 0; n < howMany; n++) {
+                const label = labels[at++];
+                if (label === undefined) break;
+
+                // Within the cell, the skew decides. Ties are broken randomly, or the first
+                // entry wins in deterministic mode — without that a skewed target collapses
+                // to one fixed pick and balanced mode's iterations become a no-op exactly
+                // where they matter most.
+                let idx = 0;
+                if (bucket.length > 1) {
+                    if (g.vt && (g.vt.r || g.vt.i || g.vt.t)) {
+                        let best = -Infinity;
+                        for (const s of bucket) best = Math.max(best, skewScore(s, g.vt));
+                        const EPSILON = 0.5;
+                        const contenders = [];
+                        bucket.forEach((s, i) => {
+                            if (skewScore(s, g.vt) >= best - EPSILON) contenders.push(i);
+                        });
+                        idx = deterministic
+                            ? contenders[0]
+                            : contenders[Math.floor(Math.random() * contenders.length)];
+                    } else {
+                        idx = deterministic ? 0 : bucket.length - 1;   // already shuffled
+                    }
+                }
+
+                const sys = bucket[idx];
+                bucket.splice(idx, 1);
+                // Repeats are a fallback for exhaustion, so the cell is restocked only once
+                // it runs dry — every distinct tile is spent before any is reused.
+                if (cell.repeatable && !bucket.length) bucket.push(...cell.systems);
+
+                assignments.push({ label, sys });
+
+                const gotTier = valueTierMap
+                    ? (valueTierMap.get(String(sys.id).toUpperCase()) ?? null)
+                    : null;
+                const record = outcome => resolutions.push({
+                    label, reqKey: g.reqKey, reqType: g.reqType, reqEffects: g.reqEffects,
+                    painted: g.painted, outcome, wantTier: g.tier, gotTier,
                 });
-                break;
+
+                // Cover any requested effect the tile does not already provide with a token.
+                // Only the missing ones — a substituted tile may carry some inherently, and
+                // stacking a nebula token on a nebula tile just draws it twice.
+                let tokened = false;
+                if (g.reqEffects.length) {
+                    const inherent = getSystemEffects(sys);
+                    const missing = g.reqEffects.filter(e => !inherent.has(e));
+                    if (missing.length) {
+                        tokenPlacements.push({ label, effects: missing });
+                        tokened = true;
+                    }
+                }
+
+                const actualType = classifySystem(sys);
+                const inChain = (DOWNGRADE_CHAIN[g.reqType] || []).includes(actualType);
+                if (actualType !== g.reqType || tokened) {
+                    downgrades.push({
+                        label,
+                        from: g.reqType,
+                        to: actualType === g.reqType ? g.reqType : inChain ? actualType : 'token-fallback',
+                        // The effect is the headline whenever one was asked for and had to be
+                        // drawn on: that is the shortage the user can act on, even when the
+                        // type changed underneath as well.
+                        reason: tokened
+                            ? `No '${g.reqEffects.join(',')}' tile left in the pool — used a '${actualType}' tile and drew the anomaly with a token.`
+                            : inChain
+                                ? `Not enough '${g.reqType}' systems to go round — this hex took a '${actualType}' system so the others could keep theirs.`
+                                : `Nothing of a suitable type was left for a '${g.reqType}' hex — used a leftover '${actualType}' system as a last resort.`,
+                    });
+                }
+
+                if (tokened) record('token');
+                else if (actualType !== g.reqType) record('substituted');
+                else record('exact');
             }
         }
 
-        // 3. Token-only fallback: no system of any suitable type is left, so use whatever
-        //    remains and cover the requested effects with anomaly tokens. Restricted types
-        //    never reach here — a fracture or home-system hex that can't be filled properly
-        //    is left alone rather than quietly given an ordinary tile.
-        if (!assigned && !RESTRICTED_TYPES.has(reqType)) {
-            for (const key of fallbackKeys(p, reqType, reqEffects)) {
-                const sys = take(key, null);
-                if (!sys) continue;
-                assigned = { sys, usedEffect: null };
-                downgrades.push({
-                    label, from: reqType, to: 'token-fallback',
-                    reason: `No '${reqType}' (or downgraded) systems left in the pool — used a leftover '${classifySystem(sys)}' system as a last resort.`,
-                });
-                break;
-            }
-        }
-
-        if (!assigned) {
+        // Whatever the solver priced out of the map. Restricted types get their own wording:
+        // running out means unfilled rather than close enough, by design.
+        const left = skipped.get(g.key) || 0;
+        for (let n = 0; n < left; n++) {
+            const label = labels[at++];
+            if (label === undefined) break;
             unmatched.push({
                 label,
-                reason: RESTRICTED_TYPES.has(reqType)
-                    ? `No '${reqType}' tiles left in the pool. '${reqType}' hexes only accept '${reqType}' tiles, so this hex was left unfilled.`
-                    : effectKey
-                        ? `Nothing left in the pool that could host a '${effectKey}' hex without adding an anomaly you didn't paint — left unfilled rather than placing the wrong one.`
-                        : `No systems left in the pool for a '${reqType}' hex.`,
+                reason: RESTRICTED_TYPES.has(g.reqType)
+                    ? `No '${g.reqType}' tiles left in the pool. '${g.reqType}' hexes only accept '${g.reqType}' tiles, so this hex was left unfilled.`
+                    : g.reqEffects.length
+                        ? `Nothing left in the pool that could host a '${g.reqEffects.join(',')}' hex without adding an anomaly you didn't paint — left unfilled rather than placing the wrong one.`
+                        : `No systems left in the pool for a '${g.reqType}' hex.`,
             });
-            record('unfilled');
-            continue;
+            resolutions.push({
+                label, reqKey: g.reqKey, reqType: g.reqType, reqEffects: g.reqEffects,
+                painted: g.painted, outcome: 'unfilled', wantTier: g.tier, gotTier: null,
+            });
         }
-
-        assignments.push({ label, sys: assigned.sys });
-
-        // Cover any requested effect the assigned system doesn't already provide with an
-        // anomaly token. Only the missing ones — a fallback system may carry some of them
-        // inherently, and stacking a nebula token on a nebula tile just draws it twice.
-        let tokened = false;
-        if (reqEffects.length > 0 && !assigned.usedEffect) {
-            const inherent = getSystemEffects(assigned.sys);
-            const missing = reqEffects.filter(e => !inherent.has(e));
-            if (missing.length) { tokenPlacements.push({ label, effects: missing }); tokened = true; }
-        }
-
-        // An anomaly drawn with a token is the headline for that hex even though the type
-        // also changed underneath — "you'll get an asteroid token" is what the user acts on.
-        if (tokened) record('token');
-        else if (classifySystem(assigned.sys) !== reqType) record('substituted');
-        else record('exact');
     }
 
     return { assignments, tokenPlacements, downgrades, unmatched, resolutions };
@@ -631,6 +577,55 @@ function scoreAssignments(assignments, editor, { balanceRange = 2, weights = SCO
  *          `info` means nothing was produced and the caller should say so; `notice` means
  *          the fill succeeded but an option was ignored.
  */
+/**
+ * Rank the available pool into value tiers 1-5, per planet-count group.
+ *
+ * Tiers are percentiles, so tier 5 always means "the top fifth of what is currently
+ * loaded" rather than an absolute quality — load another tile set and the boundaries move
+ * with it. Two things follow that are worth knowing at the call sites:
+ *
+ *   - supply per tier is fixed at about a fifth of the group, so painting more than that
+ *     many hexes at one tier cannot be satisfied no matter how good the solver is;
+ *   - tiles of equal value can land either side of a boundary, purely on sort order.
+ *
+ * Grouping is by planet count so tier 5 means "best 2-planet system", not "best overall" —
+ * the same grouping the on-map value overlay uses.
+ *
+ * @returns {Map<string, number>} upper-cased system id -> tier
+ */
+export function buildPoolTierMap(available, factors) {
+    const groups = {};
+    available.filter(s => s.id).forEach(s => {
+        const g = getTypeGroup(s);
+        if (!groups[g]) groups[g] = [];
+        groups[g].push({ id: String(s.id).toUpperCase(), value: calculateSystemValue(s, factors) });
+    });
+
+    const tierMap = new Map();
+    for (const entries of Object.values(groups)) {
+        entries.sort((a, b) => a.value - b.value);
+        const n = entries.length;
+        entries.forEach(({ id }, idx) => {
+            const pct = idx / n;
+            tierMap.set(id, pct < 0.2 ? 1 : pct < 0.4 ? 2 : pct < 0.6 ? 3 : pct < 0.8 ? 4 : 5);
+        });
+    }
+    return tierMap;
+}
+
+/**
+ * Turn the panel's fallback settings into the solver's price list.
+ *
+ * @param {'down'|'nearest'|'up'} tierPolicy which direction to prefer when a tier runs out
+ * @param {number|null} unfilledCost  what leaving a hex empty is worth; lower means the
+ *                                    solver gives up sooner rather than substituting
+ */
+export function buildCosts(tierPolicy = 'down', unfilledCost = null) {
+    const costs = { ...(TIER_POLICIES[tierPolicy] || TIER_POLICIES.down) };
+    if (unfilledCost != null) costs.unfilledCost = unfilledCost;
+    return costs;
+}
+
 export function fillRemaining(editor, {
     balanced = false,
     iterations = 8,
@@ -644,6 +639,8 @@ export function fillRemaining(editor, {
     valueROn = false,
     valueIOn = false,
     valueTOn = false,
+    tierPolicy = 'down',
+    unfilledCost = null,
 } = {}) {
     const empty = { assignments: [], tokenPlacements: [], downgrades: [], unmatched: [], score: null };
 
@@ -659,32 +656,14 @@ export function fillRemaining(editor, {
 
     const pools = buildPools(available);
 
-    // Build value tier map from the available pool if any hex has a valueTarget painted
+    // Only rank the pool when something is actually asking for a tier.
     const anyTarget = unfilled.some(({ hex }) => hex.valueTarget);
-    let valueTierMap = null;
-    if (anyTarget) {
-        const factors = getFactors(valueROn, valueIOn, valueTOn);
-        // Group available systems by planet-count type so tier 5 = "best 2-planet",
-        // not "best overall" — mirrors the display overlay grouping.
-        const groups = {};
-        available.filter(s => s.id).forEach(s => {
-            const g = getTypeGroup(s);
-            if (!groups[g]) groups[g] = [];
-            groups[g].push({ id: s.id.toString().toUpperCase(), value: calculateSystemValue(s, factors) });
-        });
-        valueTierMap = new Map();
-        for (const entries of Object.values(groups)) {
-            entries.sort((a, b) => a.value - b.value);
-            const n = entries.length;
-            entries.forEach(({ id }, idx) => {
-                const pct = idx / n;
-                const tier = pct < 0.2 ? 1 : pct < 0.4 ? 2 : pct < 0.6 ? 3 : pct < 0.8 ? 4 : 5;
-                valueTierMap.set(id, tier);
-            });
-        }
-    }
+    const valueTierMap = anyTarget
+        ? buildPoolTierMap(available, getFactors(valueROn, valueIOn, valueTOn))
+        : null;
 
-    const attempt = () => tryAssign(unfilled, pools, valueTierMap, { allowDuplicatesNoPlanet });
+    const costs = buildCosts(tierPolicy, unfilledCost);
+    const attempt = () => tryAssign(unfilled, pools, valueTierMap, { allowDuplicatesNoPlanet, costs });
 
     if (!balanced) return { ...attempt(), score: null };
 
@@ -706,6 +685,73 @@ export function fillRemaining(editor, {
 }
 
 /**
+ * What the pool actually holds, per planet-count group and tier.
+ *
+ * This is the table that was missing. Tiers are percentiles, so each one holds about a
+ * fifth of its group — roughly 8 two-planet systems per tier on the default set. Painting
+ * twelve hexes at tier 5 is asking for something that does not exist, and until this was
+ * shown there was nothing anywhere in the UI that said so.
+ *
+ * @returns {{group: string, tiers: number[], total: number, systems: Record<number, {id: string, name: string}[]>}[]}
+ */
+export function summariseTierSupply(available, tierMap) {
+    const byGroup = new Map();
+    for (const sys of available) {
+        if (!sys.id) continue;
+        const tier = tierMap.get(String(sys.id).toUpperCase());
+        if (!tier) continue;
+        const group = getTypeGroup(sys);
+        if (!byGroup.has(group)) {
+            byGroup.set(group, { group, tiers: [0, 0, 0, 0, 0], total: 0, systems: {} });
+        }
+        const row = byGroup.get(group);
+        row.tiers[tier - 1]++;
+        row.total++;
+        if (!row.systems[tier]) row.systems[tier] = [];
+        row.systems[tier].push({ id: String(sys.id), name: sys.name || String(sys.id) });
+    }
+
+    // Planet count ascending, with the oddities after, so the table reads like the rail.
+    const ORDER = ['1', '2', '3+', 'legendary', 'home', 'empty'];
+    return [...byGroup.values()].sort(
+        (a, b) => (ORDER.indexOf(a.group) + 1 || 99) - (ORDER.indexOf(b.group) + 1 || 99));
+}
+
+/**
+ * What the painted map is asking for, in the same shape as the supply table, so the two can
+ * be read against each other.
+ *
+ * Demand is grouped by the tier map's own grouping rather than by the painted type, because
+ * that is what the tiers are ranked within: a hex painted '3 planet' competes for the '3+'
+ * group's tiers.
+ *
+ * @returns {{group: string, tiers: number[], total: number}[]}
+ */
+export function summariseTierDemand(unfilled) {
+    const DEMAND_GROUP = {
+        '1 planet': '1',
+        '2 planet': '2',
+        '3 planet': '3+',
+        'legendary planet': 'legendary',
+        'homesystem': 'home',
+    };
+
+    const byGroup = new Map();
+    for (const { hex } of unfilled) {
+        const tier = hex.valueTarget?.tier;
+        if (!tier) continue;
+        const group = DEMAND_GROUP[hex.baseType] || 'empty';
+        if (!byGroup.has(group)) {
+            byGroup.set(group, { group, tiers: [0, 0, 0, 0, 0], total: 0 });
+        }
+        const row = byGroup.get(group);
+        row.tiers[tier - 1]++;
+        row.total++;
+    }
+    return [...byGroup.values()];
+}
+
+/**
  * Analysis snapshot for the UI — what each painted hex is asking for, and what it will get.
  *
  * This is a DRY RUN, not a prediction. It performs a real (deterministic) assignment pass
@@ -721,12 +767,26 @@ export function fillRemaining(editor, {
  * Rows are keyed exactly as buildPools keys supply, so "have" is the number of tiles that
  * match exactly — the only tier that gives the user what they painted.
  */
-export function analyzeMap(editor, { includeHomeSystems = false, includeWormholes = false, allowDuplicatesNoPlanet = false, sources = null } = {}) {
+export function analyzeMap(editor, {
+    includeHomeSystems = false, includeWormholes = false, allowDuplicatesNoPlanet = false,
+    sources = null, valueROn = false, valueIOn = false, valueTOn = false,
+    tierPolicy = 'down', unfilledCost = null,
+} = {}) {
     const unfilled = getUnfilledHexes(editor, { includeHomeSystems });
     const available = getAvailableSystems(editor, { includeWormholes, allowDuplicatesNoPlanet, includeHomeSystems, sources });
     const pools = buildPools(available);
 
-    const dry = tryAssign(unfilled, pools, null, { allowDuplicatesNoPlanet, deterministic: true });
+    // The dry run used to be handed a null tier map, so the table could report every row
+    // green while the fill delivered 40% of the tiers that were asked for. It reports on
+    // the same ranking the fill will use.
+    const anyTarget = unfilled.some(({ hex }) => hex.valueTarget);
+    const valueTierMap = anyTarget
+        ? buildPoolTierMap(available, getFactors(valueROn, valueIOn, valueTOn))
+        : null;
+
+    const dry = tryAssign(unfilled, pools, valueTierMap, {
+        allowDuplicatesNoPlanet, deterministic: true, costs: buildCosts(tierPolicy, unfilledCost),
+    });
 
     const byKey = new Map();
     for (const r of dry.resolutions) {
@@ -736,6 +796,8 @@ export function analyzeMap(editor, { includeHomeSystems = false, includeWormhole
                 key: r.reqKey, type: r.reqType, effects: r.reqEffects,
                 need: 0, exact: 0, token: 0, substituted: 0, unfilled: 0,
                 have: (pools[r.reqKey] || []).length,
+                wantTier: r.wantTier || null,
+                tierExact: 0, tierMissed: 0,
                 repeatable: allowDuplicatesNoPlanet && NO_PLANET_TYPES.has(r.reqType),
                 restricted: RESTRICTED_TYPES.has(r.reqType),
                 paintedAs: new Set(),
@@ -745,13 +807,17 @@ export function analyzeMap(editor, { includeHomeSystems = false, includeWormhole
         row.need++;
         row[r.outcome]++;
         if (r.painted) row.paintedAs.add(r.painted);
+        if (r.wantTier) {
+            if (r.gotTier === r.wantTier) row.tierExact++;
+            else if (r.outcome !== 'unfilled') row.tierMissed++;
+        }
     }
 
     const requirements = [...byKey.values()]
         .map(row => ({
             ...row,
             paintedAs: row.paintedAs.size ? [...row.paintedAs] : null,
-            ok: row.exact === row.need,
+            ok: row.exact === row.need && row.tierMissed === 0,
             // Nominally enough stock, yet some hexes still missed out — another requirement
             // reached the bucket first, usually an anomaly hex taking planet tiles as filler.
             // Without this the row reads as a contradiction: "need 6, have 6, 4 substituted".
@@ -764,6 +830,8 @@ export function analyzeMap(editor, { includeHomeSystems = false, includeWormhole
         totalUnfilled: unfilled.length,
         totalAvailable: available.length,
         requirements,
+        tierSupply: valueTierMap ? summariseTierSupply(available, valueTierMap) : null,
+        tierDemand: anyTarget ? summariseTierDemand(unfilled) : null,
         canFill: unfilled.length > 0,
         hasHomeSystems: Object.values(editor.hexes).some(h => h.baseType === 'homesystem'),
         // Balance scoring needs two homes to have a spread between them.
