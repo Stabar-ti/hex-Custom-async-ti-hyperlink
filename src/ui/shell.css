@@ -331,6 +331,26 @@ body {
   gap: 2px;
 }
 
+/* Panels whose content is a grid of toggles rather than a list of commands: Toggle
+   Overlays, Layout Options, Generate. Wider, and they keep their own internal grid. */
+.tb-menu--panel {
+  min-width: 260px;
+  max-width: 420px;
+  padding: 10px 12px;
+}
+
+.tb-menu__title {
+  font-family: var(--font-ui);
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--surface-4);
+}
+
 /* Inside a menu a button is a row, not a chip: full width and left-aligned, so the
    labels line up and the list reads as a list. */
 .tb-menu .tb-menu__item {

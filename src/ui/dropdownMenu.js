@@ -13,6 +13,76 @@
  */
 
 /**
+ * Show content as a dropdown anchored under a top-bar button.
+ *
+ * The three menus that carry a ▾ — Layout Options, Toggle Overlays and Generate — were
+ * opening draggable popups that appeared at a saved position, often nowhere near the
+ * button that opened them. A ▾ promises a menu, so this gives them one: anchored to the
+ * trigger, dismissed by clicking away or pressing Escape, and gone from the DOM when
+ * closed.
+ *
+ * It keeps the element id the caller asks for, so code that toggles a menu by looking up
+ * that id — and hidePopup, which simply removes the element — keeps working unchanged.
+ *
+ * @param {object} opts
+ * @param {string} opts.id            - id for the panel
+ * @param {string} opts.anchorId      - id of the button to hang it under
+ * @param {HTMLElement} opts.content
+ * @param {string} [opts.className]   - extra classes on the panel
+ * @param {string} [opts.title]       - optional heading inside the panel
+ * @returns {HTMLElement|null}
+ */
+export function showAnchoredPanel({ id, anchorId, content, className = '', title }) {
+    const anchor = document.getElementById(anchorId);
+    document.getElementById(id)?.remove();
+    if (!anchor) return null;
+
+    const panel = document.createElement('div');
+    panel.id = id;
+    panel.className = ('tb-menu tb-menu--panel ' + className).trim();
+    panel.setAttribute('role', 'menu');
+
+    if (title) {
+        const heading = document.createElement('div');
+        heading.className = 'tb-menu__title';
+        heading.textContent = title;
+        panel.appendChild(heading);
+    }
+    panel.appendChild(content);
+    document.body.appendChild(panel);
+
+    panel.classList.add(OPEN_CLASS);
+    positionUnder(panel, anchor);
+    anchor.classList.add('active');
+    anchor.setAttribute('aria-expanded', 'true');
+
+    const close = () => {
+        panel.remove();
+        anchor.classList.remove('active');
+        anchor.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('click', onDocClick);
+        document.removeEventListener('keydown', onKey);
+        window.removeEventListener('resize', onResize);
+    };
+
+    // A click inside must not dismiss it — these panels hold toggles you set several of.
+    panel.addEventListener('click', ev => ev.stopPropagation());
+    const onDocClick = (ev) => {
+        if (ev.target === anchor || anchor.contains(/** @type {Node} */(ev.target))) return;
+        close();
+    };
+    const onKey = (ev) => { if (ev.key === 'Escape') { close(); anchor.focus(); } };
+    const onResize = () => positionUnder(panel, anchor);
+
+    // Deferred, so the click that opened the panel does not immediately close it.
+    setTimeout(() => document.addEventListener('click', onDocClick), 0);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize);
+
+    return panel;
+}
+
+/**
  * @typedef {object} Dropdown
  * @property {HTMLButtonElement} trigger
  * @property {HTMLElement} panel

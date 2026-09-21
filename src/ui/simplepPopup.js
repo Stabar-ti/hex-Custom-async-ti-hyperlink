@@ -4,6 +4,7 @@ import { toggleTheme } from './uiTheme.js';
 import { checkRealIdUniqueness, generateSanityCheckSummary } from '../features/sanityCheck.js';
 import { setupHexHoverInfo } from './HexHoverInfo2.js';
 import { toggleFileMenu, isFileMenuOpen } from './fileMenu.js';
+import { showAnchoredPanel } from './dropdownMenu.js';
 
 export function showOptionsPopup(editor) {
     // Build content dynamically, reflecting current editor options
@@ -150,24 +151,13 @@ export function showOverlayOptionsPopup() {
     // Remove any existing popup with the same id before showing a new one
     hidePopup('overlayOptionsPopup');
 
-    showPopup({
+    // A ▾ promises a menu. This was a draggable popup that reopened wherever it had last
+    // been dragged to — frequently nowhere near the button that opened it.
+    showAnchoredPanel({
         id: 'overlayOptionsPopup',
-        className: 'layout-options-popup',
+        anchorId: 'overlayToggleBtn',
         title: 'Toggle Overlays',
         content: wrapper,
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        style: {
-            left: '360px',
-            top: '86px',
-            minWidth: '240px',
-            // background and color intentionally omitted to allow CSS to apply
-            border: '2px solid var(--popup-border-layout)',
-            boxShadow: '0 8px 40px #000a',
-            zIndex: 1200
-        }
     });
 
     setTimeout(() => {
@@ -373,24 +363,11 @@ export function showLayoutOptionsPopup() {
       </div>
     `;
 
-    showPopup({
+    showAnchoredPanel({
         id: 'layoutOptionsPopup',
-        className: 'layout-options-popup',
+        anchorId: 'layoutToggleBtn',
         title: 'Layout Options',
         content: wrapper,
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        style: {
-            left: '200px',
-            top: '80px',
-            minWidth: '240px',
-            // background and color intentionally omitted to allow CSS to apply
-            border: '2px solid var(--popup-border-layout)',
-            boxShadow: '0 8px 40px #000a',
-            zIndex: 1200
-        }
     });
 
     setTimeout(() => {

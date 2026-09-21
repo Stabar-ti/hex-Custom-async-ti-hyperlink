@@ -1,6 +1,7 @@
 // src/ui/specialModePopup.js
 // Popup for special setup modes using PopupUI mechanics
 import { showPopup, hidePopup } from './popupUI.js';
+import { showAnchoredPanel } from './dropdownMenu.js';
 
 export function showSpecialModePopup() {
     hidePopup('special-mode-popup');
@@ -27,34 +28,11 @@ export function showSpecialModePopup() {
         <p style="font-size: 14px; color: #888; margin-top: 16px;">Advanced tools for competitive and casual play setup.</p>
     `;
 
-    showPopup({
+    showAnchoredPanel({
         id: 'special-mode-popup',
-        title: '🛠️ Special Setup Modes',
+        anchorId: 'specialModesBtn',
+        title: 'Generate',
         content,
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        modal: false,
-        showHelp: true,
-        actions: [
-            {
-                label: 'Close',
-                onClick: () => hidePopup('special-mode-popup'),
-                style: { borderRadius: '0', border: '1px solid #888', padding: '6px 18px', background: '#222', color: '#eee' }
-            }
-        ],
-        style: {
-            minWidth: '340px',
-            maxWidth: '600px',
-            minHeight: '200px',
-            maxHeight: '800px',
-            border: '2px solid var(--popup-border-special)',
-            borderRadius: '10px',
-            boxShadow: '0 8px 40px #000a',
-            padding: '24px',
-            zIndex: 10010
-        }
     });
 
     // Add click handlers for buttons
