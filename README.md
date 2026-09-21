@@ -68,15 +68,32 @@ Open **https://stabar-ti.github.io/hex-Custom-async-ti-hyperlink/** and start bu
     ```
 2. **Serve with a local web server:**
     ```bash
-    # Python 3
-    python -m http.server 8000
+    npm run serve
+    ```
+    or directly:
+    ```bash
+    # Python 3.7+  (py on Windows, python3 on macOS/Linux)
+    python3 -m http.server 5173 -p HTTP/1.1
 
     # Or Node.js
-    npx http-server -p 8000
+    npx http-server -p 5173
     ```
-3. **Open `http://localhost:8000` in your browser**
+3. **Open `http://localhost:5173` in your browser**
 
 _No build or install steps needed._
+
+**The server has to be a threaded one.** The app is ~117 ES modules and
+`public/data/tiles/` holds 106 MB of artwork, with single files up to 8 MB. A server that
+handles one request at a time lets a tile image block the module requests behind it until
+they fail — and one failed module means the whole import graph never resolves, which looks
+like a blank page rather than an error. `python -m http.server` has been threaded since
+Python 3.7, so it is fine; `-p HTTP/1.1` is worth adding so those 117 requests reuse
+connections instead of opening one each. Any real static host serves concurrently, so this
+only ever bites locally.
+
+`npm run serve:nocache` runs `server.py` instead, which is the same thing plus
+`Cache-Control: no-cache` on every response — useful while editing, because a plain F5 then
+always fetches fresh modules rather than relying on the browser to revalidate.
 
 ### Testing Cloud Export Locally (Optional)
 
