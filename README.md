@@ -126,25 +126,53 @@ Plain ES6 modules, no build tools, no framework.
 
 ```
 src/
-  core/        — HexEditor engine and state
+  core/        — HexEditor engine and state; registry.js (how modules call each other)
   features/    — hyperlanes, wormholes, overlays, undo/redo, lore, tokens, value tiers
   ui/          — DOM and popup bindings
+  ui/kit/      — the UI kit: classed controls built on the design tokens
   draw/        — SVG rendering utilities
-  modules/     — Milty, AutoMapper, SpinToWin, Token, Lore
+  distance/    — the movement ruleset: BFS, hyperlanes, rifts, border anomalies
+  modules/     — Milty, AutoMapper, SpinToWin, Token, Lore, SystemPicker
   constants/   — sectorColors, wormholeTypes, designTokens
   data/        — import/export, cloudflare integration
 public/data/   — system info, tokens, attachments (sourced from AsyncTI4 bot)
 ```
 
+Two conventions are worth knowing before adding anything:
+
+**Modules call each other through the registry, not `window`.** A feature publishes what
+it offers with `provide(COMMANDS.showThing, fn)` and anyone calls it with `invoke` (it
+must be there) or `tryInvoke` (it might not be). `COMMANDS` in `src/core/registry.js` is
+the list of every seam between modules; ids that are not in it throw, so a typo cannot be
+a silent no-op the way a misspelled window global was. The registry also owns the
+exclusive map modes — only one of lore-picking and token-placement can be armed, and
+`deactivateModes()` is how a button that opens something else disarms them.
+
+**Appearance comes from a class, not from `element.style`.** `src/ui/kit/` builds controls
+that carry classes defined in `kit.css` against the `:root` tokens in `styles.css`. Use
+`panelButton()`, `checkbox()`, `field()`, `stack()` and friends rather than assembling an
+element and styling it by assignment. Inline styles are still right for genuinely computed
+values — a popup's position, a bar's width — and wrong for anything that is the same
+everywhere.
+
 ### Checks (optional)
 
 ```bash
-npm install   # one time; requires Node 18+
-npm run check # lint + tests
-npm test      # both node suites
+npm install     # one time; requires Node 18+
+npm run check   # lint + typecheck + tests
+npm test        # the node suites
+npm run typecheck
 ```
 
-`npm test` runs two suites, both against the real modules and the real data files.
+`npm test` runs seven suites, all against the real modules and the real data files.
+
+**Module registry** (`tools/test-registry.js`). The command catalogue, the required/optional
+call split, exclusive map modes, and what happens when a mode throws on the way out.
+
+**UI kit** (`tools/test-ui-kit.js`). That each control emits the classes it promises and
+writes no inline styles — a helper that quietly set `style.background` would look fine on
+screen and defeat the point of the kit. The DOM is a hand-rolled stub, so there is no new
+dependency.
 
 **Lore footer round-trips** (`tools/test-lore-footer.js`). An entry's `footerText` is the only
 thing the AsyncTI4 bot ever reads, and the editor parses it into objects and writes it back, so
@@ -163,7 +191,7 @@ bugs that were fixed (tiles 101–106 being unreachable, planet counts ANDing to
 `html test/test-system-picker.html` opens the picker's views standalone against real data, for
 the rendering behaviour node cannot check.
 
-### Linting
+### Linting and type checking
 
 The app itself still has **no build step** — `index.html` loads `src/` as native ES modules and
 opens directly, exactly as before. But because nothing compiles the code, a mistyped import path
@@ -182,6 +210,13 @@ a step anyone needs in order to use the tool.
 A clean tree exits 0. Errors are reserved for things that genuinely break the app (an import
 that doesn't resolve, an undefined variable); the remaining pre-existing style issues are
 warnings, so any **error** you see is worth acting on.
+
+`npm run typecheck` runs TypeScript over the same files. **Nothing is compiled and nothing is
+emitted** — there are no `.ts` files and no renames; `tsc` is used the way ESLint is, as a
+checker over the JSDoc comments the code already carries. It is off by default and turned on
+per file by putting `// @ts-check` on the first line, so it can be adopted a file at a time
+rather than all at once. When you touch a file, adding that line and fixing what it reports is
+a cheap way to leave it better than you found it.
 
 **Windows / PowerShell:** if `npm` fails with *"npm.ps1 cannot be loaded because running
 scripts is disabled"*, PowerShell is blocking npm's script wrapper. Either use `npm.cmd`
