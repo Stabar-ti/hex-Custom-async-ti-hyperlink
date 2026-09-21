@@ -361,253 +361,267 @@ export function openDrawHelpersPopup(editor, { launcher = null, ownerPanel = nul
           content.appendChild(btn);
         });
 
-        // ── Value target drawing ────────────────────────────────────────
-        // Configure tier (V1–V5) + skew (R/I/T) FIRST, then click hexes to paint.
-        // All flags are independent — any combination is valid.
-        // ── AutoMapper collapsible section ───────────────────────────────
-        const amTopSep0 = document.createElement('div');
-        amTopSep0.style.cssText = 'grid-column:1/-1;border-top:1px solid #444;margin:10px 0;';
-        content.appendChild(amTopSep0);
-
-        const amToggle = document.createElement('button');
-        amToggle.className = 'mode-button';
-        amToggle.style.cssText = 'grid-column:1/-1;width:100%;padding:7px 12px;font-size:0.9em;font-weight:bold;border:1px solid #555;border-radius:4px;cursor:pointer;text-align:left;';
-        amToggle.textContent = '🤖 AutoMapper ▾';
-        amToggle._open = false;
-        content.appendChild(amToggle);
-
-        const amSection = document.createElement('div');
-        amSection.style.cssText = 'grid-column:1/-1;display:none;';
-        content.appendChild(amSection);
-
-        amToggle.onclick = () => {
-          amToggle._open = !amToggle._open;
-          amSection.style.display = amToggle._open ? 'block' : 'none';
-          amToggle.textContent = amToggle._open ? '🤖 AutoMapper ▴' : '🤖 AutoMapper ▾';
-        };
-
-        // Value hint section — inside the collapsible
-        const vtSep = document.createElement('div');
-        vtSep.style.cssText = 'border-top:1px solid #555;margin:8px 0;';
-        amSection.appendChild(vtSep);
-
-        const vtLabel = document.createElement('div');
-        vtLabel.style.cssText = 'font-size:0.8em;color:#aaa;margin-bottom:5px;';
-        vtLabel.textContent   = 'Value hints — configure then click hexes:';
-        amSection.appendChild(vtLabel);
-
-        // State held in closure — not editor mode toggles
-        let vt_tier = null, vt_R = false, vt_I = false, vt_T = false;
-        let vtPaintActive = false;
-
-        function updateVtPreview() {
-          const parts = [];
-          if (vt_tier) parts.push(`V${vt_tier}`);
-          if (vt_R) parts.push('R');
-          if (vt_I) parts.push('I');
-          if (vt_T) parts.push('T');
-          vtPreview.textContent = parts.length ? `Painting: ${parts.join('+')}` : 'Nothing selected';
-          vtPreview.style.color = parts.length ? '#ffe066' : '#666';
-          // Activate or deactivate painting mode
-          vtPaintActive = parts.length > 0;
-          if (vtPaintActive) {
-            editor._valuePaintConfig = { tier: vt_tier, r: vt_R, i: vt_I, t: vt_T };
-            editor.setMode('value-target-apply');
-            setLauncherActive(true);
-          } else {
-            editor._valuePaintConfig = null;
-            if (editor.mode === 'value-target-apply') editor.setMode('');
-          }
-        }
-
-        // Tier row V1–V5
-        const tierRow = document.createElement('div');
-        tierRow.style.cssText = 'grid-column:1/-1;display:flex;gap:3px;margin-bottom:4px;';
-        const TIER_COLORS = ['#ff6b6b','#ffa94d','#ffe066','#a9e34b','#40c057'];
-        const tierBtns = [];
-        TIER_COLORS.forEach((color, idx) => {
-          const tier = idx + 1;
-          const btn = document.createElement('button');
-          btn.textContent  = `V${tier}`;
-          btn.className    = 'mode-button';
-          btn.title        = `Tier ${tier} overall value (1=low, 5=high). Click again to deselect.`;
-          btn.style.cssText = `flex:1;padding:5px 2px;font-size:0.85em;font-weight:bold;border:2px solid ${color};border-radius:4px;color:${color};cursor:pointer;`;
-          btn.addEventListener('click', () => {
-            vt_tier = (vt_tier === tier) ? null : tier; // toggle
-            tierBtns.forEach((b, i) => {
-              const c = TIER_COLORS[i];
-              b.style.background = (vt_tier === i + 1) ? c : '';
-              b.style.color      = (vt_tier === i + 1) ? '#111' : c;
-            });
-            updateVtPreview();
-          });
-          tierBtns.push(btn);
-          tierRow.appendChild(btn);
-        });
-        amSection.appendChild(tierRow);
-
-        // Skew checkboxes R / I / T
-        const skewRow = document.createElement('div');
-        skewRow.style.cssText = 'grid-column:1/-1;display:flex;gap:3px;margin-bottom:4px;';
-        const SKEW_CFG = [
-          { label:'R  Res', color:'#f5a623', get: ()=>vt_R, set: v=>{ vt_R=v; } },
-          { label:'I  Inf', color:'#7ecfff', get: ()=>vt_I, set: v=>{ vt_I=v; } },
-          { label:'T  Tech',color:'#b07cff', get: ()=>vt_T, set: v=>{ vt_T=v; } },
-        ];
-        SKEW_CFG.forEach(({ label, color, get, set }) => {
-          const btn = document.createElement('button');
-          btn.textContent  = label;
-          btn.className    = 'mode-button';
-          btn.title        = `Toggle preference for ${label.split(' ')[1]} — can combine with tier and other skews`;
-          btn.style.cssText = `flex:1;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid ${color};border-radius:4px;color:${color};cursor:pointer;`;
-          btn.addEventListener('click', () => {
-            set(!get());
-            btn.style.background = get() ? color : '';
-            btn.style.color      = get() ? '#111' : color;
-            updateVtPreview();
-          });
-          skewRow.appendChild(btn);
-        });
-
-        // Clear button
-        const vtClearBtn = document.createElement('button');
-        vtClearBtn.textContent   = '✕ Clear';
-        vtClearBtn.className     = 'mode-button';
-        vtClearBtn.title         = 'Remove all value hints from a hex (click hex after)';
-        vtClearBtn.style.cssText = 'flex:0 0 54px;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid var(--surface-5);border-radius:4px;color:#aaa;cursor:pointer;';
-        vtClearBtn.addEventListener('click', () => {
-          // Activate clear mode regardless of config state
-          content.querySelectorAll('.mode-button').forEach(b => {
-            b.classList.remove('active');
-            b.style.background = b._baseColor || '';
-            b.style.color      = b._baseColor ? '#333' : '';
-          });
-          vtClearBtn.classList.add('active');
-          vtClearBtn.style.background = '#555';
-          editor.setMode('value-target-clear');
-          setLauncherActive(true);
-        });
-        skewRow.appendChild(vtClearBtn);
-        amSection.appendChild(skewRow);
-
-        // Preview line showing current combination
-        const vtPreview = document.createElement('div');
-        vtPreview.style.cssText = 'font-size:0.8em;font-weight:bold;color:#666;';
-        vtPreview.textContent   = 'Nothing selected';
-        amSection.appendChild(vtPreview);
-
-        const amBtn = document.createElement('button');
-        amBtn.textContent = '🤖 Open AutoMapper';
-        amBtn.className = 'mode-button';
-        amBtn.style.cssText = 'width:100%;padding:8px 12px;font-size:0.9em;font-weight:bold;border:2px solid var(--popup-border-special);border-radius:4px;cursor:pointer;color:var(--popup-border-special);background:#0a1a0a;';
-        amBtn.onclick = () => {
-          import('../modules/automapper/autoBuilder.js').then(mod => {
-            mod.openAutoMapperPopup();
-          }).catch(err => console.error('Failed to load AutoMapper:', err));
-        };
-        amSection.appendChild(amBtn);
-
-        // ── Value Overlay ─────────────────────────────────────────────
-        const voSep = document.createElement('div');
-        voSep.style.cssText = 'border-top:1px solid #444;margin:8px 0;';
-        amSection.appendChild(voSep);
-
-        const voLabel = document.createElement('div');
-        voLabel.style.cssText  = 'font-size:0.8em;color:#aaa;margin-bottom:4px;';
-        voLabel.textContent    = 'Value overlay (1–5 tier, based on ideal R/I + tech)';
-        amSection.appendChild(voLabel);
-
-        // State for the three weighting toggles
-        let vo_R = false, vo_I = false, vo_T = false;
-
-        function refreshValueOverlay() {
-          import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
-            // The drawn layer is the state. Redrawing only makes sense while it is shown —
-            // changing a weight with the overlay off must not switch it on.
-            if (isValueOverlayActive(editor)) {
-              drawValueOverlay(editor, vo_R, vo_I, vo_T);
-            } else {
-              clearValueOverlay(editor);
-            }
-          });
-        }
-
-        // Expose refresh on editor so assignSystem and other callers can trigger it
-        editor._refreshValueOverlay = refreshValueOverlay;
-
-        // Main on/off toggle. The same overlay has a second switch in Toggle Overlays, so
-        // this button holds no state of its own: it reads the drawn layer, and re-syncs
-        // whenever anything changes it.
-        const voToggleBtn = document.createElement('button');
-        voToggleBtn.className     = 'mode-button';
-        voToggleBtn.textContent   = '📊 Show Value Overlay';
-        voToggleBtn.style.cssText = 'width:100%;padding:6px 10px;font-size:0.85em;font-weight:bold;border:1px solid #888;border-radius:4px;cursor:pointer;';
-
-        function syncVoButton(on) {
-          voToggleBtn.textContent  = on ? '📊 Hide Value Overlay' : '📊 Show Value Overlay';
-          voToggleBtn.style.border = on ? '1px solid #ffe066' : '1px solid #888';
-        }
-
-        voToggleBtn.onclick = () => {
-          import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
-            if (isValueOverlayActive(editor)) clearValueOverlay(editor);
-            else drawValueOverlay(editor, vo_R, vo_I, vo_T);
-          }).catch(console.error);
-        };
-        amSection.appendChild(voToggleBtn);
-
-        import('../features/valueOverlay.js').then(({ VALUE_OVERLAY_CHANGED, isValueOverlayActive }) => {
-          syncVoButton(isValueOverlayActive(editor));
-          // Self-removing: the popup is rebuilt on every open, so without this each reopen
-          // would leave another listener behind holding a detached button.
-          const onChange = () => {
-            if (!voToggleBtn.isConnected) {
-              document.removeEventListener(VALUE_OVERLAY_CHANGED, onChange);
-              return;
-            }
-            syncVoButton(isValueOverlayActive(editor));
-          };
-          document.addEventListener(VALUE_OVERLAY_CHANGED, onChange);
-        }).catch(console.error);
-
-        // Weight toggle row
-        const voWeightRow = document.createElement('div');
-        voWeightRow.style.cssText = 'display:flex;gap:6px;margin-top:5px;';
-
-        function makeWeightBtn(label, color, getVal, setVal, title) {
-          const b = document.createElement('button');
-          b.textContent   = label;
-          b.className     = 'mode-button';
-          b.title         = title;
-          b.style.cssText = `flex:1;padding:5px;font-size:0.8em;font-weight:bold;border:1px solid #555;border-radius:4px;cursor:pointer;`;
-          b.onclick = () => {
-            setVal(!getVal());
-            b.style.background = getVal() ? color : '';
-            b.style.color      = getVal() ? '#111' : '';
-            b.style.border     = getVal() ? `1px solid ${color}` : '1px solid #555';
-            if (voToggleBtn._voActive) refreshValueOverlay();
-          };
-          return b;
-        }
-
-        voWeightRow.appendChild(makeWeightBtn(
-          'R  Res', '#f5a623', () => vo_R, v => { vo_R = v; },
-          'Boost resource weight (reduces influence weight)'
-        ));
-        voWeightRow.appendChild(makeWeightBtn(
-          'I  Inf', '#7ecfff', () => vo_I, v => { vo_I = v; },
-          'Boost influence weight (reduces resource weight)'
-        ));
-        voWeightRow.appendChild(makeWeightBtn(
-          'T  Tech', '#b07cff', () => vo_T, v => { vo_T = v; },
-          'Boost tech-skip weight'
-        ));
-
-        amSection.appendChild(voWeightRow);
 
         return content;
       })()
     });
+}
+
+/**
+ * The Balance surface: value hints, the value overlay and the AutoMapper.
+ *
+ * These three are one workflow — paint V1–V5 and R/I/T targets onto hexes, run the filler
+ * against them, look at what it chose. They used to sit inside the Draw Helpers popup,
+ * behind a collapsed toggle labelled "🤖 AutoMapper", three levels down from the panel:
+ * fourteen of that popup's twenty-seven controls were hidden on first open, and the
+ * painting half was filed under a heading describing the other half.
+ *
+ * Mees rated both value hints and the AutoMapper as used *often* — the correction that
+ * made this its own surface rather than a section of someone else's.
+ *
+ * @param {any} editor
+ */
+export function openBalancePopup(editor) {
+  // Lights the Balance button in the rail while a value-paint mode is armed, so it is
+  // obvious the next map click will paint a hint. In Draw Helpers this lit that popup's
+  // launcher; the block has its own home now, so it lights that.
+  const setLauncherActive = (on) => {
+    const launcher = document.getElementById('toolBalance');
+    if (launcher) launcher.classList.toggle('active', !!on);
+  };
+
+  const amSection = document.createElement('div');
+  amSection.style.cssText = 'display:flex;flex-direction:column;min-width:0;';
+
+    // Value hint section — inside the collapsible
+    const vtSep = document.createElement('div');
+    vtSep.style.cssText = 'border-top:1px solid #555;margin:8px 0;';
+    amSection.appendChild(vtSep);
+
+    const vtLabel = document.createElement('div');
+    vtLabel.style.cssText = 'font-size:0.8em;color:#aaa;margin-bottom:5px;';
+    vtLabel.textContent   = 'Value hints — configure then click hexes:';
+    amSection.appendChild(vtLabel);
+
+    // State held in closure — not editor mode toggles
+    let vt_tier = null, vt_R = false, vt_I = false, vt_T = false;
+    let vtPaintActive = false;
+
+    function updateVtPreview() {
+      const parts = [];
+      if (vt_tier) parts.push(`V${vt_tier}`);
+      if (vt_R) parts.push('R');
+      if (vt_I) parts.push('I');
+      if (vt_T) parts.push('T');
+      vtPreview.textContent = parts.length ? `Painting: ${parts.join('+')}` : 'Nothing selected';
+      vtPreview.style.color = parts.length ? '#ffe066' : '#666';
+      // Activate or deactivate painting mode
+      vtPaintActive = parts.length > 0;
+      if (vtPaintActive) {
+        editor._valuePaintConfig = { tier: vt_tier, r: vt_R, i: vt_I, t: vt_T };
+        editor.setMode('value-target-apply');
+        setLauncherActive(true);
+      } else {
+        editor._valuePaintConfig = null;
+        if (editor.mode === 'value-target-apply') editor.setMode('');
+      }
+    }
+
+    // Tier row V1–V5
+    const tierRow = document.createElement('div');
+    tierRow.style.cssText = 'grid-column:1/-1;display:flex;gap:3px;margin-bottom:4px;';
+    const TIER_COLORS = ['#ff6b6b','#ffa94d','#ffe066','#a9e34b','#40c057'];
+    const tierBtns = [];
+    TIER_COLORS.forEach((color, idx) => {
+      const tier = idx + 1;
+      const btn = document.createElement('button');
+      btn.textContent  = `V${tier}`;
+      btn.className    = 'mode-button';
+      btn.title        = `Tier ${tier} overall value (1=low, 5=high). Click again to deselect.`;
+      btn.style.cssText = `flex:1;padding:5px 2px;font-size:0.85em;font-weight:bold;border:2px solid ${color};border-radius:4px;color:${color};cursor:pointer;`;
+      btn.addEventListener('click', () => {
+        vt_tier = (vt_tier === tier) ? null : tier; // toggle
+        tierBtns.forEach((b, i) => {
+          const c = TIER_COLORS[i];
+          b.style.background = (vt_tier === i + 1) ? c : '';
+          b.style.color      = (vt_tier === i + 1) ? '#111' : c;
+        });
+        updateVtPreview();
+      });
+      tierBtns.push(btn);
+      tierRow.appendChild(btn);
+    });
+    amSection.appendChild(tierRow);
+
+    // Skew checkboxes R / I / T
+    const skewRow = document.createElement('div');
+    skewRow.style.cssText = 'grid-column:1/-1;display:flex;gap:3px;margin-bottom:4px;';
+    const SKEW_CFG = [
+      { label:'R  Res', color:'#f5a623', get: ()=>vt_R, set: v=>{ vt_R=v; } },
+      { label:'I  Inf', color:'#7ecfff', get: ()=>vt_I, set: v=>{ vt_I=v; } },
+      { label:'T  Tech',color:'#b07cff', get: ()=>vt_T, set: v=>{ vt_T=v; } },
+    ];
+    SKEW_CFG.forEach(({ label, color, get, set }) => {
+      const btn = document.createElement('button');
+      btn.textContent  = label;
+      btn.className    = 'mode-button';
+      btn.title        = `Toggle preference for ${label.split(' ')[1]} — can combine with tier and other skews`;
+      btn.style.cssText = `flex:1;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid ${color};border-radius:4px;color:${color};cursor:pointer;`;
+      btn.addEventListener('click', () => {
+        set(!get());
+        btn.style.background = get() ? color : '';
+        btn.style.color      = get() ? '#111' : color;
+        updateVtPreview();
+      });
+      skewRow.appendChild(btn);
+    });
+
+    // Clear button
+    const vtClearBtn = document.createElement('button');
+    vtClearBtn.textContent   = '✕ Clear';
+    vtClearBtn.className     = 'mode-button';
+    vtClearBtn.title         = 'Remove all value hints from a hex (click hex after)';
+    vtClearBtn.style.cssText = 'flex:0 0 54px;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid var(--surface-5);border-radius:4px;color:#aaa;cursor:pointer;';
+    vtClearBtn.addEventListener('click', () => {
+      // Activate clear mode regardless of config state
+      amSection.querySelectorAll('.mode-button').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = b._baseColor || '';
+        b.style.color      = b._baseColor ? '#333' : '';
+      });
+      vtClearBtn.classList.add('active');
+      vtClearBtn.style.background = '#555';
+      editor.setMode('value-target-clear');
+      setLauncherActive(true);
+    });
+    skewRow.appendChild(vtClearBtn);
+    amSection.appendChild(skewRow);
+
+    // Preview line showing current combination
+    const vtPreview = document.createElement('div');
+    vtPreview.style.cssText = 'font-size:0.8em;font-weight:bold;color:#666;';
+    vtPreview.textContent   = 'Nothing selected';
+    amSection.appendChild(vtPreview);
+
+    const amBtn = document.createElement('button');
+    amBtn.textContent = '🤖 Open AutoMapper';
+    amBtn.className = 'mode-button';
+    amBtn.style.cssText = 'width:100%;padding:8px 12px;font-size:0.9em;font-weight:bold;border:2px solid var(--popup-border-special);border-radius:4px;cursor:pointer;color:var(--popup-border-special);background:#0a1a0a;';
+    amBtn.onclick = () => {
+      import('../modules/automapper/autoBuilder.js').then(mod => {
+        mod.openAutoMapperPopup();
+      }).catch(err => console.error('Failed to load AutoMapper:', err));
+    };
+    amSection.appendChild(amBtn);
+
+    // ── Value Overlay ─────────────────────────────────────────────
+    const voSep = document.createElement('div');
+    voSep.style.cssText = 'border-top:1px solid #444;margin:8px 0;';
+    amSection.appendChild(voSep);
+
+    const voLabel = document.createElement('div');
+    voLabel.style.cssText  = 'font-size:0.8em;color:#aaa;margin-bottom:4px;';
+    voLabel.textContent    = 'Value overlay (1–5 tier, based on ideal R/I + tech)';
+    amSection.appendChild(voLabel);
+
+    // State for the three weighting toggles
+    let vo_R = false, vo_I = false, vo_T = false;
+
+    function refreshValueOverlay() {
+      import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
+        // The drawn layer is the state. Redrawing only makes sense while it is shown —
+        // changing a weight with the overlay off must not switch it on.
+        if (isValueOverlayActive(editor)) {
+          drawValueOverlay(editor, vo_R, vo_I, vo_T);
+        } else {
+          clearValueOverlay(editor);
+        }
+      });
+    }
+
+    // Expose refresh on editor so assignSystem and other callers can trigger it
+    editor._refreshValueOverlay = refreshValueOverlay;
+
+    // Main on/off toggle. The same overlay has a second switch in Toggle Overlays, so
+    // this button holds no state of its own: it reads the drawn layer, and re-syncs
+    // whenever anything changes it.
+    const voToggleBtn = document.createElement('button');
+    voToggleBtn.className     = 'mode-button';
+    voToggleBtn.textContent   = '📊 Show Value Overlay';
+    voToggleBtn.style.cssText = 'width:100%;padding:6px 10px;font-size:0.85em;font-weight:bold;border:1px solid #888;border-radius:4px;cursor:pointer;';
+
+    function syncVoButton(on) {
+      voToggleBtn.textContent  = on ? '📊 Hide Value Overlay' : '📊 Show Value Overlay';
+      voToggleBtn.style.border = on ? '1px solid #ffe066' : '1px solid #888';
+    }
+
+    voToggleBtn.onclick = () => {
+      import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
+        if (isValueOverlayActive(editor)) clearValueOverlay(editor);
+        else drawValueOverlay(editor, vo_R, vo_I, vo_T);
+      }).catch(console.error);
+    };
+    amSection.appendChild(voToggleBtn);
+
+    import('../features/valueOverlay.js').then(({ VALUE_OVERLAY_CHANGED, isValueOverlayActive }) => {
+      syncVoButton(isValueOverlayActive(editor));
+      // Self-removing: the popup is rebuilt on every open, so without this each reopen
+      // would leave another listener behind holding a detached button.
+      const onChange = () => {
+        if (!voToggleBtn.isConnected) {
+          document.removeEventListener(VALUE_OVERLAY_CHANGED, onChange);
+          return;
+        }
+        syncVoButton(isValueOverlayActive(editor));
+      };
+      document.addEventListener(VALUE_OVERLAY_CHANGED, onChange);
+    }).catch(console.error);
+
+    // Weight toggle row
+    const voWeightRow = document.createElement('div');
+    voWeightRow.style.cssText = 'display:flex;gap:6px;margin-top:5px;';
+
+    function makeWeightBtn(label, color, getVal, setVal, title) {
+      const b = document.createElement('button');
+      b.textContent   = label;
+      b.className     = 'mode-button';
+      b.title         = title;
+      b.style.cssText = `flex:1;padding:5px;font-size:0.8em;font-weight:bold;border:1px solid #555;border-radius:4px;cursor:pointer;`;
+      b.onclick = () => {
+        setVal(!getVal());
+        b.style.background = getVal() ? color : '';
+        b.style.color      = getVal() ? '#111' : '';
+        b.style.border     = getVal() ? `1px solid ${color}` : '1px solid #555';
+        if (voToggleBtn._voActive) refreshValueOverlay();
+      };
+      return b;
+    }
+
+    voWeightRow.appendChild(makeWeightBtn(
+      'R  Res', '#f5a623', () => vo_R, v => { vo_R = v; },
+      'Boost resource weight (reduces influence weight)'
+    ));
+    voWeightRow.appendChild(makeWeightBtn(
+      'I  Inf', '#7ecfff', () => vo_I, v => { vo_I = v; },
+      'Boost influence weight (reduces resource weight)'
+    ));
+    voWeightRow.appendChild(makeWeightBtn(
+      'T  Tech', '#b07cff', () => vo_T, v => { vo_T = v; },
+      'Boost tech-skip weight'
+    ));
+
+    amSection.appendChild(voWeightRow);
+
+  return showPopup({
+    id: 'balancePopupModal',
+    className: 'layout-options-popup',
+    title: 'Balance',
+    draggable: true,
+    dragHandleSelector: '.popup-ui-titlebar',
+    scalable: true,
+    rememberPosition: true,
+    content: amSection,
+  });
 }
 
 /**
@@ -743,6 +757,39 @@ function finishSectorControlsContent(editor, container) {
     invoke(COMMANDS.showBorderAnomalies);
   };
   container.appendChild(borderAnomaliesBtn);
+
+  // ───────────── Balance ─────────────
+  // Value hints and the AutoMapper are one workflow and both are used often: paint
+  // targets, run the filler against them, review. They were three levels down, behind a
+  // collapsed toggle inside Draw Helpers. AutoMapper also gets its own entry — it had
+  // three front doors, the nearest of which was three clicks away.
+  container.appendChild(railGroupLabel('Balance'));
+
+  const balanceBtn = railButton({
+    id: 'toolBalance',
+    icon: '◈',
+    text: 'Value hints…',
+    title: 'Paint V1–V5 and R/I/T targets, and weight the value overlay',
+  });
+  balanceBtn.onclick = () => {
+    deactivateModes();
+    openBalancePopup(editor);
+  };
+  container.appendChild(balanceBtn);
+
+  const autoMapperBtn = railButton({
+    id: 'toolAutoMapper',
+    icon: '⚙',
+    text: 'AutoMapper…',
+    title: 'Fill the painted tiles with real systems',
+  });
+  autoMapperBtn.onclick = () => {
+    deactivateModes();
+    import('../modules/automapper/autoBuilder.js')
+      .then(mod => mod.openAutoMapperPopup())
+      .catch(err => console.error('Failed to load AutoMapper:', err));
+  };
+  container.appendChild(autoMapperBtn);
 
   // ───────────── Distance ─────────────
   // The calculation had no button at all: Shift+D held, then a *right*-click, documented
