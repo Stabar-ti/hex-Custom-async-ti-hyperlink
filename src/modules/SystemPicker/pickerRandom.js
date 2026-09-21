@@ -16,7 +16,8 @@ import { tileImage, techBadges, wormholeBadges, anomalyTitle, effectiveText, leg
 import { totalResources, totalInfluence } from './pickerModel.js';
 import * as state from './pickerState.js';
 
-const POPUP_ID = 'system-picker-random';
+export const RANDOM_POPUP_ID = 'system-picker-random';
+const POPUP_ID = RANDOM_POPUP_ID;
 
 let lastRolled = null;
 

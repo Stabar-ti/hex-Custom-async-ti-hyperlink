@@ -301,7 +301,13 @@ export function setupTileCopySingleButtonAndPopup() {
 // --- Help Popup Logic ---
 let helpPopup = null;
 export function showWizardHelpPopup() {
-    if (helpPopup) hidePopup(helpPopup);
+    // Pressing ? again puts the help away. The handle was kept after the popup was closed by
+    // its own ×, so this branch only ever hid something already gone and then reopened.
+    if (helpPopup && helpPopup.isConnected) {
+        hidePopup(helpPopup);
+        helpPopup = null;
+        return null;
+    }
     helpPopup = showPopup({
         id: 'wizard-help-popup',
         className: 'wizard-help-popup',

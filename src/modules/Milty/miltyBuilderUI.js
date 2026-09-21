@@ -11,6 +11,7 @@ import { defaultSlices, slotPositions, moveSlice, analyzeSliceOccupancy, applyMi
 import { drawSlicePositionOverlays, drawSliceBordersOverlay, highlightSliceOnMap, clearSliceHighlights, ensureHighlightStyles } from './miltyBuilderDraw.js';
 import { showMiltyDraftGeneratorPopup } from './miltyRandomToolUI.js';
 import { showSanityCheckPopup } from '../../ui/simplepPopup.js';
+import { togglePopup } from '../../ui/popupUI.js';
 import { showSliceExportPopup } from './miltyBuilderExport.js';
 
 // Main UI function to create and display the Milty Builder popup
@@ -334,35 +335,35 @@ export function showMiltyBuilderUI(container) {
         // Analysis and Output buttons
         const calcDraftBtn = container.querySelector('#calcDraftValuesBtn');
         if (calcDraftBtn) {
-            calcDraftBtn.onclick = () => {
+            calcDraftBtn.onclick = () => togglePopup('milty-draft-values-popup', () => {
                 import('./miltyBuilderPopups.js').then(mod => {
                     mod.showDraftValuesPopup();
                 });
-            };
+            });
         }
 
         const outputBtn = container.querySelector('#outputCopyBtn');
         if (outputBtn) {
-            outputBtn.onclick = () => {
+            outputBtn.onclick = () => togglePopup('milty-output-popup', () => {
                 import('./miltyBuilderPopups.js').then(mod => {
                     mod.showOutputCopyPopup();
                 });
-            };
+            });
         }
 
         const exportPngBtn = container.querySelector('#exportSlicesPngBtn');
         if (exportPngBtn) {
-            exportPngBtn.onclick = () => showSliceExportPopup();
+            exportPngBtn.onclick = () => togglePopup('milty-export-popup', showSliceExportPopup);
         }
 
         // Import button
         const importBtn = container.querySelector('#importSlicesBtn');
         if (importBtn) {
-            importBtn.onclick = () => {
+            importBtn.onclick = () => togglePopup('milty-import-popup', () => {
                 import('./miltyBuilderPopups.js').then(mod => {
                     mod.showImportSlicesPopup();
                 });
-            };
+            });
         }
 
         // Generate Slices button

@@ -221,12 +221,29 @@ export function showPopup({
             helpBtn.style.justifyContent = 'center';
             helpBtn.style.borderRadius = '0'; // Force square appearance
             helpBtn.style.border = '1px solid var(--popup-border-special)'; // Consistent border
-            helpBtn.onclick = () => {
-                if (typeof onHelp === 'function') {
-                    onHelp();
-                } else {
+            // The ? stays on screen while the help it opened is up, so a second press has to
+            // put it away. There is no single help id to watch — every popup's onHelp opens
+            // its own — so the button holds on to whichever popup that call produced: the one
+            // it returned, or failing that the one that appeared while it ran. Handlers that
+            // do neither simply reopen, which is what all of them did before.
+            /** @type {HTMLElement|null} */
+            let helpShown = null;
+            helpBtn.onclick = async () => {
+                if (typeof onHelp !== 'function') {
                     console.warn('Help button clicked but onHelp is not a function:', typeof onHelp, onHelp);
+                    return;
                 }
+                if (helpShown && helpShown.isConnected) {
+                    hidePopup(helpShown);
+                    helpShown = null;
+                    return;
+                }
+                const before = new Set(document.querySelectorAll('.popup-ui'));
+                // Awaited because one of them loads its module first.
+                const returned = await onHelp();
+                helpShown = returned instanceof HTMLElement
+                    ? returned
+                    : [...document.querySelectorAll('.popup-ui')].find(p => !before.has(p)) || null;
             };
             titleBar.appendChild(helpBtn);
         }

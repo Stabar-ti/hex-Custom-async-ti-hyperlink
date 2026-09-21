@@ -15,7 +15,7 @@
  * call those; the hex-label input is now just a convenience for typing a label directly.
  */
 
-import { showPopup, hidePopup } from '../../ui/popupUI.js';
+import { showPopup, hidePopup, togglePopup } from '../../ui/popupUI.js';
 import { provide, COMMANDS } from '../../core/registry.js';
 import { planetDisplayName } from '../../draw/hexAnchors.js';
 import {
@@ -165,7 +165,7 @@ function createHeaderSection() {
     overviewBtn.title = 'Table of every lore entry on the map (systems, planets, and phases).';
     overviewBtn.style.cssText = 'padding:6px 12px;border:1px solid #9b59b6;border-radius:4px;' +
         'background:#2c3e50;color:#9b59b6;cursor:pointer';
-    overviewBtn.onclick = () => showLoreOverview();
+    overviewBtn.onclick = () => togglePopup('loreOverviewPopup', showLoreOverview);
     row.appendChild(overviewBtn);
 
     return row;
@@ -1065,9 +1065,6 @@ function afterMutation() {
 // ─────────────────────────────────────────── overview ───────────────────────────────────────────
 
 function showLoreOverview() {
-    const existing = document.getElementById('loreOverviewPopup');
-    if (existing) existing.remove();
-
     const content = document.createElement('div');
     content.style.cssText = 'max-height:65vh;overflow-y:auto';
 

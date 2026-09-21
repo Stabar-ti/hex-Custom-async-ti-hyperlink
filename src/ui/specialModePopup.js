@@ -44,6 +44,7 @@ export function showSpecialModePopup() {
 
         if (miltyBtn) {
             miltyBtn.onclick = () => {
+                hidePopup('special-mode-popup');
                 hidePopup('milty-slice-designer-popup');
                 const designerContent = document.createElement('div');
                 designerContent.className = 'milty-slice-designer-content';
@@ -125,6 +126,7 @@ export function showSpecialModePopup() {
         // Add click handler for Milty Random Generator button
         if (generatorBtn) {
             generatorBtn.onclick = () => {
+                hidePopup('special-mode-popup');
                 import('../modules/Milty/miltyBuilderRandomTool.js').then(mod => {
                     const showGenerator = mod.initializeGeneratorPopup;
                     if (typeof showGenerator === 'function') {
@@ -166,6 +168,7 @@ export function showSpecialModePopup() {
         // Spin-To-Win button handler
         if (spinBtn) {
             spinBtn.onclick = () => {
+                hidePopup('special-mode-popup');
                 const spinContent = document.createElement('div');
                 spinContent.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;';
                 import('../modules/SpinToWin/spinToWin.js').then(mod => {

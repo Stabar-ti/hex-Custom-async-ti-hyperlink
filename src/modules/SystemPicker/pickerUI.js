@@ -12,7 +12,7 @@
  * window aliases below stay only so console users keep the names they already know.
  */
 
-import { showPopup, hidePopup } from '../../ui/popupUI.js';
+import { showPopup, hidePopup, togglePopup } from '../../ui/popupUI.js';
 import { provide, COMMANDS } from '../../core/registry.js';
 import { loadSystemInfo } from '../../data/import.js';
 import { isRealIDUsed } from '../../ui/uiFilters.js';
@@ -21,7 +21,7 @@ import { onUsedIdsChanged } from './pickerEvents.js';
 import { installPlacement } from './pickerPlacement.js';
 import { destroyPreview } from './pickerPreview.js';
 import { tileImage } from './pickerCells.js';
-import { showRandomTilePopup } from './pickerRandom.js';
+import { showRandomTilePopup, RANDOM_POPUP_ID } from './pickerRandom.js';
 import { showPickerHelp } from './pickerHelp.js';
 import { exportSystemsCsv } from './pickerExport.js';
 import * as state from './pickerState.js';
@@ -242,7 +242,8 @@ function buildSearchRow() {
     random.className = 'sp-addbtn';
     random.textContent = '🎲 Random';
     random.title = 'Pick a random tile from the current results';
-    random.addEventListener('click', () => showRandomTilePopup(editorRef, getResult().results));
+    random.addEventListener('click', () =>
+        togglePopup(RANDOM_POPUP_ID, () => showRandomTilePopup(editorRef, getResult().results)));
     row.appendChild(random);
 
     return row;

@@ -2,7 +2,7 @@
 // User interface functions for Milty Random Tool
 // Extracted from miltyBuilderRandomTool.js for better separation of concerns
 
-import { showPopup } from '../../ui/popupUI.js';
+import { showPopup, togglePopup } from '../../ui/popupUI.js';
 
 // Shared module instance to maintain state
 let sharedModuleInstance = null;
@@ -89,8 +89,8 @@ export function showMiltyDraftGeneratorPopup() {
         content: createGeneratorPopupContent(),
         actions: [
             { label: 'Generate Slices', action: generateSlicesWithUI },
-            { label: 'Weighting Settings', action: () => showWeightingSettingsPopup() },
-            { label: 'Debug Info', action: () => showDebugInfo() }
+            { label: 'Weighting Settings', action: () => togglePopup('milty-weighting-popup', showWeightingSettingsPopup) },
+            { label: 'Debug Info', action: () => togglePopup('milty-debug-info', showDebugInfo) }
         ],
         title: 'Milty Draft Generator',
         id: 'milty-generator-popup',

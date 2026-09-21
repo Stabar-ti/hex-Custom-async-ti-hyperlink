@@ -633,8 +633,8 @@ export function openAutoMapperPopup() {
 }
 
 export function showAutoMapperHelp() {
-    import('../../ui/popupUI.js').then(({ showPopup }) => {
-        showPopup({
+    return import('../../ui/popupUI.js').then(({ showPopup }) => {
+        return showPopup({
             id: 'automapper-help-popup',
             title: '🤖 AutoMapper & Draw Helpers — Help',
             content: `<div style="line-height:1.6;font-size:13px;max-height:70vh;overflow-y:auto;padding-right:8px;">
