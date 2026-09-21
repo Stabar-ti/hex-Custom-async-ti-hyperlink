@@ -223,10 +223,47 @@ function createSectorControlsContent(editor) {
   });
   container.appendChild(realIdBtn);
 
-  // ───────────── Essential System Types ─────────────
+
+  // ───────────── Paint modes, inline ─────────────
+  // Tile types and effects used to live in a Draw Helpers popup: a draggable window over
+  // the map holding twelve paint modes. They are what you reach for constantly, so they
+  // belong in the rail with everything else you paint with. Each group folds, so the rail
+  // stays scannable rather than becoming a list of twenty-five.
+  addPaintGroup(container, editor, {
+    key: 'planets',
+    icon: '◍',
+    label: 'Planets',
+    title: 'Paint tile types',
+    items: [
+      { mode: '1 planet', label: '1 Planet', cls: 'btn-1', icon: '1' },
+      { mode: '2 planet', label: '2 Planet', cls: 'btn-2', icon: '2' },
+      { mode: '3 planet', label: '3 Planet', cls: 'btn-3', icon: '3' },
+      { mode: 'legendary planet', label: 'Legendary', cls: 'btn-legendary', icon: '★' },
+      { mode: 'empty', label: 'Empty', cls: 'btn-empty', icon: '○' },
+      { mode: 'void', label: 'Void', cls: 'btn-void', icon: '◯' },
+      { mode: 'special', label: 'Special', cls: 'btn-special', icon: '◆' },
+      { mode: 'fracture', label: 'Fracture', cls: 'btn-fracture', icon: '✧' },
+    ],
+  });
+
+  addPaintGroup(container, editor, {
+    key: 'effects',
+    icon: '✦',
+    label: 'Effects',
+    title: 'Paint anomalies and effects',
+    items: [
+      { mode: 'nebula', label: 'Nebula', cls: 'btn-nebula', icon: '☁' },
+      { mode: 'rift', label: 'Rift', cls: 'btn-rift', icon: '◉' },
+      { mode: 'asteroid', label: 'Asteroid', cls: 'btn-asteroid', icon: '⁘' },
+      { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova', icon: '✷' },
+      { mode: 'scar', label: 'Scar', cls: 'btn-scar', icon: '☄' },
+    ],
+  });
+
+  // Homesystem is the one tile type that is not really a "type" you paint over a region,
+  // so it stays at the top level. Void joined the Planets group; Hyperlanes moved to
+  // Connect, where a link between two tiles belongs.
   const essentialSystemTypes = [
-    { mode: 'hyperlane', label: 'Hyperlanes', cls: 'btn-empty', icon: '∿' },
-    { mode: 'void', label: 'Void', cls: 'btn-void', icon: '○' },
     { mode: 'homesystem', label: 'Homesystem', cls: 'btn-homesystem', icon: '⌂' }
   ];
 
@@ -259,41 +296,6 @@ function createSectorControlsContent(editor) {
       editor.setMode(mode);
     });
     container.appendChild(btn);
-  });
-
-  // ───────────── Paint modes, inline ─────────────
-  // Tile types and effects used to live in a Draw Helpers popup: a draggable window over
-  // the map holding twelve paint modes. They are what you reach for constantly, so they
-  // belong in the rail with everything else you paint with. Each group folds, so the rail
-  // stays scannable rather than becoming a list of twenty-five.
-  addPaintGroup(container, editor, {
-    key: 'planets',
-    icon: '◍',
-    label: 'Planets',
-    title: 'Paint tile types',
-    items: [
-      { mode: '1 planet', label: '1 Planet', cls: 'btn-1', icon: '1' },
-      { mode: '2 planet', label: '2 Planet', cls: 'btn-2', icon: '2' },
-      { mode: '3 planet', label: '3 Planet', cls: 'btn-3', icon: '3' },
-      { mode: 'legendary planet', label: 'Legendary', cls: 'btn-legendary', icon: '★' },
-      { mode: 'empty', label: 'Empty', cls: 'btn-empty', icon: '○' },
-      { mode: 'special', label: 'Special', cls: 'btn-special', icon: '◆' },
-      { mode: 'fracture', label: 'Fracture', cls: 'btn-fracture', icon: '✧' },
-    ],
-  });
-
-  addPaintGroup(container, editor, {
-    key: 'effects',
-    icon: '✦',
-    label: 'Effects',
-    title: 'Paint anomalies and effects',
-    items: [
-      { mode: 'nebula', label: 'Nebula', cls: 'btn-nebula', icon: '☁' },
-      { mode: 'rift', label: 'Rift', cls: 'btn-rift', icon: '◉' },
-      { mode: 'asteroid', label: 'Asteroid', cls: 'btn-asteroid', icon: '⁘' },
-      { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova', icon: '✷' },
-      { mode: 'scar', label: 'Scar', cls: 'btn-scar', icon: '☄' },
-    ],
   });
 
   return finishSectorControlsContent(editor, container);
@@ -566,6 +568,23 @@ export function openBalancePopup(editor) {
 function finishSectorControlsContent(editor, container) {
   container.appendChild(railGroupLabel('Connect'));
 
+  const hyperlanesBtn = railButton({
+    id: 'toolHyperlanes',
+    className: 'btn-empty',
+    icon: '∿',
+    text: 'Hyperlanes',
+    title: 'Draw hyperlane arcs between tiles',
+  });
+  hyperlanesBtn.addEventListener('click', () => {
+    const turningOff = hyperlanesBtn.classList.contains('active');
+    container.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));
+    deactivateModes();
+    if (turningOff) { editor.setMode('none'); return; }
+    hyperlanesBtn.classList.add('active');
+    editor.setMode('hyperlane');
+  });
+  container.appendChild(hyperlanesBtn);
+
   // ───────────── Wormholes Modal Launcher ─────────────
   const wormholesBtn = railButton({
     id: 'launchWormholesPopup',
@@ -687,6 +706,37 @@ function finishSectorControlsContent(editor, container) {
   };
   container.appendChild(balanceBtn);
 
+  // The same overlay also has a switch in Toggle Overlays. Neither holds the state —
+  // the drawn layer does — and both follow ti4:value-overlay-changed, so they cannot
+  // disagree the way they used to.
+  const valueTiersBtn = railButton({
+    id: 'toolValueTiers',
+    icon: '▩',
+    text: 'Value tiers',
+    title: 'Show or hide the T1–T5 value overlay',
+  });
+  valueTiersBtn.onclick = () => {
+    import('../features/valueOverlay.js')
+      .then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
+        if (isValueOverlayActive(editor)) clearValueOverlay(editor);
+        else drawValueOverlay(editor, false, false, false);
+      })
+      .catch(err => console.error('Failed to load the value overlay:', err));
+  };
+  container.appendChild(valueTiersBtn);
+
+  import('../features/valueOverlay.js').then(({ VALUE_OVERLAY_CHANGED, isValueOverlayActive }) => {
+    const sync = () => {
+      if (!valueTiersBtn.isConnected) {
+        document.removeEventListener(VALUE_OVERLAY_CHANGED, sync);
+        return;
+      }
+      valueTiersBtn.classList.toggle('active', isValueOverlayActive(editor));
+    };
+    document.addEventListener(VALUE_OVERLAY_CHANGED, sync);
+    valueTiersBtn.classList.toggle('active', isValueOverlayActive(editor));
+  }).catch(console.error);
+
   const autoMapperBtn = railButton({
     id: 'toolAutoMapper',
     icon: '⚙',
@@ -705,7 +755,17 @@ function finishSectorControlsContent(editor, container) {
   // The calculation had no button at all: Shift+D held, then a *right*-click, documented
   // only inside the help popup — while its settings had one of the widest buttons in the
   // top bar. Armed, a left-click on any hex paints the distances from it.
-  container.appendChild(railGroupLabel('Analyse'));
+  container.appendChild(railGroupLabel('Edit'));
+
+  // The Copy/Cut Swap wizard. tileCopyPasteWizardUI binds this id at startup, which runs
+  // after the rail is mounted, so the element it looks for is this one.
+  const copySwapBtn = railButton({
+    id: 'tileCopySingleBtn',
+    icon: '⧉',
+    text: 'Copy / swap',
+    title: 'Copy, cut and swap regions of tiles',
+  });
+  container.appendChild(copySwapBtn);
 
   const distanceBtn = railButton({
     id: 'toolDistance',

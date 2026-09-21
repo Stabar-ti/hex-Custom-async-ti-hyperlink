@@ -26,18 +26,9 @@ export function installTopBarMenus() {
     const right = document.getElementById('rightControls');
     if (!left || !right) return;
 
-    // ── Copy/Cut Swap joins Edit ─────────────────────────────────────────────
-    // Used constantly; it was sitting between Calculate Slice and Sanity Check, which are
-    // not. The Edit group is undo, redo and this.
-    const copyBtn = document.getElementById('tileCopySingleBtn');
-    const editGroup = document.querySelector('.tb-group');
-    const firstSep = editGroup?.querySelector('.tb-sep');
-    if (copyBtn && editGroup && firstSep) {
-        copyBtn.textContent = '⧉';
-        copyBtn.title = 'Copy, cut and swap regions of tiles';
-        copyBtn.classList.add('tb-icon-btn');
-        editGroup.insertBefore(copyBtn, firstSep);
-    }
+    // Copy/Cut Swap is built into the rail's Edit group by uisectorControls — it arms a
+    // selection mode, which makes it a tool rather than a command like undo. It briefly
+    // lived in the top bar's Edit group here.
 
     // ── Analyse ──────────────────────────────────────────────────────────────
     // Distance Options lands here rather than in the bar: it is the settings for a tool,
