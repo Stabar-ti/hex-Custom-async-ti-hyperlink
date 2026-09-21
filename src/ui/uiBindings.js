@@ -8,7 +8,7 @@ import { populateSectorControls, openSectorControlsPopup } from './uisectorContr
 import { showModal, closeModal } from './uiModals.js';
 import { updateLayerVisibility } from '../features/realIDsOverlays.js';
 import { generateRings } from '../draw/drawHexes.js';
-import { makePopupDraggable, syncToggleButtons } from './uiUtils.js';
+import { syncToggleButtons } from './uiUtils.js';
 import { toggleBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay.js';
 import { toggleCustomLinksOverlay } from '../features/customLinksOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
@@ -217,69 +217,10 @@ export function bindUI(editor) {
   // (Any popups you want to initialize for draggable, etc, can go here)
 
 
-  // Close all dropdowns if click anywhere else
-  document.getElementById('layoutToggleBtn')?.addEventListener('click', () => {
-    const popup = document.getElementById('layoutOptionsPopup');
-    if (!popup) return;
-
-    // Toggle display
-    const isVisible = popup.style.display === 'block';
-    popup.style.display = isVisible ? 'none' : 'block';
-
-    // Only make draggable once
-    if (!popup.dataset.draggableInitialized) {
-      makePopupDraggable('layoutOptionsPopup');
-      popup.dataset.draggableInitialized = 'true';
-    }
-
-    // Only add close button if not present
-    if (!popup.querySelector('.popup-close-btn')) {
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'popup-close-btn';
-      closeBtn.title = 'Close';
-      closeBtn.innerHTML = '✕';
-      // If you have a .draggable-handle div, append to it, else append to popup
-      const handle = popup.querySelector('.draggable-handle');
-      (handle || popup).appendChild(closeBtn);
-
-      closeBtn.onclick = () => {
-        popup.style.display = 'none';
-      };
-    }
-  });
-
-
-  // Open popup below the button, clamped to viewport
-  document.getElementById('overlayToggleBtn')?.addEventListener('click', () => {
-    const popup = document.getElementById('overlayOptionsPopup');
-    if (!popup) return;
-
-    // Toggle display
-    const isVisible = popup.style.display === 'block';
-    popup.style.display = isVisible ? 'none' : 'block';
-
-    // Make draggable ONCE
-    if (!popup.dataset.draggableInitialized) {
-      makePopupDraggable('overlayOptionsPopup');
-      popup.dataset.draggableInitialized = 'true';
-    }
-
-    // Add close button if not present
-    if (!popup.querySelector('.popup-close-btn')) {
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'popup-close-btn';
-      closeBtn.title = 'Close';
-      closeBtn.innerHTML = '✕';
-      const handle = popup.querySelector('.draggable-handle');
-      (handle || popup).appendChild(closeBtn);
-      closeBtn.onclick = () => { popup.style.display = 'none'; };
-    }
-  });
-
-  // Close button logic
-  document.querySelector('#overlayOptionsPopup .popup-close-btn')?.addEventListener('click', () => {
-    document.getElementById('overlayOptionsPopup').style.display = 'none';
-  });
+  // layoutToggleBtn and overlayToggleBtn are bound in main.js, which opens the popups
+  // simplepPopup.js builds. A second binding used to live here that toggled the *static*
+  // markup's display and injected its own ✕; it ran first on every click and was then
+  // undone by the rebuild, which is why neither button ever closed its own popup.
 
 
   // Make popup draggable if you want (optional)

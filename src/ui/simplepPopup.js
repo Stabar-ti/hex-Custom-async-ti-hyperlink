@@ -3,6 +3,7 @@ import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 import { toggleTheme } from './uiTheme.js';
 import { checkRealIdUniqueness, generateSanityCheckSummary } from '../features/sanityCheck.js';
 import { setupHexHoverInfo } from './HexHoverInfo2.js';
+import { toggleControlsPanel, isControlsPanelCollapsed } from './controlsPanel.js';
 
 export function showOptionsPopup(editor) {
     // Build content dynamically, reflecting current editor options
@@ -379,15 +380,14 @@ export function showLayoutOptionsPopup() {
     });
 
     setTimeout(() => {
-        // Im/Export & map generation panel toggle
+        // Im/Export & map generation panel toggle. Going through controlsPanel.js is
+        // what stops this hiding the panel without revealing the button that brings it back.
         const controlsBtn = document.getElementById('toggleControlsBtn');
         if (controlsBtn) {
-            controlsBtn.onclick = () => {
-                const controlsPanel = document.getElementById('controlsPanel');
-                if (controlsPanel) {
-                    controlsPanel.classList.toggle('collapsed');
-                }
-            };
+            controlsBtn.textContent = isControlsPanelCollapsed()
+                ? 'Show Im/Export & map generation'
+                : 'Hide Im/Export & map generation';
+            controlsBtn.onclick = () => toggleControlsPanel();
         }
         // Arrange Controls
         const arrangeBtn = document.getElementById('arrangeBtn');

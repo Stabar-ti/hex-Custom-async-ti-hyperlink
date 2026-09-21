@@ -403,6 +403,14 @@ body.dark .dropdown-toggle:focus {
   top: 8px;
 }
 
+/* A toolbar button is a label, not a paragraph: it keeps its line and its intrinsic
+   width rather than being shrunk by the flex row until the text breaks. */
+#leftControls .mode-button,
+#rightControls .mode-button {
+  white-space: nowrap;
+  flex: none;
+}
+
 #versionTag {
   position: absolute;
   top: 10px;

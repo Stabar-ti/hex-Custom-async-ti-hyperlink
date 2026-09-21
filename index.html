@@ -49,8 +49,7 @@
     </div>
 
     <div id="rightControls">
-      <button id="optionsBtn" class="mode-button" onclick="showModal('optionsModal')">Distance Calculator
-        Options</button>
+      <button id="optionsBtn" class="mode-button">Distance Options</button>
       <button id="helpToggle" class="mode-button">Help</button>
       <button id="infoToggle" class="mode-button">Import/Export How-To</button>
       <button id="featuresToggle" class="mode-button">Features</button>
@@ -60,28 +59,10 @@
     <script>document.getElementById('versionTag').textContent = 'v' + (window.APP_VERSION || '2.1');</script>
   </div>
 
-  <!-- The movable popup for GUI options, hidden by default -->
-  <div id="layoutOptionsPopup" class="modal"
-    style="display:none; position:absolute; left:200px; top:80px; min-width:240px; z-index:1200;">
-    <div class="modal-header draggable-handle">
-      <span>Layout Options</span>
-      <!-- ><button class="close-button popup-close-btn" title="Close" style="float:right;">✕</button> -->
-    </div>
-    <div class="modal-content">
-      <div class="popup-section-label">General</div>
-      <div class="popup-btn-grid">
-        <button id="toggleControlsBtn" class="mode-button">Im/Export & map generation</button>
-        <button id="arrangeBtn" class="mode-button">Arrange Controls</button>
-        <button id="sectorControlsBtn" class="mode-button">Sector Controls</button>
-        <button id="drawHelpersBtn" class="mode-button">Draw Helpers</button>
-      </div>
-      <div class="popup-section-label">Theme</div>
-      <div class="popup-btn-grid">
-        <button id="themeToggle" class="mode-button">Toggle Dark Mode</button>
-        <button id="resetPopupPositionsBtn" class="mode-button">Reset Popup Positions</button>
-      </div>
-    </div>
-  </div>
+  <!-- Layout Options is built at runtime by src/ui/simplepPopup.js. A hidden static copy
+       used to live here carrying the same button ids; showPopup deleted it on first open,
+       which silently killed every handler bound to it, and while it existed
+       getElementById('layoutOptionsPopup') found the dead copy rather than the live popup. -->
 
   <!-- The movable popup for overlays, hidden by default 
   <div id="overlayOptionsPopup" class="modal"
@@ -164,28 +145,6 @@
     <input id="cornerToggle" type="checkbox" checked>
     <label for="cornerToggle">Limit to async map bounderies</label>
     <button id="genMapBtn" class="primary-button">Generate Map</button>
-    <script type="module">
-      import Editor from './src/core/HexEditor.js';
-      window.addEventListener('DOMContentLoaded', () => {
-        const genMapBtn = document.getElementById('genMapBtn');
-        if (genMapBtn) {
-          // Remove any previous click handlers
-          genMapBtn.onclick = null;
-          // Remove any previous event listeners
-          const newBtn = genMapBtn.cloneNode(true);
-          genMapBtn.parentNode.replaceChild(newBtn, genMapBtn);
-          newBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const confirmReset = window.confirm('Are you sure you want to generate a new map? This will erase the current map.');
-            if (confirmReset) {
-              if (window.editor && typeof window.editor.generateMap === 'function') {
-                window.editor.generateMap();
-              }
-            }
-          });
-        }
-      });
-    </script>
   </div>
 
   <button id="controlsPanelOpenBtn" title="Show controls">&laquo;</button>

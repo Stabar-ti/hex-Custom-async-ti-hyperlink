@@ -30,7 +30,8 @@ import { startCopyPasteWizard } from './features/tileCopyPasteWizard.js';
 import { setupTileCopySingleButtonAndPopup } from './ui/tileCopyPasteWizardUI.js';
 import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup, showSanityCheckPopup } from './ui/simplepPopup.js';
 import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
-import { resetAllPopupPositions } from './ui/popupUI.js';
+import { resetAllPopupPositions, hidePopup } from './ui/popupUI.js';
+import { initControlsPanel, setControlsPanelCollapsed } from './ui/controlsPanel.js';
 import { checkRealIdUniqueness } from './features/sanityCheck.js';
 import './ui/specialModePopup.js';
 import { installLoreUI } from './modules/Lore/loreUI.js';
@@ -412,65 +413,49 @@ function _onDOMReady(fn) {
 _onDOMReady(() => {
   setupTileCopySingleButtonAndPopup();
 
-  // Controls Panel Hide/Show Arrow Buttons
+  // Controls Panel Hide/Show Arrow Buttons. The collapse itself lives in
+  // ui/controlsPanel.js — see the note there on why this used to be written three times.
   const controlsPanel = document.getElementById('controlsPanel');
   controlsPanel.classList.add('size-xlarge'); // Set initial size
-  const controlsPanelCloseBtn = document.getElementById('controlsPanelCloseBtn');
-  const controlsPanelOpenBtn = document.getElementById('controlsPanelOpenBtn');
-  if (controlsPanel && controlsPanelCloseBtn && controlsPanelOpenBtn) {
-    controlsPanelCloseBtn.addEventListener('click', () => {
-      controlsPanel.classList.add('collapsed');
-      controlsPanelOpenBtn.style.display = 'block';
-      controlsPanelOpenBtn.setAttribute('aria-hidden', 'false');
-      controlsPanelOpenBtn.tabIndex = 0;
-    });
-    controlsPanelOpenBtn.addEventListener('click', () => {
-      controlsPanel.classList.remove('collapsed');
-      controlsPanelOpenBtn.style.display = 'none';
-      controlsPanelOpenBtn.setAttribute('aria-hidden', 'true');
-      controlsPanelOpenBtn.tabIndex = -1;
-    });
-    // Hide open button if panel is visible on load
-    if (!controlsPanel.classList.contains('collapsed')) {
-      controlsPanelOpenBtn.style.display = 'none';
-      controlsPanelOpenBtn.setAttribute('aria-hidden', 'true');
-      controlsPanelOpenBtn.tabIndex = -1;
-    }
-  }
 
-  // Also handle toggleControlsBtn from Layout Options popup
-  const toggleControlsBtn = document.getElementById('toggleControlsBtn');
-  if (toggleControlsBtn && controlsPanel && controlsPanelOpenBtn) {
-    toggleControlsBtn.addEventListener('click', () => {
-      controlsPanel.classList.toggle('collapsed');
-      const isCollapsed = controlsPanel.classList.contains('collapsed');
-      toggleControlsBtn.textContent = isCollapsed
-        ? 'Show Im/Export & mapGen'
-        : 'hide Im/Export & mapGen';
-      controlsPanelOpenBtn.style.display = isCollapsed ? 'block' : 'none';
-      controlsPanelOpenBtn.setAttribute('aria-hidden', isCollapsed ? 'false' : 'true');
-      controlsPanelOpenBtn.tabIndex = isCollapsed ? 0 : -1;
-    });
-  }
+  document.getElementById('controlsPanelCloseBtn')
+    ?.addEventListener('click', () => setControlsPanelCollapsed(true));
+  document.getElementById('controlsPanelOpenBtn')
+    ?.addEventListener('click', () => setControlsPanelCollapsed(false));
+
+  initControlsPanel();
+
+  // The Layout Options entry is bound in simplepPopup.js, where that popup is built. It
+  // used to be bound here as well, against the static markup in index.html that showPopup
+  // deletes — so that copy never ran.
 });
 
 document.getElementById('helpToggle').onclick = showHelpPopup;
 document.getElementById('infoToggle').onclick = showInfoPopup;
 document.getElementById('featuresToggle').onclick = showFeaturesPopup;
 
-const overlayToggleBtn = document.getElementById('overlayToggleBtn');
-if (overlayToggleBtn) {
-  overlayToggleBtn.onclick = () => {
-    console.log('Overlay toggle button clicked'); // Debug: log on click
-    showOverlayOptionsPopup();
+// A button labelled with a ▾ has to close what it opened. showPopup removes any popup
+// with the same id and builds a fresh one, so calling it again re-opens rather than
+// closes — the toggle has to be here, at the button.
+function bindMenuToggle(buttonId, popupId, open) {
+  const btn = document.getElementById(buttonId);
+  if (!btn) return;
+  btn.setAttribute('aria-haspopup', 'true');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.onclick = () => {
+    const existing = document.getElementById(popupId);
+    if (existing) {
+      hidePopup(existing);
+      btn.setAttribute('aria-expanded', 'false');
+      return;
+    }
+    open();
+    btn.setAttribute('aria-expanded', 'true');
   };
-  console.log('Overlay toggle button initialized'); // Debug: log on page load
 }
 
-const layoutToggleBtn = document.getElementById('layoutToggleBtn');
-if (layoutToggleBtn) {
-  layoutToggleBtn.onclick = () => showLayoutOptionsPopup();
-}
+bindMenuToggle('overlayToggleBtn', 'overlayOptionsPopup', showOverlayOptionsPopup);
+bindMenuToggle('layoutToggleBtn', 'layoutOptionsPopup', showLayoutOptionsPopup);
 
 const sanityCheckBtn = document.getElementById('sanityCheckBtn');
 if (sanityCheckBtn) {
