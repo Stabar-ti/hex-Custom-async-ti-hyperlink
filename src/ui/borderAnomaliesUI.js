@@ -3,11 +3,21 @@ import { toggleBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js';
 import { provide, COMMANDS } from '../core/registry.js';
+import { setInspectorTool, clearInspectorTool, isInspectorToolShowing } from './inspector.js';
+import { registerMode, activateMode, deactivateMode } from '../core/registry.js';
+
+const MODE_BORDER_ANOMALIES = 'borderAnomalies';
 import { loadBorderAnomalyTypes, getEnabledBorderAnomalyTypes, updateBorderAnomalyStyle, updateBorderAnomalyBidirectional } from '../constants/borderAnomalies.js';
 import { buildCoordIndex, neighborHex, sideBetween, oppositeSide } from '../utils/hexGrid.js';
 
 export function installBorderAnomaliesUI(editor) {
     async function showBorderAnomaliesPopup() {
+        if (isInspectorToolShowing('Border Anomalies')) {
+            deactivateMode(MODE_BORDER_ANOMALIES);
+            editor.setMode('none');
+            return;
+        }
+        activateMode(MODE_BORDER_ANOMALIES);
         if (document.getElementById('borderAnomaliesPopup')) return;
 
         // Load border anomaly types
@@ -364,61 +374,50 @@ export function installBorderAnomaliesUI(editor) {
 
 
 
-        showPopup({
-            id: 'borderAnomaliesPopup',
-            className: 'popup-ui border-anomalies-popup', // Add popup-ui for transparency
-            title: 'Border Anomalies',
-            content,
-            draggable: true,
-            dragHandleSelector: '.popup-ui-titlebar',
-            scalable: true,
-            rememberPosition: true,
-            style: {
-                left: '520px',
-                top: '80px',
-                minWidth: '340px',
-                maxWidth: '800px',
-                minHeight: '200px',
-                maxHeight: '800px',
-                // background intentionally omitted to allow .popup-ui CSS to apply transparency
-                // color intentionally omitted to allow .popup-ui CSS to apply
-                border: '2px solid var(--popup-border-layout)',
-                boxShadow: '0 8px 40px #000a',
-                padding: '18px 0 18px 0'
-            },
-            showHelp: true,
-            onHelp: () => {
-                showPopup({
-                    id: 'borderAnomaliesHelpPopup',
-                    className: 'popup-ui popup-ui-info',
-                    title: 'Border Anomaly Tools Help',
-                    content:
-                        "<b>How to place border anomalies</b>:<br>" +
-                        "1. Click a primary hex, then click a neighboring hex to select the edge.<br>" +
-                        "2. Choose a type from the lists below. Icons indicate direction: ↔ Bidirectional (both sides), → Unidirectional (one side).<br>" +
-                        "3. <b>Scripted</b> types (Gravity Wave, Spatial Tear) apply game mechanics; <b>Not Scripted</b> types are visual only.<br>" +
-                        "4. To remove anomalies: click the <b>🗑️ Remove All</b> button (to the right of Scripted) then click the hex to clear anomalies.<br>" +
-                        "5. Use <b>⚙️ Border Settings</b> (at bottom) to enable/disable anomaly types and customize their appearance.<br>" +
-                        "<i>Tip:</i> The active type is highlighted. Switch modes using the buttons; cancel selection by choosing Remove All or another tool.",
-                    draggable: true,
-                    dragHandleSelector: '.popup-ui-titlebar',
-                    scalable: true,
-                    rememberPosition: true,
-                    style: {
-                        // background intentionally omitted
-                        // color intentionally omitted
-                        border: '2px solid var(--popup-border-special)',
-                        borderRadius: '10px',
-                        boxShadow: '0 8px 40px #000a',
-                        minWidth: '340px',
-                        maxWidth: '800px',
-                        minHeight: '200px',
-                        maxHeight: '800px',
-                        padding: '24px'
-                    }
-                });
-            }
-        });
+        // Reference text, so it stays a window you can leave open beside the map.
+        const showHelp = () => {
+            showPopup({
+                id: 'borderAnomaliesHelpPopup',
+                className: 'popup-ui popup-ui-info',
+                title: 'Border Anomaly Tools Help',
+                content:
+                    "<b>How to place border anomalies</b>:<br>" +
+                    "1. Click a primary hex, then click a neighboring hex to select the edge.<br>" +
+                    "2. Choose a type from the lists below. Icons indicate direction: ↔ Bidirectional (both sides), → Unidirectional (one side).<br>" +
+                    "3. <b>Scripted</b> types (Gravity Wave, Spatial Tear) apply game mechanics; <b>Not Scripted</b> types are visual only.<br>" +
+                    "4. To remove anomalies: click the <b>🗑️ Remove All</b> button (to the right of Scripted) then click the hex to clear anomalies.<br>" +
+                    "5. Use <b>⚙️ Border Settings</b> (at bottom) to enable/disable anomaly types and customize their appearance.<br>" +
+                    "<i>Tip:</i> The active type is highlighted. Switch modes using the buttons; cancel selection by choosing Remove All or another tool.",
+                draggable: true,
+                dragHandleSelector: '.popup-ui-titlebar',
+                scalable: true,
+                rememberPosition: true,
+                style: {
+                    // background intentionally omitted
+                    // color intentionally omitted
+                    border: '2px solid var(--popup-border-special)',
+                    borderRadius: '10px',
+                    boxShadow: '0 8px 40px #000a',
+                    minWidth: '340px',
+                    maxWidth: '800px',
+                    minHeight: '200px',
+                    maxHeight: '800px',
+                    padding: '24px'
+                }
+            });
+        };
+
+        const helpBtn = document.createElement('button');
+        helpBtn.type = 'button';
+        helpBtn.className = 'mode-button insp-tool__help';
+        helpBtn.textContent = '?';
+        helpBtn.title = 'How border anomalies work';
+        helpBtn.onclick = showHelp;
+        content.appendChild(helpBtn);
+
+        // Placing a border anomaly means clicking two neighbouring hexes to pick an edge.
+        // Doing that from a window sitting over those hexes was the awkward part.
+        setInspectorTool('Border Anomalies', content);
     }
 
     // --- Error popup utility using popupUI ---
@@ -748,6 +747,10 @@ export function installBorderAnomaliesUI(editor) {
             ]
         });
     }
+
+    registerMode(MODE_BORDER_ANOMALIES, {
+        deactivate: () => { if (isInspectorToolShowing('Border Anomalies')) clearInspectorTool(); },
+    });
 
     provide(COMMANDS.showBorderAnomalies, showBorderAnomaliesPopup);
     provide(COMMANDS.showBorderAnomalySettings, showBorderAnomalySettings);

@@ -7,6 +7,7 @@
 import { wormholeTypes } from '../constants/constants.js';
 import { showPopup } from './popupUI.js';
 import { railButton, railGroupLabel, setRailLabel } from './kit/index.js';
+import { setInspectorTool, clearInspectorTool, isInspectorToolShowing } from './inspector.js';
 import {
   toggleDistanceTool, isDistanceToolArmed, DISTANCE_TOOL_CHANGED,
 } from '../features/distanceTool.js';
@@ -20,6 +21,7 @@ import {
 // with one deactivateModes() instead of the block that used to be pasted at each site.
 const MODE_LORE = 'lore';
 const MODE_TOKEN = 'token';
+const MODE_WORMHOLES = 'wormholes';
 
 // Where the rail's collapsed state is remembered between sessions.
 const RAIL_COLLAPSED_KEY = 'ti4-tool-rail-collapsed';
@@ -571,79 +573,54 @@ function finishSectorControlsContent(editor, container) {
     text: 'Wormholes…',
     title: 'Place a wormhole',
   });
-  wormholesBtn.onclick = (e) => {
-    // Clear active state from all buttons in the sector controls first
-    container.querySelectorAll('.mode-button').forEach(btn => {
-      btn.classList.remove('active');
-      btn.style.background = '';
-      btn.style.color = '';
-      btn.style.fontWeight = '';
+  // A tool that owns the inspector is a mode like any other: arming something else has to
+  // take its panel down, or the inspector keeps showing controls for a tool that is no
+  // longer armed. Registering it means deactivateModes() does that for free.
+  registerMode(MODE_WORMHOLES, {
+    deactivate: () => {
+      if (isInspectorToolShowing('Wormholes')) clearInspectorTool();
+      wormholesBtn.classList.remove('active');
+    },
+  });
+
+  wormholesBtn.onclick = () => {
+    // Pressing the tool again puts the inspector back to plain hex detail.
+    if (isInspectorToolShowing('Wormholes')) {
+      deactivateMode(MODE_WORMHOLES);
+      editor.setMode('none');
+      return;
+    }
+
+    container.querySelectorAll('.mode-button').forEach(btn => btn.classList.remove('active'));
+    activateMode(MODE_WORMHOLES);
+    wormholesBtn.classList.add('active');
+
+    // Fourteen wormhole types. These used to be a draggable window over the map, which is
+    // an awkward place for "pick one, then click hexes" — the thing you are aiming at is
+    // behind the thing you are picking from.
+    const grid = document.createElement('div');
+    grid.className = 'insp-tool__grid';
+
+    Object.entries(wormholeTypes).forEach(([type, { label, color }]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = label;
+      btn.className = 'mode-button btn-wormhole insp-tool__btn';
+      btn.style.backgroundColor = color;
+      btn.addEventListener('click', () => {
+        const turningOff = btn.classList.contains('active');
+        grid.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));
+        if (turningOff) {
+          editor.setMode('none');
+          return;
+        }
+        btn.classList.add('active');
+        editor.setMode(type);
+      });
+      grid.appendChild(btn);
     });
 
-    deactivateModes();
-
-    showPopup({
-      id: 'wormholesPopupModal',
-      className: 'layout-options-popup',
-      title: 'Wormholes',
-      draggable: true,
-      dragHandleSelector: '.popup-ui-titlebar',
-      scalable: true,
-      rememberPosition: true,
-      style: {
-        left: '600px',
-        top: '160px',
-        minWidth: '220px',
-        maxWidth: '600px',
-        minHeight: '120px',
-        maxHeight: '600px',
-        color: '#fff',
-        border: '2px solid var(--popup-border-layout)',
-        boxShadow: '0 8px 40px #000a',
-        padding: '0 0 18px 0',
-        zIndex: 1300
-      },
-      content: (() => {
-        const content = document.createElement('div');
-        content.className = 'modal-content popup-btn-grid wormhole-btn-grid';
-        Object.entries(wormholeTypes).forEach(([type, { label, color }]) => {
-          const btn = document.createElement('button');
-          btn.textContent = label;
-          btn.className = 'mode-button btn-wormhole';
-          btn.style.backgroundColor = color;
-          btn.addEventListener('click', (e) => {
-            const turningOff = e.currentTarget.classList.contains('active');
-            // Clear active from wormhole popup buttons
-            content.querySelectorAll('.mode-button').forEach(b => {
-              b.classList.remove('active');
-              b.style.background = b.style.backgroundColor; // Restore original color
-              b.style.color = '';
-              b.style.fontWeight = '';
-            });
-            if (turningOff) {
-              wormholesBtn.classList.remove('active');
-              wormholesBtn.style.background = '';
-              wormholesBtn.style.color = '';
-              editor.setMode('none');
-              return;
-            }
-            // Set active state on clicked button (like original wormhole popup)
-            e.currentTarget.classList.add('active');
-            e.currentTarget.style.background = '#666';
-            e.currentTarget.style.color = '#fff';
-            e.currentTarget.style.fontWeight = 'bold';
-            // Also show wormholes button as active in sector controls
-            wormholesBtn.classList.add('active');
-            wormholesBtn.style.background = '#666';
-            wormholesBtn.style.color = '#fff';
-            wormholesBtn.style.fontWeight = 'bold';
-            editor.setMode(type);
-          });
-          content.appendChild(btn);
-        });
-        return content;
-      })()
-    });
+    setInspectorTool('Wormholes', grid);
   };
   container.appendChild(wormholesBtn);
 
