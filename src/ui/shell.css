@@ -205,6 +205,57 @@ body {
   display: none;
 }
 
+/* ── Folding paint groups (Planets, Effects) ──────────────────────────────── */
+
+/* The caret sits at the far right of the header, so the label and icon line up with
+   every other rail button. */
+.ui-rail-btn--group .ui-rail-btn__label {
+  flex: 1;
+}
+
+.ui-rail-btn__caret {
+  flex: none;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--surface-5);
+}
+
+.ui-rail-sub {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  /* A rule down the left ties the children to their header without indenting them so
+     far that the labels stop lining up. */
+  margin: 2px 0 4px 10px;
+  padding-left: 7px;
+  border-left: 1px solid var(--surface-4);
+}
+
+.ui-rail-sub.is-open {
+  display: flex;
+}
+
+.ui-btn.ui-rail-btn--sub {
+  min-height: 26px;
+  padding-block: 3px;
+  font-size: var(--ui-font-xs);
+}
+
+/* Collapsed, there is no room for a fold: the children show as a plain icon strip under
+   their header, which is still everything you need to arm a mode. */
+#toolRail.is-collapsed .ui-rail-btn__caret {
+  display: none;
+}
+
+#toolRail.is-collapsed .ui-rail-sub {
+  display: flex;
+  margin: 2px 0 4px;
+  padding-left: 0;
+  border-left: 0;
+  border-top: 1px solid var(--surface-4);
+  padding-top: 3px;
+}
+
 /* Group names would not fit; the rules between groups carry the grouping instead. */
 #toolRail.is-collapsed .ui-rail-group {
   height: 1px;

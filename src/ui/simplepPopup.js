@@ -353,7 +353,6 @@ export function showLayoutOptionsPopup() {
         <button id="toggleControlsBtn" class="mode-button">Im/Export & map generation</button>
         <button id="arrangeBtn" class="mode-button">Arrange Controls</button>
         <button id="sectorControlsBtn" class="mode-button">Sector Controls</button>
-        <button id="drawHelpersBtn" class="mode-button">Draw Helpers</button>
       </div>
       <div class="popup-section-label">Theme</div>
       <div class="popup-btn-grid">
@@ -403,18 +402,8 @@ export function showLayoutOptionsPopup() {
                     .catch(err => console.error('Failed to toggle the tool rail:', err));
             };
         }
-        // Draw Helpers — opens the one real implementation. This used to inline its own
-        // ~160-line copy of the popup that had drifted well behind uisectorControls.js
-        // (no value hints at all), and which never ran because the button it bound to was
-        // removed from the DOM by showPopup before this handler could find it.
-        const drawHelpersBtn = document.getElementById('drawHelpersBtn');
-        if (drawHelpersBtn) {
-            drawHelpersBtn.onclick = () => {
-                import('./uisectorControls.js').then(module => {
-                    if (window.editor) module.openDrawHelpersPopup(window.editor, { launcher: drawHelpersBtn });
-                }).catch(err => console.error('Failed to load Draw Helpers:', err));
-            };
-        }
+        // The Draw Helpers entry lived here. Its paint modes — tile types and effects —
+        // are folding groups in the tool rail now, so there is no popup left to open.
         // Reset popup positions
         const resetBtn = document.getElementById('resetPopupPositionsBtn');
         if (resetBtn) {

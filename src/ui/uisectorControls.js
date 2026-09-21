@@ -111,6 +111,95 @@ export function populateSectorControls(editor) {
   return mountToolRail(editor);
 }
 
+/** Remembers which paint groups are folded open. */
+const PAINT_GROUP_KEY = 'ti4-rail-paint-groups';
+
+/** @returns {Record<string, boolean>} */
+function readPaintGroups() {
+  try {
+    return JSON.parse(localStorage.getItem(PAINT_GROUP_KEY) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+
+/** @param {string} key @param {boolean} open */
+function writePaintGroup(key, open) {
+  try {
+    const all = readPaintGroups();
+    all[key] = open;
+    localStorage.setItem(PAINT_GROUP_KEY, JSON.stringify(all));
+  } catch { /* private mode — the rail just forgets between sessions */ }
+}
+
+/**
+ * A foldable set of paint modes in the rail.
+ *
+ * Every item is one call to editor.setMode, and only one can be armed, so clicking a
+ * second clears the first. Clicking the armed one turns it off — the same contract every
+ * other tool in this panel uses.
+ *
+ * @param {HTMLElement} container
+ * @param {any} editor
+ * @param {{key: string, icon: string, label: string, title: string,
+ *          items: Array<{mode: string, label: string, cls: string, icon: string}>}} group
+ */
+function addPaintGroup(container, editor, { key, icon, label, title, items }) {
+  const header = railButton({ icon, text: label, title, className: 'ui-rail-btn--group' });
+  const caret = document.createElement('span');
+  caret.className = 'ui-rail-btn__caret';
+  header.appendChild(caret);
+  container.appendChild(header);
+
+  const sub = document.createElement('div');
+  sub.className = 'ui-rail-sub';
+  container.appendChild(sub);
+
+  const setOpen = (open) => {
+    sub.classList.toggle('is-open', open);
+    header.classList.toggle('is-expanded', open);
+    caret.textContent = open ? '▾' : '▸';
+    header.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  setOpen(!!readPaintGroups()[key]);
+
+  header.addEventListener('click', () => {
+    const open = !sub.classList.contains('is-open');
+    setOpen(open);
+    writePaintGroup(key, open);
+  });
+
+  for (const item of items) {
+    const btn = railButton({
+      icon: item.icon,
+      text: item.label,
+      title: item.label,
+      className: 'ui-rail-btn--sub ' + item.cls,
+    });
+    btn.dataset.mode = item.mode;
+    btn.addEventListener('click', () => {
+      const turningOff = btn.classList.contains('active');
+
+      // One paint mode at a time, and nothing else armed alongside it.
+      container.querySelectorAll('.mode-button').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = '';
+        b.style.color = '';
+        b.style.fontWeight = '';
+      });
+      deactivateModes();
+
+      if (turningOff) {
+        editor.setMode('none');
+        return;
+      }
+      btn.classList.add('active');
+      editor.setMode(item.mode);
+    });
+    sub.appendChild(btn);
+  }
+}
+
 function createSectorControlsContent(editor) {
   // Laid out by #toolRail in shell.css; nothing to set here.
   const container = document.createElement('div');
@@ -170,202 +259,46 @@ function createSectorControlsContent(editor) {
     container.appendChild(btn);
   });
 
-  // ───────────── Draw Helpers Modal Launcher ─────────────
-  const drawHelpersBtn = railButton({
-    id: 'launchDrawHelpersPopup',
-    icon: '✎',
-    text: 'Draw Helpers…',
-    title: 'Tile types, effects and value hints',
+  // ───────────── Paint modes, inline ─────────────
+  // Tile types and effects used to live in a Draw Helpers popup: a draggable window over
+  // the map holding twelve paint modes. They are what you reach for constantly, so they
+  // belong in the rail with everything else you paint with. Each group folds, so the rail
+  // stays scannable rather than becoming a list of twenty-five.
+  addPaintGroup(container, editor, {
+    key: 'planets',
+    icon: '◍',
+    label: 'Planets',
+    title: 'Paint tile types',
+    items: [
+      { mode: '1 planet', label: '1 Planet', cls: 'btn-1', icon: '1' },
+      { mode: '2 planet', label: '2 Planet', cls: 'btn-2', icon: '2' },
+      { mode: '3 planet', label: '3 Planet', cls: 'btn-3', icon: '3' },
+      { mode: 'legendary planet', label: 'Legendary', cls: 'btn-legendary', icon: '★' },
+      { mode: 'empty', label: 'Empty', cls: 'btn-empty', icon: '○' },
+      { mode: 'special', label: 'Special', cls: 'btn-special', icon: '◆' },
+      { mode: 'fracture', label: 'Fracture', cls: 'btn-fracture', icon: '✧' },
+    ],
   });
-  drawHelpersBtn.onclick = () => openDrawHelpersPopup(editor, { launcher: drawHelpersBtn, ownerPanel: container });
-  container.appendChild(drawHelpersBtn);
+
+  addPaintGroup(container, editor, {
+    key: 'effects',
+    icon: '✦',
+    label: 'Effects',
+    title: 'Paint anomalies and effects',
+    items: [
+      { mode: 'nebula', label: 'Nebula', cls: 'btn-nebula', icon: '☁' },
+      { mode: 'rift', label: 'Rift', cls: 'btn-rift', icon: '◉' },
+      { mode: 'asteroid', label: 'Asteroid', cls: 'btn-asteroid', icon: '⁘' },
+      { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova', icon: '✷' },
+      { mode: 'scar', label: 'Scar', cls: 'btn-scar', icon: '☄' },
+    ],
+  });
 
   return finishSectorControlsContent(editor, container);
 }
 
-/**
- * Opens the Draw Helpers popup: tile-type and effect painting, the AutoMapper section
- * with its V1–V5 / R / I / T value hints, and the value overlay controls.
- *
- * Extracted from the Sector Controls launcher so every entry point opens the same popup.
- * simplepPopup.js used to carry a second, hand-maintained copy that had fallen ~200 lines
- * behind this one — no value hints at all — and was unreachable anyway.
- *
- * @param {Object} editor
- * @param {{launcher?: HTMLElement, ownerPanel?: HTMLElement}} [opts]
- *        `launcher` is the button that opened it, lit while a paint mode is active;
- *        `ownerPanel` is the panel whose other buttons should be de-activated first.
- *        Both are optional — the popup works standalone.
- */
-export function openDrawHelpersPopup(editor, { launcher = null, ownerPanel = null } = {}) {
-    // Clear active state from all buttons in the owning panel first
-    ownerPanel?.querySelectorAll('.mode-button').forEach(btn => {
-      btn.classList.remove('active');
-      btn.style.background = '';
-      btn.style.color = '';
-      btn.style.fontWeight = '';
-    });
-
-    deactivateModes();
-
-    // Lights the launcher while a Draw Helpers paint mode is active, so it is obvious the
-    // next map click will paint. No-ops when the popup was opened without one.
-    const setLauncherActive = (on) => {
-      if (!launcher) return;
-      launcher.classList.toggle('active', on);
-      launcher.style.background = on ? '#666' : '';
-      launcher.style.color = on ? '#fff' : '';
-      if (on) launcher.style.fontWeight = 'bold';
-    };
-
-    return showPopup({
-      id: 'drawHelpersPopupModal',
-      className: 'layout-options-popup',
-      title: 'Draw Helpers',
-      draggable: true,
-      dragHandleSelector: '.popup-ui-titlebar',
-      scalable: true,
-      rememberPosition: true,
-      style: {
-        left: '800px',
-        top: '120px',
-        minWidth: '240px',
-        maxWidth: '600px',
-        minHeight: '120px',
-        maxHeight: '600px',
-        color: '#fff',
-        border: '2px solid var(--popup-border-special)',
-        boxShadow: '0 8px 40px #000a',
-        padding: '0 0 18px 0',
-        zIndex: 1300
-      },
-      content: (() => {
-        const content = document.createElement('div');
-        content.className = 'modal-content popup-btn-grid draw-helpers-btn-grid';
-        content.style.display = 'grid';
-        content.style.gridTemplateColumns = 'repeat(3, 1fr)'; // 3 columns for compact layout
-        content.style.gap = '8px';
-        content.style.padding = '15px';
-
-        // Define draw helper tools
-        const drawHelpers = [
-          { mode: '1 planet', label: '1 Planet', cls: 'btn-1' },
-          { mode: '2 planet', label: '2 Planet', cls: 'btn-2' },
-          { mode: '3 planet', label: '3 Planet', cls: 'btn-3' },
-          { mode: 'legendary planet', label: 'Legendary', cls: 'btn-legendary' },
-          { mode: 'empty', label: 'Empty', cls: 'btn-empty' },
-          { mode: 'special', label: 'Special', cls: 'btn-special' },
-          { mode: 'fracture', label: 'Fracture', cls: 'btn-fracture', color: '#ffb3b3' }
-        ];
-
-        drawHelpers.forEach(({ mode, label, cls, color }) => {
-          const btn = document.createElement('button');
-          btn.textContent = label;
-          btn.className = `mode-button ${cls}`;
-          btn.style.border = '1px solid #666';
-          btn.style.borderRadius = '4px';
-          btn.style.padding = '8px 12px';
-          btn.style.fontSize = '0.9em';
-          btn.style.fontWeight = 'bold';
-          btn.style.maxWidth = '120px';
-          btn.style.height = '35px';
-          btn.style.overflow = 'hidden';
-          btn.style.textOverflow = 'ellipsis';
-          btn.style.whiteSpace = 'nowrap';
-          if (color) { btn.style.background = color; btn.style.color = '#333'; }
-          btn.addEventListener('click', (e) => {
-            const turningOff = e.currentTarget.classList.contains('active');
-            content.querySelectorAll('.mode-button').forEach(b => {
-              b.classList.remove('active');
-              b.style.background = b._baseColor || '';
-              b.style.color = b._baseColor ? '#333' : '';
-              b.style.fontWeight = 'bold';
-            });
-            if (turningOff) {
-              setLauncherActive(false);
-              editor.setMode('none');
-              return;
-            }
-            e.currentTarget.classList.add('active');
-            e.currentTarget.style.background = '#666';
-            e.currentTarget.style.color = '#fff';
-            e.currentTarget.style.fontWeight = 'bold';
-            setLauncherActive(true);
-            editor.setMode(mode);
-          });
-          btn._baseColor = color || '';
-          content.appendChild(btn);
-        });
-
-        // Add separator
-        const separator = document.createElement('div');
-        separator.style.gridColumn = '1 / -1'; // Span all columns
-        separator.style.borderTop = '1px solid #666';
-        separator.style.margin = '10px 0';
-        content.appendChild(separator);
-
-        // Add Effects section
-        const effectsLabel = document.createElement('div');
-        effectsLabel.textContent = 'Effects:';
-        effectsLabel.style.gridColumn = '1 / -1'; // Span all columns
-        effectsLabel.style.fontWeight = 'bold';
-        effectsLabel.style.color = '#ffe066';
-        effectsLabel.style.marginBottom = '8px';
-        content.appendChild(effectsLabel);
-
-        const effects = [
-          { mode: 'nebula',    label: 'Nebula',    cls: 'btn-nebula' },
-          { mode: 'rift',      label: 'Rift',      cls: 'btn-rift' },
-          { mode: 'asteroid',  label: 'Asteroid',  cls: 'btn-asteroid' },
-          { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova' },
-          { mode: 'scar',      label: 'Scar ☄️',   cls: 'btn-scar' }
-        ];
-
-        effects.forEach(({ mode, label, cls }) => {
-          const btn = document.createElement('button');
-          btn.textContent = label;
-          btn.className = `mode-button ${cls}`;
-          btn.style.border = '1px solid #666';
-          btn.style.borderRadius = '4px';
-          btn.style.padding = '8px 12px';
-          btn.style.fontSize = '0.9em';
-          btn.style.fontWeight = 'bold';
-          btn.style.maxWidth = '120px'; // Fixed max size for compact grid
-          btn.style.height = '35px'; // Fixed height
-          btn.style.overflow = 'hidden';
-          btn.style.textOverflow = 'ellipsis';
-          btn.style.whiteSpace = 'nowrap';
-          btn.addEventListener('click', (e) => {
-            const turningOff = e.currentTarget.classList.contains('active');
-            // Clear active from all buttons in the popup
-            content.querySelectorAll('.mode-button').forEach(b => {
-              b.classList.remove('active');
-              b.style.background = '';
-              b.style.color = '';
-              b.style.fontWeight = 'bold';
-            });
-            if (turningOff) {
-              setLauncherActive(false);
-              editor.setMode('none');
-              return;
-            }
-            // Set active state on clicked button
-            e.currentTarget.classList.add('active');
-            e.currentTarget.style.background = '#666';
-            e.currentTarget.style.color = '#fff';
-            e.currentTarget.style.fontWeight = 'bold';
-            // Also show draw helpers button as active in sector controls
-            setLauncherActive(true);
-            editor.setMode(mode);
-          });
-          content.appendChild(btn);
-        });
-
-
-        return content;
-      })()
-    });
-}
+// openDrawHelpersPopup lived here. Its twelve paint modes — tile types and effects —
+// are rail groups now (addPaintGroup above), so there is no popup to open.
 
 /**
  * The Balance surface: value hints, the value overlay and the AutoMapper.
