@@ -8,11 +8,12 @@
  * instead of three functions poking each other's element ids.
  *
  * Entry points are real functions, not DOM ids (the rule the lore rework settled on).
- * window.showSystemPicker is the name; window.showSystemLookupPopup stays as an alias
- * because console users and older call sites know it.
+ * Other modules open the picker through the registry (COMMANDS.showSystemPicker). The
+ * window aliases below stay only so console users keep the names they already know.
  */
 
 import { showPopup, hidePopup } from '../../ui/popupUI.js';
+import { provide, COMMANDS } from '../../core/registry.js';
 import { loadSystemInfo } from '../../data/import.js';
 import { isRealIDUsed } from '../../ui/uiFilters.js';
 import { selectSystems } from './pickerSelect.js';
@@ -56,9 +57,12 @@ export function installSystemPickerUI(editor) {
     applyTextScale();
     installPlacement(editor);
 
+    provide(COMMANDS.showSystemPicker, showSystemPicker);
+
+    // Console affordances only — no module should reach for these.
     window.showSystemPicker = showSystemPicker;
-    window.showSystemLookupPopup = showSystemPicker;   // legacy alias
-    window.systemPickerState = state;                  // console escape hatch
+    window.showSystemLookupPopup = showSystemPicker;
+    window.systemPickerState = state;
 
     // Load the corpus up front so the first open is instant. Errors are non-fatal: the
     // picker shows its empty state rather than throwing during startup.

@@ -3,6 +3,7 @@
  */
 
 import { showPopup, hidePopup } from '../../ui/popupUI.js';
+import { provide, COMMANDS } from '../../core/registry.js';
 import { getCategories } from './tokenCategories.js';
 import { buildTokenTooltip } from './tokenCore.js';
 
@@ -20,8 +21,8 @@ export function installTokenUI(editor) {
         return;
     }
     
-    // Add to global window for console access
-    window.showTokenPopup = showTokenPopup;
+    provide(COMMANDS.showTokenPopup, showTokenPopup);
+    window.showTokenPopup = showTokenPopup;   // console affordance
     console.log('Token UI installed successfully');
 }
 

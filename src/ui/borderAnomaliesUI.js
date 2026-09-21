@@ -2,6 +2,7 @@ import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 import { toggleBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js';
+import { provide, COMMANDS } from '../core/registry.js';
 import { loadBorderAnomalyTypes, getEnabledBorderAnomalyTypes, updateBorderAnomalyStyle, updateBorderAnomalyBidirectional } from '../constants/borderAnomalies.js';
 import { buildCoordIndex, neighborHex, sideBetween, oppositeSide } from '../utils/hexGrid.js';
 
@@ -356,22 +357,7 @@ export function installBorderAnomaliesUI(editor) {
             settingsBtn.style.boxShadow = 'none';
         });
 
-        settingsBtn.onclick = () => {
-            // Open the border anomaly settings popup
-            if (typeof window.showBorderAnomalySettings === 'function') {
-                window.showBorderAnomalySettings();
-            } else {
-                // Fallback: import and call the function
-                import('./borderAnomaliesUI.js').then(module => {
-                    if (module && typeof window.showBorderAnomalySettings === 'function') {
-                        window.showBorderAnomalySettings();
-                    }
-                }).catch(err => {
-                    console.warn('Could not load border anomaly settings:', err);
-                    alert('Border anomaly settings are not available yet. Feature coming soon!');
-                });
-            }
-        };
+        settingsBtn.onclick = () => showBorderAnomalySettings();
 
         settingsSection.appendChild(settingsBtn);
         content.appendChild(settingsSection);
@@ -763,7 +749,6 @@ export function installBorderAnomaliesUI(editor) {
         });
     }
 
-    // Expose popup functions globally for sector controls
-    window.showBorderAnomaliesPopup = showBorderAnomaliesPopup;
-    window.showBorderAnomalySettings = showBorderAnomalySettings;
+    provide(COMMANDS.showBorderAnomalies, showBorderAnomaliesPopup);
+    provide(COMMANDS.showBorderAnomalySettings, showBorderAnomalySettings);
 }

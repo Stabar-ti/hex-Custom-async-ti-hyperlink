@@ -1,7 +1,8 @@
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { toggleCustomLinksOverlay } from '../features/customLinksOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
-import { showPopup, hidePopup } from './popupUI.js'; // <-- Add hidePopup import
+import { showPopup, hidePopup } from './popupUI.js';
+import { provide, COMMANDS } from '../core/registry.js';
 import { oppositeSide } from '../utils/hexGrid.js';
 
 export function installCustomLinksUI(editor) {
@@ -424,6 +425,5 @@ export function installCustomLinksUI(editor) {
     // Expose redraw method
     editor.redrawCustomAdjacencyOverlay = () => drawCustomAdjacencyLayer(editor);
 
-    // Expose popup function globally for sector controls
-    window.showCustomLinksPopup = showCustomLinksPopup;
+    provide(COMMANDS.showCustomLinks, showCustomLinksPopup);
 }

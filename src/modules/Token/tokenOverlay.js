@@ -5,6 +5,7 @@
 
 import { enforceSvgLayerOrder } from '../../draw/enforceSvgLayerOrder.js';
 import { buildTokenTooltip } from './tokenCore.js';
+import { invoke, hasCommand, COMMANDS } from '../../core/registry.js';
 
 // Planet positions mirror drawPlanetTypeLayer in realIDsOverlays.js:
 // angles [-90, 0, 180] (top, right, left), distance (r-17) from center, circle r=10
@@ -295,8 +296,8 @@ export class TokenOverlay {
         // Click: open token popup so user can manage individual tokens
         group.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (typeof window.showTokenPopup === 'function') {
-                window.showTokenPopup(hexLabel);
+            if (hasCommand(COMMANDS.showTokenPopup)) {
+                invoke(COMMANDS.showTokenPopup, hexLabel);
             }
         });
 

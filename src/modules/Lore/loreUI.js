@@ -16,6 +16,7 @@
  */
 
 import { showPopup, hidePopup } from '../../ui/popupUI.js';
+import { provide, COMMANDS } from '../../core/registry.js';
 import { planetDisplayName } from '../../draw/hexAnchors.js';
 import {
     LoreManager, LORE_RECEIVERS, LORE_TRIGGERS, LORE_PINGS, LORE_PERSISTANCE,
@@ -54,10 +55,11 @@ export function installLoreUI(editor) {
         effectRows.refresh();
         updateDirtyUI();
     });
-    window.loreManager = loreManager;
-    window.showLorePopup = showLorePopup;
-    window.openLorePopupAtPhase = openLorePopupAtPhase;
-    window.openLoreEditor = openLoreEditor;
+    provide(COMMANDS.showLorePopup, showLorePopup);
+    provide(COMMANDS.openLorePopupAtPhase, openLorePopupAtPhase);
+    provide(COMMANDS.openLoreEditor, openLoreEditor);
+
+    window.loreManager = loreManager;   // console affordance
     // Dev guard: verifies every footer on the map survives a structured round-trip.
     window.__loreCheckAllFooters = () => checkAllFooters(loreManager.editor);
 }

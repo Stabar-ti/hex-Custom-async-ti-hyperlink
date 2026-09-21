@@ -1,5 +1,6 @@
 // loreOverlay.js - Visual indicators for systems and planets with lore
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
+import { invoke, tryInvoke, hasCommand, COMMANDS } from '../core/registry.js';
 import { planetDisplayName } from '../draw/hexAnchors.js';
 import { markerPosition, drawMarker, drawEffectArc, TRIGGER_LEGEND } from '../draw/loreDraw.js';
 import {
@@ -462,7 +463,7 @@ class LoreOverlay {
             e.preventDefault();
             e.stopPropagation();
             this.setFocus(target.ref);
-            window.openLoreEditor?.(target.ref);
+            tryInvoke(COMMANDS.openLoreEditor, target.ref);
         });
     }
 
@@ -655,8 +656,9 @@ class LoreOverlay {
      * target, so this only matters for callers that have a hex label and nothing finer.
      */
     async _openEditorFor(hexLabel, event) {
-        const open = window.openLoreEditor;
-        if (typeof open !== 'function') return;
+        // The Lore module installs the editor; without it there is nothing to open.
+        if (!hasCommand(COMMANDS.openLoreEditor)) return;
+        const open = (/** @type {object} */ ref) => invoke(COMMANDS.openLoreEditor, ref);
 
         const hex = this.editor.hexes[hexLabel];
         if (!hex) return;
@@ -762,8 +764,11 @@ class LoreOverlay {
         banner.style.display = 'block';
         banner.onclick = () => {
             const firstPhase = counts[0][0];
-            if (typeof window.openLorePopupAtPhase === 'function') window.openLorePopupAtPhase(firstPhase);
-            else if (typeof window.showLorePopup === 'function') window.showLorePopup();
+            if (hasCommand(COMMANDS.openLorePopupAtPhase)) {
+                invoke(COMMANDS.openLorePopupAtPhase, firstPhase);
+            } else {
+                tryInvoke(COMMANDS.showLorePopup);
+            }
         };
     }
 

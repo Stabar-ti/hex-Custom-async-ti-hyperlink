@@ -8,6 +8,16 @@ import { sectorModes, wormholeTypes } from '../constants/constants.js';
 import { showModal } from './uiModals.js';
 import { makePopupDraggable } from './uiUtils.js';
 import { showPopup, hidePopup } from './popupUI.js';
+import {
+  invoke, tryInvoke, hasCommand,
+  registerMode, activateMode, deactivateMode, deactivateModes, COMMANDS
+} from '../core/registry.js';
+
+// Ids for the two map-click modes this file owns. Only one can be armed at a time; the
+// registry is what enforces that, so every button that opens something else disarms them
+// with one deactivateModes() instead of the block that used to be pasted at each site.
+const MODE_LORE = 'lore';
+const MODE_TOKEN = 'token';
 
 let sectorControlsPopup = null;
 
@@ -161,16 +171,9 @@ function createSectorControlsContent(editor) {
   realIdBtn.style.overflow = 'hidden';
   realIdBtn.style.flex = 'none'; // Prevent flex growth
   realIdBtn.addEventListener('click', () => {
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
-    // Deactivate token mode if it was active
-    if (typeof window.deactivateTokenMode === 'function') {
-      window.deactivateTokenMode();
-    }
+    deactivateModes();
 
-    window.showSystemPicker?.();
+    invoke(COMMANDS.showSystemPicker);
   });
   container.appendChild(realIdBtn);
 
@@ -220,14 +223,7 @@ function createSectorControlsContent(editor) {
         btn.style.fontWeight = '';
       });
 
-      // Deactivate lore mode if it was active
-      if (typeof window.deactivateLoreMode === 'function') {
-        window.deactivateLoreMode();
-      }
-      // Deactivate token mode if it was active
-      if (typeof window.deactivateTokenMode === 'function') {
-        window.deactivateTokenMode();
-      }
+      deactivateModes();
 
       if (turningOff) {
         editor.setMode('none');
@@ -291,14 +287,7 @@ export function openDrawHelpersPopup(editor, { launcher = null, ownerPanel = nul
       btn.style.fontWeight = '';
     });
 
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
-    // Deactivate token mode if it was active
-    if (typeof window.deactivateTokenMode === 'function') {
-      window.deactivateTokenMode();
-    }
+    deactivateModes();
 
     // Lights the launcher while a Draw Helpers paint mode is active, so it is obvious the
     // next map click will paint. No-ops when the popup was opened without one.
@@ -722,14 +711,7 @@ function finishSectorControlsContent(editor, container) {
       btn.style.fontWeight = '';
     });
 
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
-    // Deactivate token mode if it was active
-    if (typeof window.deactivateTokenMode === 'function') {
-      window.deactivateTokenMode();
-    }
+    deactivateModes();
 
     showPopup({
       id: 'wormholesPopupModal',
@@ -823,26 +805,9 @@ function finishSectorControlsContent(editor, container) {
       btn.style.fontWeight = '';
     });
 
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
-    // Deactivate token mode if it was active
-    if (typeof window.deactivateTokenMode === 'function') {
-      window.deactivateTokenMode();
-    }
+    deactivateModes();
 
-    // Open the custom links popup
-    if (typeof window.showCustomLinksPopup === 'function') {
-      window.showCustomLinksPopup();
-    } else {
-      // Fallback: import and call the function
-      import('./customLinksUI.js').then(module => {
-        if (module && typeof module.showCustomLinksPopup === 'function') {
-          module.showCustomLinksPopup();
-        }
-      });
-    }
+    invoke(COMMANDS.showCustomLinks);
   };
   container.appendChild(customLinksBtn);
 
@@ -873,26 +838,9 @@ function finishSectorControlsContent(editor, container) {
       btn.style.fontWeight = '';
     });
 
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
-    // Deactivate token mode if it was active
-    if (typeof window.deactivateTokenMode === 'function') {
-      window.deactivateTokenMode();
-    }
+    deactivateModes();
 
-    // Open the border anomalies popup
-    if (typeof window.showBorderAnomaliesPopup === 'function') {
-      window.showBorderAnomaliesPopup();
-    } else {
-      // Fallback: import and call the function
-      import('./borderAnomaliesUI.js').then(module => {
-        if (module && typeof module.showBorderAnomaliesPopup === 'function') {
-          module.showBorderAnomaliesPopup();
-        }
-      });
-    }
+    invoke(COMMANDS.showBorderAnomalies);
   };
   container.appendChild(borderAnomaliesBtn);
 
@@ -928,15 +876,13 @@ function finishSectorControlsContent(editor, container) {
       }
     });
 
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
+    deactivateModes({ except: MODE_TOKEN });
 
     // Toggle token hex selector mode
     tokenHexSelectorActive = !tokenHexSelectorActive;
 
     if (tokenHexSelectorActive) {
+      activateMode(MODE_TOKEN);
       tokenPlacementBtn.classList.add('active');
       tokenPlacementBtn.style.background = '#2980b9';
       tokenPlacementBtn.style.color = '#fff';
@@ -944,7 +890,7 @@ function finishSectorControlsContent(editor, container) {
       tokenPlacementBtn.textContent = 'Click a Hex...';
       enableTokenHexSelection();
     } else {
-      deactivateTokenMode();
+      deactivateMode(MODE_TOKEN);
     }
   };
   container.appendChild(tokenPlacementBtn);
@@ -968,8 +914,6 @@ function finishSectorControlsContent(editor, container) {
   selectHexForLoreBtn.style.overflow = 'hidden';
   selectHexForLoreBtn.style.flex = 'none';
 
-  let loreHexSelectorActive = false;
-
   selectHexForLoreBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -985,7 +929,8 @@ function finishSectorControlsContent(editor, container) {
     });
 
     loreHexSelectorActive = !loreHexSelectorActive;
-    if (!loreHexSelectorActive) { deactivateLoreMode(); return; }
+    if (!loreHexSelectorActive) { deactivateMode(MODE_LORE); return; }
+    activateMode(MODE_LORE);
 
     selectHexForLoreBtn.classList.add('active');
     selectHexForLoreBtn.style.background = '#27ae60';
@@ -998,7 +943,7 @@ function finishSectorControlsContent(editor, container) {
     // clicking #selectHexBtn behind a setTimeout, which coupled it to the editor's DOM.
     import('../modules/Lore/loreMapPick.js').then(({ armLoreMapPick }) => {
       armLoreMapPick(window.editor, {
-        onPick: (ref) => window.openLoreEditor?.(ref)
+        onPick: (ref) => tryInvoke(COMMANDS.openLoreEditor, ref)
       });
     });
   };
@@ -1044,10 +989,13 @@ function finishSectorControlsContent(editor, container) {
 }
 
 // ───────────── Lore Hex Selection ─────────────
-// The picking mode itself lives in src/modules/Lore/loreMapPick.js. This shim only exists
-// so the seven sibling toolbar buttons that call window.deactivateLoreMode() keep working.
+// The picking mode itself lives in src/modules/Lore/loreMapPick.js. What stays here is the
+// button's own state: whether it is lit, and whether the map click is armed.
+
+let loreHexSelectorActive = false;
 
 function deactivateLoreMode() {
+  loreHexSelectorActive = false;
   const btn = document.getElementById('selectHexForLoreBtn');
   if (btn) {
     btn.classList.remove('active');
@@ -1061,8 +1009,7 @@ function deactivateLoreMode() {
     .catch(() => { /* module never loaded, so nothing is armed */ });
 }
 
-// Make deactivateLoreMode globally available so other buttons can call it
-window.deactivateLoreMode = deactivateLoreMode;
+registerMode(MODE_LORE, { deactivate: deactivateLoreMode });
 
 // ───────────── Token Hex Selection Helper Functions ─────────────
 let tokenHexSelectorActive = false;
@@ -1082,8 +1029,7 @@ function deactivateTokenMode() {
   disableTokenHexSelection();
 }
 
-// Make deactivateTokenMode globally available so other buttons can call it
-window.deactivateTokenMode = deactivateTokenMode;
+registerMode(MODE_TOKEN, { deactivate: deactivateTokenMode });
 
 function enableTokenHexSelection() {
   console.log('enableTokenHexSelection called');
@@ -1149,10 +1095,10 @@ function disableTokenHexSelection() {
 function openTokenPopupForHex(hexLabel) {
   console.log('openTokenPopupForHex called with:', hexLabel);
 
-  // Check if token system is initialized
-  if (typeof window.showTokenPopup === 'function') {
+  // The Token module provides this once TokenManager has initialised, which is async.
+  if (hasCommand(COMMANDS.showTokenPopup)) {
     console.log('Opening token popup for hex:', hexLabel);
-    window.showTokenPopup(hexLabel);
+    invoke(COMMANDS.showTokenPopup, hexLabel);
   } else {
     console.warn('Token system not initialized yet. Please wait...');
     alert('Token system is loading. Please try again in a moment.');
