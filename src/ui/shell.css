@@ -299,29 +299,58 @@ body {
 
 /* ── Floating panels, now that the shell owns the page ────────────────────── */
 
-/* The import/export panel still floats; it moves into a File menu later. Anchor it under
-   the top bar and to the right of the rail, rather than at a hard-coded 70px/0 from the
-   viewport corner — at 0 it sat on top of the rail and hid the whole Draw group.
+/* ── Top-bar dropdown menus ───────────────────────────────────────────────────
+   Analyse, Generate and Help. Each holds buttons that used to sit in the bar at full
+   weight; the elements are moved rather than rebuilt, so their handlers survive. */
+.tb-menu {
+  display: none;
+  position: fixed;
+  z-index: var(--layer-floating);
+  min-width: 190px;
+  max-height: calc(100vh - var(--shell-topbar-h) - 24px);
+  overflow-y: auto;
+  padding: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-4);
+  border-radius: 6px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+}
 
-   It is position:fixed, so it cannot see #toolRail.is-collapsed; the rail mirrors that
-   state onto <body> for exactly this. */
+.tb-menu.dropdown-open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Inside a menu a button is a row, not a chip: full width and left-aligned, so the
+   labels line up and the list reads as a list. */
+.tb-menu .tb-menu__item {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  text-align: left;
+  white-space: nowrap;
+  border-radius: var(--ui-radius);
+}
+
+/* ── The File menu ────────────────────────────────────────────────────────────
+   #controlsPanel held import, export and map generation, and sat permanently over the
+   top-left of the map — the largest surface in the app, for the jobs you do once a
+   session. It is a dropdown under the File button now. Its contents are untouched;
+   only where it appears has changed.
+
+   Hidden by default and positioned in JS, since it hangs off a button whose position
+   depends on how the bar has wrapped. */
 #controlsPanel {
-  top: var(--shell-topbar-h);
-  left: var(--shell-rail-w);
+  display: none;
   z-index: var(--layer-floating);
-  transition: transform 0.3s, opacity 0.3s, left 0.2s;
+  max-height: calc(100vh - var(--shell-topbar-h) - 24px);
+  overflow-y: auto;
+  border-radius: 6px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
 }
 
-body.rail-collapsed #controlsPanel {
-  left: var(--shell-rail-w-collapsed);
-}
-
-#controlsPanelOpenBtn {
-  top: calc(var(--shell-topbar-h) + 30px);
-  left: var(--shell-rail-w);
-  z-index: var(--layer-floating);
-}
-
-body.rail-collapsed #controlsPanelOpenBtn {
-  left: var(--shell-rail-w-collapsed);
+#controlsPanel.file-menu-open {
+  display: block;
 }

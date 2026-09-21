@@ -27,7 +27,8 @@ import { setupTileCopySingleButtonAndPopup } from './ui/tileCopyPasteWizardUI.js
 import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup, showSanityCheckPopup } from './ui/simplepPopup.js';
 import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
 import { resetAllPopupPositions, hidePopup } from './ui/popupUI.js';
-import { initControlsPanel, setControlsPanelCollapsed } from './ui/controlsPanel.js';
+import { installFileMenu } from './ui/fileMenu.js';
+import { installTopBarMenus } from './ui/topBarMenus.js';
 import { installStatusBar } from './ui/statusBar.js';
 import { installTopBarControls } from './ui/topBarControls.js';
 import { installDistanceTool } from './features/distanceTool.js';
@@ -311,21 +312,14 @@ function _onDOMReady(fn) {
 _onDOMReady(() => {
   setupTileCopySingleButtonAndPopup();
 
-  // Controls Panel Hide/Show Arrow Buttons. The collapse itself lives in
-  // ui/controlsPanel.js — see the note there on why this used to be written three times.
-  const controlsPanel = document.getElementById('controlsPanel');
-  controlsPanel.classList.add('size-xlarge'); // Set initial size
+  // Import, export and map generation now live behind the File button rather than in a
+  // panel permanently covering the map.
+  document.getElementById('controlsPanel')?.classList.add('size-xlarge');
+  installFileMenu(editor);
 
-  document.getElementById('controlsPanelCloseBtn')
-    ?.addEventListener('click', () => setControlsPanelCollapsed(true));
-  document.getElementById('controlsPanelOpenBtn')
-    ?.addEventListener('click', () => setControlsPanelCollapsed(false));
-
-  initControlsPanel();
-
-  // The Layout Options entry is bound in simplepPopup.js, where that popup is built. It
-  // used to be bound here as well, against the static markup in index.html that showPopup
-  // deletes — so that copy never ran.
+  // Group the rest of the bar by purpose. After installFileMenu and installTopBarControls,
+  // since it moves buttons those two have already placed.
+  installTopBarMenus();
 });
 
 document.getElementById('helpToggle').onclick = showHelpPopup;

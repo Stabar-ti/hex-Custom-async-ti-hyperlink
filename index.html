@@ -98,8 +98,11 @@
 
 
   <!-- Main Controls Panel -->
+  <!-- The File menu's contents. Shown as a dropdown under the File button by
+       src/ui/fileMenu.js; this used to be a permanent panel over the top-left of the map.
+       The markup is deliberately unchanged — ~20 handlers in uiBindings.js and main.js
+       bind these controls by id. -->
   <div id="controlsPanel" class="size-large">
-    <button id="controlsPanelCloseBtn" title="Hide controls">&raquo;</button>
 
     <!-- Advanced Fragmented Export Toggle Button -->
     <button id="advancedExportToggle" class="mode-button dropdown-toggle">Advanced Fragmented Export and Import
@@ -146,8 +149,6 @@
     <label for="cornerToggle">Limit to async map bounderies</label>
     <button id="genMapBtn" class="primary-button">Generate Map</button>
   </div>
-
-  <button id="controlsPanelOpenBtn" title="Show controls">&laquo;</button>
 
   <div id="sectorControlsContainer" class="pos-left"></div>
 
