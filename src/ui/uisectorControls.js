@@ -8,6 +8,10 @@ import { wormholeTypes } from '../constants/constants.js';
 import { showPopup, togglePopup } from './popupUI.js';
 import { railButton, railGroupLabel, setRailLabel } from './kit/index.js';
 import { setInspectorTool, clearInspectorTool, isInspectorToolShowing } from './inspector.js';
+import { HEX_SELECTED, selectedHexes } from '../features/hexSelection.js';
+import { CLIPBOARD_CHANGED, activeClip } from '../features/tileClipboard.js';
+import { copySelectionToClipboard, beginPaste } from '../features/clipboardShortcuts.js';
+import { swapHexes } from '../features/tileSwap.js';
 import {
   toggleDistanceTool, isDistanceToolArmed, DISTANCE_TOOL_CHANGED,
 } from '../features/distanceTool.js';
@@ -203,6 +207,107 @@ function addPaintGroup(container, editor, { key, icon, label, title, headerClass
     });
     sub.appendChild(btn);
   }
+}
+
+/**
+ * A foldable set of one-shot actions in the rail.
+ *
+ * The sibling of addPaintGroup, for things that happen rather than things you arm. Each
+ * item says when it is available and why it is not, because the alternative — a button
+ * that looks the same whether or not it will work — is how the wizard this replaces
+ * managed to need a status line of its own.
+ *
+ * @param {HTMLElement} container
+ * @param {{key: string, icon: string, label: string, title: string, help?: string,
+ *          note?: string,
+ *          items: Array<{
+ *            id?: string, icon: string, label: string, hint?: string,
+ *            onClick: () => void,
+ *            available?: () => {ok: boolean, why?: string},
+ *          }>,
+ *          watch?: string[]}} group
+ * @returns {() => void} a sync function, in case the caller wants to refresh it too
+ */
+function addActionGroup(container, { key, icon, label, title, help, note, items, watch = [] }) {
+  const header = railButton({ icon, text: label, title, className: 'ui-rail-btn--group' });
+
+  // The help sits in the header rather than as an item, so the list below is only things
+  // you can do. Its explanation is a title: every other affordance in the rail explains
+  // itself the same way, and a bespoke hover card here would be the only one.
+  if (help) {
+    const q = document.createElement('span');
+    q.className = 'ui-rail-btn__help';
+    q.textContent = '?';
+    q.title = help;
+    // The header is a fold toggle; reading the help should not also open or close it.
+    q.addEventListener('click', (e) => e.stopPropagation());
+    header.appendChild(q);
+  }
+
+  const caret = document.createElement('span');
+  caret.className = 'ui-rail-btn__caret';
+  header.appendChild(caret);
+  container.appendChild(header);
+
+  const sub = document.createElement('div');
+  sub.className = 'ui-rail-sub';
+  container.appendChild(sub);
+
+  const setOpen = (open) => {
+    sub.classList.toggle('is-open', open);
+    header.classList.toggle('is-expanded', open);
+    caret.textContent = open ? '▾' : '▸';
+    header.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  setOpen(!!readPaintGroups()[key]);
+
+  header.addEventListener('click', () => {
+    const open = !sub.classList.contains('is-open');
+    setOpen(open);
+    writePaintGroup(key, open);
+  });
+
+  if (note) {
+    const n = document.createElement('div');
+    n.className = 'ui-rail-note';
+    n.textContent = note;
+    sub.appendChild(n);
+  }
+
+  /** @type {Array<{btn: HTMLElement, spec: any}>} */
+  const built = [];
+
+  for (const item of items) {
+    const btn = railButton({
+      id: item.id,
+      icon: item.icon,
+      text: item.label,
+      title: item.hint || item.label,
+      className: 'ui-rail-btn--sub',
+    });
+    btn.addEventListener('click', () => {
+      // A disabled item is inert rather than hidden: the list is a description of what
+      // this tool can do, and hiding half of it depending on the selection would make it
+      // a worse description.
+      if (btn.classList.contains('is-unavailable')) return;
+      item.onClick();
+    });
+    sub.appendChild(btn);
+    built.push({ btn, spec: item });
+  }
+
+  const sync = () => {
+    for (const { btn, spec } of built) {
+      const state = spec.available ? spec.available() : { ok: true };
+      btn.classList.toggle('is-unavailable', !state.ok);
+      btn.setAttribute('aria-disabled', state.ok ? 'false' : 'true');
+      btn.title = state.ok ? (spec.hint || spec.label) : (state.why || spec.hint || spec.label);
+    }
+  };
+  sync();
+  for (const ev of watch) document.addEventListener(ev, sync);
+
+  return sync;
 }
 
 function createSectorControlsContent(editor) {
@@ -763,15 +868,93 @@ function finishSectorControlsContent(editor, container) {
   // top bar. Armed, a left-click on any hex paints the distances from it.
   container.appendChild(railGroupLabel('Edit'));
 
-  // The Copy/Cut Swap wizard. tileCopyPasteWizardUI binds this id at startup, which runs
-  // after the rail is mounted, so the element it looks for is this one.
-  const copySwapBtn = railButton({
-    id: 'tileCopySingleBtn',
+  // ───────────── Clipboard ─────────────
+  //
+  // The long way round to Ctrl+C, Ctrl+X and Ctrl+V, for the times you would rather read
+  // than remember. It replaces a floating wizard that took the map away from you: a popup
+  // with Copy/Cut/Swap buttons, which then opened a second popup telling you what to click
+  // next, over the tiles you were choosing between.
+  //
+  // Every item here says when it applies and why it does not, so the list is a description
+  // of the tool rather than four buttons that may or may not do something.
+  addActionGroup(container, {
+    key: 'clipboard',
     icon: '⧉',
-    text: 'Copy / swap',
-    title: 'Copy, cut and swap regions of tiles',
+    label: 'Clipboard',
+    title: 'Copy, cut, paste and swap tiles',
+    note: 'Click a hex to select it, shift-click for more.',
+    help: [
+      'Copy / cut',
+      '  Select one or more hexes, then Copy (Ctrl+C) or Cut (Ctrl+X).',
+      '  Cut removes them straight away — they are on the clipboard, and it is one undo.',
+      '',
+      'Paste',
+      '  A ghost of the block follows the cursor. Click a hex to place it there.',
+      '  Press R to turn the block 60°. Escape or right-click puts the ghost away;',
+      '  Ctrl+V brings it back. Pasting does not use the clip up, so you can place it',
+      '  as many times as you like.',
+      '',
+      'Swap',
+      '  Select exactly two hexes and press Swap, or use the ⇄ button that appears',
+      '  between them on the map. The two tiles trade places.',
+    ].join('\n'),
+    watch: [HEX_SELECTED, CLIPBOARD_CHANGED],
+    items: [
+      {
+        id: 'clipCopyBtn',
+        icon: '⧉',
+        label: 'Copy',
+        hint: 'Copy the selected hexes (Ctrl+C)',
+        available: () => selectedHexes(editor).length
+          ? { ok: true }
+          : { ok: false, why: 'Select one or more hexes first, then Copy.' },
+        onClick: () => copySelectionToClipboard(editor, { cut: false }),
+      },
+      {
+        id: 'clipCutBtn',
+        icon: '✂',
+        label: 'Cut',
+        hint: 'Cut the selected hexes (Ctrl+X) — they are cleared straight away',
+        available: () => selectedHexes(editor).length
+          ? { ok: true }
+          : { ok: false, why: 'Select one or more hexes first, then Cut.' },
+        onClick: () => copySelectionToClipboard(editor, { cut: true }),
+      },
+      {
+        id: 'clipPasteBtn',
+        icon: '⎘',
+        label: 'Paste',
+        hint: 'Show the ghost again (Ctrl+V), then click a hex to place it',
+        available: () => {
+          const clip = activeClip();
+          return clip
+            ? { ok: true, why: '' }
+            : { ok: false, why: 'Nothing copied yet. Select some hexes and Copy or Cut first.' };
+        },
+        onClick: () => beginPaste(editor),
+      },
+      {
+        id: 'clipSwapBtn',
+        icon: '⇄',
+        label: 'Swap',
+        hint: 'Swap the two selected tiles',
+        available: () => {
+          const n = selectedHexes(editor).length;
+          if (n === 2) return { ok: true };
+          return {
+            ok: false,
+            why: n === 0
+              ? 'Swap needs exactly two hexes selected. Click one, then shift-click another.'
+              : `Swap needs exactly two hexes selected — ${n} ${n === 1 ? 'is' : 'are'} selected.`,
+          };
+        },
+        onClick: () => {
+          const [a, b] = selectedHexes(editor);
+          if (a && b) swapHexes(editor, a, b);
+        },
+      },
+    ],
   });
-  container.appendChild(copySwapBtn);
 
   const distanceBtn = railButton({
     id: 'toolDistance',

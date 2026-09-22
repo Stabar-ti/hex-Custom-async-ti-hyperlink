@@ -63,8 +63,9 @@ export function bindSvgHandlers(editor) {
     const label = e.target.closest('polygon')?.dataset?.label;
     if (!label) return;
     e.stopPropagation(); // prevent the polygon's editor._onHexClick from firing
-    const statusFn = window._wizardSwapStatus || (() => {});
-    startSwapMode(editor, statusFn, { oneShot: true, firstLabel: label });
+    // The status callback used to be the wizard popup's; that popup is gone and the
+    // shortcut is the one path that still has nowhere to report to. It swaps silently.
+    startSwapMode(editor, () => {}, { oneShot: true, firstLabel: label });
   }, true); // true = capture phase
 
   // ────────────── SVG Mouse Handlers ──────────────

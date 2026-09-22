@@ -23,7 +23,6 @@ import { installCustomLinksUI } from './ui/customLinksUI.js';
 import { installBorderAnomaliesUI } from './ui/borderAnomaliesUI.js';
 import { loadBorderAnomalyTypes, clearCache } from './constants/borderAnomalies.js';
 import { overlayDefaults } from './config/toggleSettings.js';
-import { setupTileCopySingleButtonAndPopup } from './ui/tileCopyPasteWizardUI.js';
 import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup, showSanityCheckPopup } from './ui/simplepPopup.js';
 import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
 import { resetAllPopupPositions, togglePopup } from './ui/popupUI.js';
@@ -329,8 +328,6 @@ function _onDOMReady(fn) {
 }
 
 _onDOMReady(() => {
-  setupTileCopySingleButtonAndPopup();
-
   // Import, export and map generation now live behind the File button rather than in a
   // panel permanently covering the map.
   installFileMenu(editor);

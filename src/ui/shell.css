@@ -408,6 +408,49 @@ body {
       #8a4fa8 80%);
 }
 
+/* The ? in a fold header. Its explanation is a native title, the same way every other
+   affordance in the rail explains itself — a bespoke hover card here would be the only
+   one in the app, and would need its own dismissal rules to boot. */
+.ui-rail-btn__help {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin-right: 2px;
+  border: 1px solid var(--surface-5);
+  border-radius: 50%;
+  color: var(--surface-5);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 11px;
+  text-align: center;
+  cursor: help;
+}
+
+.ui-rail-btn__help:hover {
+  color: var(--text-color);
+  border-color: var(--text-color);
+}
+
+/* The one line of prose in the rail: what to do before the buttons under it will work. */
+.ui-rail-note {
+  margin: 1px 2px 4px;
+  font-size: 9.5px;
+  line-height: 1.35;
+  color: var(--surface-5);
+}
+
+/* An action whose precondition is not met. Dimmed rather than hidden: the list is a
+   description of what the tool can do, and hiding half of it depending on the selection
+   would make it a worse description. The title says what is missing. */
+#toolRail .ui-rail-btn.is-unavailable {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#toolRail .ui-rail-btn.is-unavailable:hover {
+  background-color: var(--surface-3) !important;
+}
+
 .rail-collapse-btn {
   margin-top: auto;
   align-self: stretch;
