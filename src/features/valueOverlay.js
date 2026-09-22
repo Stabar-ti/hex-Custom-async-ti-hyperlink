@@ -5,6 +5,8 @@
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+import { hexPoints } from '../utils/hexGeometry.js';
+
 /** Semi-transparent fill per tier (red → green) */
 const TIER_FILL = {
     1: 'rgba(220, 50,  50,  0.30)',
@@ -117,14 +119,6 @@ export function buildValueTiers(editor, factors) {
     return tierMap;
 }
 
-/** Compute the six corner points of a flat-top hexagon centred at (cx, cy). */
-function hexPoints(cx, cy, r) {
-    return Array.from({ length: 6 }, (_, i) => {
-        const a = Math.PI / 180 * (60 * i);
-        return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
-    }).join(' ');
-}
-
 /**
  * Draw (or refresh) the value overlay on the map SVG.
  * Safe to call repeatedly — always removes the previous layer first.
@@ -150,7 +144,7 @@ export function drawValueOverlay(editor, rOn = false, iOn = false, tOn = false) 
 
         // Coloured fill
         const poly = document.createElementNS(SVG_NS, 'polygon');
-        poly.setAttribute('points', hexPoints(x, y, r));
+        poly.setAttribute('points', hexPoints({ x, y }, r));
         poly.setAttribute('fill', TIER_FILL[tier]);
         poly.setAttribute('stroke', 'none');
         layer.appendChild(poly);

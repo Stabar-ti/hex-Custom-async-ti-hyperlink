@@ -27,6 +27,7 @@ import {
 } from '../src/modules/Hyperlanes/hyperlaneGeometry.js';
 
 import * as store from '../src/modules/Hyperlanes/hyperlaneState.js';
+import { hexPoints } from '../src/utils/hexGeometry.js';
 // Safe under node: the indicator only touches the DOM inside its functions.
 import { activeLabel } from '../src/modules/Hyperlanes/hyperlaneIndicator.js';
 
@@ -533,6 +534,9 @@ function legacyLoopback(center, entry, armLength = 14) {
         activeLabel(['N0', 'C']) === seg.via, `${activeLabel(['N0', 'C'])} vs ${seg.via}`);
 }
 
+/** Six decimal places: enough to prove two formulas agree, loose enough for float drift. */
+const round = (n) => Math.round(n * 1e6) / 1e6;
+
 // ── 12. hexCorners ────────────────────────────────────────────────────────────
 
 {
@@ -543,13 +547,30 @@ function legacyLoopback(center, entry, armLength = 14) {
     check('every corner is `radius` from the centre',
         pts.every(([x, y]) => close(Math.hypot(x - c.x, y - c.y), 40, 1e-9)));
 
-    // Must trace the same hexagon drawHexes.js:59-62 draws, or the ring will be rotated
-    // relative to the tile it is meant to outline.
+    // Must trace the same hexagon drawHexes draws, or the ring is rotated relative to the
+    // tile it outlines.
+    //
+    // This compared the two strings character for character, which was the right test when
+    // drawHexes and hexCorners were two hand-written copies of the same formula. They are
+    // one function now — utils/hexGeometry.hexPoints — so a mismatch is not possible, and
+    // the string comparison had become a test of which corner that one function starts
+    // from. It starts at -120 degrees rather than 0, because the same vertex list is also
+    // indexed by side elsewhere and only that ordering makes v[s]..v[s+1] the ends of side
+    // s. Same six points, same hexagon, different first element.
+    //
+    // So: the same points as the formula drawHexes used to carry, as a set.
     const legacy = Array.from({ length: 6 }, (_, i) => {
         const a = Math.PI / 180 * 60 * i;
-        return `${c.x + 40 * Math.cos(a)},${c.y + 40 * Math.sin(a)}`;
-    }).join(' ');
-    check('hexCorners matches the polygon drawHexes.js draws', hexCorners(c, 40) === legacy);
+        return `${round(c.x + 40 * Math.cos(a))},${round(c.y + 40 * Math.sin(a))}`;
+    }).sort();
+    const drawn = hexCorners(c, 40).split(' ')
+        .map(p => p.split(',').map(Number).map(round).join(','))
+        .sort();
+    check('hexCorners traces the hexagon drawHexes draws',
+        JSON.stringify(drawn) === JSON.stringify(legacy),
+        JSON.stringify({ drawn, legacy }));
+    check('and is the very same function drawHexes uses',
+        hexCorners(c, 40) === hexPoints(c, 40));
 }
 
 // ── 13. Links are bidirectional wiring ───────────────────────────────────────

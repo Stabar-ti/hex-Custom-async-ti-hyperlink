@@ -26,6 +26,7 @@
 import { swapHexes } from './tileSwap.js';
 import { HEX_SELECTED, selectedHexes } from './hexSelection.js';
 import { EDGE_DIRECTIONS } from '../utils/hexGrid.js';
+import { edgeMidpoint } from '../utils/hexGeometry.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const LAYER_ID = 'hexSwapButtonLayer';
@@ -45,16 +46,6 @@ function sharedSide(a, b) {
         if (a.q + d.q === b.q && a.r + d.r === b.r) return s;
     }
     return -1;
-}
-
-/** The midpoint of side `s` of a hex — the same formula edgeMid uses. */
-function edgeMidpoint(center, radius, s) {
-    const a1 = (Math.PI / 180) * (60 * s - 120);
-    const a2 = (Math.PI / 180) * (60 * (s + 1) - 120);
-    return {
-        x: center.x + radius * (Math.cos(a1) + Math.cos(a2)) / 2,
-        y: center.y + radius * (Math.sin(a1) + Math.sin(a2)) / 2,
-    };
 }
 
 /** A point on `from`'s rim, in the direction of `to`. */

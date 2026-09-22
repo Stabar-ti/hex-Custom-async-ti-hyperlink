@@ -23,6 +23,7 @@
  */
 
 import { EDGE_DIRECTIONS } from '../utils/hexGrid.js';
+import { sideCorners } from '../utils/hexGeometry.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const LAYER_ID = 'hexSelectionLayer';
@@ -50,22 +51,6 @@ export function isHexSelected(editor, label) {
 }
 
 // ── Drawing ──────────────────────────────────────────────────────────────────
-
-/**
- * The two corners bounding side `s` of a hex.
- *
- * Mirrors edgeMid in hyperlaneGeometry: side s runs between the corners at 60s-120 and
- * 60(s+1)-120 degrees. Sharing that convention is what makes the outline land exactly on
- * the drawn hex edges rather than near them.
- */
-function sideCorners(center, radius, s) {
-    const a1 = (Math.PI / 180) * (60 * s - 120);
-    const a2 = (Math.PI / 180) * (60 * (s + 1) - 120);
-    return [
-        { x: center.x + radius * Math.cos(a1), y: center.y + radius * Math.sin(a1) },
-        { x: center.x + radius * Math.cos(a2), y: center.y + radius * Math.sin(a2) },
-    ];
-}
 
 /** @param {any} editor */
 function draw(editor) {

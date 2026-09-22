@@ -19,6 +19,7 @@
 import { sectorColors } from '../constants/constants.js';
 import { activeClip, pastePlan } from './tileClipboard.js';
 import { buildCoordIndex, coordKey } from '../utils/hexGrid.js';
+import { hexPoints } from '../utils/hexGeometry.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const LAYER_ID = 'pasteGhostLayer';
@@ -56,14 +57,6 @@ export function armGhost(editor) {
     return true;
 }
 
-/** Six corner points for a hex, as an SVG points string. */
-function corners(center, radius) {
-    return Array.from({ length: 6 }, (_, i) => {
-        const ang = (Math.PI / 180) * 60 * i;
-        return `${center.x + radius * Math.cos(ang)},${center.y + radius * Math.sin(ang)}`;
-    }).join(' ');
-}
-
 /**
  * Draw the active clip as it would land with its origin on `destLabel`.
  *
@@ -98,7 +91,7 @@ export function drawGhost(editor, destLabel) {
         if (!destLbl || !dest?.center) continue;
 
         const fill = document.createElementNS(SVG_NS, 'polygon');
-        fill.setAttribute('points', corners(dest.center, radius * 0.9));
+        fill.setAttribute('points', hexPoints(dest.center, radius * 0.9));
         fill.setAttribute('fill', sectorColors[tile.baseType] ?? sectorColors['']);
         fill.setAttribute('fill-opacity', '0.55');
         fill.setAttribute('stroke', occupied.has(destLbl) ? '#e35d4f' : '#4fc3f7');
