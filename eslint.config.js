@@ -32,11 +32,10 @@ export default [
             sourceType: 'module',
             globals: {
                 ...globals.browser,
-                // Cross-module escape hatches this codebase deliberately hangs off window.
+                // The last cross-module escape hatch hung off window. The others
+                // (loreManager, tokenManager, tokenOverlay) turned out to duplicate
+                // state the editor already carried, and are gone.
                 editor: 'writable',
-                loreManager: 'writable',
-                tokenManager: 'writable',
-                tokenOverlay: 'writable',
                 // Loaded by a script tag from challenges.cloudflare.com (see the CSP in
                 // index.html); used by src/data/cloudflare.js for the upload CAPTCHA.
                 turnstile: 'readonly'

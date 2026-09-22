@@ -14,7 +14,7 @@ let currentSubcategory = null;
 
 export function installTokenUI(editor) {
     console.log('installTokenUI called with editor:', editor);
-    tokenManager = window.tokenManager;
+    tokenManager = editor.tokenManager;
     
     if (!tokenManager) {
         console.error('TokenManager not found! Make sure it is initialized before installing Token UI');

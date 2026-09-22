@@ -118,7 +118,7 @@ export function setupHexHoverInfo(editor) {
             } else {
                 html += `<b>Planets:</b> -<br>`;
             }
-            const tm = window.tokenManager;
+            const tm = editor.tokenManager;
             const hasSystemTokens = hex.systemTokens && hex.systemTokens.length > 0;
             const hasPlanetTokens = hex.planetTokens && Object.keys(hex.planetTokens).length > 0;
             if (hasSystemTokens || hasPlanetTokens) {

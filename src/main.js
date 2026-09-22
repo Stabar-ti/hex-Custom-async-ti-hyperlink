@@ -110,7 +110,6 @@ editor.loreOverlay = new LoreOverlay(editor);
 // Initialize token system
 console.log('Initializing Token System...');
 const tokenManager = new TokenManager(editor);
-window.tokenManager = tokenManager;
 editor.tokenManager = tokenManager;
 
 // Initialize token manager asynchronously
@@ -124,7 +123,6 @@ tokenManager.initialize().then(success => {
     // Initialize token overlay
     editor.tokenOverlay = new TokenOverlay(editor);
     editor.tokenOverlay.initialize();
-    window.tokenOverlay = editor.tokenOverlay;
 
     console.log('Token system ready');
   } else {

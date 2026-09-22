@@ -59,8 +59,9 @@ export function installLoreUI(editor) {
     provide(COMMANDS.openLorePopupAtPhase, openLorePopupAtPhase);
     provide(COMMANDS.openLoreEditor, openLoreEditor);
 
-    window.loreManager = loreManager;   // console affordance
-    // Dev guard: verifies every footer on the map survives a structured round-trip.
+    // The one global this app still publishes: a dev guard that verifies every footer
+    // on the map survives a structured round-trip. No module reads it — the in-app help
+    // in the Footer section tells you to run it from the console.
     window.__loreCheckAllFooters = () => checkAllFooters(loreManager.editor);
 }
 
@@ -729,7 +730,7 @@ function buildValidationData() {
         data.factionIds = loreData.factionIds;
         data.unitAliases = loreData.unitAliases;
     }
-    const categorized = window.tokenManager?.getCategorizedTokens?.();
+    const categorized = loreManager?.editor?.tokenManager?.getCategorizedTokens?.();
     if (categorized) {
         data.tokenIds = new Set();
         Object.values(categorized).forEach(cat => cat.tokens.forEach(t => data.tokenIds.add(t.id.toLowerCase())));

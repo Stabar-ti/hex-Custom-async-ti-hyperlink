@@ -17,7 +17,7 @@ export class TokenOverlay {
     constructor(editor) {
         this.editor = editor;
         this.overlayGroup = null;
-        this.tokenManager = window.tokenManager;
+        this.tokenManager = editor.tokenManager;
         this.visible = true;
         this.useImages = true;
     }
