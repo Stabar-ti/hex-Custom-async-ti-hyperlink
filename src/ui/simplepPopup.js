@@ -294,7 +294,7 @@ export function showOverlayOptionsPopup() {
             const active = () => !!editor.svg?.querySelector('#valueOverlayLayer');
             voBtn.classList.toggle('active', active());
 
-            // The twin switch is in Draw Helpers; follow it rather than keeping our own idea
+            // The twin switch is in the Balance panel; follow it rather than keeping our own idea
             // of the state. Self-removing for the same reason as there.
             import('../features/valueOverlay.js').then(({ VALUE_OVERLAY_CHANGED }) => {
                 const onChange = () => {

@@ -521,7 +521,7 @@ export function importFullState(editor, jsonText) {
         hex.systemTokens = [];
       }
 
-      // ---- Import value target (Draw Helpers V1–V5)
+      // ---- Import value target (the V1–V5 hints painted from the Balance panel)
       hex.valueTarget = h.vt || null;
 
       // ---- Import planet tokens

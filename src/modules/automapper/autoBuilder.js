@@ -162,7 +162,7 @@ export function showAutoBuilderUI(container) {
         const status = el('div', S.panel);
         if (analysis.totalUnfilled === 0) {
             status.innerHTML = `<span style="${S.ok}">✔ All painted tiles are filled.</span><br>` +
-                `<span style="${S.muted}">Use Draw Helpers to paint tile types, then come back here.</span>`;
+                `<span style="${S.muted}">Paint some tile types from the Draw section of the tool rail, then come back here.</span>`;
         } else {
             status.innerHTML = `<b style="color:${COLORS.popupAutomapper}">${analysis.totalUnfilled} unfilled tile${analysis.totalUnfilled !== 1 ? 's' : ''}</b>` +
                 ` &nbsp;<span style="${S.muted}">${analysis.totalAvailable} systems in pool</span>`;
@@ -753,28 +753,28 @@ export function showAutoMapperHelp() {
     return import('../../ui/popupUI.js').then(({ showPopup }) => {
         return showPopup({
             id: 'automapper-help-popup',
-            title: '🤖 AutoMapper & Draw Helpers — Help',
+            title: '🤖 AutoMapper — Help',
             content: `<div style="line-height:1.6;font-size:13px;max-height:70vh;overflow-y:auto;padding-right:8px;">
 
-<h3 style="color:#2ecc40;margin:0 0 8px 0;">Draw Helpers</h3>
-<p>Open from <b>Sector Controls → Draw Helpers…</b> (also under <b>Layout Options → Draw Helpers</b>). Paint tile properties directly onto hexes without searching for specific systems.</p>
+<h3 style="color:#2ecc40;margin:0 0 8px 0;">Painting what you want</h3>
+<p>In the tool rail, under <b>Draw</b>. Paint tile properties directly onto hexes without searching for specific systems, then let AutoMapper find systems that match.</p>
 
-<h4 style="color:#ffe066;margin:8px 0 4px 0;">Tile types</h4>
-<p>Click a type button, then click hexes: <b>1/2/3 Planet</b>, <b>Legendary</b>, <b>Empty</b>, <b>Special</b> (anomaly), <b>Fracture</b> (Thunders Edge).</p>
-<p>A <b>Special</b> tile with no effects painted acts the same as <b>Empty</b>.</p>
+<h4 style="color:#ffe066;margin:8px 0 4px 0;">Planets</h4>
+<p>Click a type, then click hexes: <b>1/2/3 Planet</b>, <b>Legendary</b>, <b>Empty</b>, <b>Void</b>, <b>Special</b> (anomaly), <b>Fracture</b> (Thunders Edge).</p>
+<p>A <b>Special</b> tile with no anomaly painted acts the same as <b>Empty</b>. A <b>Void</b> hex is deliberately blank and is never filled.</p>
 
-<h4 style="color:#ffe066;margin:8px 0 4px 0;">Effects</h4>
-<p>Paint an anomaly overlay on top of a hex: <b>Nebula ☁️</b>, <b>Rift 🕳️</b>, <b>Asteroid 🪨</b>, <b>Supernova ☀️</b>, <b>Scar ☄️</b>.</p>
+<h4 style="color:#ffe066;margin:8px 0 4px 0;">Anomalies</h4>
+<p>Paint an anomaly on top of a hex: <b>Nebula ☁️</b>, <b>Rift 🕳️</b>, <b>Asteroid 🪨</b>, <b>Supernova ☀️</b>, <b>Scar ☄️</b>.</p>
 <p><b>Empty + an effect</b> and <b>Special + an effect</b> are the same request — a tile with no planets carrying that anomaly — and are filled identically. Use whichever you prefer.</p>
 <p>If no tile with that exact effect is available, a plain tile is used and an <b>anomaly token</b> is drawn on it. A hex painted for one anomaly is never given a different one — a token is the better answer. Turn on <b>Duplicate empty/anomaly</b> to reuse the real anomaly tiles instead, which is usually what you want when a map needs more asteroid fields than the base game has.</p>
 
 <hr style="border-color:#333;margin:10px 0;">
 <h3 style="color:#2ecc40;margin:0 0 8px 0;">🤖 AutoMapper</h3>
-<p>After painting tile types with Draw Helpers, AutoMapper fills those hexes with real systems.</p>
+<p>Once hexes are painted, AutoMapper fills them with real systems. It solves the whole map at once rather than walking the hexes one at a time, so the answer does not depend on the order they happen to be in.</p>
 
 <h4 style="color:#ffe066;margin:8px 0 4px 0;">Workflow</h4>
 <ol style="margin:0 0 8px 16px;padding:0;">
-  <li>Paint tile types on hexes using Draw Helpers.</li>
+  <li>Paint tile types on hexes from the <b>Draw</b> section of the tool rail.</li>
   <li>Open AutoMapper — the <b>Type breakdown</b> shows one row per thing your map asks for, and what each will actually get.</li>
   <li>Choose options and click <b>Fill Remaining</b>.</li>
   <li>Review the preview — click <b>Reshuffle</b> for a different arrangement, or untick individual hexes to leave them unfilled.</li>
@@ -807,8 +807,10 @@ export function showAutoMapperHelp() {
 <p><b>Fracture</b> and <b>Home system</b> hexes only ever accept a tile of that same type. If the pool runs out, the hex is left unfilled and listed under the preview rather than being quietly given an ordinary tile.</p>
 
 <h4 style="color:#ffe066;margin:8px 0 4px 0;">Value hints</h4>
-<p>Use <b>V1–V5</b> to paint a target value tier on a hex. Use <b>R / I / T</b> to request high resources, influence, or tech skips. These are preferences — AutoMapper picks the best available match, falling back gracefully if unavailable.</p>
-<p>Tiers are relative within each planet-count group: V5 on a 2-planet hex means "best 2-planet system available", not "best overall".</p>
+<p>Use <b>V1–V5</b> to paint a target value tier on a hex, and <b>R / I / T</b> to ask for high resources, influence or tech skips within that tier.</p>
+<p>Tiers are relative within each planet-count group: V5 on a 2-planet hex means "best 2-planet system currently in the pool", not "best overall". They are percentiles, so each tier holds about a fifth of its group — roughly 8 two-planet systems on the default sources. Asking for more hexes at one tier than that is asking for something that does not exist, and the <b>Tier supply</b> table under Value hints says so before you fill: it shows how many you have painted against how many exist, in amber where you have asked for too many.</p>
+<p><b>When a tier runs out</b> decides which way to lean — take a lower tier, the nearest either way, or a higher one. <b>Leave it empty rather than miss by more than one tier</b> makes the fill give up on a hex instead of settling; those hexes are marked on the map.</p>
+<p>The whole map is solved at once, so a hex that cannot have the tier it asked for gives way to one that can, rather than taking the tile from it by being earlier in the list.</p>
 
 <h4 style="color:#ffe066;margin:8px 0 4px 0;">Value overlay</h4>
 <p>After filling, click <b>📊 Show Value Overlay</b> to see T1–T5 tier badges on placed systems (relative to their type group). Toggle R/I/T to see how different weightings would rank the systems.</p>

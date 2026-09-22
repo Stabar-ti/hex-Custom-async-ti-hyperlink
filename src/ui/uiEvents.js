@@ -50,7 +50,7 @@ export function registerClickHandler(editor) {
         if (this.mode === 'value-target-clear') {
           hex.valueTarget = null;
         } else {
-          // Stamp the current configuration from the Draw Helpers UI
+          // Stamp the current configuration from the Balance panel
           const cfg = this._valuePaintConfig;
           if (cfg) {
             hex.valueTarget = { tier: cfg.tier || null, r: !!cfg.r, i: !!cfg.i, t: !!cfg.t };

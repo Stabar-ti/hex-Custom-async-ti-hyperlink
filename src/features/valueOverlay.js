@@ -196,7 +196,7 @@ export function isValueOverlayActive(editor) {
  * Fired whenever the value overlay is drawn or cleared.
  *
  * This overlay has two switches, in different popups: "Value Tiers (T1-T5)" in Toggle
- * Overlays, and "Show Value Overlay" in Draw Helpers. They used to keep separate state —
+ * Overlays, and "Show Value Overlay" in the Balance panel. They used to keep separate state —
  * one probed the DOM, the other held a flag on its own button — so using one left the
  * other showing the opposite. The drawn layer is the only truth; this event is how a
  * button that did not cause the change hears about it.

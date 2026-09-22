@@ -58,7 +58,7 @@ export const COLORS = {
   autoRowOffBg:         '#1a1a1a',
   autoRowOffText:       '#777777',
 
-  // Value-bias toggles. Same three hues as the Draw Helpers R/I/T buttons
+  // Value-bias toggles. Same three hues as the R/I/T buttons in the Balance panel
   // (uisectorControls.js) — the panel is reading back what was painted there.
   autoValueR:           '#f5a623',
   autoValueI:           '#7ecfff',

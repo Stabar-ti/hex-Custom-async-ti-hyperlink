@@ -254,7 +254,7 @@ export function exportFullState(editor) {
       h.st = hex.systemTokens;
     }
 
-    // Value target (Draw Helpers V1–V5 painting)
+    // Value target (the V1–V5 hints painted from the Balance panel)
     if (hex.valueTarget) h.vt = hex.valueTarget;
 
     // Add planet tokens if they exist

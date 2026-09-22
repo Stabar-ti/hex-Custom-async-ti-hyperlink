@@ -1,6 +1,6 @@
 /**
  * AutoMapper Core — fills unfilled hexes with real TI4 systems.
- * "Unfilled" = hex has baseType set (via Draw Helpers) but no realId.
+ * "Unfilled" = hex has baseType set (painted from the tool rail) but no realId.
  */
 
 import { passesAutoMapperFilters } from '../../ui/uiFilters.js';
