@@ -43,6 +43,7 @@
   --shell-topbar-h: 46px;
   --shell-status-h: 26px;
   --shell-rail-w: 178px;
+  --shell-inspector-w: 232px;
   --shell-rail-w-collapsed: 48px;
 }
 
@@ -493,6 +494,27 @@ body {
   display: none;
 }
 
+/* ── Panel resizers ───────────────────────────────────────────────────────────
+   A grab strip on the inner edge of the rail and the inspector. Siblings of the panels
+   rather than children: a child of a scrolling column scrolls away with it, and this has
+   to stay on the edge and stay clickable.
+
+   Invisible until pointed at. A permanent divider on both sides of the map would be two
+   more lines competing with the map for attention, to advertise something you do once. */
+.panel-resizer {
+  position: fixed;
+  width: 6px;
+  z-index: var(--layer-floating);
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.12s;
+}
+
+.panel-resizer:hover,
+.panel-resizer.is-dragging {
+  background: var(--color-primary);
+}
+
 .rail-collapse-btn {
   margin-top: auto;
   align-self: stretch;
@@ -527,7 +549,7 @@ body {
 #inspector {
   grid-area: inspector;
   z-index: var(--layer-shell);
-  width: 232px;
+  width: var(--shell-inspector-w, 232px);
   padding: 10px 12px;
   overflow-y: auto;
   background: var(--surface-2);

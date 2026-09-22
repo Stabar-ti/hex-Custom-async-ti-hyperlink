@@ -30,6 +30,7 @@ import { installFileMenu } from './ui/fileMenu.js';
 import { installTopBarMenus } from './ui/topBarMenus.js';
 import { installInspector } from './ui/inspector.js';
 import { installClipboardPanel } from './ui/clipboardPanel.js';
+import { installPanelResizers } from './ui/panelResize.js';
 import { installStatusBar } from './ui/statusBar.js';
 import { installTopBarControls } from './ui/topBarControls.js';
 import { setPanMode } from './ui/viewControls.js';
@@ -84,6 +85,9 @@ installStatusBar(editor);
 installInspector(editor);
 // After installInspector, which empties the column before building it.
 installClipboardPanel(editor);
+
+// Drag the inner edge of either side column to resize it; the width is remembered.
+installPanelResizers();
 
 // Undo/redo, zoom, pan mode and reset view — the verbs that had no buttons.
 installTopBarControls(editor);
