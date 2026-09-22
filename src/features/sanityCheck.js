@@ -1,6 +1,8 @@
 // Sanity Check Feature
 // Checks for duplicate realIDs on the map with configurable rules
 
+import { getEditor } from '../core/editorRef.js';
+
 /**
  * Check for duplicate realIDs on the map
  * @param {boolean} planetsOnly - If true, only check hexes with planets
@@ -8,7 +10,7 @@
  * @returns {Object} - Analysis results with duplicates and summary
  */
 export function checkRealIdUniqueness(planetsOnly = true, checkAll = false) {
-    if (!window.editor?.hexes) {
+    if (!getEditor()?.hexes) {
         return {
             success: false,
             error: "No hex editor or hexes available",
@@ -18,7 +20,7 @@ export function checkRealIdUniqueness(planetsOnly = true, checkAll = false) {
         };
     }
 
-    const hexes = window.editor.hexes;
+    const hexes = getEditor().hexes;
     const realIdMap = new Map(); // realId -> array of hex labels
     const duplicates = [];
     let totalChecked = 0;

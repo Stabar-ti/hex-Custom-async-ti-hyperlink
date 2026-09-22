@@ -7,6 +7,7 @@
 
 import { showPopup } from '../../ui/popupUI.js';
 import { slotPositions, capitalizeTech, generateOutputString } from './miltyBuilderCore.js';
+import { getEditor } from '../../core/editorRef.js';
 
 // Show output copy popup with generated string and analysis
 export function showOutputCopyPopup() {
@@ -130,7 +131,7 @@ function renderDraftValuesAnalysis(container) {
                 const sliceHexes = [];
                 for (let i = 1; i < slotHexes.length; i++) {
                     const hexId = slotHexes[i];
-                    const hex = window.editor?.hexes?.[hexId];
+                    const hex = getEditor()?.hexes?.[hexId];
                     if (hex) {
                         sliceHexes.push({ ...hex, label: hexId });
                     }

@@ -46,8 +46,8 @@
  *
  * Not in scope
  * ────────────
- * `window.editor` stays. It is one object, it is deliberate, and having the live editor
- * on the console is worth keeping. See types/globals.d.ts.
+ * The editor itself. It is one object needed almost everywhere, which makes it a
+ * dependency rather than a capability, so it has its own module: src/core/editorRef.js.
  *
  * No DOM at module scope — this imports cleanly under node so it can be tested.
  */

@@ -3,6 +3,7 @@
 
 import { showPopup } from '../../ui/popupUI.js';
 import { slotPositions, analyzeSliceOccupancy } from './miltyBuilderCore.js';
+import { getEditor } from '../../core/editorRef.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -40,7 +41,7 @@ async function exportSliceAsPng(slotNum, options) {
         exportWidth   = 1000,
     } = options;
 
-    const editor = window.editor;
+    const editor = getEditor();
     if (!editor?.svg) throw new Error('Editor not available');
 
     const hexIds = slotPositions[slotNum];

@@ -1,4 +1,6 @@
 // @ts-check
+import { getEditor } from '../core/editorRef.js';
+
 /**
  * The File menu: everything to do with getting a map in or out.
  *
@@ -123,7 +125,7 @@ export function installFileMenu(_editor) {
                 import('../modules/Milty/miltyBuilderUI.js'),
                 import('./specialModePopup.js'),
             ]);
-            await loadMiltyMap(window.editor);
+            await loadMiltyMap(getEditor());
             openMiltySliceDesigner();
         } catch (err) {
             console.error('Failed to start a Milty map:', err);

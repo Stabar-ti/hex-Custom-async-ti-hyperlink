@@ -21,6 +21,7 @@ import {
   invoke, tryInvoke, hasCommand,
   registerMode, activateMode, deactivateMode, deactivateModes, COMMANDS
 } from '../core/registry.js';
+import { getEditor } from '../core/editorRef.js';
 
 // Ids for the two map-click modes this file owns. Only one can be armed at a time; the
 // registry is what enforces that, so every button that opens something else disarms them
@@ -1115,7 +1116,7 @@ function finishSectorControlsContent(editor, container) {
     // turns it on. Previously this file drove the popup by filling #hexLabelInput and
     // clicking #selectHexBtn behind a setTimeout, which coupled it to the editor's DOM.
     import('../modules/Lore/loreMapPick.js').then(({ armLoreMapPick }) => {
-      armLoreMapPick(window.editor, {
+      armLoreMapPick(getEditor(), {
         onPick: (ref) => tryInvoke(COMMANDS.openLoreEditor, ref)
       });
     });
@@ -1157,7 +1158,7 @@ function deactivateLoreMode() {
     setRailLabel(btn, 'Add Lore…');
   }
   import('../modules/Lore/loreMapPick.js')
-    .then(({ disarmLoreMapPick }) => disarmLoreMapPick(window.editor))
+    .then(({ disarmLoreMapPick }) => disarmLoreMapPick(getEditor()))
     .catch(() => { /* module never loaded, so nothing is armed */ });
 }
 
@@ -1189,7 +1190,7 @@ function enableTokenHexSelection() {
 
   // Take over map clicks. Whatever was armed before is deliberately dropped rather than
   // remembered — see disableTokenHexSelection.
-  const editor = window.editor;
+  const editor = getEditor();
   if (editor) {
     editor.mode = 'token-selection'; // Special mode to prevent other click handlers
   }
@@ -1232,7 +1233,7 @@ function disableTokenHexSelection() {
   // you switched tokens off, and the next map click painted a nebula the user had selected
   // several minutes earlier. Every other tool in this panel ends on setMode('none'); so
   // does this one now.
-  const editor = window.editor;
+  const editor = getEditor();
   if (editor && editor.mode === 'token-selection') {
     if (typeof editor.setMode === 'function') editor.setMode('none');
     else editor.mode = 'none';

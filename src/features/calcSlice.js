@@ -1,12 +1,13 @@
 import { wormholeTypes, planetTypeColors, techSpecialtyColors } from '../constants/constants.js';
 import { showPopup, hidePopup } from '../ui/popupUI.js';
 import { showOptionsPopup } from '../ui/simplepPopup.js';
+import { getEditor } from '../core/editorRef.js';
 
 export function openCalcSlicePopup() {
     // Build content wrapper
     const wrapper = document.createElement('div');
     wrapper.id = 'calcSliceResults';
-    renderSliceAnalysis(window.editor, wrapper);
+    renderSliceAnalysis(getEditor(), wrapper);
 
     // Show popup using popupUI.js
     showPopup({
@@ -28,7 +29,7 @@ export function openCalcSlicePopup() {
         actions: [
             {
                 label: 'Options',
-                action: () => showOptionsPopup(window.editor)
+                action: () => showOptionsPopup(getEditor())
             },
             {
                 label: 'Close',

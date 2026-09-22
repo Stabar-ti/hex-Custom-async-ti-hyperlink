@@ -13,6 +13,7 @@ import { toggleWormhole } from '../../features/wormholes.js';
 import { VISIBLE_SOURCE_GROUPS } from '../SystemPicker/pickerModel.js';
 import { COLORS } from '../../constants/designTokens.js';
 import { drawAutoMapperMarks, clearAutoMapperMarks, marksFromResult } from '../../features/automapperMarks.js';
+import { getEditor } from '../../core/editorRef.js';
 
 // ---- Styles ----
 const S = {
@@ -75,7 +76,7 @@ function section(title, isOpen, onToggle) {
 
 export function showAutoBuilderUI(container) {
     if (!container) return;
-    const editor = window.editor;
+    const editor = getEditor();
     if (!editor) {
         container.innerHTML = '<p style="color:#f66;padding:12px">No editor instance found.</p>';
         return;
@@ -736,7 +737,7 @@ export function openAutoMapperPopup() {
             onHelp: () => showAutoMapperHelp(),
             // The marks describe a preview, so they go when the panel does. hidePopup fires
             // this however the popup is closed, not only from its ×.
-            onClose: () => clearAutoMapperMarks(window.editor),
+            onClose: () => clearAutoMapperMarks(getEditor()),
             style: {
                 minWidth: '380px', maxWidth: '700px',
                 border: '2px solid var(--popup-border-special)',

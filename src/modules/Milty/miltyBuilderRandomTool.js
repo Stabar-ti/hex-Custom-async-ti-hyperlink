@@ -19,6 +19,7 @@ const EXCLUDED_TILE_IDS = [
 import { assignSystem } from '../../features/assignSystem.js';
 import { markRealIDUsed, refreshSystemList } from '../../ui/uiFilters.js';
 import { slotPositions } from './miltyBuilderCore.js';
+import { getEditor } from '../../core/editorRef.js';
 
 // Default generation settings
 const DEFAULT_SETTINGS = {
@@ -355,7 +356,7 @@ export async function generateMiltySlices() {
  * Get available systems based on source settings
  */
 function getAvailableSystems() {
-    const editor = window.editor;
+    const editor = getEditor();
     if (!editor) {
         console.warn('Editor not available');
         return [];
@@ -2034,7 +2035,7 @@ async function tryUnusedTileSwaps(slices, scores) {
     console.log('Trying unused tile swaps for better balance...');
 
     // Get available unused systems
-    const editor = window.editor;
+    const editor = getEditor();
     if (!editor) return false;
 
     const availableSystems = getAvailableSystems();
@@ -2185,7 +2186,7 @@ async function tryUnusedTileSwaps(slices, scores) {
  * Place generated slices on the map
  */
 async function placeSlicesOnMap(slices) {
-    const editor = window.editor;
+    const editor = getEditor();
     if (!editor) throw new Error('Editor not available');
 
     console.log('Placing slices on map:', slices.length, 'slices');
@@ -2266,14 +2267,14 @@ async function placeSlicesOnMap(slices) {
     console.log('Updating overlays after slice placement');
 
     // Set overlay visibility flags properly for generated data
-    if (window.editor.showPlanetTypes === undefined) window.editor.showPlanetTypes = true;
-    if (window.editor.showResInf === undefined) window.editor.showResInf = false;
-    if (window.editor.showIdealRI === undefined) window.editor.showIdealRI = true;
-    if (window.editor.showRealID === undefined) window.editor.showRealID = true;
+    if (editor.showPlanetTypes === undefined) editor.showPlanetTypes = true;
+    if (editor.showResInf === undefined) editor.showResInf = false;
+    if (editor.showIdealRI === undefined) editor.showIdealRI = true;
+    if (editor.showRealID === undefined) editor.showRealID = true;
 
     // Update visual elements first (same as MiltyBuilderCore updateVisualElements)
-    if (typeof window.editor?.redrawAllRealIDOverlays === 'function') {
-        window.editor.redrawAllRealIDOverlays(window.editor);
+    if (typeof editor?.redrawAllRealIDOverlays === 'function') {
+        editor.redrawAllRealIDOverlays(editor);
     }
     // See miltyBuilderCore: window.renderSystemList has had no assignment since the
     // picker moved to a subscription, so this guard was never true.
@@ -2302,37 +2303,37 @@ async function placeSlicesOnMap(slices) {
         console.log('Executing comprehensive overlay redraw sequence');
 
         // Execute in the exact same order as importFullState/importSlices
-        redrawAllRealIDOverlays(window.editor);
-        drawCustomAdjacencyLayer(window.editor);
-        drawBorderAnomaliesLayer(window.editor);
-        updateEffectsVisibility(window.editor);
-        updateWormholeVisibility(window.editor);
-        updateTileImageLayer(window.editor);
+        redrawAllRealIDOverlays(editor);
+        drawCustomAdjacencyLayer(editor);
+        drawBorderAnomaliesLayer(editor);
+        updateEffectsVisibility(editor);
+        updateWormholeVisibility(editor);
+        updateTileImageLayer(editor);
 
         // Refresh system list to update filter states
         refreshSystemList();
 
         // Enforce SVG layer order to ensure planets and overlays appear correctly
-        if (window.editor?.svg) {
-            enforceSvgLayerOrder(window.editor.svg);
+        if (editor?.svg) {
+            enforceSvgLayerOrder(editor.svg);
         }
 
         // Redraw the home info overlay LAST so it sits on top of all tiles/overlays.
         // (Previously this only happened via a flaky 3s setTimeout in the UI.)
-        drawMiltyHomeOverlay(window.editor);
+        drawMiltyHomeOverlay(editor);
 
         console.log('Overlay redraw sequence complete');
     }).catch(err => {
         console.error('Could not load overlay modules:', err);
         // Fallback: try direct calls
-        if (typeof window.editor?.redrawAllRealIDOverlays === 'function') {
-            window.editor.redrawAllRealIDOverlays(window.editor);
+        if (typeof editor?.redrawAllRealIDOverlays === 'function') {
+            editor.redrawAllRealIDOverlays(editor);
         }
     });
 
     // Update border anomalies overlay if active
-    if (typeof window.editor?.redrawBorderAnomaliesOverlay === 'function') {
-        window.editor.redrawBorderAnomaliesOverlay();
+    if (typeof editor?.redrawBorderAnomaliesOverlay === 'function') {
+        editor.redrawBorderAnomaliesOverlay();
     }
 
     console.log('Slice placement complete');

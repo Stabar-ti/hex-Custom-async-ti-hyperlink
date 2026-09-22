@@ -3,6 +3,7 @@ import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 import { checkRealIdUniqueness, generateSanityCheckSummary } from '../features/sanityCheck.js';
 import { setupHexHoverInfo } from './HexHoverInfo2.js';
 import { showAnchoredPanel } from './dropdownMenu.js';
+import { getEditor } from '../core/editorRef.js';
 
 export function showOptionsPopup(editor) {
     // Build content dynamically, reflecting current editor options
@@ -158,7 +159,7 @@ export function showOverlayOptionsPopup() {
     });
 
     setTimeout(() => {
-        const editor = window.editor;
+        const editor = getEditor();
         if (!editor) return;
 
         // Helper to toggle and update .active

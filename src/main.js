@@ -6,6 +6,7 @@
 
 // Load and apply the last-used theme (light/dark)
 import { applySavedTheme } from './ui/uiTheme.js';
+import { setEditor } from './core/editorRef.js';
 //import { initHexHoverInfo } from './ui/hexHoverInfo.js';
 applySavedTheme();
 
@@ -66,7 +67,7 @@ editor.options = {
 };
 editor.maxDistance = 3; // Used for BFS calculations
 
-window.editor = editor;
+setEditor(editor);
 
 // Enable undo/redo history tracking
 initHistory(editor);

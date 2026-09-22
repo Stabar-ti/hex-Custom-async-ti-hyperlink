@@ -14,6 +14,7 @@ import { showSanityCheckPopup } from '../../ui/simplepPopup.js';
 import { togglePopup } from '../../ui/popupUI.js';
 import { showSliceExportPopup } from './miltyBuilderExport.js';
 import { provide, COMMANDS } from '../../core/registry.js';
+import { getEditor } from '../../core/editorRef.js';
 
 /**
  * Has the Milty layout been put on the map this session?
@@ -73,6 +74,7 @@ export async function loadMiltyMap(editor) {
 
 // Main UI function to create and display the Milty Builder popup
 export function showMiltyBuilderUI(container) {
+    const editor = getEditor();
     // Slice state tracking
     const sliceMap = { ...defaultSlices };
     const sliceSlots = Array(12).fill(null);
@@ -172,7 +174,7 @@ export function showMiltyBuilderUI(container) {
 
         function setupObserver() {
             if (observer) observer.disconnect();
-            if (window.editor && window.editor.svg) {
+            if (editor && editor.svg) {
                 observer = new MutationObserver(() => {
                     if (liveAnalysisEnabled) {
                         import('./miltyBuilderPopups.js').then(mod => {
@@ -180,7 +182,7 @@ export function showMiltyBuilderUI(container) {
                         });
                     }
                 });
-                observer.observe(window.editor.svg, { childList: true, subtree: true });
+                observer.observe(editor.svg, { childList: true, subtree: true });
             }
         }
         let sliceBordersVisible = false;
@@ -194,7 +196,7 @@ export function showMiltyBuilderUI(container) {
 
         function startHomeOverlayObserver() {
             if (_overlayObserver) return;
-            if (!window.editor?.svg) return;
+            if (!editor?.svg) return;
             _overlayObserver = new MutationObserver((mutations) => {
                 if (!homeInfoVisible) return;
                 // Only react to fill changes on actual hex polygons
@@ -203,11 +205,11 @@ export function showMiltyBuilderUI(container) {
                 clearTimeout(_overlayDebounce);
                 _overlayDebounce = setTimeout(() => {
                     import('./miltyHomeOverlay.js').then(({ drawMiltyHomeOverlay }) => {
-                        if (homeInfoVisible) drawMiltyHomeOverlay(window.editor);
+                        if (homeInfoVisible) drawMiltyHomeOverlay(editor);
                     });
                 }, 250);
             });
-            _overlayObserver.observe(window.editor.svg, { subtree: true, attributeFilter: ['fill'] });
+            _overlayObserver.observe(editor.svg, { subtree: true, attributeFilter: ['fill'] });
         }
 
         function stopHomeOverlayObserver() {
@@ -225,7 +227,7 @@ export function showMiltyBuilderUI(container) {
         if (loadBtn) {
             loadBtn.onclick = async () => {
                 try {
-                    await loadMiltyMap(window.editor);
+                    await loadMiltyMap(editor);
 
                     // The layout is drawn by loadMiltyMap; this is the designer's own view
                     // of it — the slice numbers and the button that turns them off.
@@ -271,7 +273,7 @@ export function showMiltyBuilderUI(container) {
             bordersBtn.onclick = () => {
                 if (sliceBordersVisible) {
                     // Hide borders
-                    const layer = window.editor?.svg?.querySelector('#sliceBordersOverlayLayer');
+                    const layer = editor?.svg?.querySelector('#sliceBordersOverlayLayer');
                     if (layer) layer.remove();
                     sliceBordersVisible = false;
                     bordersBtn.textContent = 'Slice Borders';
@@ -279,7 +281,7 @@ export function showMiltyBuilderUI(container) {
                     bordersBtn.style.color = '';
                 } else {
                     // Show borders
-                    drawSliceBordersOverlay(window.editor);
+                    drawSliceBordersOverlay(editor);
                     sliceBordersVisible = true;
                     bordersBtn.textContent = 'Hide Slice Borders';
                     bordersBtn.style.background = '#4a8a4a';
@@ -294,7 +296,7 @@ export function showMiltyBuilderUI(container) {
             numbersBtn.onclick = () => {
                 if (sliceNumbersVisible) {
                     // Hide numbers
-                    const layer = window.editor?.svg?.querySelector('#sliceNumbersOverlayLayer');
+                    const layer = editor?.svg?.querySelector('#sliceNumbersOverlayLayer');
                     if (layer) layer.remove();
                     sliceNumbersVisible = false;
                     numbersBtn.textContent = 'Slice Numbers';
@@ -302,7 +304,7 @@ export function showMiltyBuilderUI(container) {
                     numbersBtn.style.color = '';
                 } else {
                     // Show numbers
-                    drawSlicePositionOverlays(window.editor);
+                    drawSlicePositionOverlays(editor);
                     sliceNumbersVisible = true;
                     numbersBtn.textContent = 'Hide Slice Numbers';
                     numbersBtn.style.background = '#4a8a4a';
@@ -320,13 +322,13 @@ export function showMiltyBuilderUI(container) {
                 homeInfoVisible = !homeInfoVisible;
                 setHomeOverlayEnabled(homeInfoVisible);
                 if (homeInfoVisible) {
-                    drawMiltyHomeOverlay(window.editor);
+                    drawMiltyHomeOverlay(editor);
                     homeInfoBtn.textContent = 'Hide Home Info';
                     homeInfoBtn.style.background = '#4a8a4a';
                     homeInfoBtn.style.color = '#fff';
                     startHomeOverlayObserver();
                 } else {
-                    clearMiltyHomeOverlay(window.editor);
+                    clearMiltyHomeOverlay(editor);
                     homeInfoBtn.textContent = 'Show Home Info';
                     homeInfoBtn.style.background = '';
                     homeInfoBtn.style.color = '';
@@ -344,7 +346,7 @@ export function showMiltyBuilderUI(container) {
                     await import('./miltyHomeOverlay.js');
                 splitEnabled = !splitEnabled;
                 setIdealSplitEnabled(splitEnabled);
-                drawMiltyHomeOverlay(window.editor);
+                drawMiltyHomeOverlay(editor);
                 splitIdealBtn.textContent = splitEnabled ? 'Ideal: Split ✓' : 'Ideal: Split';
                 splitIdealBtn.style.background = splitEnabled ? '#4a8a4a' : '';
                 splitIdealBtn.style.color      = splitEnabled ? '#fff'    : '';
@@ -412,7 +414,7 @@ export function showMiltyBuilderUI(container) {
                 setTimeout(async () => {
                     if (!homeInfoVisible) return;
                     const { drawMiltyHomeOverlay } = await import('./miltyHomeOverlay.js');
-                    drawMiltyHomeOverlay(window.editor);
+                    drawMiltyHomeOverlay(editor);
                 }, 3000);
             };
         }
@@ -734,6 +736,7 @@ export function updateSliceImportPreview(textarea, preview) {
  * Handles the import process for slice data
  */
 export function handleSliceImport(slicesData, clearExisting, onProgress, onComplete) {
+    const editor = getEditor();
     if (!slicesData) {
         alert('Please enter slice data to import.');
         return false;
@@ -745,8 +748,8 @@ export function handleSliceImport(slicesData, clearExisting, onProgress, onCompl
             const slotHexes = slotPositions[slotNum] || [];
             for (let j = 1; j < slotHexes.length; j++) {
                 const hexId = slotHexes[j];
-                if (window.editor?.clearAll) {
-                    window.editor.clearAll(hexId);
+                if (editor?.clearAll) {
+                    editor.clearAll(hexId);
                 }
             }
         }
@@ -822,7 +825,7 @@ export function createOutputDisplayContainer(outputData) {
         // Get realIds from positions 1-5
         for (let i = 1; i < slotHexes.length; i++) {
             const hexId = slotHexes[i];
-            const hex = window.editor?.hexes?.[hexId];
+            const hex = getEditor()?.hexes?.[hexId];
             if (hex && hex.realId) {
                 realIds.push(hex.realId);
             }
@@ -970,7 +973,7 @@ export function createDraftValuesAnalysisContainer() {
         // Check positions 1-5 (skip homesystem at position 0)
         for (let i = 1; i < slotHexes.length; i++) {
             const hexId = slotHexes[i];
-            const hex = window.editor?.hexes?.[hexId];
+            const hex = getEditor()?.hexes?.[hexId];
             if (hex && (hex.realId || hex.planets?.length > 0)) {
                 hasData = true;
                 break;
