@@ -24,10 +24,16 @@ import { rotated } from '../modules/Hyperlanes/hyperlaneModel.js';
 import { markRealIDUsed } from '../ui/uiFilters.js';
 import { drawMatrixLinks } from './hyperlanes.js';
 import { updateHexWormholes, removeWormholeOverlay } from './wormholes.js';
-import { createWormholeOverlay } from './baseOverlays.js';
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import { isScriptedAnomaly, isBidirectionalAnomaly } from '../distance/index.js';
 import { buildCoordIndex, neighborHex, oppositeSide, normalizeSide } from '../utils/hexGrid.js';
+import { redrawAllRealIDOverlays } from './realIDsOverlays.js';
+import { redrawBorderAnomaliesOverlay } from './borderAnomaliesOverlay.js';
+import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
+import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
+import { updateEffectsVisibility, updateWormholeVisibility, createWormholeOverlay } from './baseOverlays.js';
+import { updateTileImageLayer } from './imageSystemsOverlay.js';
+import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 
 /** What a copy keeps. The wizard read these off window.tileCopyOptions. */
 export const DEFAULT_COPY_OPTIONS = Object.freeze({
@@ -462,6 +468,47 @@ export function applyTiles(editor, tiles, dq, dr) {
         // ---- TOKENS: Restore system and planet tokens ----
         hex.systemTokens = h.systemTokens ? [...h.systemTokens] : [];
         hex.planetTokens = h.planetTokens ? JSON.parse(JSON.stringify(h.planetTokens)) : {};
+    }
+}
+
+/**
+ * Put every overlay back after a paste.
+ *
+ * NEW, not moved: the wizard ran this list inline at the end of its paste handler. It is
+ * the same list in the same order, pulled out so every caller redraws the same way — a
+ * paste that updates the tiles but not the wormhole icons looks like a paste that half
+ * worked.
+ *
+ * @param {any} editor
+ */
+export function refreshAfterPaste(editor) {
+    redrawAllRealIDOverlays(editor);
+    drawCustomAdjacencyLayer(editor);
+    drawBorderAnomaliesLayer(editor);
+    redrawBorderAnomaliesOverlay(editor);
+    updateEffectsVisibility(editor);
+    updateWormholeVisibility(editor);
+    updateTileImageLayer(editor);
+    editor.tokenOverlay?.refresh?.();
+    enforceSvgLayerOrder(editor.svg);
+    if (editor.loreOverlay?.isActive) editor.loreOverlay.refresh();
+}
+
+/**
+ * Clear a set of hexes — the other half of a cut.
+ *
+ * NEW, not moved, but the same three calls the wizard made in its cut branch. The caller
+ * owns the undo group.
+ *
+ * @param {any} editor
+ * @param {string[]} labels
+ */
+export function clearTiles(editor, labels) {
+    for (const label of labels) {
+        if (!editor.hexes[label]) continue;
+        editor.saveState(label);
+        removeWormholeOverlay(editor, label);
+        editor.clearAll(label);
     }
 }
 

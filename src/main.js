@@ -34,6 +34,8 @@ import { installStatusBar } from './ui/statusBar.js';
 import { installTopBarControls } from './ui/topBarControls.js';
 import { setPanMode } from './ui/viewControls.js';
 import { installSwapButton } from './features/hexSwapButton.js';
+import { installPasteGhost } from './features/pasteGhost.js';
+import { installClipboardShortcuts } from './features/clipboardShortcuts.js';
 import { installDistanceTool } from './features/distanceTool.js';
 import { checkRealIdUniqueness } from './features/sanityCheck.js';
 import './ui/specialModePopup.js';
@@ -90,6 +92,11 @@ setPanMode(editor, true);
 
 // Offers a swap between exactly two selected hexes, where the swap would happen.
 installSwapButton(editor);
+
+// Ctrl+C / Ctrl+X / Ctrl+V, R to turn the block, Escape or right-click to put the ghost
+// away. The clipboard itself keeps a history, so none of this consumes what you copied.
+installPasteGhost(editor);
+installClipboardShortcuts(editor);
 installDistanceTool(editor);
 
 // Tell the boot guard in index.html that the module graph resolved and the editor is

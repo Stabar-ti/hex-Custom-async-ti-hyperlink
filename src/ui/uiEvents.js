@@ -12,6 +12,8 @@ import { wormholeTypes, sectorColors } from '../constants/constants.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { handleHexClick } from '../modules/Hyperlanes/hyperlaneEditing.js';
 import { selectHex } from '../features/hexSelection.js';
+import { isGhostArmed } from '../features/pasteGhost.js';
+import { activeClip, pasteAt } from '../features/tileClipboard.js';
 
 export function registerClickHandler(editor) {
   editor._onHexClick = function (e, label) {
@@ -76,6 +78,15 @@ export function registerClickHandler(editor) {
     // paint modes ARE its keys, so a mode that is not one of them cannot be painted by
     // definition, whatever it is called.
     if (!this.mode || this.mode === 'none' || this.mode === 'select' || !(this.mode in sectorColors)) {
+      // With a ghost up, the click places it. The ghost stays armed afterwards: putting
+      // the same block down in several places is the ordinary case, not an edge one.
+      if (isGhostArmed() && activeClip()) {
+        pasteAt(this, label, {
+          confirmOverwrite: (labels) => window.confirm(
+            `${labels.length} destination tile${labels.length === 1 ? ' is' : 's are'} not empty. Overwrite?`),
+        });
+        return;
+      }
       selectHex(this, label, { additive: !!e?.shiftKey });
       return;
     }

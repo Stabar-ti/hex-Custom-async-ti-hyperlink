@@ -316,6 +316,117 @@ function makeEditor(overrides = {}) {
     check('a hex with hyperlane links is not empty', !isEmptyHex(editor.hexes['102']));
 }
 
+// ── The clipboard ────────────────────────────────────────────────────────────
+//
+// The wizard had none: copy was a mode that ended when you pasted, a second copy threw the
+// first away, and a paste consumed what you had. All three are behaviours worth pinning
+// now that they are different.
+
+const cb = await import('../src/features/tileClipboard.js');
+
+{
+    cb._resetForTests();
+    const editor = makeEditor();
+    editor.hexes['101'].realId = '19';
+    editor.hexes['102'].baseType = '2 planet';
+
+    const clip = cb.copyTiles(editor, ['101', '102']);
+    check('a copy becomes a clip', !!clip && clip.tiles.length === 2, JSON.stringify(clip?.tiles?.length));
+    check('the newest clip is the active one', cb.activeClip()?.id === clip.id);
+    check('the clip is named by what is on it, not by how many', clip.summary === '19',
+        clip.summary);
+    check('a copy leaves the map alone', editor.hexes['101'].realId === '19');
+
+    const second = cb.copyTiles(editor, ['102']);
+    check('copying again keeps the first', cb.clips().length === 2, String(cb.clips().length));
+    check('and makes the new one active', cb.activeClip()?.id === second.id);
+    check('newest first', cb.clips()[0].id === second.id);
+
+    cb.setActiveClip(clip.id);
+    check('an older clip can be made active again', cb.activeClip()?.id === clip.id);
+}
+
+{
+    // The history is bounded, or the panel listing it becomes its own scrolling problem.
+    cb._resetForTests();
+    const editor = makeEditor();
+    editor.hexes['101'].baseType = 'empty';
+    for (let i = 0; i < cb.MAX_CLIPS + 4; i++) cb.copyTiles(editor, ['101']);
+    check('the history is capped', cb.clips().length === cb.MAX_CLIPS, String(cb.clips().length));
+}
+
+{
+    // Cut clears the source there and then, the way Ctrl+X does everywhere else. Nothing
+    // is lost by it: the tiles are on the clipboard and the clear is one undo step.
+    cb._resetForTests();
+    const editor = makeEditor();
+    editor.hexes['101'].realId = '19';
+    const clip = cb.copyTiles(editor, ['101'], { cut: true });
+
+    check('a cut still captures the tile', clip?.tiles[0]?.realId === '19', String(clip?.tiles[0]?.realId));
+    check('a cut clears the source immediately',
+        editor.calls.some(c => c[0] === 'clearAll' && c[1] === '101'),
+        JSON.stringify(editor.calls.filter(c => c[0] === 'clearAll')));
+    check('and saves it for undo first',
+        editor.calls.some(c => c[0] === 'saveState' && c[1] === '101'));
+}
+
+{
+    cb._resetForTests();
+    const editor = makeEditor();
+    editor.hexes['101'].realId = '19';
+    cb.copyTiles(editor, ['101']);
+
+    // 101 is (0,-1); pasting with the origin on 000 (0,0) is an offset of (0,+1).
+    const plan = cb.pastePlan(editor, '000');
+    check('a plan names where the block would land', eq(plan.targets, ['000']),
+        JSON.stringify(plan.targets));
+    check('and reports nothing to overwrite on an empty hex', plan.overwrites.length === 0);
+
+    editor.hexes['000'].realId = '40';
+    check('but does report an occupied one',
+        eq(cb.pastePlan(editor, '000').overwrites, ['000']),
+        JSON.stringify(cb.pastePlan(editor, '000').overwrites));
+
+    let asked = null;
+    const ok = cb.pasteAt(editor, '000', { confirmOverwrite: (l) => { asked = l; return false; } });
+    check('declining the overwrite writes nothing', ok === false && editor.hexes['000'].realId === '40',
+        String(editor.hexes['000'].realId));
+    check('and the question names the hexes at risk', eq(asked, ['000']), JSON.stringify(asked));
+}
+
+{
+    cb._resetForTests();
+    const editor = makeEditor();
+    editor.hexes['101'].realId = '19';
+    cb.copyTiles(editor, ['101']);
+
+    check('a paste writes the tile', cb.pasteAt(editor, '000') && editor.hexes['000'].realId === '19',
+        String(editor.hexes['000'].realId));
+    check('a paste does not consume the clip', !!cb.activeClip());
+    check('so the same block goes down again somewhere else',
+        cb.pasteAt(editor, '103') && editor.hexes['103'].realId === '19',
+        String(editor.hexes['103'].realId));
+}
+
+{
+    cb._resetForTests();
+    const editor = makeEditor();
+    editor.hexes['101'].realId = '19';
+    editor.hexes['102'].realId = '40';
+    cb.copyTiles(editor, ['101', '102']);
+    const before = cb.activeClip().tiles.map(t => `${t.q},${t.r}`);
+
+    cb.rotateActiveClip(editor, 1);
+    check('rotating turns the clip itself, so the ghost and the paste agree',
+        !eq(cb.activeClip().tiles.map(t => `${t.q},${t.r}`), before));
+
+    for (let i = 0; i < 5; i++) cb.rotateActiveClip(editor, 1);
+    check('and six turns is where it started',
+        eq(cb.activeClip().tiles.map(t => `${t.q},${t.r}`), before),
+        JSON.stringify(cb.activeClip().tiles.map(t => `${t.q},${t.r}`)));
+}
+
 // ── report ───────────────────────────────────────────────────────────────────
 
 console.log(`\nclipboard engine: ${passed} checks passed, ${failures.length} failed`);
