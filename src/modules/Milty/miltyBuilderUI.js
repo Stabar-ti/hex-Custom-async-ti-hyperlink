@@ -27,7 +27,7 @@ let miltyMapLoaded = false;
 /** Everything in the designer that needs slices to exist before it means anything. */
 const NEEDS_MAP = [
     '#importSlicesBtn', '#outputCopyBtn', '#exportSlicesPngBtn',
-    '#generateSlicesBtn', '#calcDraftValuesBtn', '#sanityCheckBtn',
+    '#generateSlicesBtn', '#calcDraftValuesBtn', '#miltySanityCheckBtn',
     '#refreshOccupancyBtn', '#toggleSliceBordersBtn', '#toggleSliceNumbersBtn',
     '#toggleHomeInfoBtn', '#toggleSplitIdealBtn', '#liveSliceAnalysisToggle',
 ];
@@ -99,7 +99,7 @@ export function showMiltyBuilderUI(container) {
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 10px;">
                     <button id="generateSlicesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Generate Slices</button>
                     <button id="calcDraftValuesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Analyse Slices</button>
-                    <button id="sanityCheckBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Sanity Check</button>
+                    <button id="miltySanityCheckBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Sanity Check</button>
                 </div>
                 <!-- Row 3: Refresh, Slice Borders, Slice Numbers, Home Info, Live Slice Analysis -->
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
@@ -417,7 +417,7 @@ export function showMiltyBuilderUI(container) {
         }
 
         // Sanity Check button
-        const sanityCheckBtn = container.querySelector('#sanityCheckBtn');
+        const sanityCheckBtn = container.querySelector('#miltySanityCheckBtn');
         if (sanityCheckBtn) {
             sanityCheckBtn.onclick = () => {
                 showSanityCheckPopup();

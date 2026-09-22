@@ -26,7 +26,7 @@ import { drawMatrixLinks } from './hyperlanes.js';
 import { updateHexWormholes, removeWormholeOverlay } from './wormholes.js';
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import { isScriptedAnomaly, isBidirectionalAnomaly } from '../distance/index.js';
-import { buildCoordIndex, neighborHex, oppositeSide, normalizeSide } from '../utils/hexGrid.js';
+import { buildCoordIndex, coordKey, neighborHex, oppositeSide, normalizeSide } from '../utils/hexGrid.js';
 import { redrawAllRealIDOverlays } from './realIDsOverlays.js';
 import { redrawBorderAnomaliesOverlay } from './borderAnomaliesOverlay.js';
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
@@ -261,15 +261,15 @@ function rotateEdgeData(tile, dir) {
  * @param {number} dr
  */
 export function applyTiles(editor, tiles, dq, dr) {
+    // Built once rather than scanning every hex on the map for each tile in the block.
+    const at = buildCoordIndex(editor.hexes);
+
     // --- Use importFullState assignment logic for each tile ---
     for (const data of tiles) {
         if (!data) continue;
         const q = data.q + dq;
         const r = data.r + dr;
-        const id = Object.keys(editor.hexes).find(k => {
-            const h = editor.hexes[k];
-            return h.q === q && h.r === r;
-        });
+        const id = at.get(coordKey(q, r));
         if (!id) continue;
         editor.saveState(id);
         let hex = editor.hexes[id];
@@ -523,15 +523,11 @@ export function clearTiles(editor, labels) {
  * @returns {string[]}
  */
 export function pasteTargets(editor, tiles, dq, dr) {
+    const at = buildCoordIndex(editor.hexes);
     const out = [];
     for (const data of tiles) {
         if (!data) continue;
-        const q = data.q + dq;
-        const r = data.r + dr;
-        const id = Object.keys(editor.hexes).find(k => {
-            const h = editor.hexes[k];
-            return h.q === q && h.r === r;
-        });
+        const id = at.get(coordKey(data.q + dq, data.r + dr));
         if (id) out.push(id);
     }
     return out;

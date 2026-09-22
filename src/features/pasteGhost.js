@@ -18,6 +18,7 @@
 
 import { sectorColors } from '../constants/constants.js';
 import { activeClip, pastePlan } from './tileClipboard.js';
+import { buildCoordIndex, coordKey } from '../utils/hexGrid.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const LAYER_ID = 'pasteGhostLayer';
@@ -85,15 +86,13 @@ export function drawGhost(editor, destLabel) {
 
     const radius = editor.hexRadius || 40;
     const occupied = new Set(plan.overwrites);
+    // This runs on every mousemove over the map, and used to scan every hex on the board
+    // once per tile in the clip to find where each one would land.
+    const at = buildCoordIndex(editor.hexes);
 
     for (const tile of clip.tiles) {
         if (!tile) continue;
-        const q = tile.q + plan.dq;
-        const r = tile.r + plan.dr;
-        const destLbl = Object.keys(editor.hexes).find(k => {
-            const h = editor.hexes[k];
-            return h.q === q && h.r === r;
-        });
+        const destLbl = at.get(coordKey(tile.q + plan.dq, tile.r + plan.dr));
         const dest = destLbl ? editor.hexes[destLbl] : null;
         // Part of the block that would fall off the edge of the map.
         if (!destLbl || !dest?.center) continue;
