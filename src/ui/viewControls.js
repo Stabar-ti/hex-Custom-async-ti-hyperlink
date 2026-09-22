@@ -107,23 +107,16 @@ export function zoomLevel(editor) {
  * @param {any} editor
  * @param {boolean} on
  */
-export function setPanMode(editor, on) {
-    editor._panMode = !!on;
-    if (editor.svg) editor.svg.style.cursor = on ? 'grab' : '';
-    document.dispatchEvent(new CustomEvent(PAN_MODE_CHANGED, { detail: { on: !!on } }));
-}
-
-/** @param {any} editor */
-export function isPanMode(editor) {
-    return !!editor?._panMode;
-}
-
-/** @param {any} editor */
-export function togglePanMode(editor) {
-    setPanMode(editor, !isPanMode(editor));
-}
-
-/** Fired when pan mode is switched, so the button can follow it however it was changed. */
-export const PAN_MODE_CHANGED = 'ti4:pan-mode-changed';
+// setPanMode, isPanMode, togglePanMode and PAN_MODE_CHANGED lived here.
+//
+// Panning was a mode you switched on, because left-drag used to be free for a tool that
+// wanted it and none ever claimed it. A drag that moves the map and a click that reaches
+// the hex under it are not in conflict — svgBindings already suppresses the click that
+// follows a drag — so the mode was a switch between "panning works" and "panning does
+// not", which is not a choice worth offering.
+//
+// It also had a sharp edge: the hand button carried .mode-button like every other button
+// built by the kit, so disarmAll's "turn off everything that is lit" query matched it and
+// a right-click switched panning off.
 
 export { ZOOM_STEP };

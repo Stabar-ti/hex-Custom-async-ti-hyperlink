@@ -394,7 +394,15 @@ export function importFullState(editor, jsonText) {
       let hex = editor.hexes[id];
       if (!hex) return;
 
-      // Skip if really empty/no content
+      // Skip if really empty/no content.
+      //
+      // The last line is the fix for a silent data loss. This test knew about tiles,
+      // types, planets, effects, wormholes, links and adjacency, but not about the four
+      // things a hex can carry on its own: a value hint, system tokens, planet tokens and
+      // lore. exportFullState writes all four, so a hex holding only one of them was
+      // written to the file and then dropped on the way back in — Save map locally
+      // followed by Load lost every value hint painted on an unpainted hex, and every
+      // token or lore entry on one.
       const noContent =
         (!h.rid && !h.realId && !h.realID) &&
         (!h.bt && !h.baseType) &&
@@ -402,7 +410,8 @@ export function importFullState(editor, jsonText) {
         (!h.fx && !h.effects) &&
         (!h.wh && !h.wormholes) &&
         (!h.ln && !h.links) &&
-        !h.ca && !h.customAdjacents && !h.ao && !h.adjacencyOverrides && !h.ba && !h.borderAnomalies;
+        !h.ca && !h.customAdjacents && !h.ao && !h.adjacencyOverrides && !h.ba && !h.borderAnomalies &&
+        !h.vt && !h.st && !h.pt && !h.sl && !h.prl;
       if (noContent) return;
 
       // Clean overlays/effects/wormholes

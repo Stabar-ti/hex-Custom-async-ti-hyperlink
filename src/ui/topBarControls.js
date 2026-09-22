@@ -14,8 +14,7 @@
 
 import { button, el } from './kit/index.js';
 import {
-    zoomBy, resetView, zoomLevel, togglePanMode, isPanMode,
-    PAN_MODE_CHANGED, ZOOM_STEP,
+    zoomBy, resetView, zoomLevel, ZOOM_STEP,
 } from './viewControls.js';
 import { HISTORY_CHANGED } from '../features/history.js';
 
@@ -61,10 +60,8 @@ export function installTopBarControls(editor) {
     document.addEventListener(HISTORY_CHANGED, syncHistory);
 
     // ── View ──────────────────────────────────────────────────────────────────
-    const panBtn = iconButton({
-        id: 'tbPanMode', icon: '✋', title: 'Pan mode — drag with the left mouse button (middle-drag always pans)',
-        onClick: () => togglePanMode(editor),
-    });
+    // A hand button lived here. Dragging the map always pans now, so there is nothing to
+    // switch.
 
     const zoomOutBtn = iconButton({
         id: 'tbZoomOut', icon: '−', title: 'Zoom out',
@@ -91,14 +88,6 @@ export function installTopBarControls(editor) {
 
     const syncZoom = () => { zoomLabel.textContent = zoomLevel(editor) + '%'; };
 
-    const syncPanMode = () => {
-        const on = isPanMode(editor);
-        panBtn.classList.toggle('active', on);
-        panBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    };
-    syncPanMode();
-    document.addEventListener(PAN_MODE_CHANGED, syncPanMode);
-
     // The wheel and middle-drag change the view without going through these buttons, so
     // follow the viewBox itself rather than only updating on click.
     if (editor.svg) {
@@ -113,7 +102,7 @@ export function installTopBarControls(editor) {
         children: [
             undoBtn, redoBtn,
             el('span', { className: 'tb-sep' }),
-            panBtn, zoomOutBtn, zoomLabel, zoomInBtn, resetBtn,
+            zoomOutBtn, zoomLabel, zoomInBtn, resetBtn,
             el('span', { className: 'tb-sep' }),
         ],
     });

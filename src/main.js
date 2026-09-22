@@ -31,9 +31,9 @@ import { installTopBarMenus } from './ui/topBarMenus.js';
 import { installInspector } from './ui/inspector.js';
 import { installClipboardPanel } from './ui/clipboardPanel.js';
 import { installPanelResizers } from './ui/panelResize.js';
+import { restoreSession, installSessionAutosave } from './features/session.js';
 import { installStatusBar } from './ui/statusBar.js';
 import { installTopBarControls } from './ui/topBarControls.js';
-import { setPanMode } from './ui/viewControls.js';
 import { installSwapButton } from './features/hexSwapButton.js';
 import { installPasteGhost } from './features/pasteGhost.js';
 import { installClipboardShortcuts } from './features/clipboardShortcuts.js';
@@ -91,10 +91,6 @@ installPanelResizers();
 
 // Undo/redo, zoom, pan mode and reset view — the verbs that had no buttons.
 installTopBarControls(editor);
-
-// Panning is what the map does when no tool is armed, so it is on from the start rather
-// than something you have to find and switch on.
-setPanMode(editor, true);
 
 // Offers a swap between exactly two selected hexes, where the swap would happen.
 installSwapButton(editor);
@@ -331,6 +327,13 @@ _onDOMReady(() => {
   // Import, export and map generation now live behind the File button rather than in a
   // panel permanently covering the map.
   installFileMenu(editor);
+
+  // Put back the map you were working on. The constructor has already drawn the default
+  // grid by this point, which is the right thing to see when there is nothing stored and
+  // is simply replaced when there is — restoring before the rest of the UI exists would
+  // mean the overlays and the picker filters had nothing to attach to.
+  restoreSession(editor);
+  installSessionAutosave(editor);
 
   // Group the rest of the bar by purpose. After installFileMenu and installTopBarControls,
   // since it moves buttons those two have already placed.

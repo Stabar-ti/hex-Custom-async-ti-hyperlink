@@ -42,7 +42,6 @@ import { applySavedTheme } from '../ui/uiTheme.js';
 import { calculateDistancesFrom, isScriptedAnomaly } from '../distance/index.js';
 import { clearHexSelection, refreshHexSelection } from '../features/hexSelection.js';
 import { disarmAll } from '../features/disarm.js';
-import { setPanMode } from '../ui/viewControls.js';
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import {
   buildCoordIndex, neighborHex, oppositeSide, normalizeSide, areAxialNeighbors,
@@ -557,12 +556,6 @@ export default class HexEditor {
     // A tool taking the map ends the read: the ring would otherwise sit there while the
     // next click paints, saying something is selected when nothing is being read.
     if (!idle) clearHexSelection(this);
-
-    // Going idle hands the map back to panning. Arming a tool deliberately does NOT turn
-    // panning off: a left-drag pans and a click still reaches the hex, so the two coexist,
-    // and a trackpad has no middle button — taking pan away mid-paint would leave some
-    // people unable to move the map at all without disarming first.
-    else if (idle) setPanMode(this, true);
 
     this.mode = mode;
     this.selectedPath = [];
