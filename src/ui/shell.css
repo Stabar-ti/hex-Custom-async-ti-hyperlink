@@ -436,7 +436,7 @@ body {
   margin: 1px 2px 4px;
   font-size: 9.5px;
   line-height: 1.35;
-  color: var(--surface-5);
+  color: var(--label-on-surface);
 }
 
 /* An action whose precondition is not met. Dimmed rather than hidden: the list is a
@@ -787,7 +787,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--surface-5);
+  color: var(--label-on-surface);
 }
 
 .clip-panel__count {
@@ -946,6 +946,9 @@ body {
 .tb-menu {
   display: none;
   position: fixed;
+  /* Not --text-color: this panel is dark in both themes, and that token is black in the
+     light one, so the whole menu rendered black on #1e1e1e. */
+  color: var(--text-on-surface);
   z-index: var(--layer-floating);
   min-width: 190px;
   max-height: calc(100vh - var(--shell-topbar-h) - 24px);
@@ -969,6 +972,48 @@ body {
   min-width: 260px;
   max-width: 420px;
   padding: 10px 12px;
+}
+
+/* A line of prose at the top of a menu, where one sentence saves a tooltip. */
+.tb-menu__note {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--label-on-surface);
+}
+
+.tb-menu__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* A command in a menu: a row you click, not a button competing for attention. The four
+   in Map setup were 16px buttons with their own padding and, in one case, a coloured
+   border — which made a menu of four items look like a dialog. */
+.tb-menu__item {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  color: var(--text-on-surface);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tb-menu__item:hover {
+  background: var(--surface-3);
+}
+
+.tb-menu__item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
 }
 
 .tb-menu__title {

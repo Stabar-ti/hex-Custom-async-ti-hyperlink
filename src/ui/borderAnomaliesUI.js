@@ -264,9 +264,10 @@ export function installBorderAnomaliesUI(editor) {
         content.appendChild(scriptedLabel);
 
         const scriptedRow = document.createElement('div');
-        // Use a two-part flex row: left = scripted buttons (wrap), right = remove button
+        // Wraps: the panel is a column now, not a window, and Remove All drops onto its own
+        // line rather than off the right-hand edge.
         scriptedRow.style.display = 'flex';
-        scriptedRow.style.flexWrap = 'nowrap';
+        scriptedRow.style.flexWrap = 'wrap';
         scriptedRow.style.gap = '8px';
         scriptedRow.style.marginBottom = '12px';
         scriptedRow.style.alignItems = 'center';
@@ -294,10 +295,9 @@ export function installBorderAnomaliesUI(editor) {
             }
         });
 
-        // Ensure remove button sits on the right side of the scripted row
-        removeBtn.style.marginLeft = '12px';
-        removeBtn.style.marginRight = '0';
-        removeBtn.style.flex = '0 0 auto';
+        // Beside the scripted buttons when there is room, under them when there is not.
+        removeBtn.style.margin = '0';
+        removeBtn.style.flex = '1 1 110px';
 
         scriptedRow.appendChild(scriptedBtnContainer);
         scriptedRow.appendChild(removeBtn);
@@ -383,7 +383,7 @@ export function installBorderAnomaliesUI(editor) {
                     "1. Click a primary hex, then click a neighboring hex to select the edge.<br>" +
                     "2. Choose a type from the lists below. Icons indicate direction: ↔ Bidirectional (both sides), → Unidirectional (one side).<br>" +
                     "3. <b>Scripted</b> types (Gravity Wave, Spatial Tear) apply game mechanics; <b>Not Scripted</b> types are visual only.<br>" +
-                    "4. To remove anomalies: click the <b>🗑️ Remove All</b> button (to the right of Scripted) then click the hex to clear anomalies.<br>" +
+                    "4. To remove anomalies: click the <b>🗑️ Remove All</b> button (beside the Scripted types) then click the hex to clear anomalies.<br>" +
                     "5. Use <b>⚙️ Border Settings</b> (at bottom) to enable/disable anomaly types and customize their appearance.<br>" +
                     "<i>Tip:</i> The active type is highlighted. Switch modes using the buttons; cancel selection by choosing Remove All or another tool.",
                 draggable: true,

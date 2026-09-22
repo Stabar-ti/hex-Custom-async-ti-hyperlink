@@ -862,36 +862,9 @@ function finishSectorControlsContent(editor, container) {
   });
   container.appendChild(balanceBtn);
 
-  // The same overlay also has a switch in Toggle Overlays. Neither holds the state —
-  // the drawn layer does — and both follow ti4:value-overlay-changed, so they cannot
-  // disagree the way they used to.
-  const valueTiersBtn = railButton({
-    id: 'toolValueTiers',
-    icon: '▩',
-    text: 'Value tiers',
-    title: 'Show or hide the T1–T5 value overlay',
-  });
-  valueTiersBtn.onclick = () => {
-    import('../features/valueOverlay.js')
-      .then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
-        if (isValueOverlayActive(editor)) clearValueOverlay(editor);
-        else drawValueOverlay(editor, false, false, false);
-      })
-      .catch(err => console.error('Failed to load the value overlay:', err));
-  };
-  container.appendChild(valueTiersBtn);
-
-  import('../features/valueOverlay.js').then(({ VALUE_OVERLAY_CHANGED, isValueOverlayActive }) => {
-    const sync = () => {
-      if (!valueTiersBtn.isConnected) {
-        document.removeEventListener(VALUE_OVERLAY_CHANGED, sync);
-        return;
-      }
-      valueTiersBtn.classList.toggle('active', isValueOverlayActive(editor));
-    };
-    document.addEventListener(VALUE_OVERLAY_CHANGED, sync);
-    valueTiersBtn.classList.toggle('active', isValueOverlayActive(editor));
-  }).catch(console.error);
+  // A "Value tiers" button lived here: a third switch for the one value overlay, beside
+  // the one in Toggle Overlays and the one inside the Balance panel. Three controls for
+  // one piece of state is two too many, and the overlay belongs with the other overlays.
 
   const autoMapperBtn = railButton({
     id: 'toolAutoMapper',

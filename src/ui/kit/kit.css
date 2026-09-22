@@ -128,7 +128,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--surface-5);
+  color: var(--label-on-surface);
   margin: 10px 0 3px 9px;
 }
 

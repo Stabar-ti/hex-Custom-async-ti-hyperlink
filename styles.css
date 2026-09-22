@@ -36,6 +36,18 @@
   --surface-3: #2a2a2a;
   --surface-4: #444444;
   --surface-5: #666666;
+
+  /* Text on one of the dark surfaces above.
+     The panels and the rail are dark in both themes — the --surface-* scale sits in
+     :root, not under body.dark — while --text-color follows the theme and is #000 in
+     light mode. Anything drawn on a surface has to take its foreground from here instead,
+     or the whole top-bar menu renders black on #1e1e1e.
+
+     --label-on-surface replaces --surface-5 for section headings: #666 on #1e1e1e is
+     2.9:1, which is below AA for text, and those headings are what tell you which group
+     of switches you are looking at. #9a9a9a is 5.3:1. */
+  --text-on-surface: #eeeeee;
+  --label-on-surface: #9a9a9a;
   --surface-header: rgba(48, 48, 48, 0.85);
 
   /* Semantic colours */
@@ -1071,7 +1083,7 @@ body.dark .mode-button.btn-special {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--surface-5);
+  color: var(--label-on-surface);
   margin: 12px 0 4px 2px;
 }
 

@@ -12,6 +12,8 @@
  * recreating it would mean rewiring, and quietly dropping whatever was missed.
  */
 
+import { hidePopup, onPopupClose } from './popupUI.js';
+
 /**
  * Show content as a dropdown anchored under a top-bar button.
  *
@@ -41,6 +43,10 @@ export function showAnchoredPanel({ id, anchorId, content, className = '', title
     panel.id = id;
     panel.className = ('tb-menu tb-menu--panel ' + className).trim();
     panel.setAttribute('role', 'menu');
+    // Positioned before it is ever painted. Measuring it takes a layout pass, and the
+    // first one happens before the panel's own content has settled — so positioning once
+    // on append put it in the right place for a frame and then moved it.
+    panel.style.visibility = 'hidden';
 
     if (title) {
         const heading = document.createElement('div');
@@ -56,8 +62,17 @@ export function showAnchoredPanel({ id, anchorId, content, className = '', title
     anchor.classList.add('active');
     anchor.setAttribute('aria-expanded', 'true');
 
+    // Second pass once the content has laid out, then show it. requestAnimationFrame does
+    // not run in a hidden document, so a timer backs it up — otherwise a panel opened in a
+    // background tab would stay invisible.
+    const reveal = () => { positionUnder(panel, anchor); panel.style.visibility = ''; };
+    requestAnimationFrame(reveal);
+    setTimeout(reveal, 50);
+
     const close = () => {
-        panel.remove();
+        // Through hidePopup, so the teardown registered below runs exactly once however the
+        // panel is dismissed.
+        hidePopup(panel);
         anchor.classList.remove('active');
         anchor.setAttribute('aria-expanded', 'false');
         document.removeEventListener('click', onDocClick);
@@ -73,6 +88,17 @@ export function showAnchoredPanel({ id, anchorId, content, className = '', title
     };
     const onKey = (ev) => { if (ev.key === 'Escape') { close(); anchor.focus(); } };
     const onResize = () => positionUnder(panel, anchor);
+
+    // The panel can also be taken down by togglePopup — the top bar's second-press-closes
+    // behaviour — which removes it through hidePopup and never reaches close(). Without
+    // this the panel went and the button stayed lit.
+    onPopupClose(panel, () => {
+        anchor.classList.remove('active');
+        anchor.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('click', onDocClick);
+        document.removeEventListener('keydown', onKey);
+        window.removeEventListener('resize', onResize);
+    });
 
     // Deferred, so the click that opened the panel does not immediately close it.
     setTimeout(() => document.addEventListener('click', onDocClick), 0);

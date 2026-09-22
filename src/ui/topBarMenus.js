@@ -41,12 +41,13 @@ export function installTopBarMenus() {
         host: left,
     });
 
-    // ── Generate ─────────────────────────────────────────────────────────────
-    // Special Modes is the Milty designer and friends. Renamed for what it does, and no
-    // longer a peer of the tools used every few seconds.
+    // ── Setup ────────────────────────────────────────────────────────────────
+    // Special Modes is the Milty designer and friends: bulk tools for building a map
+    // before the game starts. It was briefly called Generate, which described one of the
+    // four items — the designer designs, the AutoMapper fills and Spin-To-Win rearranges.
     const special = document.getElementById('specialModesBtn');
     if (special) {
-        special.textContent = 'Generate ▾';
+        special.textContent = 'Setup ▾';
         special.title = 'Milty slice designer, draft generator, AutoMapper and Spin-To-Win';
     }
 

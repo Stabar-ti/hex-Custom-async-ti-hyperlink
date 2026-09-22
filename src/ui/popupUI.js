@@ -400,6 +400,21 @@ export function showPopup({
 }
 
 /**
+ * Run `fn` when this element is taken down through hidePopup.
+ *
+ * showAnchoredPanel builds its element directly rather than through showPopup, so it had
+ * no way into the teardown that hidePopup fires — and togglePopup, which closes a menu on
+ * a second press, goes through hidePopup. The result was a menu that closed while its
+ * button stayed lit.
+ *
+ * @param {HTMLElement} el
+ * @param {() => void} fn
+ */
+export function onPopupClose(el, fn) {
+    if (el && typeof fn === 'function') closeHandlers.set(el, fn);
+}
+
+/**
  * Is a popup with this id on screen?
  *
  * @param {string} id

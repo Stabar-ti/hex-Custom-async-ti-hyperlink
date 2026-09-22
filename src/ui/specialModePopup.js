@@ -15,23 +15,23 @@ export function showSpecialModePopup() {
     content.style.boxSizing = 'border-box';
 
     // Special setup: Milty Slice Designer button
+    // No heading of its own: showAnchoredPanel puts the menu's name at the top, and this
+    // block used to add a second one under it. The stray full stop the panel showed was
+    // the <hr> between that and a closing sentence that said nothing the buttons did not.
     content.innerHTML = `
-        <h2>Special Setup Modes</h2>
-        <p>Configure advanced or experimental features for map setup.</p>
-        <div style="margin: 18px 0; display: grid; gap: 12px;">
-            <button id="miltySliceDesignerBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">🎲 Milty Slice Designer</button>
-            <button id="miltyRandomGeneratorBtn" class="mode-button" style="font-size:16px;padding:10px 28px;display:none;">🎯 Milty Random Generator</button>
-            <button id="autoMapBuilderBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">🤖 AutoMapper - Fill Remaining Tiles</button>
-            <button id="spinToWinBtn" class="mode-button" style="font-size:16px;padding:10px 28px;border:2px solid var(--popup-border-spin);color:var(--popup-border-spin);">⚙️ Spin-To-Win</button>
+        <p class="tb-menu__note">Bulk tools for building a map before the game starts.</p>
+        <div class="tb-menu__stack">
+            <button id="miltySliceDesignerBtn" class="tb-menu__item">🎲 Milty Slice Designer</button>
+            <button id="miltyRandomGeneratorBtn" class="tb-menu__item" style="display:none;">🎯 Milty Random Generator</button>
+            <button id="autoMapBuilderBtn" class="tb-menu__item">🤖 AutoMapper — fill remaining tiles</button>
+            <button id="spinToWinBtn" class="tb-menu__item">⚙️ Spin-To-Win</button>
         </div>
-        <hr>
-        <p style="font-size: 14px; color: #888; margin-top: 16px;">Advanced tools for competitive and casual play setup.</p>
     `;
 
     showAnchoredPanel({
         id: 'special-mode-popup',
         anchorId: 'specialModesBtn',
-        title: 'Generate',
+        title: 'Map setup',
         content,
     });
 
