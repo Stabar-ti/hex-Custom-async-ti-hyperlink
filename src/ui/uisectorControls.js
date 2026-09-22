@@ -9,7 +9,9 @@ import { showPopup, togglePopup } from './popupUI.js';
 import { railButton, railGroupLabel, setRailLabel } from './kit/index.js';
 import { setInspectorTool, clearInspectorTool, isInspectorToolShowing } from './inspector.js';
 import { HEX_SELECTED, selectedHexes } from '../features/hexSelection.js';
-import { CLIPBOARD_CHANGED, activeClip } from '../features/tileClipboard.js';
+import {
+  CLIPBOARD_CHANGED, COPY_OPTIONS_CHANGED, activeClip, copyOptions, setCopyOption,
+} from '../features/tileClipboard.js';
 import { copySelectionToClipboard, beginPaste } from '../features/clipboardShortcuts.js';
 import { swapHexes } from '../features/tileSwap.js';
 import {
@@ -148,6 +150,8 @@ function writePaintGroup(key, open) {
  * @param {HTMLElement} container
  * @param {any} editor
  * @param {{key: string, icon: string, label: string, title: string, headerClass?: string,
+ *          options?: {label: string, watch?: string[], items: Array<{
+ *            label: string, title?: string, get: () => boolean, set: (on: boolean) => void}>},
  *          items: Array<{mode: string, label: string, cls: string, icon: string}>}} group
  */
 function addPaintGroup(container, editor, { key, icon, label, title, headerClass = '', items }) {
@@ -228,7 +232,7 @@ function addPaintGroup(container, editor, { key, icon, label, title, headerClass
  *          watch?: string[]}} group
  * @returns {() => void} a sync function, in case the caller wants to refresh it too
  */
-function addActionGroup(container, { key, icon, label, title, help, note, items, watch = [] }) {
+function addActionGroup(container, { key, icon, label, title, help, note, items, options, watch = [] }) {
   const header = railButton({ icon, text: label, title, className: 'ui-rail-btn--group' });
 
   // The help sits in the header rather than as an item, so the list below is only things
@@ -294,6 +298,47 @@ function addActionGroup(container, { key, icon, label, title, help, note, items,
     });
     sub.appendChild(btn);
     built.push({ btn, spec: item });
+  }
+
+  // Switches that belong to the group rather than to any one item. They sit under the
+  // actions because they change what those actions do, and reading them first would be
+  // reading the footnote before the sentence.
+  if (options?.items?.length) {
+    const optWrap = document.createElement('div');
+    optWrap.className = 'ui-rail-opts';
+
+    const optLabel = document.createElement('div');
+    optLabel.className = 'ui-rail-note ui-rail-note--opts';
+    optLabel.textContent = options.label;
+    optWrap.appendChild(optLabel);
+
+    for (const opt of options.items) {
+      const row = document.createElement('label');
+      row.className = 'ui-rail-opt';
+      row.title = opt.title || opt.label;
+
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'ui-rail-opt__box';
+      box.checked = !!opt.get();
+      box.addEventListener('change', () => opt.set(box.checked));
+      // The row is inside a fold whose header toggles on click; a click on the checkbox
+      // must not also close the thing it lives in.
+      row.addEventListener('click', (e) => e.stopPropagation());
+
+      const text = document.createElement('span');
+      text.textContent = opt.label;
+
+      row.append(box, text);
+      optWrap.appendChild(row);
+
+      if (options.watch) {
+        for (const ev of options.watch) {
+          document.addEventListener(ev, () => { box.checked = !!opt.get(); });
+        }
+      }
+    }
+    sub.appendChild(optWrap);
   }
 
   const sync = () => {
@@ -899,6 +944,40 @@ function finishSectorControlsContent(editor, container) {
       '  between them on the map. The two tiles trade places.',
     ].join('\n'),
     watch: [HEX_SELECTED, CLIPBOARD_CHANGED],
+    // What a copy carries. These were four checkboxes in the wizard's popup and went with
+    // it; they are a preference about how you work rather than about one copy, so they
+    // persist. The tile itself and its planets are never optional — these are the things
+    // that sit on top of it.
+    options: {
+      label: 'Copies include:',
+      watch: [COPY_OPTIONS_CHANGED],
+      items: [
+        {
+          label: 'Wormholes',
+          title: 'Carry wormholes placed on the tile. Wormholes the system has by nature always come with it.',
+          get: () => copyOptions().wormholes,
+          set: (on) => setCopyOption('wormholes', on),
+        },
+        {
+          label: 'Custom links',
+          title: 'Carry custom adjacency links drawn from these hexes',
+          get: () => copyOptions().customAdjacents,
+          set: (on) => setCopyOption('customAdjacents', on),
+        },
+        {
+          label: 'Border anomalies',
+          title: 'Carry border anomalies drawn on these hexes, and their mirrored halves',
+          get: () => copyOptions().borderAnomalies,
+          set: (on) => setCopyOption('borderAnomalies', on),
+        },
+        {
+          label: 'Tokens',
+          title: 'Carry tokens placed on the system and on its planets',
+          get: () => copyOptions().tokens,
+          set: (on) => setCopyOption('tokens', on),
+        },
+      ],
+    },
     items: [
       {
         id: 'clipCopyBtn',

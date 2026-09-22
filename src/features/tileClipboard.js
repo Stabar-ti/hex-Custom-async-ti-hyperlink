@@ -46,6 +46,47 @@ export const MAX_CLIPS = 12;
  * }} Clip
  */
 
+// ── What a copy takes with it ────────────────────────────────────────────────
+//
+// The wizard had these as four checkboxes in a popup, hung off window.tileCopyOptions.
+// They went when the popup did, and everything was included by default — which is what
+// the defaults already were, but it did remove a choice. They live here now, where the
+// copy that reads them is, and they persist: it is a preference about how you work, not
+// about one copy.
+
+const COPY_OPTIONS_KEY = 'ti4-copy-options';
+
+/** Fired when a copy option is switched, so the rail can follow it. */
+export const COPY_OPTIONS_CHANGED = 'ti4:copy-options-changed';
+
+/** The four things a copy may leave behind, in the order the rail lists them. */
+export const COPY_OPTION_KEYS = Object.freeze(['wormholes', 'customAdjacents', 'borderAnomalies', 'tokens']);
+
+/** @type {Record<string, boolean>} */
+let copyOpts = { ...DEFAULT_COPY_OPTIONS };
+
+try {
+    const saved = JSON.parse(localStorage.getItem(COPY_OPTIONS_KEY) || 'null');
+    if (saved && typeof saved === 'object') {
+        for (const k of COPY_OPTION_KEYS) if (k in saved) copyOpts[k] = !!saved[k];
+    }
+} catch { /* private mode, or a value from an older shape — the defaults stand */ }
+
+/** @returns {Record<string, boolean>} */
+export function copyOptions() {
+    return { ...copyOpts };
+}
+
+/** @param {string} key @param {boolean} on */
+export function setCopyOption(key, on) {
+    if (!COPY_OPTION_KEYS.includes(key)) return;
+    copyOpts[key] = !!on;
+    try {
+        localStorage.setItem(COPY_OPTIONS_KEY, JSON.stringify(copyOpts));
+    } catch { /* the choice just does not survive the session */ }
+    document.dispatchEvent(new CustomEvent(COPY_OPTIONS_CHANGED, { detail: copyOptions() }));
+}
+
 /** @type {Clip[]} newest first */
 let history = [];
 /** @type {string|null} */
@@ -137,11 +178,12 @@ function describe(tiles) {
  * @param {{cut?: boolean, options?: object}} [opts]
  * @returns {Clip|null}
  */
-export function copyTiles(editor, labels, { cut = false, options = DEFAULT_COPY_OPTIONS } = {}) {
+export function copyTiles(editor, labels, { cut = false, options = null } = {}) {
+    const opts = options || copyOptions();
     const present = labels.filter(l => editor?.hexes?.[l]);
     if (!present.length) return null;
 
-    const tiles = captureTiles(editor, present, options).filter(Boolean);
+    const tiles = captureTiles(editor, present, opts).filter(Boolean);
     if (!tiles.length) return null;
 
     const first = editor.hexes[present[0]];
@@ -228,9 +270,10 @@ export function pasteAt(editor, destLabel, { confirmOverwrite } = {}) {
     return true;
 }
 
-/** Test seam: forget everything, including the id counter. */
+/** Test seam: forget everything, including the id counter and the copy options. */
 export function _resetForTests() {
     history = [];
     activeId = null;
     nextId = 1;
+    copyOpts = { ...DEFAULT_COPY_OPTIONS };
 }
