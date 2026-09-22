@@ -32,6 +32,7 @@ import { installTopBarMenus } from './ui/topBarMenus.js';
 import { installInspector } from './ui/inspector.js';
 import { installStatusBar } from './ui/statusBar.js';
 import { installTopBarControls } from './ui/topBarControls.js';
+import { setPanMode } from './ui/viewControls.js';
 import { installDistanceTool } from './features/distanceTool.js';
 import { checkRealIdUniqueness } from './features/sanityCheck.js';
 import './ui/specialModePopup.js';
@@ -81,6 +82,10 @@ installInspector(editor);
 
 // Undo/redo, zoom, pan mode and reset view — the verbs that had no buttons.
 installTopBarControls(editor);
+
+// Panning is what the map does when no tool is armed, so it is on from the start rather
+// than something you have to find and switch on.
+setPanMode(editor, true);
 installDistanceTool(editor);
 
 // Tell the boot guard in index.html that the module graph resolved and the editor is
