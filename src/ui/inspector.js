@@ -24,7 +24,7 @@
 import { el } from './kit/index.js';
 import { isMatrixEmpty } from '../utils/matrix.js';
 import { buildValueTiers, getFactors, getTypeGroup } from '../features/valueOverlay.js';
-import { HEX_SELECTED, selectedHex, clearHexSelection } from '../features/hexSelection.js';
+import { HEX_SELECTED, selectedHex, selectedHexes, clearHexSelection } from '../features/hexSelection.js';
 
 /**
  * One label/value line.
@@ -357,9 +357,13 @@ export function installInspector(editor) {
     };
 
     const syncPinned = () => {
-        const label = selectedHex(editor);
-        pinned.hidden = !label;
-        pinnedText.textContent = label ? `Pinned: ${label}` : '';
+        const labels = selectedHexes(editor);
+        pinned.hidden = !labels.length;
+        // With several selected the body can only show one of them, so say which, and how
+        // many are along with it.
+        pinnedText.textContent = labels.length > 1
+            ? `${labels.length} selected · showing ${selectedHex(editor)}`
+            : labels.length ? `Pinned: ${labels[0]}` : '';
     };
 
     svg.addEventListener('mousemove', (ev) => {

@@ -33,6 +33,7 @@ import { installInspector } from './ui/inspector.js';
 import { installStatusBar } from './ui/statusBar.js';
 import { installTopBarControls } from './ui/topBarControls.js';
 import { setPanMode } from './ui/viewControls.js';
+import { installSwapButton } from './features/hexSwapButton.js';
 import { installDistanceTool } from './features/distanceTool.js';
 import { checkRealIdUniqueness } from './features/sanityCheck.js';
 import './ui/specialModePopup.js';
@@ -86,6 +87,9 @@ installTopBarControls(editor);
 // Panning is what the map does when no tool is armed, so it is on from the start rather
 // than something you have to find and switch on.
 setPanMode(editor, true);
+
+// Offers a swap between exactly two selected hexes, where the swap would happen.
+installSwapButton(editor);
 installDistanceTool(editor);
 
 // Tell the boot guard in index.html that the module graph resolved and the editor is

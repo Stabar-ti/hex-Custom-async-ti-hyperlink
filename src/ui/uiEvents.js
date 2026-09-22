@@ -76,7 +76,7 @@ export function registerClickHandler(editor) {
     // paint modes ARE its keys, so a mode that is not one of them cannot be painted by
     // definition, whatever it is called.
     if (!this.mode || this.mode === 'none' || this.mode === 'select' || !(this.mode in sectorColors)) {
-      selectHex(this, label);
+      selectHex(this, label, { additive: !!e?.shiftKey });
       return;
     }
 

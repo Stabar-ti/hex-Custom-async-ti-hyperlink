@@ -54,7 +54,7 @@ for (const mode of ['1 planet', '2 planet', '3 planet', 'empty', 'special', 'neb
 // Enough DOM for hexSelection's ring and its CustomEvent, and no more.
 const noop = () => {};
 const fakeNode = () => ({
-    id: '', style: {}, setAttribute: noop, appendChild: noop, remove: noop,
+    id: '', style: {}, setAttribute: noop, appendChild: noop, append: noop, remove: noop,
     querySelector: () => null,
 });
 globalThis.document = {
@@ -71,7 +71,11 @@ function makeEditor(mode) {
     const calls = [];
     const editor = {
         mode,
-        hexes: { '101': { label: '101', baseType: '2 planet', realId: '19', center: { x: 0, y: 0 } } },
+        hexes: {
+            '101': { label: '101', baseType: '2 planet', realId: '19', q: 0, r: 0, center: { x: 0, y: 0 } },
+            '102': { label: '102', baseType: 'empty', q: 1, r: 0, center: { x: 70, y: 0 } },
+            '103': { label: '103', baseType: 'empty', q: 2, r: 0, center: { x: 140, y: 0 } },
+        },
         svg: { querySelector: () => null, appendChild: noop },
         hexRadius: 40,
         saveState: (label) => calls.push(['saveState', label]),
@@ -132,6 +136,44 @@ for (const idle of ['select', 'none', '', undefined]) {
     editor._onHexClick({}, '101');
     check('clicking the selected hex again deselects it', editor.selectedHexLabel === null,
         String(editor.selectedHexLabel));
+}
+
+// ── Multi-select ──────────────────────────────────────────────────────────────
+//
+// Copy, cut and swap all read the selection, so what a shift-click does to it is load
+// bearing rather than a convenience.
+
+{
+    const editor = makeEditor('select');
+    editor._onHexClick({}, '101');
+    editor._onHexClick({ shiftKey: true }, '102');
+    editor._onHexClick({ shiftKey: true }, '103');
+    check('shift-click adds to the selection',
+        JSON.stringify(editor.selectedHexLabels) === '["101","102","103"]',
+        JSON.stringify(editor.selectedHexLabels));
+
+    editor._onHexClick({ shiftKey: true }, '102');
+    check('shift-clicking a selected hex removes it',
+        JSON.stringify(editor.selectedHexLabels) === '["101","103"]',
+        JSON.stringify(editor.selectedHexLabels));
+
+    check('the inspector reads the most recent one', editor.selectedHexLabel === '103',
+        String(editor.selectedHexLabel));
+
+    editor._onHexClick({}, '102');
+    check('a plain click replaces the whole selection',
+        JSON.stringify(editor.selectedHexLabels) === '["102"]',
+        JSON.stringify(editor.selectedHexLabels));
+}
+
+// Selected hexes need not touch. The wizard required every tile to be connected to the
+// last, which the offset maths never needed and which swap cannot satisfy at all.
+{
+    const editor = makeEditor('select');
+    editor._onHexClick({}, '101');
+    editor._onHexClick({ shiftKey: true }, '103');
+    check('two hexes that do not touch can both be selected',
+        editor.selectedHexLabels.length === 2, JSON.stringify(editor.selectedHexLabels));
 }
 
 // ── report ────────────────────────────────────────────────────────────────────
