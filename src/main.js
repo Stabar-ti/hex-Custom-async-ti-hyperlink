@@ -351,5 +351,3 @@ bindMenuToggle('helpToggle', 'help-popup', showHelpPopup);
 bindMenuToggle('infoToggle', 'info-popup', showInfoPopup);
 bindMenuToggle('featuresToggle', 'features-popup', showFeaturesPopup);
 
-window.editor = editor;
-
