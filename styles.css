@@ -1,8 +1,37 @@
 /* Prevent popup grid/button growth */
+/* ── Popup frame ──────────────────────────────────────────────────────────────
+   One rule for every floating window, instead of each call site writing its own.
+
+   They used to set "2px solid var(--popup-border-lore)" and a 16px radius inline, so the
+   app was a set of thick coloured rings — mostly blue — sitting next to a tool rail of
+   1px edges and 4px corners. The colour carried something real: which tool a window
+   belongs to. So it is kept, as a 2px top edge rather than a ring round everything, and
+   the frame itself matches the rail.
+
+   --popup-accent is set by showPopup from whatever border colour the caller asked for.
+   Windows that never asked for one fall back to the same grey as their edge, which reads
+   as "no particular owner" rather than as a missing style. */
 .popup-ui {
   box-sizing: border-box;
   overflow: auto;
+  background: var(--surface-2);
+  color: var(--text-on-surface);
+  border: 1px solid var(--surface-4);
+  border-top: 2px solid var(--popup-accent, var(--surface-4));
+  border-radius: 5px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
 }
+
+/* The titlebar carries the accent too, so the window says what it is even when its top
+   edge is off-screen or behind another one. */
+.popup-ui-titlebar {
+  border-bottom: 1px solid var(--surface-4);
+}
+
+.popup-ui-title {
+  color: var(--popup-accent, var(--color-accent));
+}
+
 
 /* The collapsed Sector Controls bar. border/radius/shadow are written inline by
    showPopup, so those are overridden in addMinimizeButton rather than here. */
@@ -962,9 +991,8 @@ body.dark .mode-button.btn-special {
 ──────────────────────────────────────────────────────────────────────────────*/
 .border-anomalies-popup {
   position: absolute;
-  background: rgba(32, 32, 32, 0.89);
-  border: 2px solid var(--popup-border-danger);
-  border-radius: 10px;
+  background: var(--surface-2);
+  --popup-accent: var(--popup-border-danger);
   padding: 12px 14px 12px 10px;
   z-index: 1000;
   min-width: 180px;
@@ -1019,9 +1047,8 @@ body.dark .mode-button.btn-special {
 
 .layout-options-popup {
   position: absolute;
-  background: var(--modal-bg);
-  border: 2px solid #0097d6;
-  border-radius: 10px;
+  background: var(--surface-2);
+  --popup-accent: #0097d6;
   padding: 12px 14px 12px 10px;
   z-index: 1000;
   min-width: 220px;
@@ -1271,10 +1298,9 @@ body.dark .mode-button.btn-special {
   top: 90px;
   left: 50%;
   transform: translateX(-50%);
-  background: #232323;
-  color: #fff;
-  border: 2px solid #ffb800;
-  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text-on-surface);
+  --popup-accent: #ffb800;
   z-index: 10010;
   min-width: 320px;
   box-shadow: 0 4px 24px #000a;
@@ -1378,15 +1404,17 @@ body.dark .mode-button.btn-special {
   background: #fffbe6;
 }
 
-/* Ensure popups always have a background, even if dark mode is not enabled */
+/* Popups always have a background, even if dark mode is not enabled.
+ *
+ * The frame itself is set once near the top of this file — a 1px edge, a 5px radius and
+ * the owning tool's colour as a top edge. This rule used to restate it as a 2px blue ring
+ * with a 3px blue glow and a 16px radius, and being further down the file it won. That is
+ * why every window in the app was blue and round however the caller had styled it. */
 .popup-ui,
 .popup-ui-info,
 .wizard-main-popup {
-  background: rgba(32, 32, 32, 0.89);
-  color: #f0f0f0;
-  border: 2px solid var(--popup-border-default);
-  box-shadow: 0 0 0 3px #2196f355, 0 4px 24px rgba(0, 0, 0, 0.18);
-  border-radius: 16px;
+  background: var(--surface-2);
+  color: var(--text-on-surface);
   max-width: 95vw;
   max-height: 90vh;
   overflow: auto;
@@ -1394,6 +1422,14 @@ body.dark .mode-button.btn-special {
   padding: 0.5em 1.2em;
   pointer-events: auto;
   z-index: 10003;
+}
+
+.popup-ui-info,
+.wizard-main-popup {
+  border: 1px solid var(--surface-4);
+  border-top: 2px solid var(--popup-accent, var(--surface-4));
+  border-radius: 5px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
 }
 
 /* Prevent non-modal popups from blocking pointer events outside the popup */

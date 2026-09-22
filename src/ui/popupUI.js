@@ -70,17 +70,28 @@ export function showPopup({
     popup.style.maxWidth = '';
     popup.style.minHeight = '';
     popup.style.maxHeight = '';
-    // Do NOT set min/max width/height from style object at all
-    // Only apply style properties that are not background or color
+    // Do NOT set min/max width/height from style object at all.
+    //
+    // border and borderRadius are filtered out for a reason of their own. Every caller
+    // wrote its own chrome inline — "2px solid var(--popup-border-lore)", a 16px radius —
+    // so the popups were a set of thick coloured rings with nothing in common, next to a
+    // tool rail of 1px edges and 4px corners. The colour was carrying something real
+    // (which tool a window belongs to), so it is kept, as a custom property the stylesheet
+    // draws as a thin top edge rather than a ring. Everything else about the frame now
+    // lives in one CSS rule instead of forty call sites.
+    const FRAME_KEYS = new Set(['border', 'borderRadius', 'boxShadow']);
+    const SKIP_KEYS = new Set([
+        'background', 'backgroundColor', 'color',
+        'minWidth', 'maxWidth', 'minHeight', 'maxHeight', 'padding',
+    ]);
     if (style) {
         for (const [key, value] of Object.entries(style)) {
-            if (key !== 'background' && key !== 'backgroundColor' && key !== 'color' && key !== 'minWidth' && key !== 'maxWidth' && key !== 'minHeight' && key !== 'maxHeight' && key !== 'padding') {
-                popup.style[key] = value;
-            }
+            if (SKIP_KEYS.has(key) || FRAME_KEYS.has(key)) continue;
+            popup.style[key] = value;
         }
+        const accent = extractBorderColour(style.border);
+        if (accent) popup.style.setProperty('--popup-accent', accent);
     }
-    // Always apply rounded corners to all popups
-    popup.style.borderRadius = style.borderRadius || '16px';
     // Debug: log popup style before DOM append
     //console.log('Popup style before append:', popup.style.cssText);
 
@@ -412,6 +423,26 @@ export function showPopup({
  */
 export function onPopupClose(el, fn) {
     if (el && typeof fn === 'function') closeHandlers.set(el, fn);
+}
+
+/**
+ * Pull the colour out of a CSS border shorthand.
+ *
+ * Callers write "2px solid var(--popup-border-lore)" or "2px solid #e32b2b". Only the
+ * colour is kept — the width and style are the stylesheet's business now.
+ *
+ * @param {string|undefined} border
+ * @returns {string|null}
+ */
+function extractBorderColour(border) {
+    if (typeof border !== 'string') return null;
+    const varMatch = border.match(/var\(\s*(--[\w-]+)\s*\)/);
+    if (varMatch) return `var(${varMatch[1]})`;
+    const hexMatch = border.match(/#[0-9a-fA-F]{3,8}/);
+    if (hexMatch) return hexMatch[0];
+    const fnMatch = border.match(/rgba?\([^)]*\)/i);
+    if (fnMatch) return fnMatch[0];
+    return null;
 }
 
 /**
