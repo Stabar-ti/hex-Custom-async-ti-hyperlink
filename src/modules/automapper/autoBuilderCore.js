@@ -7,7 +7,7 @@ import { passesAutoMapperFilters } from '../../ui/uiFilters.js';
 import { calculateSystemValue, getFactors, getTypeGroup } from '../../features/valueOverlay.js';
 import { hasFactionHomeworld, isFractureTile } from '../SystemPicker/pickerModel.js';
 import {
-    solveAssignment, DOWNGRADE_CHAIN, RESTRICTED_TYPES, TIER_POLICIES, TYPE_RANK,
+    solveAssignment, DOWNGRADE_CHAIN, RESTRICTED_TYPES, TIER_POLICIES, STRICT_TIERS, TYPE_RANK,
 } from './assignSolver.js';
 
 // ---- Scoring weights (mirrors miltyBuilderRandomTool DEFAULT_WEIGHTS) ----
@@ -617,11 +617,20 @@ export function buildPoolTierMap(available, factors) {
  * Turn the panel's fallback settings into the solver's price list.
  *
  * @param {'down'|'nearest'|'up'} tierPolicy which direction to prefer when a tier runs out
- * @param {number|null} unfilledCost  what leaving a hex empty is worth; lower means the
- *                                    solver gives up sooner rather than substituting
+ * @param {boolean} strictTiers  leave a hex empty rather than miss its tier by more than one
+ * @param {number|null} unfilledCost  an explicit price for an empty hex, overriding both
  */
-export function buildCosts(tierPolicy = 'down', unfilledCost = null) {
-    const costs = { ...(TIER_POLICIES[tierPolicy] || TIER_POLICIES.down) };
+export function buildCosts(tierPolicy = 'down', strictTiers = false, unfilledCost = null) {
+    const base = TIER_POLICIES[tierPolicy] || TIER_POLICIES.down;
+    // Strict keeps the chosen direction — it scales both steps, and the policy decides
+    // which of them the solver reaches for first.
+    const costs = strictTiers
+        ? {
+            ...STRICT_TIERS,
+            tierDown: base.tierDown <= base.tierUp ? STRICT_TIERS.tierDown : STRICT_TIERS.tierDown + 8,
+            tierUp: base.tierUp <= base.tierDown ? STRICT_TIERS.tierUp : STRICT_TIERS.tierUp + 8,
+        }
+        : { ...base };
     if (unfilledCost != null) costs.unfilledCost = unfilledCost;
     return costs;
 }
@@ -640,6 +649,7 @@ export function fillRemaining(editor, {
     valueIOn = false,
     valueTOn = false,
     tierPolicy = 'down',
+    strictTiers = false,
     unfilledCost = null,
 } = {}) {
     const empty = { assignments: [], tokenPlacements: [], downgrades: [], unmatched: [], score: null };
@@ -662,7 +672,7 @@ export function fillRemaining(editor, {
         ? buildPoolTierMap(available, getFactors(valueROn, valueIOn, valueTOn))
         : null;
 
-    const costs = buildCosts(tierPolicy, unfilledCost);
+    const costs = buildCosts(tierPolicy, strictTiers, unfilledCost);
     const attempt = () => tryAssign(unfilled, pools, valueTierMap, { allowDuplicatesNoPlanet, costs });
 
     if (!balanced) return { ...attempt(), score: null };
@@ -770,7 +780,7 @@ export function summariseTierDemand(unfilled) {
 export function analyzeMap(editor, {
     includeHomeSystems = false, includeWormholes = false, allowDuplicatesNoPlanet = false,
     sources = null, valueROn = false, valueIOn = false, valueTOn = false,
-    tierPolicy = 'down', unfilledCost = null,
+    tierPolicy = 'down', strictTiers = false, unfilledCost = null,
 } = {}) {
     const unfilled = getUnfilledHexes(editor, { includeHomeSystems });
     const available = getAvailableSystems(editor, { includeWormholes, allowDuplicatesNoPlanet, includeHomeSystems, sources });
@@ -785,7 +795,8 @@ export function analyzeMap(editor, {
         : null;
 
     const dry = tryAssign(unfilled, pools, valueTierMap, {
-        allowDuplicatesNoPlanet, deterministic: true, costs: buildCosts(tierPolicy, unfilledCost),
+        allowDuplicatesNoPlanet, deterministic: true,
+        costs: buildCosts(tierPolicy, strictTiers, unfilledCost),
     });
 
     const byKey = new Map();

@@ -855,6 +855,44 @@ const tierHex = (baseType, tier) => ({ baseType, valueTarget: { tier, r: false, 
         `${fussy.assignments.length} filled, ${fussy.unmatched.length} unfilled`);
 }
 
+// Strict tiers has to mean what its label says: one tier of slack is fine, two is not, and
+// the things that are not tier misses at all keep working. A single low unfilledCost cannot
+// express that — tier steps cost 2 and a type step costs 50, so any threshold separating one
+// tier from two sits far under the type and token band and would refuse those as well.
+{
+    // Base only, so the pool is small enough to force a two-tier miss: about 2 or 3
+    // two-planet systems per tier against 20 hexes all asking for tier 5.
+    const specs = repeat(20, tierHex('2 planet', 5));
+    const opts = { sources: { base: true } };
+    const strict = fillRemaining(makeEditor(specs), { ...opts, strictTiers: true });
+    const loose = fillRemaining(makeEditor(specs), opts);
+    const tiers = buildPoolTierMap(
+        getAvailableSystems(makeEditor(specs), opts), getFactors(false, false, false));
+
+    const moreThanOneOut = r => r.assignments.filter(a => {
+        const t = tiers.get(String(a.sys.id).toUpperCase());
+        return t != null && Math.abs(t - 5) > 1;
+    });
+
+    check('strict places nothing more than one tier out',
+        moreThanOneOut(strict).length === 0,
+        moreThanOneOut(strict).map(a => a.sys.id).join(', '));
+    check('strict leaves those hexes unfilled instead',
+        strict.unmatched.length > 0 && strict.assignments.length > 0,
+        `${strict.assignments.length} filled, ${strict.unmatched.length} unfilled`);
+    check('and the same map fills completely without it',
+        loose.unmatched.length === 0 && loose.assignments.length === 20,
+        `${loose.assignments.length} filled, ${loose.unmatched.length} unfilled`);
+
+    // An anomaly token on a tile of the right type is not a tier miss and stays acceptable;
+    // what strict rejects is a compound one, where the type is wrong *and* a token is needed.
+    const anomaly = makeEditor(repeat(8, { baseType: 'special', effects: ['nebula'] }));
+    const r = fillRemaining(anomaly, { sources: { base: true }, strictTiers: true });
+    check('strict still accepts anomaly tokens on their own',
+        r.tokenPlacements.length > 0 && r.assignments.length > r.unmatched.length,
+        `${r.assignments.length} filled, ${r.tokenPlacements.length} tokens, ${r.unmatched.length} unfilled`);
+}
+
 // The preview used to be handed a null tier map, so it reported every row green while the
 // fill delivered a fraction of the tiers asked for.
 {

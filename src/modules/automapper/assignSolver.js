@@ -96,6 +96,24 @@ export const TIER_POLICIES = {
     up: { tierDown: 6, tierUp: 2 },
 };
 
+/**
+ * "Leave it empty rather than miss by more than one tier."
+ *
+ * Expressed as prices, not as a rule: tier steps are scaled up until two of them cost more
+ * than an empty hex, while one still costs less. Everything else keeps its usual place
+ * under that ceiling, so a token (30) and a single step down the type chain (50) are still
+ * accepted, and a last-resort tile (400+) still is not.
+ *
+ * A single low unfilledCost cannot express this. Tier steps cost 2 and a type step costs
+ * 50, so any threshold that separates one tier from two also sits far below the type and
+ * token band and would refuse those as well.
+ */
+export const STRICT_TIERS = {
+    tierDown: 35,
+    tierUp: 35,
+    unfilledCost: 60,
+};
+
 // ── Min-cost max-flow ────────────────────────────────────────────────────────
 //
 // Successive shortest paths with SPFA. The graph is tiny — tens of nodes, a few thousand

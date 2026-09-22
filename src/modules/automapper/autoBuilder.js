@@ -12,6 +12,7 @@ import { updateWormholeVisibility } from '../../features/baseOverlays.js';
 import { toggleWormhole } from '../../features/wormholes.js';
 import { VISIBLE_SOURCE_GROUPS } from '../SystemPicker/pickerModel.js';
 import { COLORS } from '../../constants/designTokens.js';
+import { drawAutoMapperMarks, clearAutoMapperMarks, marksFromResult } from '../../features/automapperMarks.js';
 
 // ---- Styles ----
 const S = {
@@ -98,7 +99,12 @@ export function showAutoBuilderUI(container) {
         valueROn:               false,
         valueIOn:               false,
         valueTOn:               false,
+        // Which way to lean when a tier runs out, and whether to give up rather than
+        // miss by a lot. Both end up as prices in the solver's cost function.
+        tierPolicy:             'down',
+        strictTiers:            false,
     };
+
     let lastResult  = null;
     let justApplied = false; // true after a successful apply → shows Undo button
     let excludedLabels = new Set(); // hexes the user unchecked — left unfilled on Apply
@@ -131,6 +137,11 @@ export function showAutoBuilderUI(container) {
             includeWormholes: opts.includeWormholes,
             allowDuplicatesNoPlanet: opts.allowDuplicatesNoPlanet,
             sources: opts.sources,
+            valueROn: opts.valueROn,
+            valueIOn: opts.valueIOn,
+            valueTOn: opts.valueTOn,
+            tierPolicy: opts.tierPolicy,
+            strictTiers: opts.strictTiers,
         });
 
         renderStatus(analysis);
@@ -247,12 +258,107 @@ export function showAutoBuilderUI(container) {
             panel.appendChild(details);
         }
 
-        // Value bias — mirrors the Draw Helpers V1–V5 / R / I / T hints
+        // Value hints — the tiers, what the pool holds of each, and what to do when it runs out
         {
-            const { details, body } = section('Value bias', open.value, v => { open.value = v; });
+            const { details, body } = section('Value hints', open.value, v => { open.value = v; });
             body.appendChild(el('div', S.muted,
-                'Applies to hexes painted with a V1–V5 value hint in Draw Helpers.'));
+                'Applies to hexes painted with a V1–V5 value hint. Tiers are ranked live from '
+                + 'the systems currently in the pool, so loading more tile sets re-ranks them.'));
 
+            // ── Supply and demand, per tier ──
+            //
+            // The table that was missing. Tiers are percentiles, so each holds about a fifth
+            // of its planet-count group — roughly 8 two-planet systems. Painting twelve hexes
+            // at tier 5 asks for something that does not exist, and nothing anywhere in the
+            // UI used to say so: the fill just quietly handed out whatever was left.
+            if (analysis.tierSupply?.length) {
+                const demandBy = new Map((analysis.tierDemand || []).map(d => [d.group, d]));
+                const GROUP_LABEL = {
+                    '1': '1 planet', '2': '2 planet', '3+': '3+ planet',
+                    legendary: 'Legendary', home: 'Home', empty: 'No planets',
+                };
+
+                const table = el('table', `width:100%;border-collapse:collapse;font-size:11px;
+                    margin-top:6px;table-layout:fixed;`);
+                table.innerHTML =
+                    `<thead><tr>
+                        <th style="text-align:left;color:${COLORS.textMuted};font-weight:600;padding:2px 4px;">Tier supply</th>
+                        ${[1, 2, 3, 4, 5].map(t => `<th style="color:${COLORS.textMuted};font-weight:600;padding:2px 4px;">T${t}</th>`).join('')}
+                    </tr></thead>`;
+                const tbody = el('tbody');
+
+                for (const row of analysis.tierSupply) {
+                    if (row.group === 'empty') continue;   // no planets, so no meaningful value
+                    const want = demandBy.get(row.group);
+                    const tr = el('tr');
+                    tr.appendChild(el('td',
+                        `padding:2px 4px;color:#ddd;`, GROUP_LABEL[row.group] || row.group));
+
+                    row.tiers.forEach((have, i) => {
+                        const need = want ? want.tiers[i] : 0;
+                        const short = need > have;
+                        const td = el('td', `padding:2px 4px;text-align:center;
+                            color:${short ? COLORS.autoWarnText : need ? COLORS.popupSpecial : COLORS.textMuted};
+                            ${short ? 'font-weight:700;' : ''}`);
+                        td.textContent = need ? `${need}/${have}` : String(have);
+                        td.title = need
+                            ? `${need} hex${need !== 1 ? 'es' : ''} painted at tier ${i + 1}, ${have} system${have !== 1 ? 's' : ''} in the pool`
+                                + (short ? ` — ${need - have} of them cannot get the tier they asked for.` : '')
+                            : `${have} system${have !== 1 ? 's' : ''} in the pool at tier ${i + 1}`;
+                        tr.appendChild(td);
+                    });
+                    tbody.appendChild(tr);
+                }
+
+                table.appendChild(tbody);
+                body.appendChild(table);
+                body.appendChild(el('div', S.muted + 'margin-top:3px;',
+                    'painted / available. Amber means more hexes want that tier than exist.'));
+            }
+
+            // ── What to do when a tier cannot be met ──
+            const fbRow = el('div', S.row + 'margin-top:8px;');
+            fbRow.appendChild(el('span', S.muted, 'When a tier runs out:'));
+            const POLICY_LABELS = {
+                down: ['Take lower', 'Fill from tiers below the one asked for'],
+                nearest: ['Nearest', 'Take whichever neighbouring tier is available, above or below'],
+                up: ['Take higher', 'Fill from tiers above the one asked for'],
+            };
+            for (const [key, [label, title]] of Object.entries(POLICY_LABELS)) {
+                const b = el('button', '', label);
+                b.title = title;
+                const paint = () => {
+                    b.style.cssText = `padding:3px 10px;border-radius:3px;font-size:11px;cursor:pointer;`
+                        + `border:1px solid ${opts.tierPolicy === key ? COLORS.popupAutomapper : COLORS.surface5};`
+                        + `background:${opts.tierPolicy === key ? COLORS.popupAutomapper : 'transparent'};`
+                        + `color:${opts.tierPolicy === key ? '#111' : '#ccc'};`;
+                };
+                paint();
+                b.onclick = () => { opts.tierPolicy = key; render(); };
+                fbRow.appendChild(b);
+            }
+            body.appendChild(fbRow);
+
+            // How hard to try before giving up. This is one number in the cost function —
+            // the price of leaving a hex alone — so "strict" is not a separate code path,
+            // it is the same solver told that a bad match is worth less than an empty hex.
+            const strictRow = el('div', S.row + 'margin-top:6px;');
+            const strict = document.createElement('input');
+            strict.type = 'checkbox';
+            strict.checked = opts.strictTiers;
+            strict.onchange = () => { opts.strictTiers = strict.checked; render(); };
+            const strictLabel = el('label', 'font-size:11px;color:#ccc;cursor:pointer;display:flex;gap:5px;align-items:center;');
+            strictLabel.title = 'Leave a hex unfilled rather than give it a tile more than one '
+                + 'tier away from what it asked for, or one that misses on two counts at once '
+                + '(wrong type and an anomaly drawn on). Unfilled hexes are marked on the map.';
+            strictLabel.appendChild(strict);
+            strictLabel.appendChild(document.createTextNode('Leave it empty rather than miss by more than one tier'));
+            strictRow.appendChild(strictLabel);
+            body.appendChild(strictRow);
+
+            // ── R / I / T bias ──
+            body.appendChild(el('div', S.muted + 'margin-top:8px;',
+                'Bias — re-ranks the pool before tiers are cut, and breaks ties inside a tier:'));
             const row = el('div', S.row);
             // The button's look is derived from state on every build. It used to be created
             // un-highlighted regardless, so any re-render made an active bias look inactive
@@ -267,12 +373,12 @@ export function showAutoBuilderUI(container) {
                         `color:${opts[key] ? '#111' : color};`;
                 };
                 paint();
-                b.onclick = () => { opts[key] = !opts[key]; paint(); };
+                b.onclick = () => { opts[key] = !opts[key]; render(); };
                 return b;
             }
-            row.appendChild(makeVtToggle('R', COLORS.autoValueR, 'valueROn', 'Prefer high-resource systems for value-targeted hexes'));
-            row.appendChild(makeVtToggle('I', COLORS.autoValueI, 'valueIOn', 'Prefer high-influence systems for value-targeted hexes'));
-            row.appendChild(makeVtToggle('T', COLORS.autoValueT, 'valueTOn', 'Prefer tech-skip systems for value-targeted hexes'));
+            row.appendChild(makeVtToggle('R', COLORS.autoValueR, 'valueROn', 'Rank the pool by resources before cutting it into tiers'));
+            row.appendChild(makeVtToggle('I', COLORS.autoValueI, 'valueIOn', 'Rank the pool by influence before cutting it into tiers'));
+            row.appendChild(makeVtToggle('T', COLORS.autoValueT, 'valueTOn', 'Rank the pool by tech skips before cutting it into tiers'));
             body.appendChild(row);
 
             panel.appendChild(details);
@@ -418,6 +524,11 @@ export function showAutoBuilderUI(container) {
     // ---- Preview ----
     function renderPreview() {
         previewHost.innerHTML = '';
+        // The map carries the same answer as the list: a ring and a badge on every hex that
+        // did not get what it asked for, with the reason on hover. Reading a hex label out
+        // of a paragraph and then hunting for it on the board is not a way to review twenty
+        // of them.
+        drawAutoMapperMarks(editor, lastResult ? marksFromResult(lastResult) : []);
         if (!lastResult) return;
 
         const { assignments, tokenPlacements, downgrades, unmatched, score, notice } = lastResult;
@@ -591,6 +702,9 @@ export function showAutoBuilderUI(container) {
         lastResult   = null;
         excludedLabels = new Set();
         justApplied  = true;  // show Undo button (fix 1)
+        // Everything that was placed is now visible on the map itself; what is still worth
+        // pointing at is what never got filled.
+        drawAutoMapperMarks(editor, marksFromResult({ unmatched: lastResult?.unmatched || [] }));
         render();
     }
 
@@ -620,6 +734,9 @@ export function openAutoMapperPopup() {
             rememberPosition: true,
             showHelp: true,
             onHelp: () => showAutoMapperHelp(),
+            // The marks describe a preview, so they go when the panel does. hidePopup fires
+            // this however the popup is closed, not only from its ×.
+            onClose: () => clearAutoMapperMarks(window.editor),
             style: {
                 minWidth: '380px', maxWidth: '700px',
                 border: '2px solid var(--popup-border-special)',
