@@ -41,6 +41,7 @@ import { applySavedTheme } from '../ui/uiTheme.js';
 // Calculate shortest path distances for overlays, etc.
 import { calculateDistancesFrom, isScriptedAnomaly } from '../distance/index.js';
 import { clearHexSelection, refreshHexSelection } from '../features/hexSelection.js';
+import { disarmAll } from '../features/disarm.js';
 import { setPanMode } from '../ui/viewControls.js';
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import {
@@ -113,15 +114,9 @@ export default class HexEditor {
         if (typeof this.clearDistanceOverlays === 'function') {
           this.clearDistanceOverlays();
         }
-        // Re-click any currently-active mode/tool button so it runs its own
-        // "turning off" logic (clears its highlight + calls setMode('none')),
-        // then fall back to clearing the mode directly in case nothing was active.
-        const activeButtons = document.querySelectorAll('.mode-button.active');
-        if (activeButtons.length > 0) {
-          activeButtons.forEach(btn => btn.click());
-        } else if (typeof this.setMode === 'function') {
-          this.setMode('none');
-        }
+        // Each tool owns its own turning-off, so disarmAll clicks the lit buttons rather
+        // than calling setMode behind their backs. Right-click asks for the same thing.
+        disarmAll(this);
       }
     });
 

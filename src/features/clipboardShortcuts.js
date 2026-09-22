@@ -18,7 +18,8 @@
 
 import { selectedHexes, clearHexSelection } from './hexSelection.js';
 import { copyTiles, activeClip, rotateActiveClip } from './tileClipboard.js';
-import { armGhost, dismissGhost, isGhostArmed, drawGhost } from './pasteGhost.js';
+import { disarmAll } from './disarm.js';
+import { armGhost, isGhostArmed, drawGhost } from './pasteGhost.js';
 
 /** Is the user typing into something? */
 function inTextField() {
@@ -103,19 +104,16 @@ export function installClipboardShortcuts(editor) {
 
         if (ev.key === 'Escape') {
             // Shared with the distance overlays, the tools and the popups. Only claim it
-            // when there is actually a ghost up.
+            // when there is actually a ghost up; the editor's own Escape handler disarms
+            // tools, and disarmAll puts the ghost first for exactly this reason.
             if (!isGhostArmed()) return;
             ev.stopPropagation();
-            dismissGhost(editor);
+            disarmAll(editor);
         }
     // Capture, so Escape reaches this before the handlers that disarm every tool.
     }, true);
 
-    // Right-click dismisses the ghost, and is swallowed so the context menu does not open
-    // over the map while you are working.
-    editor.svg?.addEventListener('contextmenu', (ev) => {
-        if (!isGhostArmed()) return;
-        ev.preventDefault();
-        dismissGhost(editor);
-    });
+    // Right-click is handled by the map's own contextmenu binding, which asks disarmAll
+    // what to put down. Two listeners on the same element cannot be ordered by
+    // stopPropagation, so having one here as well made the outcome depend on import order.
 }

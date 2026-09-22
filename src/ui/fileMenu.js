@@ -113,6 +113,24 @@ export function installFileMenu(_editor) {
         setNewMapOpen(!flyout?.classList.contains('is-open'));
     });
 
+    // Starting a Milty draft used to mean opening the slice designer and pressing Load
+    // Map inside it, so the one thing you need before the tool is useful was only reachable
+    // from inside the tool. It is a map you can start, so it sits with the other one.
+    document.getElementById('genMiltyMapBtn')?.addEventListener('click', async () => {
+        closeFileMenu();
+        try {
+            const [{ loadMiltyMap }, { openMiltySliceDesigner }] = await Promise.all([
+                import('../modules/Milty/miltyBuilderUI.js'),
+                import('./specialModePopup.js'),
+            ]);
+            await loadMiltyMap(window.editor);
+            openMiltySliceDesigner();
+        } catch (err) {
+            console.error('Failed to start a Milty map:', err);
+            alert('Could not load the Milty layout: ' + err);
+        }
+    });
+
     // A menu closes when you click away from it or press Escape. Clicks inside must not
     // close it — the panel holds inputs and a nested dropdown of its own.
     el.addEventListener('click', (ev) => ev.stopPropagation());

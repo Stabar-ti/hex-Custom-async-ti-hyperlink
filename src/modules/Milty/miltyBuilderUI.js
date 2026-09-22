@@ -14,6 +14,62 @@ import { showSanityCheckPopup } from '../../ui/simplepPopup.js';
 import { togglePopup } from '../../ui/popupUI.js';
 import { showSliceExportPopup } from './miltyBuilderExport.js';
 
+/**
+ * Has the Milty layout been put on the map this session?
+ *
+ * The designer's buttons are disabled until it has, because every one of them acts on
+ * slices that do not exist until the layout is loaded. The flag is what lets the designer
+ * open with its buttons already live when the map was loaded from the File menu instead
+ * of from its own button.
+ */
+let miltyMapLoaded = false;
+
+/** Everything in the designer that needs slices to exist before it means anything. */
+const NEEDS_MAP = [
+    '#importSlicesBtn', '#outputCopyBtn', '#exportSlicesPngBtn',
+    '#generateSlicesBtn', '#calcDraftValuesBtn', '#sanityCheckBtn',
+    '#refreshOccupancyBtn', '#toggleSliceBordersBtn', '#toggleSliceNumbersBtn',
+    '#toggleHomeInfoBtn', '#toggleSplitIdealBtn', '#liveSliceAnalysisToggle',
+];
+
+/** @param {HTMLElement} container */
+function enableDesignerControls(container) {
+    for (const sel of NEEDS_MAP) container.querySelector(sel)?.removeAttribute('disabled');
+    const loadBtn = container.querySelector('#loadMiltyJsonBtn');
+    const info = loadBtn?.nextElementSibling;
+    if (info && info.tagName === 'SPAN') info.style.display = 'none';
+}
+
+/** @returns {boolean} */
+export function isMiltyMapLoaded() {
+    return miltyMapLoaded;
+}
+
+/**
+ * Put the Milty draft layout on the map.
+ *
+ * This lived inside the designer's own Load Map button, which made "start a Milty map" a
+ * thing you could only do from inside the tool you needed the map for. It is File ▸ New
+ * map ▸ New Milty Map now, and the designer's button calls the same function.
+ *
+ * @param {any} editor
+ * @returns {Promise<void>}
+ */
+export async function loadMiltyMap(editor) {
+    const { importFullState } = await import('../../data/import.js');
+    const res = await fetch('public/data/MiltyBuilder.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    importFullState(editor, await res.text());
+    miltyMapLoaded = true;
+
+    // The overlays need the import to have finished drawing. The delay is the one the
+    // designer's button already used.
+    setTimeout(() => {
+        applyMiltyDisplay();
+        drawSlicePositionOverlays(editor);
+    }, 800);
+}
+
 // Main UI function to create and display the Milty Builder popup
 export function showMiltyBuilderUI(container) {
     // Slice state tracking
@@ -168,16 +224,11 @@ export function showMiltyBuilderUI(container) {
         if (loadBtn) {
             loadBtn.onclick = async () => {
                 try {
-                    const { importFullState } = await import('../../data/import.js');
-                    const res = await fetch('public/data/MiltyBuilder.json');
-                    if (!res.ok) throw new Error('HTTP ' + res.status);
-                    const jsonText = await res.text();
-                    importFullState(window.editor, jsonText);
+                    await loadMiltyMap(window.editor);
 
-                    // Draw slice overlays after map is loaded
+                    // The layout is drawn by loadMiltyMap; this is the designer's own view
+                    // of it — the slice numbers and the button that turns them off.
                     setTimeout(() => {
-                        applyMiltyDisplay();
-                        drawSlicePositionOverlays(window.editor);
                         sliceNumbersVisible = true;
                         const numbersBtn = container.querySelector('#toggleSliceNumbersBtn');
                         if (numbersBtn) {
@@ -189,25 +240,7 @@ export function showMiltyBuilderUI(container) {
                         console.log('Slice overlays drawn after MiltyBuilder.json load');
                     }, 800);
 
-                    // Enable all other buttons after loading
-                    [
-                        '#importSlicesBtn',
-                        '#outputCopyBtn',
-                        '#exportSlicesPngBtn',
-                        '#generateSlicesBtn',
-                        '#calcDraftValuesBtn',
-                        '#sanityCheckBtn',
-                        '#refreshOccupancyBtn',
-                        '#toggleSliceBordersBtn',
-                        '#toggleSliceNumbersBtn',
-                        '#toggleHomeInfoBtn',
-                        '#toggleSplitIdealBtn',
-                    ].forEach(sel => {
-                        const btn = container.querySelector(sel);
-                        if (btn) btn.removeAttribute('disabled');
-                    });
-                    const liveToggle = container.querySelector('#liveSliceAnalysisToggle');
-                    if (liveToggle) liveToggle.removeAttribute('disabled');
+                    enableDesignerControls(container);
 
                     // Home Info is ON by default — apply active style and start observer
                     const homeInfoBtn = container.querySelector('#toggleHomeInfoBtn');
@@ -219,16 +252,17 @@ export function showMiltyBuilderUI(container) {
                         startHomeOverlayObserver();
                     }
 
-                    // Remove the green info message
-                    const infoMsg = loadBtn.nextElementSibling;
-                    if (infoMsg && infoMsg.tagName === 'SPAN') infoMsg.style.display = 'none';
-
                     alert('MiltyBuilder.json loaded!');
                 } catch (err) {
                     alert('Failed to load MiltyBuilder.json: ' + err);
                 }
             };
         }
+
+        // The map may already be on screen: File ▸ New map ▸ New Milty Map loads it
+        // without opening this. Start with the controls live rather than asking for a
+        // Load Map press that would only reload what is already there.
+        if (isMiltyMapLoaded()) enableDesignerControls(container);
 
         // Toggle slice borders button
         const bordersBtn = container.querySelector('#toggleSliceBordersBtn');

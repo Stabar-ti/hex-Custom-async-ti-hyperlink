@@ -1,9 +1,7 @@
-import { showPopup, hidePopup, resetAllPopupPositions } from './popupUI.js';
+import { showPopup, hidePopup } from './popupUI.js';
 import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
-import { toggleTheme } from './uiTheme.js';
 import { checkRealIdUniqueness, generateSanityCheckSummary } from '../features/sanityCheck.js';
 import { setupHexHoverInfo } from './HexHoverInfo2.js';
-import { toggleFileMenu, isFileMenuOpen } from './fileMenu.js';
 import { showAnchoredPanel } from './dropdownMenu.js';
 
 export function showOptionsPopup(editor) {
@@ -341,79 +339,12 @@ export function showOverlayOptionsPopup() {
     }, 0);
 }
 
-export function showLayoutOptionsPopup() {
-    // Sector Controls and Draw Helpers exist only in index.html's static #layoutOptionsPopup
-    // markup, which showPopup() removes before the handler-binding setTimeout below runs —
-    // so both buttons vanished from this menu and their handlers never bound. They live in
-    // the wrapper now, where they are actually part of the popup being shown.
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = `
-      <div class="popup-section-label">General</div>
-      <div class="popup-btn-grid">
-        <button id="toggleControlsBtn" class="mode-button">Im/Export & map generation</button>
-        <button id="arrangeBtn" class="mode-button">Arrange Controls</button>
-        <button id="sectorControlsBtn" class="mode-button">Sector Controls</button>
-      </div>
-      <div class="popup-section-label">Theme</div>
-      <div class="popup-btn-grid">
-        <button id="themeToggle" class="mode-button">Toggle Dark Mode</button>
-        <button id="resetPopupPositionsBtn" class="mode-button">Reset Popup Positions</button>
-      </div>
-    `;
-
-    showAnchoredPanel({
-        id: 'layoutOptionsPopup',
-        anchorId: 'layoutToggleBtn',
-        title: 'Layout Options',
-        content: wrapper,
-    });
-
-    setTimeout(() => {
-        // Import/export moved to the File menu in the top bar; this entry opens it.
-        const controlsBtn = document.getElementById('toggleControlsBtn');
-        if (controlsBtn) {
-            controlsBtn.textContent = isFileMenuOpen() ? 'Close the File menu' : 'Open the File menu';
-            controlsBtn.onclick = () => toggleFileMenu();
-        }
-        // Arrange Controls
-        const arrangeBtn = document.getElementById('arrangeBtn');
-        if (arrangeBtn) {
-            arrangeBtn.onclick = () => {
-                const editor = window.editor;
-                if (editor && typeof editor.cycleControlPanelPosition === 'function') {
-                    editor.cycleControlPanelPosition();
-                }
-            };
-        }
-        // Theme toggle
-        const themeBtn = document.getElementById('themeToggle');
-        if (themeBtn) {
-            themeBtn.onclick = () => toggleTheme();
-        }
-        // Tool rail. It is docked now rather than a floating popup, so this entry
-        // collapses and expands it instead of opening a window.
-        const sectorControlsBtn = document.getElementById('sectorControlsBtn');
-        if (sectorControlsBtn) {
-            sectorControlsBtn.textContent = 'Tool Rail';
-            sectorControlsBtn.title = 'Collapse or expand the tool rail';
-            sectorControlsBtn.onclick = () => {
-                import('./uisectorControls.js')
-                    .then(({ toggleToolRail }) => toggleToolRail())
-                    .catch(err => console.error('Failed to toggle the tool rail:', err));
-            };
-        }
-        // The Draw Helpers entry lived here. Its paint modes — tile types and effects —
-        // are folding groups in the tool rail now, so there is no popup left to open.
-        // Reset popup positions
-        const resetBtn = document.getElementById('resetPopupPositionsBtn');
-        if (resetBtn) {
-            resetBtn.onclick = () => {
-                resetAllPopupPositions();
-                alert('All popup positions have been reset. Please reopen your popups.');
-            };
-        }
-    }, 0);
-}
+// Layout Options lived here. Every entry in it turned out to be a second way to do
+// something that already had a first: "Im/Export & map generation" opened the File menu
+// that the File button opens, "Sector Controls" collapsed the rail that has its own
+// collapse button, "Arrange Controls" cycled CSS classes on an empty div and had done
+// nothing for a long time, and the theme toggle and the popup-position reset are both
+// moot now that the app is dark-only and popups are anchored rather than remembered.
 
 export function showSanityCheckPopup() {
     // Build content for sanity check

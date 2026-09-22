@@ -47,7 +47,7 @@ export function installTopBarMenus() {
     // four items — the designer designs, the AutoMapper fills and Spin-To-Win rearranges.
     const special = document.getElementById('specialModesBtn');
     if (special) {
-        special.textContent = 'Setup ▾';
+        special.textContent = 'Tools ▾';
         special.title = 'Milty slice designer, draft generator, AutoMapper and Spin-To-Win';
     }
 

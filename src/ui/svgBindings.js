@@ -9,6 +9,7 @@
 // ───────────────────────────────────────────────────────────────
 import { showDistanceOverlays, clearDistanceOverlays } from '../features/baseOverlays.js';
 import { startSwapMode, isSwapModeActive } from '../features/tileSwap.js';
+import { disarmAll } from '../features/disarm.js';
 
 export function bindSvgHandlers(editor) {
   // Reference to the main SVG map element
@@ -89,7 +90,11 @@ export function bindSvgHandlers(editor) {
         console.warn("editor.calculateDistancesFrom is not a function");
       }
     } else {
-      // Otherwise: right-click cancels any linking/selection
+      // Otherwise right-click means "put everything down": the paste ghost if one is up,
+      // else every armed tool — which returns the map to select mode and to panning.
+      disarmAll(editor);
+
+      // And in every case it abandons a half-drawn hyperlane link.
       Object.values(editor.hexes).forEach(hex => {
         if (hex?.polygon) hex.polygon.classList.remove('selected');
       });

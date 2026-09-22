@@ -23,9 +23,9 @@ import { installCustomLinksUI } from './ui/customLinksUI.js';
 import { installBorderAnomaliesUI } from './ui/borderAnomaliesUI.js';
 import { loadBorderAnomalyTypes, clearCache } from './constants/borderAnomalies.js';
 import { overlayDefaults } from './config/toggleSettings.js';
-import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup, showSanityCheckPopup } from './ui/simplepPopup.js';
+import { showOptionsPopup, showOverlayOptionsPopup, showSanityCheckPopup } from './ui/simplepPopup.js';
 import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
-import { resetAllPopupPositions, togglePopup } from './ui/popupUI.js';
+import { togglePopup } from './ui/popupUI.js';
 import { installFileMenu } from './ui/fileMenu.js';
 import { installTopBarMenus } from './ui/topBarMenus.js';
 import { installInspector } from './ui/inspector.js';
@@ -314,13 +314,6 @@ document.body.focus();
 
 
 
-const resetPopupBtn = document.getElementById('resetPopupPositionsBtn');
-if (resetPopupBtn) {
-  resetPopupBtn.onclick = () => {
-    resetAllPopupPositions();
-    alert('All popup positions have been reset. Please reopen your popups.');
-  };
-}
 
 
 
@@ -358,7 +351,6 @@ function bindMenuToggle(buttonId, popupId, open) {
 }
 
 bindMenuToggle('overlayToggleBtn', 'overlayOptionsPopup', showOverlayOptionsPopup);
-bindMenuToggle('layoutToggleBtn', 'layoutOptionsPopup', showLayoutOptionsPopup);
 
 // The three Analyse items and the three Help items opened a window each and left the
 // button that opened it sitting there doing nothing on a second press.
