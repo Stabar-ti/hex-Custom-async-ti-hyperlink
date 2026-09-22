@@ -420,8 +420,8 @@ export class TokenOverlay {
         }
         
         // Ensure proper layer ordering
-        if (typeof window !== 'undefined' && window.enforceSvgLayerOrder) {
-            window.enforceSvgLayerOrder(this.editor.svg);
+        if (this.editor?.svg) {
+            enforceSvgLayerOrder(this.editor.svg);
         }
         
         console.log('TokenOverlay: overlay shown', this.overlayGroup);

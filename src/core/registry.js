@@ -78,6 +78,9 @@ export const COMMANDS = Object.freeze({
     // Border anomalies
     showBorderAnomalies:       'borderAnomalies.show',
     showBorderAnomalySettings: 'borderAnomalies.showSettings',
+
+    // Milty slice designer
+    refreshMiltySliceColors:   'milty.refreshSliceColors',
 });
 
 /**

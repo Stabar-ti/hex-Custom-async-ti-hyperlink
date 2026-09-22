@@ -48,7 +48,7 @@ export function installTopBarMenus() {
     const special = document.getElementById('specialModesBtn');
     if (special) {
         special.textContent = 'Tools ▾';
-        special.title = 'Milty slice designer, draft generator, AutoMapper and Spin-To-Win';
+        special.title = 'Milty slice designer, draft generator and Spin-To-Win';
     }
 
     // ── Help ─────────────────────────────────────────────────────────────────

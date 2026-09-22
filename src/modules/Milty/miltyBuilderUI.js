@@ -13,6 +13,7 @@ import { showMiltyDraftGeneratorPopup } from './miltyRandomToolUI.js';
 import { showSanityCheckPopup } from '../../ui/simplepPopup.js';
 import { togglePopup } from '../../ui/popupUI.js';
 import { showSliceExportPopup } from './miltyBuilderExport.js';
+import { provide, COMMANDS } from '../../core/registry.js';
 
 /**
  * Has the Milty layout been put on the map this session?
@@ -425,6 +426,7 @@ export function showMiltyBuilderUI(container) {
         }
 
         // Update slice button colors based on occupancy
+        provide(COMMANDS.refreshMiltySliceColors, () => updateSliceButtonColors());
         function updateSliceButtonColors() {
             // Update standard map slices (A-F)
             ['A', 'B', 'C', 'D', 'E', 'F'].forEach(sliceLetter => {

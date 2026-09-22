@@ -22,8 +22,10 @@ export function bindSvgHandlers(editor) {
   let panStart = { x: 0, y: 0 };
   let pendingPan = null; // NEW: For smooth pan with requestAnimationFrame
 
-  // Custom "Shift+D" keyboard tracking for distance overlay
-  window.shiftDActive = false;
+  // Held-key flags. They were on window, which made them look like an interface;
+  // nothing outside this file has ever read either one.
+  let shiftDActive = false;
+  let shiftSActive = false;
   // Initialize viewBox (SVG visible region); controls zoom/pan
   editor._currentViewBox = [0, 0, 1000, 1000];
 
@@ -32,26 +34,25 @@ export function bindSvgHandlers(editor) {
   // Track if Shift+D is being held (for special distance tool)
   document.addEventListener('keydown', (e) => {
     if (e.shiftKey && e.key.toLowerCase() === 'd') {
-      window.shiftDActive = true;
+      shiftDActive = true;
     }
   });
   document.addEventListener('keyup', (e) => {
     if (e.key.toLowerCase() === 'd' || e.key === 'Shift') {
-      window.shiftDActive = false;
+      shiftDActive = false;
     }
   });
 
   // Shift+S+click — one-shot swap: the Shift+S+click selects the first hex,
   // the next plain click selects the second hex, swap executes and mode exits.
-  window.shiftSActive = false;
   document.addEventListener('keydown', (e) => {
     if (e.shiftKey && e.key.toLowerCase() === 's' && !e.ctrlKey && !e.metaKey) {
-      window.shiftSActive = true;
+      shiftSActive = true;
     }
   });
   document.addEventListener('keyup', (e) => {
     if (e.key.toLowerCase() === 's' || e.key === 'Shift') {
-      window.shiftSActive = false;
+      shiftSActive = false;
     }
   });
 
@@ -59,7 +60,7 @@ export function bindSvgHandlers(editor) {
   // When Shift+S is held and the user clicks a hex, pre-select it as the
   // first swap tile and start one-shot mode, preventing the normal click action.
   svg.addEventListener('click', (e) => {
-    if (!window.shiftSActive) return;
+    if (!shiftSActive) return;
     if (isSwapModeActive()) return; // already waiting for second click — let it through
     const label = e.target.closest('polygon')?.dataset?.label;
     if (!label) return;
@@ -76,7 +77,7 @@ export function bindSvgHandlers(editor) {
     e.preventDefault(); // Prevent the default context menu
 
     // If Shift+D is active, show distance overlays from clicked hex
-    if (window.shiftDActive) {
+    if (shiftDActive) {
       const target = e.target.closest('polygon');
       if (!target) return;
       const label = target.dataset?.label;

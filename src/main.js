@@ -15,7 +15,6 @@ import { exportFullState, exportMapInfo } from './data/export.js';
 import { importFullState, loadSystemInfo, loadLoreData } from './data/import.js';
 import { initHistory } from './features/history.js';
 import { showModal, closeModal } from './ui/uiModals.js';
-import { assignSystem } from './features/assignSystem.js';
 import { installSystemPickerUI } from './modules/SystemPicker/pickerUI.js';
 //import { initHexHoverInfo } from './ui/hexHoverInfo.js';
 import { openCalcSlicePopup } from './features/calcSlice.js';
@@ -38,7 +37,6 @@ import { installSwapButton } from './features/hexSwapButton.js';
 import { installPasteGhost } from './features/pasteGhost.js';
 import { installClipboardShortcuts } from './features/clipboardShortcuts.js';
 import { installDistanceTool } from './features/distanceTool.js';
-import { checkRealIdUniqueness } from './features/sanityCheck.js';
 import './ui/specialModePopup.js';
 import { installLoreUI } from './modules/Lore/loreUI.js';
 import LoreOverlay from './features/loreOverlay.js';
@@ -68,12 +66,7 @@ editor.options = {
 };
 editor.maxDistance = 3; // Used for BFS calculations
 
-// Expose modal control functions and editor globally
-window.showModal = showModal;
-window.closeModal = closeModal;
 window.editor = editor;
-window.assignSystem = assignSystem;
-window.checkRealIdUniqueness = checkRealIdUniqueness;
 
 // Enable undo/redo history tracking
 initHistory(editor);

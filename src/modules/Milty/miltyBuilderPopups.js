@@ -10,8 +10,6 @@ import { slotPositions, capitalizeTech, generateOutputString } from './miltyBuil
 
 // Show output copy popup with generated string and analysis
 export function showOutputCopyPopup() {
-    window.showOutputCopyPopup = showOutputCopyPopup;
-
     const { outputString, completedSlots, totalSlices } = generateOutputString();
 
     // Import UI helpers from the UI module
@@ -55,8 +53,6 @@ export function showOutputCopyPopup() {
 
 // Show draft values analysis popup
 export function showDraftValuesPopup(forceRefresh = false) {
-    window.showDraftValuesPopup = showDraftValuesPopup;
-
     // If popup already exists and not forceRefresh, just bring to front
     let popup = document.getElementById('milty-draft-values-popup');
     if (popup && !forceRefresh) {
@@ -258,8 +254,6 @@ function renderDraftValuesAnalysis(container) {
 
 // Show import slices popup
 export function showImportSlicesPopup() {
-    window.showImportSlicesPopup = showImportSlicesPopup;
-
     // Import UI helpers from the UI module
     import('./miltyBuilderUI.js').then(uiModule => {
         const {

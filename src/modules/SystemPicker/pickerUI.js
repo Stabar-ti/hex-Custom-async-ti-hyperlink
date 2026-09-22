@@ -60,10 +60,6 @@ export function installSystemPickerUI(editor) {
     provide(COMMANDS.showSystemPicker, showSystemPicker);
     provide(COMMANDS.toggleSystemPicker, toggleSystemPicker);
 
-    // Console affordances only — no module should reach for these.
-    window.showSystemPicker = showSystemPicker;
-    window.showSystemLookupPopup = showSystemPicker;
-    window.systemPickerState = state;
 
     // Load the corpus up front so the first open is instant. Errors are non-fatal: the
     // picker shows its empty state rather than throwing during startup.

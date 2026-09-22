@@ -22,7 +22,6 @@ export function installTokenUI(editor) {
     }
     
     provide(COMMANDS.showTokenPopup, showTokenPopup);
-    window.showTokenPopup = showTokenPopup;   // console affordance
     console.log('Token UI installed successfully');
 }
 

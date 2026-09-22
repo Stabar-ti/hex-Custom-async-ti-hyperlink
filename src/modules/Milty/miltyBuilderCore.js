@@ -2,6 +2,8 @@
 // Core logic and data management for Milty Slice Designer
 
 import { removeWormholeOverlay } from '../../features/wormholes.js';
+import { refreshSystemList } from '../../ui/uiFilters.js';
+import { tryInvoke, COMMANDS } from '../../core/registry.js';
 
 // Default slice and slot position definitions
 export const defaultSlices = {
@@ -445,7 +447,10 @@ export function applyMiltyDisplay() {
 
 function updateVisualElements() {
     if (typeof window.editor?.redrawAllRealIDOverlays === 'function') window.editor.redrawAllRealIDOverlays(window.editor);
-    if (typeof window.renderSystemList === 'function') window.renderSystemList();
+    // Was `if (typeof window.renderSystemList === 'function')`, a global the old picker
+    // installed from inside its own closure and which nothing has assigned since it was
+    // replaced by a subscription — so this had quietly stopped refreshing anything.
+    refreshSystemList();
     // Dynamic import breaks circular dependency (miltyHomeOverlay imports slotPositions from here)
     import('./miltyHomeOverlay.js').then(({ drawMiltyHomeOverlay }) => {
         drawMiltyHomeOverlay(window.editor);
@@ -715,21 +720,16 @@ export function importSlices(slicesString, updateStatusMsg) {
         }
         updateStatusMsg(statusMessage);
 
-        // Update slice button colors after import
-        setTimeout(() => {
-            // Try to call the slice button color update function if it exists
-            if (typeof window.updateSliceButtonColors === 'function') {
-                window.updateSliceButtonColors();
-            }
-            // Also try to trigger refresh from MiltyBuilder UI if available
-            const miltyUI = document.getElementById('milty-builder-popup');
-            if (miltyUI) {
-                const refreshBtn = miltyUI.querySelector('#refreshOccupancyBtn');
-                if (refreshBtn) {
-                    refreshBtn.click();
-                }
-            }
-        }, 300); // Delay to ensure all overlays are rendered first
+        // Recolour the slice buttons for what was just imported.
+        //
+        // This used to try window.updateSliceButtonColors first, which nothing has ever
+        // assigned — the function is a closure inside showMiltyBuilderUI — and then fall
+        // back to finding #refreshOccupancyBtn and clicking it. Only the fallback ever
+        // ran, and clicking that button also flashes it green and overwrites the import
+        // summary below with "Slice occupancy refreshed!". The command does the one thing
+        // that was wanted, and does nothing when the designer is closed.
+        setTimeout(() => tryInvoke(COMMANDS.refreshMiltySliceColors),
+                   300); // Delay to ensure all overlays are rendered first
 
         return importedCount > 0;
 

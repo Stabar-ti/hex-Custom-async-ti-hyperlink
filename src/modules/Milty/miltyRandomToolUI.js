@@ -8,17 +8,9 @@ import { showPopup, togglePopup } from '../../ui/popupUI.js';
 let sharedModuleInstance = null;
 
 // Function to get or import the shared module instance
-async function getSharedModule(forceReload = false) {
-    console.log('🔄 getSharedModule called with forceReload:', forceReload);
-    console.log('🔄 Current sharedModuleInstance exists:', !!sharedModuleInstance);
-
-    if (!sharedModuleInstance || forceReload) {
-        const cacheBuster = forceReload ? '?v=' + Date.now() : '';
-        console.log('🔄 Loading module with cacheBuster:', cacheBuster);
-        sharedModuleInstance = await import('./miltyBuilderRandomTool.js' + cacheBuster);
-        console.log('📦 Loaded shared module instance (forceReload:', forceReload, ')');
-    } else {
-        console.log('📦 Reusing existing shared module instance');
+async function getSharedModule() {
+    if (!sharedModuleInstance) {
+        sharedModuleInstance = await import('./miltyBuilderRandomTool.js');
     }
     return sharedModuleInstance;
 }
@@ -38,7 +30,7 @@ async function generateSlicesWithUI() {
 
         // Import and call the core generation function with force reload
         console.log('Attempting to import core module...');
-        const module = await getSharedModule(true); // Force reload for generation
+        const module = await getSharedModule();
 
         // Update settings from UI first using the same module instance
         console.log('🔧 Updating settings from UI...');
@@ -257,8 +249,7 @@ export function createGeneratorPopupContent() {
  * Show the weighting settings popup
  */
 export function showWeightingSettingsPopup() {
-    const cacheBuster = '?v=' + Date.now();
-    import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
+    getSharedModule().then(module => {
         const { createWeightingPopupContent: buildContent } = module;
 
         showPopup({
@@ -317,8 +308,7 @@ export function createWeightingPopupContent() {
 
     // Try to get current weights from the main module
     try {
-        const cacheBuster = '?v=' + Date.now();
-        import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
+        getSharedModule().then(module => {
             currentWeights = module.getCurrentWeights?.() || DEFAULT_WEIGHTS;
             // Update the UI with current weights
             Object.keys(currentWeights).forEach(key => {
@@ -777,8 +767,7 @@ export async function updateSettingsFromUI(moduleInstance = null) {
  * Save weighting settings
  */
 export function saveWeightingSettings() {
-    const cacheBuster = '?v=' + Date.now();
-    import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
+    getSharedModule().then(module => {
         const { getCurrentWeights, setCurrentWeights } = module;
         const currentWeights = getCurrentWeights();
 
@@ -806,8 +795,7 @@ export function saveWeightingSettings() {
  * Reset weighting settings to defaults
  */
 export function resetWeightingSettings() {
-    const cacheBuster = '?v=' + Date.now();
-    import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
+    getSharedModule().then(module => {
         const { resetWeightsToDefault, getCurrentWeights } = module;
         resetWeightsToDefault();
         const currentWeights = getCurrentWeights();

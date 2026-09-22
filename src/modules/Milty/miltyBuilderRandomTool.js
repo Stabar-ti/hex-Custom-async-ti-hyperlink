@@ -17,7 +17,7 @@ const EXCLUDED_TILE_IDS = [
 // UI functions have been moved to miltyRandomToolUI.js for better separation of concerns
 
 import { assignSystem } from '../../features/assignSystem.js';
-import { markRealIDUsed } from '../../ui/uiFilters.js';
+import { markRealIDUsed, refreshSystemList } from '../../ui/uiFilters.js';
 import { slotPositions } from './miltyBuilderCore.js';
 
 // Default generation settings
@@ -93,79 +93,67 @@ const DEFAULT_WEIGHTS = {
 
 let currentSettings = { ...DEFAULT_SETTINGS };
 
-// Weights persist across cache-busted module reloads via window global (same pattern as miltyDebugState)
-if (!window._miltyCurrentWeights) {
-    window._miltyCurrentWeights = { ...DEFAULT_WEIGHTS };
-}
-let currentWeights = window._miltyCurrentWeights;
+let currentWeights = { ...DEFAULT_WEIGHTS };
 
-// Debug settings - store in global scope to persist across module reloads
+// Whether a generation run records why each attempt failed. Off by default: the tracking
+// below is cheap but the logging it drives is not.
 let debugMode = false;
 
-// Store debug details in global scope so they persist across module instances
-if (!window.miltyDebugState) {
-    window.miltyDebugState = {
-        debugDetails: {
-            swapAttempts: 0,
-            successfulSwaps: 0,
-            swapTypes: { direct: 0, broader: 0, unused: 0, random: 0 },
-            constraintFailures: 0,
-            scoreImprovements: [],
-            // Generation failure tracking
-            generationFailures: {
-                totalAttempts: 0,
-                sliceSetFailures: 0,
-                sliceSetValidationFailures: 0,
-                individualSliceFailures: 0,
-                constraintFailureBreakdown: {
-                    planetSystemCount: 0,
-                    optimalResources: 0,
-                    optimalInfluence: 0,
-                    optimalTotal: 0,
-                    wormholeConstraints: 0,
-                    legendaryConstraints: 0,
-                    duplicateWormholes: 0
-                },
-                sliceGenerationPhases: {
-                    insufficientCandidates: 0,
-                    wormholeAssignmentFailed: 0,
-                    planetSystemSelectionFailed: 0,
-                    emptySystemFillingFailed: 0,
-                    finalSystemFillingFailed: 0,
-                    constraintValidationFailed: 0
-                }
-            }
+/**
+ * Why the last generation run went the way it did.
+ *
+ * This and the weights above were kept on window, because the popups loaded this module
+ * through `import('./miltyBuilderRandomTool.js?v=' + Date.now())` and each of those
+ * evaluations produced a separate module with its own copy of every top-level binding.
+ * The globals were the only thing the copies shared.
+ *
+ * The cache busting is gone, so there is one instance again — miltyHomeOverlay had in
+ * fact always imported this module the ordinary way, so a canonical instance existed the
+ * whole time and the extra copies were talking to it exclusively through those globals.
+ * Ordinary module state says the same thing without the bus.
+ */
+let debugDetails = {
+    swapAttempts: 0,
+    successfulSwaps: 0,
+    swapTypes: { direct: 0, broader: 0, unused: 0, random: 0 },
+    constraintFailures: 0,
+    scoreImprovements: [],
+    // Generation failure tracking
+    generationFailures: {
+        totalAttempts: 0,
+        sliceSetFailures: 0,
+        sliceSetValidationFailures: 0,
+        individualSliceFailures: 0,
+        constraintFailureBreakdown: {
+            planetSystemCount: 0,
+            optimalResources: 0,
+            optimalInfluence: 0,
+            optimalTotal: 0,
+            wormholeConstraints: 0,
+            legendaryConstraints: 0,
+            duplicateWormholes: 0
         },
-        debugMode: false
-    };
-}
-
-// Use global debug state
-let debugDetails = window.miltyDebugState.debugDetails;
-
-// Helper function to keep global debug state in sync
-function syncDebugState() {
-    if (debugMode) {
-        window.miltyDebugState.debugDetails = debugDetails;
-        window.miltyDebugState.debugMode = debugMode;
+        sliceGenerationPhases: {
+            insufficientCandidates: 0,
+            wormholeAssignmentFailed: 0,
+            planetSystemSelectionFailed: 0,
+            emptySystemFillingFailed: 0,
+            finalSystemFillingFailed: 0,
+            constraintValidationFailed: 0
+        }
     }
-}
+};
 
 // Export accessor functions for UI module
 export function getCurrentWeights() {
-    // Always read from the global so any module instance sees weights set by others
-    return { ...(window._miltyCurrentWeights || DEFAULT_WEIGHTS) };
+    return { ...currentWeights };
 }
 
 export function setCurrentSettings(settings) {
     currentSettings = { ...settings };
     debugMode = settings.debugMode;
-    // Also store in global state to persist across module reloads
-    window.miltyDebugState.debugMode = settings.debugMode;
     console.log('🔧 Settings updated:', currentSettings);
     console.log('🔧 Debug mode specifically set to:', debugMode);
-    console.log('🔧 Global debug mode set to:', window.miltyDebugState.debugMode);
-    console.log('🔧 Settings.debugMode was:', settings.debugMode);
 }
 
 export function getCurrentSettings() {
@@ -174,23 +162,15 @@ export function getCurrentSettings() {
 
 export function setCurrentWeights(weights) {
     currentWeights = { ...weights };
-    window._miltyCurrentWeights = currentWeights;
 }
 
 export function resetWeightsToDefault() {
     currentWeights = { ...DEFAULT_WEIGHTS };
-    window._miltyCurrentWeights = currentWeights;
 }
 
 export function getDebugDetails() {
     console.log('🔍 getDebugDetails called');
-
-    // Sync debug mode from global state
-    debugMode = window.miltyDebugState.debugMode;
-    debugDetails = window.miltyDebugState.debugDetails;
-
     console.log('🔍 Current debugMode variable:', debugMode);
-    console.log('🔍 Global debugMode state:', window.miltyDebugState.debugMode);
     console.log('🔍 Current debugDetails:', debugDetails);
     console.log('🔍 debugDetails.swapAttempts:', debugDetails.swapAttempts);
 
@@ -381,13 +361,13 @@ function getAvailableSystems() {
         return [];
     }
 
-    // Use allSystems if available, otherwise fallback to sectorIDLookup values
+    // Use allSystems if available, otherwise fallback to sectorIDLookup values.
+    //
+    // A window.SystemInfo branch used to come first. Nothing has ever assigned that
+    // global — loadSystemInfo puts the corpus on editor.allSystems — so the branch was
+    // unreachable and this has always started here.
     let systems = [];
-    // Try to use SystemInfo.systems if available (from SystemInfo.json)
-    if (window.SystemInfo && Array.isArray(window.SystemInfo.systems)) {
-        systems = window.SystemInfo.systems;
-        console.log('Using SystemInfo.systems:', systems.length, 'systems');
-    } else if (editor.allSystems && Array.isArray(editor.allSystems)) {
+    if (editor.allSystems && Array.isArray(editor.allSystems)) {
         systems = editor.allSystems;
         console.log('Using editor.allSystems:', systems.length, 'systems');
     } else if (editor.sectorIDLookup) {
@@ -688,7 +668,6 @@ async function generateSlicesWithConstraints(availableSystems) {
                 constraintValidationFailed: 0
             }
         };
-        window.miltyDebugState.debugDetails = debugDetails;
     }
 
     // --- Smart wormhole pre-selection to improve success rates ---
@@ -1427,8 +1406,6 @@ async function balanceSliceScores(slices) {
             constraintFailures: 0,
             scoreImprovements: []
         };
-        // Store in global state
-        window.miltyDebugState.debugDetails = debugDetails;
     }
 
     console.log('Starting score balancing...');
@@ -1519,7 +1496,6 @@ async function balanceSliceScores(slices) {
             if (debugMode) {
                 debugDetails.successfulSwaps++;
                 debugDetails.swapTypes.direct++;
-                syncDebugState();
             }
 
             const newWeakScore   = calculateSliceScore(weakestSlice);
@@ -1534,7 +1510,6 @@ async function balanceSliceScores(slices) {
                     improvement: (newWeakScore - minScore) + (newStrongScore - maxScore),
                     systems: [weakSystem.id, strongSystem.id]
                 });
-                syncDebugState();
             }
         }
 
@@ -1710,7 +1685,6 @@ function testSystemSwap(slice1, slice2, sys1Index, sys2Index, allScores, s1Globa
 
     if (debugMode) {
         debugDetails.swapAttempts++;
-        window.miltyDebugState.debugDetails = debugDetails;
     }
 
     // Create test copies
@@ -1727,7 +1701,6 @@ function testSystemSwap(slice1, slice2, sys1Index, sys2Index, allScores, s1Globa
     if (!validateSliceConstraintsRelaxed(slice1Copy) || !validateSliceConstraintsRelaxed(slice2Copy)) {
         if (debugMode) {
             debugDetails.constraintFailures++;
-            syncDebugState();
         }
         return null;
     }
@@ -2302,9 +2275,9 @@ async function placeSlicesOnMap(slices) {
     if (typeof window.editor?.redrawAllRealIDOverlays === 'function') {
         window.editor.redrawAllRealIDOverlays(window.editor);
     }
-    if (typeof window.renderSystemList === 'function') {
-        window.renderSystemList();
-    }
+    // See miltyBuilderCore: window.renderSystemList has had no assignment since the
+    // picker moved to a subscription, so this guard was never true.
+    refreshSystemList();
 
     // Import all the required modules first, then execute in sequence (same as importSlices)
     Promise.all([

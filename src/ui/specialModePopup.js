@@ -212,7 +212,6 @@ export function showSpecialModePopup() {
 
 // Attach to button if loaded directly
 if (typeof window !== 'undefined') {
-    window.showSpecialModePopup = showSpecialModePopup;
     const _wireBtn = () => {
         const btn = document.getElementById('specialModesBtn');
         // Pressing Generate again puts the panel away, the same as every other menu.
