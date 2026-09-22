@@ -31,7 +31,7 @@ import { installTopBarMenus } from './ui/topBarMenus.js';
 import { installInspector } from './ui/inspector.js';
 import { installClipboardPanel } from './ui/clipboardPanel.js';
 import { installPanelResizers } from './ui/panelResize.js';
-import { restoreSession, installSessionAutosave } from './features/session.js';
+import { installSessionAutosave } from './features/session.js';
 import { installStatusBar } from './ui/statusBar.js';
 import { installTopBarControls } from './ui/topBarControls.js';
 import { installSwapButton } from './features/hexSwapButton.js';
@@ -328,11 +328,8 @@ _onDOMReady(() => {
   // panel permanently covering the map.
   installFileMenu(editor);
 
-  // Put back the map you were working on. The constructor has already drawn the default
-  // grid by this point, which is the right thing to see when there is nothing stored and
-  // is simply replaced when there is — restoring before the rest of the UI exists would
-  // mean the overlays and the picker filters had nothing to attach to.
-  restoreSession(editor);
+  // The restore itself happens in the editor's own startup, where the system data it
+  // needs has just finished loading. This only has to start watching for changes.
   installSessionAutosave(editor);
 
   // Group the rest of the bar by purpose. After installFileMenu and installTopBarControls,

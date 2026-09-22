@@ -98,6 +98,23 @@ export function restoreSession(editor) {
     }
     if (!raw) return false;
 
+    // Checked here rather than left to importFullState, which catches its own errors and
+    // reports them to the user instead of throwing. That is right for a file someone
+    // chose to open and wrong for this: a session that cannot be read would be "restored"
+    // successfully on every load, leaving an empty map and no way back to a generated one.
+    let parsed = null;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        parsed = null;
+    }
+    const hexes = parsed && (Array.isArray(parsed.hexes) ? parsed.hexes : (Array.isArray(parsed) ? parsed : null));
+    if (!hexes || !hexes.length) {
+        console.warn('[session] the stored map is not readable; starting fresh');
+        clearSession();
+        return false;
+    }
+
     try {
         importFullState(editor, raw);
         return true;

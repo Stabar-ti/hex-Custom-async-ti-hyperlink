@@ -42,6 +42,7 @@ import { applySavedTheme } from '../ui/uiTheme.js';
 import { calculateDistancesFrom, isScriptedAnomaly } from '../distance/index.js';
 import { clearHexSelection, refreshHexSelection } from '../features/hexSelection.js';
 import { disarmAll } from '../features/disarm.js';
+import { restoreSession } from '../features/session.js';
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import {
   buildCoordIndex, neighborHex, oppositeSide, normalizeSide, areAxialNeighbors,
@@ -125,15 +126,31 @@ export default class HexEditor {
     installHyperlanes(this);      // Allows drawing hyperlane links with clicks
     registerClickHandler(this);   // Handles click mode (effect/sector/wormhole/hyperlane)
 
-    // ─── DEFERRED: Wait for system info to load before generating grid ───
-    // This ensures all system/sector metadata is ready before drawing.
-    Promise.all([loadSystemInfo(this), loadHyperlaneMatrices(this)])
+    // ─── DEFERRED: wait for the system data before putting a map on screen ───
+    //
+    // Both branches belong here, and for the same reason: each needs the data that has
+    // just arrived. Generating a grid needs the hyperlane matrices; restoring a stored map
+    // needs sectorIDLookup, because its tiles are ids that have to be looked up.
+    //
+    // This used to generate unconditionally, and the session was restored separately from
+    // main.js on DOM-ready. Those are two different clocks — a network fetch and the
+    // parser — so which finished last decided whether you got your map back or a blank
+    // grid over the top of it. On a warm localhost cache the fetch usually won and the
+    // restore stuck; on a cold one the generate landed second and wiped it. A restored map
+    // is not something to draw a default grid over and hope, so one place decides.
+    //
+    // The promise is kept on the editor so callers can wait for a map to exist rather
+    // than guess at how long it takes.
+    this.ready = Promise.all([loadSystemInfo(this), loadHyperlaneMatrices(this)])
       .then(() => {
-        this.generateMap();
+        if (!restoreSession(this)) this.generateMap();
         console.log("HexEditor fully initialized.");
       })
       .catch(err => {
         console.error("Could not load system/hyperlane info:", err);
+        // Without that data there is nothing to restore from, but an empty grid still
+        // beats an empty page.
+        try { this.generateMap(); } catch { /* the boot guard reports a failure itself */ }
       });
   }
 
