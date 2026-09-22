@@ -70,6 +70,23 @@ export function setActiveClip(id) {
     announce();
 }
 
+/**
+ * Drop one clip.
+ *
+ * If it was the active one, the next newest takes over rather than leaving nothing
+ * selected — the panel is a list you pick from, and a pick that empties itself is a worse
+ * answer than the obvious neighbour.
+ *
+ * @param {string} id
+ */
+export function removeClip(id) {
+    const i = history.findIndex(c => c.id === id);
+    if (i < 0) return;
+    history = history.filter(c => c.id !== id);
+    if (activeId === id) activeId = history.length ? history[Math.min(i, history.length - 1)].id : null;
+    announce();
+}
+
 export function clearClipboard() {
     history = [];
     activeId = null;

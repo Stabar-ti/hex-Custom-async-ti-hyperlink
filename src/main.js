@@ -29,6 +29,7 @@ import { resetAllPopupPositions, togglePopup } from './ui/popupUI.js';
 import { installFileMenu } from './ui/fileMenu.js';
 import { installTopBarMenus } from './ui/topBarMenus.js';
 import { installInspector } from './ui/inspector.js';
+import { installClipboardPanel } from './ui/clipboardPanel.js';
 import { installStatusBar } from './ui/statusBar.js';
 import { installTopBarControls } from './ui/topBarControls.js';
 import { setPanMode } from './ui/viewControls.js';
@@ -81,6 +82,8 @@ installStatusBar(editor);
 
 // The inspector column: what is on the hex under the pointer.
 installInspector(editor);
+// After installInspector, which empties the column before building it.
+installClipboardPanel(editor);
 
 // Undo/redo, zoom, pan mode and reset view — the verbs that had no buttons.
 installTopBarControls(editor);

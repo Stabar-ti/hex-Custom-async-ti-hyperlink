@@ -427,6 +427,30 @@ const cb = await import('../src/features/tileClipboard.js');
         JSON.stringify(cb.activeClip().tiles.map(t => `${t.q},${t.r}`)));
 }
 
+{
+    // The panel lets you drop a clip. Dropping the active one has to leave something
+    // selected, or the next Ctrl+V silently does nothing.
+    cb._resetForTests();
+    const editor = makeEditor();
+    editor.hexes['101'].baseType = 'empty';
+    const a = cb.copyTiles(editor, ['101']);
+    const b = cb.copyTiles(editor, ['101']);
+    const c = cb.copyTiles(editor, ['101']);
+
+    check('the newest is active to begin with', cb.activeClip()?.id === c.id);
+    cb.removeClip(c.id);
+    check('dropping a clip removes it', cb.clips().length === 2, String(cb.clips().length));
+    check('and the neighbour takes over as active', !!cb.activeClip(), String(cb.activeClip()?.id));
+
+    cb.removeClip(a.id);
+    check('dropping a clip that was not active leaves the active one alone',
+        cb.activeClip()?.id === b.id, String(cb.activeClip()?.id));
+
+    cb.removeClip(b.id);
+    check('dropping the last one leaves nothing active', cb.activeClip() === null);
+    check('and an empty history', cb.clips().length === 0);
+}
+
 // ── report ───────────────────────────────────────────────────────────────────
 
 console.log(`\nclipboard engine: ${passed} checks passed, ${failures.length} failed`);

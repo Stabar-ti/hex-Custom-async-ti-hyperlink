@@ -722,6 +722,135 @@ body {
   border-color: var(--text-color);
 }
 
+/* ── Clipboard history ────────────────────────────────────────────────────── */
+
+/* Sits under the hex detail, which the inspector swaps out in place on every hover, so
+   this is a sibling rather than part of it. */
+.clip-panel {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--surface-4);
+}
+
+.clip-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.clip-panel__title {
+  flex: 1;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--surface-5);
+}
+
+.clip-panel__count {
+  font-size: 10px;
+  color: var(--surface-5);
+  font-variant-numeric: tabular-nums;
+}
+
+.clip-panel__clear {
+  padding: 1px 6px;
+  background: none;
+  border: 1px solid var(--surface-4);
+  border-radius: var(--ui-radius);
+  color: var(--info-color);
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+.clip-panel__clear:hover {
+  color: var(--text-color);
+  border-color: var(--text-color);
+}
+
+.clip-empty {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--surface-5);
+}
+
+.clip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /* Twelve clips is a list, not a page. Anything past about five scrolls rather than
+     pushing the hex detail off the top of the column. */
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.clip-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  background: var(--surface-3);
+  cursor: pointer;
+}
+
+.clip-row:hover {
+  background: #343434;
+}
+
+/* Which clip Ctrl+V will place. With several in the list that stops being obvious, and
+   guessing wrong overwrites tiles. */
+.clip-row.is-active {
+  border-color: #4fc3f7;
+  background: #2f3a40;
+}
+
+.clip-shape {
+  flex: none;
+  opacity: 0.9;
+}
+
+.clip-row__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.clip-row__name {
+  font-size: 11px;
+  color: var(--text-color);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.clip-row__meta {
+  font-size: 9.5px;
+  color: var(--surface-5);
+  font-variant-numeric: tabular-nums;
+}
+
+.clip-row__drop {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--ui-radius);
+  color: var(--surface-5);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.clip-row__drop:hover {
+  background: var(--surface-4);
+  color: var(--text-color);
+}
+
 /* ── Status bar ───────────────────────────────────────────────────────────── */
 
 #statusBar {
