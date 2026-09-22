@@ -606,6 +606,79 @@ body {
   color: var(--surface-5);
 }
 
+/* The tile art, when SystemInfo has a path for it and the file is present. The element
+   starts hidden and reveals itself on load, so a missing download shows nothing rather
+   than a broken-image icon. */
+.insp-tile {
+  display: block;
+  width: 100%;
+  max-width: 132px;
+  margin: 2px auto 8px;
+  border-radius: 6px;
+  border: 1px solid var(--surface-4);
+  background: var(--surface-1);
+}
+
+.insp-planet__tokens,
+.insp-tokens {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--color-accent);
+}
+
+.insp-planet__tokens {
+  margin-top: 2px;
+}
+
+.insp-tokens {
+  margin: 1px 0 4px 2px;
+}
+
+.insp-field--hint .insp-field__value {
+  color: var(--color-accent);
+}
+
+.insp-field--tier .insp-field__value {
+  color: #7ecfff;
+}
+
+/* The pinned bar. Present only while a hex is selected, so the panel says which of its
+   two modes it is in rather than leaving you to work out why hovering stopped doing
+   anything. */
+.insp-pinned {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0 2px;
+  padding: 3px 6px;
+  border-radius: var(--ui-radius);
+  background: var(--surface-3);
+  border-left: 3px solid #4fc3f7;
+}
+
+.insp-pinned__text {
+  font-size: 10.5px;
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.insp-pinned__clear {
+  padding: 1px 7px;
+  background: none;
+  border: 1px solid var(--surface-5);
+  border-radius: var(--ui-radius);
+  color: var(--info-color);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.insp-pinned__clear:hover {
+  color: var(--text-color);
+  border-color: var(--text-color);
+}
+
 /* ── Status bar ───────────────────────────────────────────────────────────── */
 
 #statusBar {

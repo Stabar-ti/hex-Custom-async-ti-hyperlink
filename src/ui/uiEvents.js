@@ -8,9 +8,10 @@
 // or linking hyperlanes, wormhole toggles, or changing sector type.
 // ───────────────────────────────────────────────────────────────
 
-import { wormholeTypes } from '../constants/constants.js';
+import { wormholeTypes, sectorColors } from '../constants/constants.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { handleHexClick } from '../modules/Hyperlanes/hyperlaneEditing.js';
+import { selectHex } from '../features/hexSelection.js';
 
 export function registerClickHandler(editor) {
   editor._onHexClick = function (e, label) {
@@ -63,8 +64,24 @@ export function registerClickHandler(editor) {
       return;
     }
 
-    // 5. Sector type fill (for all other modes): snapshot BEFORE clearAll wipes the hex,
-    // then lock history so setSectorType doesn't double-save.
+    // 5. Nothing is armed, so the click is a read rather than an edit.
+    //
+    // Everything below this point paints, and it used to run for any mode the branches
+    // above did not claim — including 'none', which is how every tool disarms, and '',
+    // which is how the value-hint panel releases the map. Neither is a paint type, so
+    // setSectorType looked them up in sectorColors, found nothing, and filled the hex with
+    // the blank default. Clicking with no tool armed wiped tiles and pushed undo entries.
+    //
+    // Guarding on sectorColors rather than on a list of names is what makes that safe: the
+    // paint modes ARE its keys, so a mode that is not one of them cannot be painted by
+    // definition, whatever it is called.
+    if (!this.mode || this.mode === 'none' || this.mode === 'select' || !(this.mode in sectorColors)) {
+      selectHex(this, label);
+      return;
+    }
+
+    // 6. Sector type fill: snapshot BEFORE clearAll wipes the hex, then lock history so
+    // setSectorType doesn't double-save.
     this.saveState(label);
     this._historyLocked = true;
     if (this.clearAll) this.clearAll(label);

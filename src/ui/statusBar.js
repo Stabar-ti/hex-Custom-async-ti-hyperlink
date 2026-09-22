@@ -34,7 +34,7 @@ function setField(id, text) {
 
 /** Turn an internal mode string into something worth reading. */
 function modeLabel(mode) {
-    if (!mode || mode === 'none' || mode === '') return 'none';
+    if (!mode || mode === 'none' || mode === '' || mode === 'select') return 'none';
     if (mode === 'token-selection') return 'token placement';
     // 'custom-adj-single' → 'custom adj single'
     return String(mode).replace(/[-_]/g, ' ');

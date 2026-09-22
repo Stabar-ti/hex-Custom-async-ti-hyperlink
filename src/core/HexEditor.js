@@ -40,6 +40,7 @@ import { registerClickHandler } from '../ui/uiEvents.js';
 import { applySavedTheme } from '../ui/uiTheme.js';
 // Calculate shortest path distances for overlays, etc.
 import { calculateDistancesFrom, isScriptedAnomaly } from '../distance/index.js';
+import { clearHexSelection, refreshHexSelection } from '../features/hexSelection.js';
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import {
   buildCoordIndex, neighborHex, oppositeSide, normalizeSide, areAxialNeighbors,
@@ -69,7 +70,9 @@ export default class HexEditor {
   constructor({ svg, confirmReset = null }) {
     // ─── Core state variables ───
     this.hexes = {};            // Map of all hexes by label/id
-    this.mode = 'hyperlane';    // Current editing mode ("hyperlane", "nebula", etc.)
+    // Idle. The editor used to boot armed with the hyperlane tool, so the first click on
+    // a fresh map drew a hyperlane nobody asked for, and the rail showed nothing selected.
+    this.mode = 'select';       // Current editing mode ('select', 'hyperlane', 'nebula', ...)
     this.hoveredHexLabel = null;// Which hex is being hovered (for highlight)
     this.fillCorners = true;   // If true, adds corner hexes to map grid
     this.showWormholes = true;  // If wormhole icons are shown
@@ -346,6 +349,7 @@ export default class HexEditor {
     // Restore overlays after SVG was wiped and rebuilt
     this.tokenOverlay?.refresh();
     this.loreOverlay?.refresh();
+    refreshHexSelection(this);
   }
 
   addRing() {
@@ -540,6 +544,7 @@ export default class HexEditor {
     // Redraw token overlays at the new corner positions
     this.tokenOverlay?.refresh();
     this.loreOverlay?.refresh();
+    refreshHexSelection(this);
   }
 
 
@@ -549,6 +554,10 @@ export default class HexEditor {
    * Switch editing mode and clear selection
    */
   setMode(mode) {
+
+    // A tool taking the map ends the read: the ring would otherwise sit there while the
+    // next click paints, saying something is selected when nothing is being read.
+    if (mode && mode !== 'select' && mode !== 'none') clearHexSelection(this);
 
     this.mode = mode;
     this.selectedPath = [];
