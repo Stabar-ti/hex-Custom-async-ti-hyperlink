@@ -1,24 +1,24 @@
 {
-    "id": "heroh",
-    "tileId": "th10",
-    "name": "Heroh",
+    "id": "scrapheap",
+    "tileId": "th15",
+    "name": "Scrapheap",
     "aliases": [
-        "heroh"
+        "scrapheap"
     ],
     "positionInTile": {
-        "x": 134.0,
-        "y": 86.0
+        "x": 132.0,
+        "y": 77.0
     },
-    "resources": 3,
-    "influence": 0,
-    "factionHomeworld": "revenant",
+    "resources": 2,
+    "influence": 1,
+    "factionHomeworld": "scrapyard",
     "planetType": "FACTION",
     "cardImagePath": null,
     "techSpecialties": null,
     "legendaryAbilityName": null,
     "legendaryAbilityText": null,
     "unitPositions": {
-        "unitHolderName": "heroh",
+        "unitHolderName": "scrapheap",
         "coordinateMap": {
             "control": [
                 {
@@ -107,5 +107,6 @@
         },
         "removeUnitCoordinate": true
     },
+    "contrastColor": "orange",
     "source": "theodisi"
 }

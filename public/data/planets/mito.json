@@ -1,24 +1,24 @@
 {
-    "id": "heroh",
-    "tileId": "th10",
-    "name": "Heroh",
+    "id": "mito",
+    "tileId": "th17",
+    "name": "Mito",
     "aliases": [
-        "heroh"
+        "mito"
     ],
     "positionInTile": {
-        "x": 134.0,
-        "y": 86.0
+        "x": 130.0,
+        "y": 80.0
     },
-    "resources": 3,
-    "influence": 0,
-    "factionHomeworld": "revenant",
+    "resources": 2,
+    "influence": 1,
+    "factionHomeworld": "morpha",
     "planetType": "FACTION",
     "cardImagePath": null,
     "techSpecialties": null,
     "legendaryAbilityName": null,
     "legendaryAbilityText": null,
     "unitPositions": {
-        "unitHolderName": "heroh",
+        "unitHolderName": "mito",
         "coordinateMap": {
             "control": [
                 {
@@ -107,5 +107,6 @@
         },
         "removeUnitCoordinate": true
     },
+    "contrastColor": "orange",
     "source": "theodisi"
 }
