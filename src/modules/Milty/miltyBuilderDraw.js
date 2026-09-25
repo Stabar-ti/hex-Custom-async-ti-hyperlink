@@ -78,7 +78,7 @@ export function drawSlicePositionOverlays(editor, show = true) {
     }
     console.log(`Added ${sectors.length} slice position overlays and ${sliceLetters.length} slice letter overlays to layer`);
 
-    setTimeout(() => applyMiltyDisplay(), 200);
+    setTimeout(() => applyMiltyDisplay(editor), 200);
 }
 
 // Draws black borders around each slice (A-F) to show slice boundaries

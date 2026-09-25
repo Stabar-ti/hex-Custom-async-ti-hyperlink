@@ -14,7 +14,6 @@ import { showSanityCheckPopup } from '../../ui/simplepPopup.js';
 import { togglePopup } from '../../ui/popupUI.js';
 import { showSliceExportPopup } from './miltyBuilderExport.js';
 import { provide, COMMANDS } from '../../core/registry.js';
-import { getEditor } from '../../core/editorRef.js';
 
 /**
  * Has the Milty layout been put on the map this session?
@@ -67,7 +66,7 @@ export async function loadMiltyMap(editor) {
     // The overlays need the import to have finished drawing. The delay is the one the
     // designer's button already used.
     setTimeout(() => {
-        applyMiltyDisplay();
+        applyMiltyDisplay(editor);
         drawSlicePositionOverlays(editor);
     }, 800);
 }
@@ -162,7 +161,7 @@ export function showMiltyBuilderUI(container, editor) {
                 liveAnalysisEnabled = this.checked;
                 if (liveAnalysisEnabled) {
                     import('./miltyBuilderPopups.js').then(mod => {
-                        mod.showDraftValuesPopup();
+                        mod.showDraftValuesPopup(editor);
                         setupObserver();
                     });
                 } else {
@@ -177,7 +176,7 @@ export function showMiltyBuilderUI(container, editor) {
                 observer = new MutationObserver(() => {
                     if (liveAnalysisEnabled) {
                         import('./miltyBuilderPopups.js').then(mod => {
-                            mod.showDraftValuesPopup(true); // force refresh
+                            mod.showDraftValuesPopup(editor, true); // force refresh
                         });
                     }
                 });
@@ -373,7 +372,7 @@ export function showMiltyBuilderUI(container, editor) {
         if (calcDraftBtn) {
             calcDraftBtn.onclick = () => togglePopup('milty-draft-values-popup', () => {
                 import('./miltyBuilderPopups.js').then(mod => {
-                    mod.showDraftValuesPopup();
+                    mod.showDraftValuesPopup(editor);
                 });
             });
         }
@@ -382,14 +381,14 @@ export function showMiltyBuilderUI(container, editor) {
         if (outputBtn) {
             outputBtn.onclick = () => togglePopup('milty-output-popup', () => {
                 import('./miltyBuilderPopups.js').then(mod => {
-                    mod.showOutputCopyPopup();
+                    mod.showOutputCopyPopup(editor);
                 });
             });
         }
 
         const exportPngBtn = container.querySelector('#exportSlicesPngBtn');
         if (exportPngBtn) {
-            exportPngBtn.onclick = () => togglePopup('milty-export-popup', showSliceExportPopup);
+            exportPngBtn.onclick = () => togglePopup('milty-export-popup', () => showSliceExportPopup(editor));
         }
 
         // Import button
@@ -397,7 +396,7 @@ export function showMiltyBuilderUI(container, editor) {
         if (importBtn) {
             importBtn.onclick = () => togglePopup('milty-import-popup', () => {
                 import('./miltyBuilderPopups.js').then(mod => {
-                    mod.showImportSlicesPopup();
+                    mod.showImportSlicesPopup(editor);
                 });
             });
         }
@@ -406,7 +405,7 @@ export function showMiltyBuilderUI(container, editor) {
         const generateBtn = container.querySelector('#generateSlicesBtn');
         if (generateBtn) {
             generateBtn.onclick = () => {
-                showMiltyDraftGeneratorPopup();
+                showMiltyDraftGeneratorPopup(editor);
                 // The generator places tiles async — re-draw overlay after it finishes
                 // by listening for the next batch of hex fill changes via the observer.
                 // Also schedule an explicit redraw as a safety net.
@@ -437,7 +436,7 @@ export function showMiltyBuilderUI(container, editor) {
                 const sliceHexes = defaultSlices[sliceLetter];
                 if (!sliceHexes) return;
 
-                const colors = analyzeSliceOccupancy(sliceHexes, sliceLetter);
+                const colors = analyzeSliceOccupancy(editor, sliceHexes, sliceLetter);
 
                 // Clear selection styling first
                 if (selectedSource !== sliceLetter || selectedSourceType !== 'map') {
@@ -459,7 +458,7 @@ export function showMiltyBuilderUI(container, editor) {
                 const slotHexes = slotPositions[slotNum];
                 if (!slotHexes) continue;
 
-                const colors = analyzeSliceOccupancy(slotHexes, `Slot ${slotNum}`);
+                const colors = analyzeSliceOccupancy(editor, slotHexes, `Slot ${slotNum}`);
 
                 // Clear selection styling first
                 if (selectedSource !== slotNum || selectedSourceType !== 'slot') {
@@ -489,7 +488,7 @@ export function showMiltyBuilderUI(container, editor) {
 
                     if (selectedSource && selectedSourceType) {
                         // Move from source to this map slice
-                        const success = moveSlice(selectedSource, selectedSourceType, l, 'map', updateStatusMsg);
+                        const success = moveSlice(editor, selectedSource, selectedSourceType, l, 'map', updateStatusMsg);
                         if (success) {
                             updateSliceButtonColors();
                             clearSelection();
@@ -515,7 +514,7 @@ export function showMiltyBuilderUI(container, editor) {
 
                     if (selectedSource && selectedSourceType) {
                         // Move from source to this slot
-                        const success = moveSlice(selectedSource, selectedSourceType, i, 'slot', updateStatusMsg);
+                        const success = moveSlice(editor, selectedSource, selectedSourceType, i, 'slot', updateStatusMsg);
                         if (success) {
                             updateSliceButtonColors();
                             clearSelection();
@@ -734,8 +733,7 @@ export function updateSliceImportPreview(textarea, preview) {
 /**
  * Handles the import process for slice data
  */
-export function handleSliceImport(slicesData, clearExisting, onProgress, onComplete) {
-    const editor = getEditor();
+export function handleSliceImport(editor, slicesData, clearExisting, onProgress, onComplete) {
     if (!slicesData) {
         alert('Please enter slice data to import.');
         return false;
@@ -756,21 +754,11 @@ export function handleSliceImport(slicesData, clearExisting, onProgress, onCompl
 
     // Import the slices
     import('./miltyBuilderCore.js').then(({ importSlices }) => {
-        const success = importSlices(slicesData, onProgress);
+        const success = importSlices(editor, slicesData, onProgress);
 
         if (success) {
-            // Close the popup and refresh UI
+            // Close the popup. importSlices recolours the slice buttons itself.
             document.getElementById('milty-import-popup')?.remove();
-
-            // Refresh the MiltyBuilder UI if it's open
-            const miltyUI = document.getElementById('milty-builder-popup');
-            if (miltyUI) {
-                // Trigger a refresh of slice button colors
-                setTimeout(() => {
-                    const refreshBtn = miltyUI.querySelector('#refreshOccupancyBtn');
-                    if (refreshBtn) refreshBtn.click();
-                }, 100);
-            }
 
             if (onComplete) onComplete(true);
         } else {
@@ -790,7 +778,7 @@ export function handleSliceImport(slicesData, clearExisting, onProgress, onCompl
  * Creates an output display container for draft slice data
  */
 export function createOutputDisplayContainer(outputData) {
-    const { outputString, completedSlots, totalSlices } = outputData;
+    const { outputString, sliceDetails, totalSlices } = outputData;
 
     const container = document.createElement('div');
     container.style.padding = '10px';
@@ -817,23 +805,10 @@ export function createOutputDisplayContainer(outputData) {
     detailsDiv.style.fontSize = '0.9em';
     detailsDiv.style.color = '#ccc';
 
-    const sliceDetails = completedSlots.map(slotNum => {
-        const slotHexes = slotPositions[slotNum];
-        const realIds = [];
-
-        // Get realIds from positions 1-5
-        for (let i = 1; i < slotHexes.length; i++) {
-            const hexId = slotHexes[i];
-            const hex = getEditor()?.hexes?.[hexId];
-            if (hex && hex.realId) {
-                realIds.push(hex.realId);
-            }
-        }
-
-        return `<strong>Slot ${slotNum}:</strong> ${realIds.join(', ')}`;
-    }).join('<br>');
-
-    detailsDiv.innerHTML = sliceDetails;
+    // generateOutputString already read these off the map to decide the slots were complete.
+    detailsDiv.innerHTML = sliceDetails
+        .map(({ slotNum, realIds }) => `<strong>Slot ${slotNum}:</strong> ${realIds.join(', ')}`)
+        .join('<br>');
     container.appendChild(detailsDiv);
 
     // Output string textarea
@@ -961,7 +936,7 @@ export function createEmptyStateMessage(message) {
 /**
  * Creates the draft values analysis table structure
  */
-export function createDraftValuesAnalysisContainer() {
+export function createDraftValuesAnalysisContainer(editor) {
     const container = document.createElement('div');
 
     let hasData = false;
@@ -972,7 +947,7 @@ export function createDraftValuesAnalysisContainer() {
         // Check positions 1-5 (skip homesystem at position 0)
         for (let i = 1; i < slotHexes.length; i++) {
             const hexId = slotHexes[i];
-            const hex = getEditor()?.hexes?.[hexId];
+            const hex = editor?.hexes?.[hexId];
             if (hex && (hex.realId || hex.planets?.length > 0)) {
                 hasData = true;
                 break;

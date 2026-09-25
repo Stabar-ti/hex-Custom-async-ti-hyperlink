@@ -19,7 +19,6 @@ const EXCLUDED_TILE_IDS = [
 import { assignSystem } from '../../features/assignSystem.js';
 import { markRealIDUsed, refreshSystemList } from '../../ui/uiFilters.js';
 import { slotPositions } from './miltyBuilderCore.js';
-import { getEditor } from '../../core/editorRef.js';
 
 // Default generation settings
 const DEFAULT_SETTINGS = {
@@ -314,12 +313,12 @@ export function createWeightingPopupContent() {
  * Generate Milty slices based on current settings
  * This is the core generation function without UI calls
  */
-export async function generateMiltySlices() {
+export async function generateMiltySlices(editor) {
     console.log('🔥 generateMiltySlices function called!');
     // Settings should be updated by UI before calling this function
 
     // Get available systems
-    const availableSystems = getAvailableSystems();
+    const availableSystems = getAvailableSystems(editor);
     console.log('Available systems:', availableSystems.length);
     console.log('First 10 systems:', availableSystems.slice(0, 10).map(s => `${s.id}:${s.name || 'Unknown'}`));
 
@@ -334,7 +333,7 @@ export async function generateMiltySlices() {
 
     // Apply score balancing if enabled
     if (currentSettings.scoreBalancing.enabled) {
-        await balanceSliceScores(slices);
+        await balanceSliceScores(editor, slices);
     }
 
     // Log detailed slice information
@@ -347,7 +346,7 @@ export async function generateMiltySlices() {
     });
 
     // Place slices on the map
-    await placeSlicesOnMap(slices);
+    await placeSlicesOnMap(editor, slices);
 
     return slices; // Return the slices for UI to handle
 }
@@ -355,8 +354,7 @@ export async function generateMiltySlices() {
 /**
  * Get available systems based on source settings
  */
-function getAvailableSystems() {
-    const editor = getEditor();
+function getAvailableSystems(editor) {
     if (!editor) {
         console.warn('Editor not available');
         return [];
@@ -1392,7 +1390,7 @@ function calculateSliceScore(slice) {
 /**
  * Balance slice scores by swapping systems between slices
  */
-async function balanceSliceScores(slices) {
+async function balanceSliceScores(editor, slices) {
     if (slices.length < 2) return; // Can't balance with less than 2 slices
 
     const maxBalancingAttempts = 500; // Reduced for better performance
@@ -1534,7 +1532,7 @@ async function balanceSliceScores(slices) {
             // Try using unused tiles for better balancing
             if (consecutiveFailures > 30) {
                 if (debugMode) console.log('🎲 Trying unused tile swaps...');
-                swapMade = await tryUnusedTileSwaps(slices, scores);
+                swapMade = await tryUnusedTileSwaps(editor, slices, scores);
                 if (swapMade) {
                     improvementsMade++;
                     consecutiveFailures = 0;
@@ -1603,7 +1601,7 @@ async function balanceSliceScores(slices) {
     if (constraintViolations > 0) {
         console.log(`🔧 Attempting to repair ${constraintViolations} slices with constraint violations...`);
 
-        const availableSystems = getAvailableSystems();
+        const availableSystems = getAvailableSystems(editor);
         const usedSystemIds = new Set();
         slices.forEach(slice => {
             slice.systems.forEach(sys => usedSystemIds.add(sys.id));
@@ -2031,14 +2029,13 @@ function validateSliceConstraintsRelaxed(slice) {
 /**
  * Try swapping systems in slices with unused tiles for better balance
  */
-async function tryUnusedTileSwaps(slices, scores) {
+async function tryUnusedTileSwaps(editor, slices, scores) {
     console.log('Trying unused tile swaps for better balance...');
 
     // Get available unused systems
-    const editor = getEditor();
     if (!editor) return false;
 
-    const availableSystems = getAvailableSystems();
+    const availableSystems = getAvailableSystems(editor);
     const usedSystemIds = new Set();
 
     // Collect all currently used system IDs
@@ -2185,8 +2182,7 @@ async function tryUnusedTileSwaps(slices, scores) {
 /**
  * Place generated slices on the map
  */
-async function placeSlicesOnMap(slices) {
-    const editor = getEditor();
+async function placeSlicesOnMap(editor, slices) {
     if (!editor) throw new Error('Editor not available');
 
     console.log('Placing slices on map:', slices.length, 'slices');

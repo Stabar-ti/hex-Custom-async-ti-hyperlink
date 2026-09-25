@@ -7,18 +7,17 @@
 
 import { showPopup } from '../../ui/popupUI.js';
 import { slotPositions, capitalizeTech, generateOutputString } from './miltyBuilderCore.js';
-import { getEditor } from '../../core/editorRef.js';
 
 // Show output copy popup with generated string and analysis
-export function showOutputCopyPopup() {
-    const { outputString, completedSlots, totalSlices } = generateOutputString();
+export function showOutputCopyPopup(editor) {
+    const { outputString, sliceDetails, totalSlices } = generateOutputString(editor);
 
     // Import UI helpers from the UI module
     import('./miltyBuilderUI.js').then(uiModule => {
         const { createOutputDisplayContainer, createCopyToClipboardAction } = uiModule;
 
         // Create container for the popup content using UI helper
-        const container = createOutputDisplayContainer({ outputString, completedSlots, totalSlices });
+        const container = createOutputDisplayContainer({ outputString, sliceDetails, totalSlices });
 
         // Help function for the popup
         function outputHelpFunction() {
@@ -53,7 +52,7 @@ export function showOutputCopyPopup() {
 }
 
 // Show draft values analysis popup
-export function showDraftValuesPopup(forceRefresh = false) {
+export function showDraftValuesPopup(editor, forceRefresh = false) {
     // If popup already exists and not forceRefresh, just bring to front
     let popup = document.getElementById('milty-draft-values-popup');
     if (popup && !forceRefresh) {
@@ -67,7 +66,7 @@ export function showDraftValuesPopup(forceRefresh = false) {
 
     // Create a container for the analysis
     const container = document.createElement('div');
-    renderDraftValuesAnalysis(container);
+    renderDraftValuesAnalysis(editor, container);
 
     // Help function for the popup
     function draftValuesHelpFunction() {
@@ -96,7 +95,7 @@ export function showDraftValuesPopup(forceRefresh = false) {
 }
 
 // Function to render draft values analysis
-function renderDraftValuesAnalysis(container) {
+function renderDraftValuesAnalysis(editor, container) {
     // Import UI helpers and render using them
     import('./miltyBuilderUI.js').then(uiModule => {
         const {
@@ -106,7 +105,7 @@ function renderDraftValuesAnalysis(container) {
         } = uiModule;
 
         // Create the analysis container and table structure
-        const analysisData = createDraftValuesAnalysisContainer();
+        const analysisData = createDraftValuesAnalysisContainer(editor);
 
         // Clear and replace container content
         container.innerHTML = '';
@@ -131,7 +130,7 @@ function renderDraftValuesAnalysis(container) {
                 const sliceHexes = [];
                 for (let i = 1; i < slotHexes.length; i++) {
                     const hexId = slotHexes[i];
-                    const hex = getEditor()?.hexes?.[hexId];
+                    const hex = editor?.hexes?.[hexId];
                     if (hex) {
                         sliceHexes.push({ ...hex, label: hexId });
                     }
@@ -254,7 +253,7 @@ function renderDraftValuesAnalysis(container) {
 }
 
 // Show import slices popup
-export function showImportSlicesPopup() {
+export function showImportSlicesPopup(editor) {
     // Import UI helpers from the UI module
     import('./miltyBuilderUI.js').then(uiModule => {
         const {
@@ -347,7 +346,7 @@ Example:
             importButton.style.background = '#6c757d';
 
             // Handle the import process
-            handleSliceImport(slicesData, clearExisting,
+            handleSliceImport(editor, slicesData, clearExisting,
                 (msg) => console.log('Import status:', msg),
                 (success) => {
                     if (!success) {

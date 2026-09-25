@@ -3,7 +3,6 @@
 
 import { showPopup } from '../../ui/popupUI.js';
 import { slotPositions, analyzeSliceOccupancy } from './miltyBuilderCore.js';
-import { getEditor } from '../../core/editorRef.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -26,7 +25,7 @@ const ALWAYS_REMOVE = [
 
 // ── Core export function ──────────────────────────────────────────────────────
 
-async function exportSliceAsPng(slotNum, options) {
+async function exportSliceAsPng(editor, slotNum, options) {
     const {
         showHomeOverlay = true,
         showMiltyScore = false,
@@ -41,7 +40,6 @@ async function exportSliceAsPng(slotNum, options) {
         exportWidth   = 1000,
     } = options;
 
-    const editor = getEditor();
     if (!editor?.svg) throw new Error('Editor not available');
 
     const hexIds = slotPositions[slotNum];
@@ -333,7 +331,7 @@ function blobToDataUrl(blob) {
 
 // ── Popup ─────────────────────────────────────────────────────────────────────
 
-export function showSliceExportPopup() {
+export function showSliceExportPopup(editor) {
     const container = document.createElement('div');
     container.style.cssText = 'padding:15px; min-width:400px;';
 
@@ -353,7 +351,7 @@ export function showSliceExportPopup() {
             <div id="slotCheckboxGrid" style="display:grid; grid-template-columns:repeat(6,1fr); gap:5px;">
                 ${Array.from({ length: 12 }, (_, i) => {
         const n = i + 1;
-        const occ = analyzeSliceOccupancy(slotPositions[n] || [], `Slot ${n}`);
+        const occ = analyzeSliceOccupancy(editor, slotPositions[n] || [], `Slot ${n}`);
         const complete = occ.backgroundColor === '#28a745';
         return `<label style="display:flex; align-items:center; gap:4px; font-size:13px;
                                          color:${complete ? '#4CAF50' : '#aaa'}; cursor:pointer;"
@@ -469,7 +467,7 @@ export function showSliceExportPopup() {
         scalable: true,
         rememberPosition: true,
         actions: [
-            { label: 'Download Selected', action: () => runExport(container) },
+            { label: 'Download Selected', action: () => runExport(editor, container) },
         ],
         style: { width: '480px', maxWidth: '95vw' },
     });
@@ -512,7 +510,7 @@ export function showSliceExportPopup() {
     container.querySelector('#selectCompletedBtn').onclick = () => {
         container.querySelectorAll('.slot-cb').forEach(cb => {
             const n = Number(cb.dataset.slot);
-            const occ = analyzeSliceOccupancy(slotPositions[n] || [], `Slot ${n}`);
+            const occ = analyzeSliceOccupancy(editor, slotPositions[n] || [], `Slot ${n}`);
             cb.checked = occ.backgroundColor === '#28a745';
         });
     };
@@ -526,7 +524,7 @@ export function showSliceExportPopup() {
 
 // ── Export runner (called by the action button) ───────────────────────────────
 
-async function runExport(container) {
+async function runExport(editor, container) {
     const status = container.querySelector('#exportStatusMsg');
 
     const selectedSlots = [...container.querySelectorAll('.slot-cb:checked')]
@@ -569,7 +567,7 @@ async function runExport(container) {
             sliceTitle: showTitles ? (sliceTitles[slotNum] ?? '') : '',
         };
         try {
-            await exportSliceAsPng(slotNum, options);
+            await exportSliceAsPng(editor, slotNum, options);
             done++;
             status.textContent = `Exporting ${done} / ${selectedSlots.length}…`;
             // Small pause between downloads so the browser doesn't suppress them
@@ -580,7 +578,7 @@ async function runExport(container) {
             // If tainted canvas (cross-origin image), retry without tile images
             if (err.message?.includes('tainted') || err.name === 'SecurityError') {
                 try {
-                    await exportSliceAsPng(slotNum, { ...options, showTileImages: false });
+                    await exportSliceAsPng(editor, slotNum, { ...options, showTileImages: false });
                     done++;
                     status.textContent = `Slot ${slotNum}: exported without tile images (cross-origin).`;
                 } catch {

@@ -21,7 +21,7 @@ async function getSharedModule() {
 /**
  * Generate slices with UI handling
  */
-async function generateSlicesWithUI() {
+async function generateSlicesWithUI(editor) {
     try {
         hideSliceScores();
         showGenerationProgress('Initializing generation...', 0);
@@ -50,7 +50,7 @@ async function generateSlicesWithUI() {
         showGenerationProgress('Generating slices...', 20);
 
         // Call the core function and get the slices
-        const slices = await module.generateMiltySlices();
+        const slices = await module.generateMiltySlices(editor);
 
         showGenerationProgress('Generation complete!', 100);
         console.log('Slice generation complete!', slices.length, 'slices generated');
@@ -76,11 +76,11 @@ async function generateSlicesWithUI() {
 /**
  * Show the main Milty Draft Generator popup
  */
-export function showMiltyDraftGeneratorPopup() {
+export function showMiltyDraftGeneratorPopup(editor) {
     showPopup({
         content: createGeneratorPopupContent(),
         actions: [
-            { label: 'Generate Slices', action: generateSlicesWithUI },
+            { label: 'Generate Slices', action: () => generateSlicesWithUI(editor) },
             { label: 'Weighting Settings', action: () => togglePopup('milty-weighting-popup', showWeightingSettingsPopup) },
             { label: 'Debug Info', action: () => togglePopup('milty-debug-info', showDebugInfo) }
         ],

@@ -4,7 +4,6 @@
 import { removeWormholeOverlay } from '../../features/wormholes.js';
 import { refreshSystemList } from '../../ui/uiFilters.js';
 import { tryInvoke, COMMANDS } from '../../core/registry.js';
-import { getEditor } from '../../core/editorRef.js';
 
 // Default slice and slot position definitions
 export const defaultSlices = {
@@ -32,8 +31,7 @@ export const slotPositions = {
 };
 
 // Move slice between any positions (A-F, 1-12, intermixed)
-export function moveSlice(sourceId, sourceType, targetId, targetType, updateStatusMsg) {
-    const editor = getEditor();
+export function moveSlice(editor, sourceId, sourceType, targetId, targetType, updateStatusMsg) {
     // Get source hex positions first
     let sourceHexes = [];
     if (sourceType === 'map') {
@@ -103,7 +101,7 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
         if (srcData && tgtHexId && (srcData.realId || srcData.baseType || srcData.isHyperlane || srcData.isNebula || srcData.isGravityRift || srcData.isSupernova || srcData.isAsteroidField || srcData.isScar)) {
             const tgtHex = editor?.hexes?.[tgtHexId];
             if (tgtHex) {
-                applyHexData(srcData, tgtHex, tgtHexId);
+                applyHexData(editor, srcData, tgtHex, tgtHexId);
             }
         }
     }
@@ -148,20 +146,19 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
             }
 
             // Now clear the hex completely
-            clearHex(srcData.hexId);
+            clearHex(editor, srcData.hexId);
         }
     }
 
     // Update UI components
-    updateVisualElements();
+    updateVisualElements(editor);
 
     updateStatusMsg(`Moved slice from ${sourceType} ${sourceId} to ${targetType} ${targetId}. Selection cleared.`);
     return true;
 }
 
 // Apply hex data to target hex
-function applyHexData(srcData, tgtHex, tgtHexId) {
-    const editor = getEditor();
+function applyHexData(editor, srcData, tgtHex, tgtHexId) {
     console.log('applyHexData:', tgtHexId, 'srcData:', {
         realId: srcData.realId,
         planets: srcData.planets?.length || 0,
@@ -208,7 +205,7 @@ function applyHexData(srcData, tgtHex, tgtHexId) {
         }
 
         // Set sector type
-        setSectorType(srcData, tgtHexId);
+        setSectorType(editor, srcData, tgtHexId);
 
         // Apply effects from SystemInfo
         if (info.isNebula)        editor.applyEffect(tgtHexId, 'nebula');
@@ -218,7 +215,7 @@ function applyHexData(srcData, tgtHex, tgtHexId) {
         if (info.isScar)          editor.applyEffect(tgtHexId, 'scar');
 
         // Create wormhole overlays
-        createWormholeOverlays(tgtHex);
+        createWormholeOverlays(editor, tgtHex);
 
     } else if (srcData.baseType || srcData.isHyperlane || srcData.isNebula || srcData.isGravityRift || srcData.isSupernova || srcData.isAsteroidField || srcData.isScar) {
         // For special hexes without realId
@@ -252,7 +249,7 @@ function applyHexData(srcData, tgtHex, tgtHexId) {
 
         // Create wormhole overlays
         if (tgtHex.wormholes && tgtHex.wormholes.size > 0) {
-            createWormholeOverlays(tgtHex);
+            createWormholeOverlays(editor, tgtHex);
         }
     }
 
@@ -276,8 +273,7 @@ function applyHexData(srcData, tgtHex, tgtHexId) {
 }
 
 // Set sector type based on source data
-function setSectorType(srcData, tgtHexId) {
-    const editor = getEditor();
+function setSectorType(editor, srcData, tgtHexId) {
     if (srcData.baseType === "void") {
         editor.setSectorType(tgtHexId, 'void', { skipSave: true });
     } else if (srcData.baseType === "homesystem" || (srcData.planets && srcData.planets.some(p => p.planetType === 'FACTION'))) {
@@ -301,8 +297,7 @@ function setSectorType(srcData, tgtHexId) {
 }
 
 // Create wormhole overlays for a hex
-function createWormholeOverlays(tgtHex) {
-    const editor = getEditor();
+function createWormholeOverlays(editor, tgtHex) {
     tgtHex.wormholeOverlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
     tgtHex.wormholeOverlays = [];
     Array.from(tgtHex.wormholes).forEach((w, i) => {
@@ -328,8 +323,7 @@ function createWormholeOverlays(tgtHex) {
 }
 
 // Clear a hex of all content
-function clearHex(hexId) {
-    const editor = getEditor();
+function clearHex(editor, hexId) {
     const srcHex = editor.hexes?.[hexId];
     if (!srcHex) return;
 
@@ -394,8 +388,7 @@ function clearHex(hexId) {
 }
 
 // Update visual elements after slice operations
-export function applyMiltyDisplay() {
-    const editor = getEditor();
+export function applyMiltyDisplay(editor) {
     if (!editor) { console.warn('[MiltyDisplay] No editor'); return; }
 
     // Set synchronously so assignSystem / updateTileImageLayer called by any
@@ -451,8 +444,7 @@ export function applyMiltyDisplay() {
     }).catch(() => {});
 }
 
-function updateVisualElements() {
-    const editor = getEditor();
+function updateVisualElements(editor) {
     if (typeof editor?.redrawAllRealIDOverlays === 'function') editor.redrawAllRealIDOverlays(editor);
     // Was `if (typeof window.renderSystemList === 'function')`, a global the old picker
     // installed from inside its own closure and which nothing has assigned since it was
@@ -475,10 +467,10 @@ function updateVisualElements() {
     import('../../features/imageSystemsOverlay.js').then(({ updateTileImageLayer }) => {
         updateTileImageLayer(editor);
         // Delay slightly so any remaining async overlays also finish before we hide
-        setTimeout(applyMiltyDisplay, 150);
+        setTimeout(() => applyMiltyDisplay(editor), 150);
     }).catch(err => {
         console.warn('Could not update tile image layer:', err);
-        setTimeout(applyMiltyDisplay, 150);
+        setTimeout(() => applyMiltyDisplay(editor), 150);
     });
 
     // Update border anomalies overlay if active
@@ -495,7 +487,7 @@ function updateVisualElements() {
 }
 
 // Analyze slice occupancy and return color scheme
-export function analyzeSliceOccupancy(sliceHexes, sliceName) {
+export function analyzeSliceOccupancy(editor, sliceHexes, sliceName) {
     // Analyze slice contents (skip position 0 - homesystem)
     let totalSlots = sliceHexes.length - 1; // 5 slots (positions 1-5)
     let filledWithRealId = 0;
@@ -503,7 +495,7 @@ export function analyzeSliceOccupancy(sliceHexes, sliceName) {
 
     for (let i = 1; i < sliceHexes.length; i++) {
         const hexId = sliceHexes[i];
-        const hex = getEditor()?.hexes?.[hexId];
+        const hex = editor?.hexes?.[hexId];
         if (hex) {
             if (hex.realId) {
                 filledWithRealId++;
@@ -545,7 +537,7 @@ export function analyzeSliceOccupancy(sliceHexes, sliceName) {
 }
 
 // Generate output string for fully occupied draft slices
-export function generateOutputString() {
+export function generateOutputString(editor) {
     const fullyOccupiedSlices = [];
     const sliceDetails = [];
     for (let slotNum = 1; slotNum <= 12; slotNum++) {
@@ -555,7 +547,7 @@ export function generateOutputString() {
         let isFullyOccupied = true;
         for (let i = 1; i < slotHexes.length; i++) {
             const hexId = slotHexes[i];
-            const hex = getEditor()?.hexes?.[hexId];
+            const hex = editor?.hexes?.[hexId];
             if (hex && hex.realId) {
                 realIds.push(hex.realId);
             } else {
@@ -577,8 +569,7 @@ export function generateOutputString() {
 }
 
 // Import slices from external source string
-export function importSlices(slicesString, updateStatusMsg) {
-    const editor = getEditor();
+export function importSlices(editor, slicesString, updateStatusMsg) {
     if (!slicesString || typeof slicesString !== 'string') {
         updateStatusMsg('Invalid input: Please provide a valid slices string.');
         return false;
@@ -667,7 +658,7 @@ export function importSlices(slicesString, updateStatusMsg) {
 
                     // Apply the hex data using the same function as moveSlice
                     const hex = editor.hexes[hexId];
-                    applyHexData(srcData, hex, hexId);
+                    applyHexData(editor, srcData, hex, hexId);
                     applied++;
                 }
             }
@@ -680,7 +671,7 @@ export function importSlices(slicesString, updateStatusMsg) {
         }
 
         // Update visual elements (same as moveSlice)
-        updateVisualElements();
+        updateVisualElements(editor);
 
         // Force redraw all overlays using same pattern as import.js (without setTimeout)
         // Ensure overlay visibility flags are set properly for imported data

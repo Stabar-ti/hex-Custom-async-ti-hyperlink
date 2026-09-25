@@ -109,7 +109,6 @@ export function showSpecialModePopup(editor) {
         <p class="tb-menu__note">Bulk tools that take over the map while you use them.</p>
         <div class="tb-menu__stack">
             <button id="miltySliceDesignerBtn" class="tb-menu__item">🎲 Milty Slice Designer</button>
-            <button id="miltyRandomGeneratorBtn" class="tb-menu__item" style="display:none;">🎯 Milty Random Generator</button>
             <button id="spinToWinBtn" class="tb-menu__item">⚙️ Spin-To-Win</button>
         </div>
     `;
@@ -124,31 +123,10 @@ export function showSpecialModePopup(editor) {
     // Add click handlers for buttons
     setTimeout(() => {
         const miltyBtn = document.getElementById('miltySliceDesignerBtn');
-        const generatorBtn = document.getElementById('miltyRandomGeneratorBtn');
         const spinBtn = document.getElementById('spinToWinBtn');
 
         if (miltyBtn) {
             miltyBtn.onclick = () => openMiltySliceDesigner(editor);
-        }
-
-        // Add click handler for Milty Random Generator button
-        if (generatorBtn) {
-            generatorBtn.onclick = () => {
-                hidePopup('special-mode-popup');
-                import('../modules/Milty/miltyBuilderRandomTool.js').then(mod => {
-                    const showGenerator = mod.initializeGeneratorPopup;
-                    if (typeof showGenerator === 'function') {
-                        showGenerator();
-                    } else {
-                        console.error('initializeGeneratorPopup is not a function in the loaded module.');
-                        console.log('Available exports:', Object.keys(mod));
-                        alert('Error: Could not initialize Milty Draft Generator.');
-                    }
-                }).catch(err => {
-                    console.error('Failed to load miltyBuilderRandomTool.js module:', err);
-                    alert('Failed to load generator. See console for details.');
-                });
-            };
         }
 
         // Spin-To-Win button handler
