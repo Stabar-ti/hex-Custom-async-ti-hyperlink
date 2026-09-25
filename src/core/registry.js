@@ -47,7 +47,8 @@
  * Not in scope
  * ────────────
  * The editor itself. It is one object needed almost everywhere, which makes it a
- * dependency rather than a capability, so it has its own module: src/core/editorRef.js.
+ * dependency rather than a capability: main.js builds it and passes it down, and a
+ * function that needs it takes it as a parameter.
  *
  * No DOM at module scope — this imports cleanly under node so it can be tested.
  */

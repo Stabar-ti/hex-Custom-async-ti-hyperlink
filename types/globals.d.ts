@@ -1,8 +1,8 @@
 // Ambient declarations for the handful of things this app genuinely hangs off `window`.
 //
 // These are NOT a licence to add more. Cross-module calls belong in the module registry
-// (src/core/registry.js), and the editor itself is in src/core/editorRef.js — it used to
-// be `window.editor`, read at 132 sites, and is now imported like anything else.
+// (src/core/registry.js). The editor itself used to be `window.editor`, read at 132 sites;
+// it is a parameter now, passed down from main.js to whatever needs it.
 //
 // What is left here is set from outside the module graph, so there is nowhere else for it
 // to live: globals written by <script> tags in index.html, and one dev guard.
