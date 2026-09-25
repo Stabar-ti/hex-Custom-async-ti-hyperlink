@@ -8,8 +8,10 @@ import { showAnchoredPanel } from './dropdownMenu.js';
  *
  * Exported because there are two ways in now: the Tools menu, and File ▸ New map ▸ New
  * Milty Map, which loads the draft layout and then opens this onto it.
+ *
+ * @param {any} editor
  */
-export function openMiltySliceDesigner() {
+export function openMiltySliceDesigner(editor) {
     hidePopup('special-mode-popup');
     hidePopup('milty-slice-designer-popup');
     const designerContent = document.createElement('div');
@@ -20,13 +22,12 @@ export function openMiltySliceDesigner() {
     designerContent.style.flexDirection = 'column';
     designerContent.style.padding = '16px';
     designerContent.style.boxSizing = 'border-box';
-    // Use miltyBuilder.js for the UI — cache buster ensures miltyBuilderUI.js and its deps load fresh
-    import('../modules/Milty/miltyBuilder.js?v=' + Date.now()).then(mod => {
+    import('../modules/Milty/miltyBuilder.js').then(mod => {
         console.log('Milty Builder module loaded:', mod); // Debug: See the loaded module
         const showUI = mod.showMiltyBuilderUI || (mod.default && mod.default.showMiltyBuilderUI);
 
         if (typeof showUI === 'function') {
-            showUI(designerContent);
+            showUI(designerContent, editor);
         } else {
             console.error('showMiltyBuilderUI is not a function in the loaded module.');
             designerContent.innerHTML = '<p style="color: red;">Error: Could not initialize Milty Slice Designer UI.</p>';
@@ -89,7 +90,7 @@ export function openMiltySliceDesigner() {
 
 }
 
-export function showSpecialModePopup() {
+export function showSpecialModePopup(editor) {
     hidePopup('special-mode-popup');
     const content = document.createElement('div');
     content.className = 'special-mode-content';
@@ -124,11 +125,10 @@ export function showSpecialModePopup() {
     setTimeout(() => {
         const miltyBtn = document.getElementById('miltySliceDesignerBtn');
         const generatorBtn = document.getElementById('miltyRandomGeneratorBtn');
-        const autoMapperBtn = document.getElementById('autoMapBuilderBtn');
         const spinBtn = document.getElementById('spinToWinBtn');
 
         if (miltyBtn) {
-            miltyBtn.onclick = () => openMiltySliceDesigner();
+            miltyBtn.onclick = () => openMiltySliceDesigner(editor);
         }
 
         // Add click handler for Milty Random Generator button
@@ -151,28 +151,6 @@ export function showSpecialModePopup() {
             };
         }
 
-        // Add click handler for AutoMapper button.
-        // openAutoMapperPopup owns the popup and its help — this used to build its own copy
-        // and point onHelp at a help page describing modes and presets that don't exist.
-        if (autoMapperBtn) {
-            autoMapperBtn.onclick = () => {
-                hidePopup('special-mode-popup');
-                import('../modules/automapper/autoBuilder.js')
-                    .then(mod => mod.openAutoMapperPopup())
-                    .catch(err => {
-                        console.error('Failed to load autoBuilder.js module:', err);
-                        const errContent = document.createElement('div');
-                        errContent.innerHTML = '<p style="color: red;">Failed to load AutoMapper module. See console for details.</p>';
-                        showPopup({
-                            id: 'automapper-popup',
-                            title: '🤖 AutoMapper - Error',
-                            content: errContent,
-                            actions: [{ label: 'Close', onClick: () => hidePopup('automapper-popup') }]
-                        });
-                    });
-            };
-        }
-
         // Spin-To-Win button handler
         if (spinBtn) {
             spinBtn.onclick = () => {
@@ -180,7 +158,7 @@ export function showSpecialModePopup() {
                 const spinContent = document.createElement('div');
                 spinContent.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;';
                 import('../modules/SpinToWin/spinToWin.js').then(mod => {
-                    mod.showSpinToWinUI(spinContent);
+                    mod.showSpinToWinUI(spinContent, editor);
                     showPopup({
                         id: 'spin-to-win-popup',
                         title: '⚙️ Spin-To-Win',
@@ -205,18 +183,20 @@ export function showSpecialModePopup() {
                 });
             };
         }
-
-        // Lore Module button handler
     }, 0);
 }
 
-// Attach to button if loaded directly
-if (typeof window !== 'undefined') {
-    const _wireBtn = () => {
-        const btn = document.getElementById('specialModesBtn');
-        // Pressing Generate again puts the panel away, the same as every other menu.
-        if (btn) btn.addEventListener('click', () => togglePopup('special-mode-popup', showSpecialModePopup));
-    };
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _wireBtn);
-    else _wireBtn();
+/**
+ * Wire the Tools button in the top bar.
+ *
+ * This used to run as a side effect of importing the file, waiting for DOMContentLoaded
+ * on its own, which is why it had no editor to hand the tools it opens. main.js calls it
+ * like the other install functions now.
+ *
+ * @param {any} editor
+ */
+export function installToolsMenu(editor) {
+    const btn = document.getElementById('specialModesBtn');
+    // Pressing Tools again puts the panel away, the same as every other menu.
+    if (btn) btn.addEventListener('click', () => togglePopup('special-mode-popup', () => showSpecialModePopup(editor)));
 }

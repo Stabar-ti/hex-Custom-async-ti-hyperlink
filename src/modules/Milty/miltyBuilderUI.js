@@ -73,8 +73,7 @@ export async function loadMiltyMap(editor) {
 }
 
 // Main UI function to create and display the Milty Builder popup
-export function showMiltyBuilderUI(container) {
-    const editor = getEditor();
+export function showMiltyBuilderUI(container, editor) {
     // Slice state tracking
     const sliceMap = { ...defaultSlices };
     const sliceSlots = Array(12).fill(null);
@@ -423,7 +422,7 @@ export function showMiltyBuilderUI(container) {
         const sanityCheckBtn = container.querySelector('#miltySanityCheckBtn');
         if (sanityCheckBtn) {
             sanityCheckBtn.onclick = () => {
-                showSanityCheckPopup();
+                showSanityCheckPopup(editor);
             };
         }
 

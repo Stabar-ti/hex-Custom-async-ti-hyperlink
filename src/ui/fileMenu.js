@@ -1,5 +1,4 @@
 // @ts-check
-import { getEditor } from '../core/editorRef.js';
 
 /**
  * The File menu: everything to do with getting a map in or out.
@@ -85,9 +84,9 @@ export function closeFileMenu() {
 /**
  * Add the File button to the top bar and wire the panel to it.
  *
- * @param {any} _editor
+ * @param {any} editor
  */
-export function installFileMenu(_editor) {
+export function installFileMenu(editor) {
     const el = panel();
     const host = document.getElementById('leftControls');
     if (!el || !host || document.getElementById('fileMenuBtn')) return;
@@ -125,8 +124,8 @@ export function installFileMenu(_editor) {
                 import('../modules/Milty/miltyBuilderUI.js'),
                 import('./specialModePopup.js'),
             ]);
-            await loadMiltyMap(getEditor());
-            openMiltySliceDesigner();
+            await loadMiltyMap(editor);
+            openMiltySliceDesigner(editor);
         } catch (err) {
             console.error('Failed to start a Milty map:', err);
             alert('Could not load the Milty layout: ' + err);

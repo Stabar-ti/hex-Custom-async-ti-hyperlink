@@ -15,7 +15,6 @@
  */
 
 import { enforceSvgLayerOrder } from '../../draw/enforceSvgLayerOrder.js';
-import { getEditor } from '../../core/editorRef.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -496,9 +495,8 @@ export function generateExportCommands(spinSettings, gameId = '<game_id>') {
 
 // ── Main popup ─────────────────────────────────────────────────────────────────
 
-export function showSpinToWinUI(container) {
+export function showSpinToWinUI(container, editor) {
     if (!container) return;
-    const editor = getEditor();
     if (!editor) { container.innerHTML = '<p style="color:#f66;padding:12px">No editor instance.</p>'; return; }
 
     container.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:4px;font-family:"Segoe UI",Arial,sans-serif;color:#eee;min-width:460px;';

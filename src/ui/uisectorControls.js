@@ -21,7 +21,6 @@ import {
   invoke, tryInvoke, hasCommand,
   registerMode, activateMode, deactivateMode, deactivateModes, COMMANDS
 } from '../core/registry.js';
-import { getEditor } from '../core/editorRef.js';
 
 // Ids for the two map-click modes this file owns. Only one can be armed at a time; the
 // registry is what enforces that, so every button that opens something else disarms them
@@ -598,7 +597,7 @@ export function openBalancePopup(editor) {
     amBtn.style.cssText = 'width:100%;padding:8px 12px;font-size:0.9em;font-weight:bold;border:2px solid var(--popup-border-special);border-radius:4px;cursor:pointer;color:var(--popup-border-special);background:#0a1a0a;';
     amBtn.onclick = () => {
       import('../modules/automapper/autoBuilder.js').then(mod => {
-        mod.openAutoMapperPopup();
+        mod.openAutoMapperPopup(editor);
       }).catch(err => console.error('Failed to load AutoMapper:', err));
     };
     amSection.appendChild(amBtn);
@@ -876,7 +875,7 @@ function finishSectorControlsContent(editor, container) {
   autoMapperBtn.onclick = () => togglePopup('automapper-popup', () => {
     deactivateModes();
     import('../modules/automapper/autoBuilder.js')
-      .then(mod => mod.openAutoMapperPopup())
+      .then(mod => mod.openAutoMapperPopup(editor))
       .catch(err => console.error('Failed to load AutoMapper:', err));
   });
   container.appendChild(autoMapperBtn);
@@ -1041,6 +1040,11 @@ function finishSectorControlsContent(editor, container) {
   // ───────────── Token Placement Button ─────────────
   container.appendChild(railGroupLabel('Annotate'));
 
+  // Registered here rather than at module load, so that disarming either one can hand
+  // the editor over the way every other tool in this panel does.
+  registerMode(MODE_LORE, { deactivate: () => deactivateLoreMode(editor) });
+  registerMode(MODE_TOKEN, { deactivate: () => deactivateTokenMode(editor) });
+
   const tokenPlacementBtn = railButton({
     id: 'launchTokenPlacementPopup',
     icon: '⬢',
@@ -1073,7 +1077,7 @@ function finishSectorControlsContent(editor, container) {
       tokenPlacementBtn.style.color = '#fff';
       tokenPlacementBtn.style.fontWeight = 'bold';
       setRailLabel(tokenPlacementBtn, 'Click a Hex…');
-      enableTokenHexSelection();
+      enableTokenHexSelection(editor);
     } else {
       deactivateMode(MODE_TOKEN);
     }
@@ -1116,7 +1120,7 @@ function finishSectorControlsContent(editor, container) {
     // turns it on. Previously this file drove the popup by filling #hexLabelInput and
     // clicking #selectHexBtn behind a setTimeout, which coupled it to the editor's DOM.
     import('../modules/Lore/loreMapPick.js').then(({ armLoreMapPick }) => {
-      armLoreMapPick(getEditor(), {
+      armLoreMapPick(editor, {
         onPick: (ref) => tryInvoke(COMMANDS.openLoreEditor, ref)
       });
     });
@@ -1147,7 +1151,7 @@ function finishSectorControlsContent(editor, container) {
 
 let loreHexSelectorActive = false;
 
-function deactivateLoreMode() {
+function deactivateLoreMode(editor) {
   loreHexSelectorActive = false;
   const btn = document.getElementById('selectHexForLoreBtn');
   if (btn) {
@@ -1158,17 +1162,15 @@ function deactivateLoreMode() {
     setRailLabel(btn, 'Add Lore…');
   }
   import('../modules/Lore/loreMapPick.js')
-    .then(({ disarmLoreMapPick }) => disarmLoreMapPick(getEditor()))
+    .then(({ disarmLoreMapPick }) => disarmLoreMapPick(editor))
     .catch(() => { /* module never loaded, so nothing is armed */ });
 }
-
-registerMode(MODE_LORE, { deactivate: deactivateLoreMode });
 
 // ───────────── Token Hex Selection Helper Functions ─────────────
 let tokenHexSelectorActive = false;
 let tokenHexClickHandler = null;
 
-function deactivateTokenMode() {
+function deactivateTokenMode(editor) {
   tokenHexSelectorActive = false;
   const btn = document.getElementById('launchTokenPlacementPopup');
   if (btn) {
@@ -1178,19 +1180,16 @@ function deactivateTokenMode() {
     btn.style.fontWeight = '';
     setRailLabel(btn, 'Token Placement…');
   }
-  disableTokenHexSelection();
+  disableTokenHexSelection(editor);
 }
 
-registerMode(MODE_TOKEN, { deactivate: deactivateTokenMode });
-
-function enableTokenHexSelection() {
+function enableTokenHexSelection(editor) {
   console.log('enableTokenHexSelection called');
   // Remove any existing handler first
-  disableTokenHexSelection();
+  disableTokenHexSelection(editor);
 
   // Take over map clicks. Whatever was armed before is deliberately dropped rather than
   // remembered — see disableTokenHexSelection.
-  const editor = getEditor();
   if (editor) {
     editor.mode = 'token-selection'; // Special mode to prevent other click handlers
   }
@@ -1225,7 +1224,7 @@ function enableTokenHexSelection() {
   }
 }
 
-function disableTokenHexSelection() {
+function disableTokenHexSelection(editor) {
   // Leaving token mode disarms the map, it does not restore whatever was armed before.
   //
   // This used to stash editor.mode on the way in and put it back on the way out. Arming
@@ -1233,7 +1232,6 @@ function disableTokenHexSelection() {
   // you switched tokens off, and the next map click painted a nebula the user had selected
   // several minutes earlier. Every other tool in this panel ends on setMode('none'); so
   // does this one now.
-  const editor = getEditor();
   if (editor && editor.mode === 'token-selection') {
     if (typeof editor.setMode === 'function') editor.setMode('none');
     else editor.mode = 'none';

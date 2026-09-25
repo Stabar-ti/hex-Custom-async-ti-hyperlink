@@ -38,7 +38,7 @@ import { installSwapButton } from './features/hexSwapButton.js';
 import { installPasteGhost } from './features/pasteGhost.js';
 import { installClipboardShortcuts } from './features/clipboardShortcuts.js';
 import { installDistanceTool } from './features/distanceTool.js';
-import './ui/specialModePopup.js';
+import { installToolsMenu } from './ui/specialModePopup.js';
 import { installLoreUI } from './modules/Lore/loreUI.js';
 import LoreOverlay from './features/loreOverlay.js';
 import { TokenManager } from './modules/Token/tokenCore.js';
@@ -342,13 +342,15 @@ function bindMenuToggle(buttonId, popupId, open) {
   };
 }
 
-bindMenuToggle('overlayToggleBtn', 'overlayOptionsPopup', showOverlayOptionsPopup);
+bindMenuToggle('overlayToggleBtn', 'overlayOptionsPopup', () => showOverlayOptionsPopup(editor));
 
 // The three Analyse items and the three Help items opened a window each and left the
 // button that opened it sitting there doing nothing on a second press.
-bindMenuToggle('sanityCheckBtn', 'sanity-check-popup', () => showSanityCheckPopup());
-bindMenuToggle('calcSliceBtn', 'calcSlicePopup', openCalcSlicePopup);
+bindMenuToggle('sanityCheckBtn', 'sanity-check-popup', () => showSanityCheckPopup(editor));
+bindMenuToggle('calcSliceBtn', 'calcSlicePopup', () => openCalcSlicePopup(editor));
 bindMenuToggle('helpToggle', 'help-popup', showHelpPopup);
 bindMenuToggle('infoToggle', 'info-popup', showInfoPopup);
 bindMenuToggle('featuresToggle', 'features-popup', showFeaturesPopup);
+
+installToolsMenu(editor);
 

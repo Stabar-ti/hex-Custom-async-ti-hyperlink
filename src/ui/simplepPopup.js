@@ -3,7 +3,6 @@ import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 import { checkRealIdUniqueness, generateSanityCheckSummary } from '../features/sanityCheck.js';
 import { setupHexHoverInfo } from './HexHoverInfo2.js';
 import { showAnchoredPanel } from './dropdownMenu.js';
-import { getEditor } from '../core/editorRef.js';
 
 export function showOptionsPopup(editor) {
     // Build content dynamically, reflecting current editor options
@@ -105,7 +104,7 @@ export function showOptionsPopup(editor) {
     });
 }
 
-export function showOverlayOptionsPopup() {
+export function showOverlayOptionsPopup(editor) {
     // Build content for overlay options
     const wrapper = document.createElement('div');
     wrapper.innerHTML = `
@@ -159,7 +158,6 @@ export function showOverlayOptionsPopup() {
     });
 
     setTimeout(() => {
-        const editor = getEditor();
         if (!editor) return;
 
         // Helper to toggle and update .active
@@ -347,7 +345,7 @@ export function showOverlayOptionsPopup() {
 // nothing for a long time, and the theme toggle and the popup-position reset are both
 // moot now that the app is dark-only and popups are anchored rather than remembered.
 
-export function showSanityCheckPopup() {
+export function showSanityCheckPopup(editor) {
     // Build content for sanity check
     const wrapper = document.createElement('div');
     wrapper.innerHTML = `
@@ -437,7 +435,7 @@ export function showSanityCheckPopup() {
                 resultsDiv.innerHTML = '<p style="color: #fff;">Running check...</p>';
 
                 try {
-                    const results = checkRealIdUniqueness(planetsOnly, checkAll);
+                    const results = checkRealIdUniqueness(editor, planetsOnly, checkAll);
                     const summary = generateSanityCheckSummary(results, planetsOnly, checkAll);
                     resultsDiv.innerHTML = summary;
                 } catch (error) {

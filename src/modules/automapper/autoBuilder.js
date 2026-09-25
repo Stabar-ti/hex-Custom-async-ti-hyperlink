@@ -13,7 +13,6 @@ import { toggleWormhole } from '../../features/wormholes.js';
 import { VISIBLE_SOURCE_GROUPS } from '../SystemPicker/pickerModel.js';
 import { COLORS } from '../../constants/designTokens.js';
 import { drawAutoMapperMarks, clearAutoMapperMarks, marksFromResult } from '../../features/automapperMarks.js';
-import { getEditor } from '../../core/editorRef.js';
 
 // ---- Styles ----
 const S = {
@@ -74,9 +73,8 @@ function section(title, isOpen, onToggle) {
 
 // ---- Main UI ----
 
-export function showAutoBuilderUI(container) {
+export function showAutoBuilderUI(container, editor) {
     if (!container) return;
-    const editor = getEditor();
     if (!editor) {
         container.innerHTML = '<p style="color:#f66;padding:12px">No editor instance found.</p>';
         return;
@@ -491,7 +489,7 @@ export function showAutoBuilderUI(container) {
         const scBtn = el('button', S.btnLink, '🔍 Sanity Check');
         scBtn.title = 'Check for duplicate system IDs on the map';
         scBtn.onclick = () => {
-            import('../../ui/simplepPopup.js').then(m => m.showSanityCheckPopup?.()).catch(console.warn);
+            import('../../ui/simplepPopup.js').then(m => m.showSanityCheckPopup?.(editor)).catch(console.warn);
         };
         btnRow.appendChild(scBtn);
 
@@ -719,11 +717,11 @@ export function showAutoBuilderUI(container) {
  * each carried their own copy of this block, and they had already drifted — one of them
  * pointed `onHelp` at a help page describing a feature set that does not exist.
  */
-export function openAutoMapperPopup() {
+export function openAutoMapperPopup(editor) {
     return import('../../ui/popupUI.js').then(({ showPopup }) => {
         const content = document.createElement('div');
         content.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;';
-        showAutoBuilderUI(content);
+        showAutoBuilderUI(content, editor);
 
         showPopup({
             id: 'automapper-popup',
@@ -737,7 +735,7 @@ export function openAutoMapperPopup() {
             onHelp: () => showAutoMapperHelp(),
             // The marks describe a preview, so they go when the panel does. hidePopup fires
             // this however the popup is closed, not only from its ×.
-            onClose: () => clearAutoMapperMarks(getEditor()),
+            onClose: () => clearAutoMapperMarks(editor),
             style: {
                 minWidth: '380px', maxWidth: '700px',
                 border: '2px solid var(--popup-border-special)',
