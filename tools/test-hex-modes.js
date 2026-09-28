@@ -176,6 +176,50 @@ for (const idle of ['select', 'none', '', undefined]) {
         editor.selectedHexLabels.length === 2, JSON.stringify(editor.selectedHexLabels));
 }
 
+// ── Shift-drag painting ───────────────────────────────────────────────────────
+//
+// svgBindings drives the stroke from the pointer; these hold the rules it relies on.
+
+const { beginSelectionStroke, isSelectMode } = await import('../src/features/hexSelection.js');
+
+check('isSelectMode agrees with the click routing',
+    ['select', 'none', '', undefined, 'definitely-not-a-tool'].every(isSelectMode)
+    && !['2 planet', 'nebula', 'hyperlane'].some(isSelectMode));
+
+{
+    const editor = makeEditor('select');
+    editor._onHexClick({}, '103');
+    const stroke = beginSelectionStroke(editor, '101');
+    stroke.enter('101');
+    check('a stroke that stays on its own hex has not painted', !stroke.painted);
+    check('...and has not touched the selection',
+        JSON.stringify(editor.selectedHexLabels) === '["103"]', JSON.stringify(editor.selectedHexLabels));
+
+    stroke.enter('102');
+    check('reaching a second hex paints both, added to what was there',
+        JSON.stringify(editor.selectedHexLabels) === '["103","101","102"]',
+        JSON.stringify(editor.selectedHexLabels));
+    check('...and marks the stroke painted, so its closing click is swallowed', stroke.painted);
+
+    stroke.enter('103');
+    stroke.enter('101');
+    check('sweeping back over selected hexes never removes them',
+        JSON.stringify(editor.selectedHexLabels) === '["103","101","102"]',
+        JSON.stringify(editor.selectedHexLabels));
+
+    stroke.enter(null);
+    check('passing over the gaps between hexes changes nothing',
+        editor.selectedHexLabels.length === 3, JSON.stringify(editor.selectedHexLabels));
+}
+
+{
+    const editor = makeEditor('select');
+    const stroke = beginSelectionStroke(editor, null);
+    stroke.enter('102');
+    check('a stroke begun off the map adds from the first hex it reaches',
+        JSON.stringify(editor.selectedHexLabels) === '["102"]', JSON.stringify(editor.selectedHexLabels));
+}
+
 // ── report ────────────────────────────────────────────────────────────────────
 
 console.log(`\nhex modes: ${passed} checks passed, ${failures.length} failed`);

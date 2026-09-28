@@ -10,6 +10,14 @@
 import { showDistanceOverlays, clearDistanceOverlays } from '../features/baseOverlays.js';
 import { startSwapMode, isSwapModeActive } from '../features/tileSwap.js';
 import { disarmAll } from '../features/disarm.js';
+import { isSelectMode, beginSelectionStroke } from '../features/hexSelection.js';
+import { isGhostArmed } from '../features/pasteGhost.js';
+import { activeMode } from '../core/registry.js';
+
+// How far a press has to travel before it is a drag rather than a click. Without one, the
+// pixel or two a hand wobbles while clicking quickly turned the click into a pan, and the
+// pan then swallowed the click.
+const DRAG_THRESHOLD_PX = 5;
 
 export function bindSvgHandlers(editor) {
   // Reference to the main SVG map element
@@ -152,53 +160,121 @@ export function bindSvgHandlers(editor) {
   // trackpad — no middle button — could lose panning entirely; and a drag that moves the
   // map never competed with anything, because the click that follows a drag is suppressed
   // below, so a click still reaches the hex under it.
-  let panDragged = false;
+  //
+  // A press only becomes a pan once it has moved DRAG_THRESHOLD_PX. Shift+press never
+  // pans at all: it is how you build a selection, and a shift-click that slipped into a pan
+  // was the commonest way to lose one.
+  let pressButton = -1;
+  let pressOrigin = { x: 0, y: 0 };
+  let panEngaged = false;
+  let cursorBeforePan = '';
+  /** @type {ReturnType<typeof beginSelectionStroke> | null} */
+  let stroke = null;
+  let cursorBeforeStroke = '';
+  // Set when a press turned out to be a drag, so the click it ends with is not also a
+  // click on the hex under it. Reset by the next press, in case that click never came
+  // (a drag released outside the map does not produce one).
+  let swallowClick = false;
+
+  /** The hex under a point, looking through the overlays drawn on top of the tiles. */
+  function hexLabelAt(x, y) {
+    for (const el of document.elementsFromPoint(x, y)) {
+      if (el instanceof SVGPolygonElement && el.dataset.label) return el.dataset.label;
+    }
+    return null;
+  }
+
+  // Painting a selection is what shift-drag does when a click would select. Anything
+  // armed — a paint mode, the distance tool, the paste ghost, a Shift+S swap — owns the
+  // click instead, and shift keeps whatever meaning it has there.
+  function canPaintSelection() {
+    return isSelectMode(editor.mode) && !activeMode() && !isGhostArmed()
+      && !isSwapModeActive() && !shiftSActive && !shiftDActive;
+  }
 
   svg.addEventListener('mousedown', (e) => {
+    swallowClick = false;
+    if (e.button === 0 && e.shiftKey) {
+      e.preventDefault();
+      if (canPaintSelection()) {
+        stroke = beginSelectionStroke(editor, hexLabelAt(e.clientX, e.clientY));
+        cursorBeforeStroke = svg.style.cursor;
+        svg.style.cursor = 'crosshair';
+      }
+      return;
+    }
     if (e.button === 0 || e.button === 1) {
       e.preventDefault();
       isPanning = true;
-      panDragged = false;
-      panStart = { x: e.clientX, y: e.clientY };
-      if (e.button === 0) svg.style.cursor = 'grabbing';
+      panEngaged = false;
+      pressButton = e.button;
+      pressOrigin = { x: e.clientX, y: e.clientY };
+      panStart = pressOrigin;
     }
   });
 
-  // A left-drag that panned must not also count as a click on the hex underneath, or
-  // dragging across the map would paint everything it passed over.
   svg.addEventListener('click', (e) => {
-    if (panDragged) {
+    if (swallowClick) {
       e.preventDefault();
       e.stopPropagation();
-      panDragged = false;
+      swallowClick = false;
     }
   }, true);
 
   window.addEventListener('mousemove', (e) => {
+    if (stroke) {
+      stroke.enter(hexLabelAt(e.clientX, e.clientY));
+      return;
+    }
     if (!isPanning) return;
+    if (!panEngaged) {
+      const moved = Math.hypot(e.clientX - pressOrigin.x, e.clientY - pressOrigin.y);
+      if (moved < DRAG_THRESHOLD_PX) return;
+      // panStart is still the press point, so the map catches up with the pointer rather
+      // than lagging five pixels behind it for the rest of the drag.
+      panEngaged = true;
+      cursorBeforePan = svg.style.cursor;
+      if (pressButton === 0) svg.style.cursor = 'grabbing';
+    }
     pendingPan = e; // Store event for the next animation frame
   });
 
   window.addEventListener('mouseup', () => {
-    if (isPanning) svg.style.cursor = 'grab';
+    if (stroke) {
+      swallowClick = stroke.painted;
+      stroke = null;
+      svg.style.cursor = cursorBeforeStroke;
+    }
+    if (isPanning && panEngaged) {
+      // The last movement may not have been drawn yet. It used to be dropped here, so a
+      // quick flick landed a few pixels short of where it was let go.
+      applyPendingPan();
+      // Put back what was there — a crosshair from an armed tool, say — rather than
+      // assuming the map's own cursor. Only a left press is followed by a click event.
+      svg.style.cursor = cursorBeforePan;
+      swallowClick = pressButton === 0;
+    }
     isPanning = false;
+    panEngaged = false;
     pendingPan = null;
   });
 
+  function applyPendingPan() {
+    if (!pendingPan) return;
+    const [, , w, h] = editor._currentViewBox;
+    // Convert mouse delta to SVG units (based on viewBox size)
+    const dx = (pendingPan.clientX - panStart.x) * w / svg.clientWidth;
+    const dy = (pendingPan.clientY - panStart.y) * h / svg.clientHeight;
+    editor._currentViewBox[0] -= dx;
+    editor._currentViewBox[1] -= dy;
+    panStart = { x: pendingPan.clientX, y: pendingPan.clientY };
+    svg.setAttribute('viewBox', editor._currentViewBox.join(' '));
+    pendingPan = null;
+  }
+
   // ---- Smooth pan loop using requestAnimationFrame ----
   function panLoop() {
-    if (isPanning && pendingPan) {
-      const [, , w, h] = editor._currentViewBox;
-      // Convert mouse delta to SVG units (based on viewBox size)
-      const dx = (pendingPan.clientX - panStart.x) * w / svg.clientWidth;
-      const dy = (pendingPan.clientY - panStart.y) * h / svg.clientHeight;
-      editor._currentViewBox[0] -= dx;
-      editor._currentViewBox[1] -= dy;
-      panStart = { x: pendingPan.clientX, y: pendingPan.clientY };
-      svg.setAttribute('viewBox', editor._currentViewBox.join(' '));
-      if (dx || dy) panDragged = true;
-      pendingPan = null;
-    }
+    if (isPanning) applyPendingPan();
     requestAnimationFrame(panLoop);
   }
   panLoop();

@@ -24,9 +24,23 @@
 
 import { EDGE_DIRECTIONS } from '../utils/hexGrid.js';
 import { sideCorners } from '../utils/hexGeometry.js';
+import { sectorColors } from '../constants/constants.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const LAYER_ID = 'hexSelectionLayer';
+
+/**
+ * Whether a click in this mode selects rather than edits.
+ *
+ * Asked of sectorColors rather than of a list of names: the paint modes ARE its keys, so a
+ * mode that is not one of them cannot paint, whatever it is called. See uiEvents, and
+ * tools/test-hex-modes.js for what it cost when this was a list.
+ *
+ * @param {string|undefined|null} mode
+ */
+export function isSelectMode(mode) {
+    return !mode || mode === 'none' || mode === 'select' || !(mode in sectorColors);
+}
 
 /** Fired on `document` whenever the selection changes. detail: {labels: string[], label} */
 export const HEX_SELECTED = 'ti4:hex-selected';
@@ -149,6 +163,53 @@ export function selectHex(editor, label, { additive = false } = {}) {
     }
 
     announce(editor);
+}
+
+/**
+ * Add hexes to the selection and never take any away. This is what a shift-drag paints
+ * with: sweeping back over a hex you already have must not drop it, the way a second
+ * shift-click on it would.
+ *
+ * @param {any} editor @param {string[]} labels
+ */
+export function addToHexSelection(editor, labels) {
+    if (!editor) return;
+    const current = selectedHexes(editor);
+    const fresh = labels.filter(l => editor.hexes?.[l] && !current.includes(l));
+    if (!fresh.length) return;
+    editor.selectedHexLabels = [...current, ...fresh];
+    announce(editor);
+}
+
+/**
+ * One shift-drag across the map.
+ *
+ * Nothing is added until the pointer reaches a second hex. Until then the press is still
+ * a shift-click, and the click that follows it is what adds or removes the hex under it —
+ * so a shift-click that wobbles inside its own hex stays a click. Once the stroke has
+ * crossed into another hex it has painted, and the click at the end has to be swallowed,
+ * or it would take the hex it ended on back out again.
+ *
+ * @param {any} editor
+ * @param {string|null} startLabel - the hex the press began on, if it began on one
+ */
+export function beginSelectionStroke(editor, startLabel) {
+    let last = startLabel;
+    let painted = false;
+    return {
+        /** @param {string|null} label - the hex now under the pointer */
+        enter(label) {
+            if (!label || label === last) return;
+            last = label;
+            if (!painted) {
+                painted = true;
+                addToHexSelection(editor, startLabel ? [startLabel, label] : [label]);
+            } else {
+                addToHexSelection(editor, [label]);
+            }
+        },
+        get painted() { return painted; },
+    };
 }
 
 /**

@@ -8,10 +8,10 @@
 // or linking hyperlanes, wormhole toggles, or changing sector type.
 // ───────────────────────────────────────────────────────────────
 
-import { wormholeTypes, sectorColors } from '../constants/constants.js';
+import { wormholeTypes } from '../constants/constants.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { handleHexClick } from '../modules/Hyperlanes/hyperlaneEditing.js';
-import { selectHex } from '../features/hexSelection.js';
+import { selectHex, isSelectMode } from '../features/hexSelection.js';
 import { isGhostArmed } from '../features/pasteGhost.js';
 import { activeClip, pasteAt } from '../features/tileClipboard.js';
 
@@ -74,10 +74,10 @@ export function registerClickHandler(editor) {
     // setSectorType looked them up in sectorColors, found nothing, and filled the hex with
     // the blank default. Clicking with no tool armed wiped tiles and pushed undo entries.
     //
-    // Guarding on sectorColors rather than on a list of names is what makes that safe: the
-    // paint modes ARE its keys, so a mode that is not one of them cannot be painted by
-    // definition, whatever it is called.
-    if (!this.mode || this.mode === 'none' || this.mode === 'select' || !(this.mode in sectorColors)) {
+    // isSelectMode guards on sectorColors rather than on a list of names, which is what
+    // makes that safe: the paint modes ARE its keys, so a mode that is not one of them
+    // cannot be painted by definition, whatever it is called.
+    if (isSelectMode(this.mode)) {
       // With a ghost up, the click places it. The ghost stays armed afterwards: putting
       // the same block down in several places is the ordinary case, not an edge one.
       if (isGhostArmed() && activeClip()) {
