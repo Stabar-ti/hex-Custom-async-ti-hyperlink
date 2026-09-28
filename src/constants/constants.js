@@ -182,7 +182,10 @@ export const SVG_LAYER_ORDER = [
   'lore-overlay',           // lore markers sit above their own arcs
   // Transient "what will the next click do" cue for hyperlane drawing. Topmost on purpose:
   // it is only on screen mid-gesture, and it is useless if an overlay covers it.
-  'hyperlane-indicator-layer'
+  'hyperlane-indicator-layer',
+  // A distance reading is the answer to a question you just asked, so nothing covers it.
+  // Escape clears it.
+  'distanceLayer'
 
   // top-most
 ];

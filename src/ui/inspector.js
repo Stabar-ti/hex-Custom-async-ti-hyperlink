@@ -25,6 +25,8 @@ import { el } from './kit/index.js';
 import { isMatrixEmpty } from '../utils/matrix.js';
 import { buildValueTiers, getFactors, getTypeGroup } from '../features/valueOverlay.js';
 import { HEX_SELECTED, selectedHex, selectedHexes, clearHexSelection } from '../features/hexSelection.js';
+import { toolLabel } from './statusBar.js';
+import { DISTANCE_TOOL_CHANGED } from '../features/distanceTool.js';
 
 /**
  * One label/value line.
@@ -342,8 +344,7 @@ export function installInspector(editor) {
 
     const setTool = () => {
         const slot = toolLine.querySelector('.insp-field__value');
-        const idle = !editor.mode || editor.mode === 'none' || editor.mode === 'select';
-        if (slot) slot.textContent = idle ? 'none' : String(editor.mode).replace(/[-_]/g, ' ');
+        if (slot) slot.textContent = toolLabel(editor);
     };
     setTool();
 
@@ -393,4 +394,5 @@ export function installInspector(editor) {
     svg.addEventListener('click', () => setTimeout(setTool, 0));
     document.addEventListener('click', () => setTimeout(setTool, 0));
     document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') setTimeout(setTool, 0); });
+    document.addEventListener(DISTANCE_TOOL_CHANGED, setTool);
 }

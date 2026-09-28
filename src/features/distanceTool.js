@@ -17,8 +17,9 @@
  * sector mode happens to be selected.
  */
 
-import { showDistanceOverlays, clearDistanceOverlays } from './baseOverlays.js';
+import { showDistanceOverlays } from './baseOverlays.js';
 import { registerMode, activateMode, deactivateMode } from '../core/registry.js';
+import { showToast } from '../ui/uiToast.js';
 
 export const MODE_DISTANCE = 'distance';
 
@@ -53,8 +54,25 @@ export function showDistancesFrom(editor, label) {
         return;
     }
     const result = editor.calculateDistancesFrom(label, editor.maxDistance);
-    clearDistanceOverlays(editor);
     showDistanceOverlays(editor, result);
+
+    // An empty answer used to look exactly like a tool that had not run. The usual reason
+    // is the rule the engine deliberately keeps — an unpainted hex is not a tile, so it
+    // cannot be moved through — and that is worth saying, since the blank grid a new map
+    // starts from is entirely made of them.
+    if (Object.keys(result).length <= 1) {
+        showToast(
+            `Nothing within ${editor.maxDistance} of ${label}. Unpainted hexes are not tiles, ` +
+            'so movement cannot pass through them. The range is in Analyse ▸ Distance Options.',
+            'info', 5000);
+    }
+}
+
+/** Typing in a field must not arm a tool. */
+function isTypingTarget(target) {
+    const el = /** @type {HTMLElement|null} */ (target);
+    if (!el) return false;
+    return el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
 }
 
 /** @param {any} editor */
@@ -116,4 +134,13 @@ export function toggleDistanceTool(editor) {
 export function installDistanceTool(editor, onChange) {
     onStateChange = onChange || null;
     registerMode(MODE_DISTANCE, { deactivate: () => disarmDistanceTool(editor) });
+
+    // D toggles the tool. Plain D only: Shift+D is still held for the right-click gesture
+    // in svgBindings, and Ctrl/Cmd+D belongs to the browser.
+    document.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'd' || ev.shiftKey || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        if (ev.repeat || isTypingTarget(ev.target)) return;
+        ev.preventDefault();
+        toggleDistanceTool(editor);
+    });
 }

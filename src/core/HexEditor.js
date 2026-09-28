@@ -111,9 +111,8 @@ export default class HexEditor {
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.clearWormholeLinks();
-        if (typeof this.clearDistanceOverlays === 'function') {
-          this.clearDistanceOverlays();
-        }
+        // Distance overlays are cleared by svgBindings' own Escape handler. This used to
+        // call this.clearDistanceOverlays, which the editor has never had.
         // Each tool owns its own turning-off, so disarmAll clicks the lit buttons rather
         // than calling setMode behind their backs. Right-click asks for the same thing.
         disarmAll(this);

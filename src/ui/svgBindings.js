@@ -7,7 +7,8 @@
 // custom right-click actions and manages how the SVG canvas responds
 // to user input. Used by HexEditor to make the map feel like a real app.
 // ───────────────────────────────────────────────────────────────
-import { showDistanceOverlays, clearDistanceOverlays } from '../features/baseOverlays.js';
+import { clearDistanceOverlays } from '../features/baseOverlays.js';
+import { showDistancesFrom } from '../features/distanceTool.js';
 import { startSwapMode, isSwapModeActive } from '../features/tileSwap.js';
 import { disarmAll } from '../features/disarm.js';
 import { isSelectMode, beginSelectionStroke } from '../features/hexSelection.js';
@@ -86,18 +87,9 @@ export function bindSvgHandlers(editor) {
 
     // If Shift+D is active, show distance overlays from clicked hex
     if (shiftDActive) {
-      const target = e.target.closest('polygon');
-      if (!target) return;
-      const label = target.dataset?.label;
-      if (!label) return;
-
-      if (typeof editor.calculateDistancesFrom === 'function') {
-        const result = editor.calculateDistancesFrom(label, editor.maxDistance);
-        clearDistanceOverlays(editor);
-        showDistanceOverlays(editor, result);
-      } else {
-        console.warn("editor.calculateDistancesFrom is not a function");
-      }
+      // The same path as the rail's Distance tool, so both explain an empty answer.
+      const label = hexLabelAt(e.clientX, e.clientY);
+      if (label) showDistancesFrom(editor, label);
     } else {
       // Otherwise right-click means "put everything down": the paste ghost if one is up,
       // else every armed tool — which returns the map to select mode and to panning.
@@ -278,47 +270,4 @@ export function bindSvgHandlers(editor) {
     requestAnimationFrame(panLoop);
   }
   panLoop();
-
-  // ────────────── Distance Overlay Utilities ──────────────
-
-  /**
-   * Render distance overlays (numbers) on each hex, except the origin.
-   * @param {HexEditor} editor 
-   * @param {object} result  Map of label → distance
-   */
-  /*  function showDistanceOverlays(editor, result) {
-      editor._distanceOverlays = editor._distanceOverlays || [];
-      for (const [label, dist] of Object.entries(result)) {
-        if (dist === 0) continue; // Don't overlay on the source hex
-        const hex = editor.hexes[label];
-        if (!hex || !hex.center) continue;
-  
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', hex.center.x);
-        text.setAttribute('y', hex.center.y - 15);
-        text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('font-size', '24');
-        text.setAttribute('fill', 'red');
-        text.textContent = dist;
-        text.classList.add('distance-overlay');
-  
-        svg.appendChild(text);
-        editor._distanceOverlays.push(text);
-      }
-    }
-  
-    /**
-     * Remove all distance overlays from the SVG map.
-     * @param {HexEditor} editor 
-     */
-  /*function clearDistanceOverlays(editor) {
-    const overlays = editor._distanceOverlays || [];
-    overlays.forEach(el => {
-      if (el.parentNode === svg) {
-        svg.removeChild(el);
-      }
-    });
-    editor._distanceOverlays = [];
-  }
-    */
 }

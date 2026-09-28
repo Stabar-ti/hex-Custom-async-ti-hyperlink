@@ -12,6 +12,8 @@
  * viewBox whenever it changes.
  */
 
+import { isDistanceToolArmed, DISTANCE_TOOL_CHANGED } from '../features/distanceTool.js';
+
 /**
  * The viewBox width that counts as 100%.
  *
@@ -38,6 +40,20 @@ function modeLabel(mode) {
     if (mode === 'token-selection') return 'token placement';
     // 'custom-adj-single' → 'custom adj single'
     return String(mode).replace(/[-_]/g, ' ');
+}
+
+/**
+ * What the status bar and the Inspector call the armed tool.
+ *
+ * Mostly that is editor.mode. The distance tool is the exception: it takes the map click
+ * without changing the mode, so both displays said "none" while it was armed, and the tool
+ * looked as though it had not switched on.
+ *
+ * @param {any} editor
+ */
+export function toolLabel(editor) {
+    if (isDistanceToolArmed(editor)) return 'distance';
+    return modeLabel(editor?.mode);
 }
 
 /**
@@ -78,12 +94,12 @@ export function installStatusBar(editor) {
     // ── Tool ──
     // setMode is the one funnel every paint/link/wormhole tool goes through, so wrapping
     // it once is enough; the alternative is polling, or touching every call site.
-    setField('statusTool', modeLabel(editor.mode));
+    setField('statusTool', toolLabel(editor));
     if (typeof editor.setMode === 'function' && !editor._statusBarWrapped) {
         const original = editor.setMode.bind(editor);
         editor.setMode = (mode, ...rest) => {
             const result = original(mode, ...rest);
-            setField('statusTool', modeLabel(editor.mode));
+            setField('statusTool', toolLabel(editor));
             return result;
         };
         editor._statusBarWrapped = true;
@@ -91,7 +107,8 @@ export function installStatusBar(editor) {
 
     // Token placement bypasses setMode and assigns editor.mode directly, so catch the
     // pointer leaving the map as a cheap resync point rather than letting it go stale.
-    svg.addEventListener('mouseleave', () => setField('statusTool', modeLabel(editor.mode)));
+    svg.addEventListener('mouseleave', () => setField('statusTool', toolLabel(editor)));
+    document.addEventListener(DISTANCE_TOOL_CHANGED, () => setField('statusTool', toolLabel(editor)));
 
     // ── Hex ──
     svg.addEventListener('mousemove', (ev) => {

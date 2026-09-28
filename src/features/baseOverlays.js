@@ -1,5 +1,6 @@
 import { effectIconPositions, effectEmojiMap, fallbackEffectEmoji, wormholeTypes } from '../constants/constants.js';
 import { COLORS } from '../constants/designTokens.js';
+import { hexPoints } from '../utils/hexGeometry.js';
 
 
 /**
@@ -109,47 +110,90 @@ export function createEffectsOverlay(type, center, index, editor) {
 
 // ────────────── Distance Overlay Utilities ──────────────
 
+//
+// These used to be loose <text> nodes appended to the SVG root, 24px gold text at the top
+// of each hex. Two things made them hard to see. They sat over the hex label, gold on the
+// pale and yellow tile fills. And enforceSvgLayerOrder, which runs on most redraws, moves
+// every named layer to the top — so the first redraw after a calculation put the tile
+// images and every other overlay on top of the numbers.
+//
+// Now they are one layer, last in SVG_LAYER_ORDER, drawn as dark badges in the middle of
+// each hex with the source ringed.
+
+const DISTANCE_LAYER_ID = 'distanceLayer';
+
 /**
- * Render distance overlays (numbers) on each hex, except the origin.
- * @param {HexEditor} editor 
- * @param {object} result  Map of label → distance
+ * Show the result of a distance calculation.
+ *
+ * @param {HexEditor} editor
+ * @param {Object<string, number>} result  label → distance; the source is the one at 0
  */
 export function showDistanceOverlays(editor, result) {
   const svg = editor.svg || document.getElementById('hexMap');
-  editor._distanceOverlays = editor._distanceOverlays || [];
+  if (!svg) return;
+  clearDistanceOverlays(editor);
+
+  const svgns = 'http://www.w3.org/2000/svg';
+  const layer = document.createElementNS(svgns, 'g');
+  layer.id = DISTANCE_LAYER_ID;
+  // It is a reading of the map, not part of it: clicks go through to the tile underneath.
+  layer.style.pointerEvents = 'none';
+
+  const radius = editor.hexRadius || 40;
+  const badgeR = radius * 0.34;
+
   for (const [label, dist] of Object.entries(result)) {
-    if (dist === 0) continue; // Don't overlay on the source hex
     const hex = editor.hexes[label];
-    if (!hex || !hex.center) continue;
+    if (!hex?.center) continue;
+    const { x, y } = hex.center;
 
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', hex.center.x);
-    text.setAttribute('y', hex.center.y - 15);
+    if (dist === 0) {
+      // The source gets a ring rather than a "0" — it is where you are, not a distance.
+      const ring = document.createElementNS(svgns, 'polygon');
+      ring.setAttribute('points', hexPoints(hex.center, radius * 0.9));
+      ring.setAttribute('fill', 'none');
+      ring.setAttribute('stroke', COLORS.distanceNumber);
+      ring.setAttribute('stroke-width', '4');
+      ring.setAttribute('stroke-dasharray', '10 6');
+      layer.appendChild(ring);
+      continue;
+    }
+
+    const badge = document.createElementNS(svgns, 'g');
+    badge.classList.add('distance-overlay');
+    badge.dataset.label = label;
+
+    const disc = document.createElementNS(svgns, 'circle');
+    disc.setAttribute('cx', String(x));
+    disc.setAttribute('cy', String(y));
+    disc.setAttribute('r', String(badgeR));
+    disc.setAttribute('fill', COLORS.distanceStroke);
+    disc.setAttribute('fill-opacity', '0.88');
+    disc.setAttribute('stroke', COLORS.distanceNumber);
+    disc.setAttribute('stroke-width', '2');
+
+    const text = document.createElementNS(svgns, 'text');
+    text.setAttribute('x', String(x));
+    text.setAttribute('y', String(y));
     text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('font-size', '24');
-    text.setAttribute('fill', COLORS.distanceNumber);
+    text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', String(Math.round(badgeR * 1.25)));
     text.setAttribute('font-weight', 'bold');
-    text.setAttribute('stroke', COLORS.distanceStroke);
-    text.setAttribute('stroke-width', '1');
-    text.textContent = dist;
-    text.classList.add('distance-overlay');
+    text.setAttribute('fill', COLORS.distanceNumber);
+    text.textContent = String(dist);
 
-    svg.appendChild(text);
-    editor._distanceOverlays.push(text);
+    badge.append(disc, text);
+    layer.appendChild(badge);
   }
+
+  svg.appendChild(layer);
 }
 
 /**
- * Remove all distance overlays from the SVG map.
- * @param {HexEditor} editor 
+ * Remove the distance overlays from the map.
+ * @param {HexEditor} editor
  */
 export function clearDistanceOverlays(editor) {
   const svg = editor.svg || document.getElementById('hexMap');
-  const overlays = editor._distanceOverlays || [];
-  overlays.forEach(el => {
-    if (el.parentNode === svg) {
-      svg.removeChild(el);
-    }
-  });
-  editor._distanceOverlays = [];
+  svg?.querySelector('#' + DISTANCE_LAYER_ID)?.remove();
 }
