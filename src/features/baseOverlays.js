@@ -136,6 +136,9 @@ export function showDistanceOverlays(editor, result) {
   const svgns = 'http://www.w3.org/2000/svg';
   const layer = document.createElementNS(svgns, 'g');
   layer.id = DISTANCE_LAYER_ID;
+  // Which hex the reading is from, so clicking it again can put the reading away.
+  const source = Object.keys(result).find(label => result[label] === 0);
+  if (source) layer.dataset.source = source;
   // It is a reading of the map, not part of it: clicks go through to the tile underneath.
   layer.style.pointerEvents = 'none';
 
@@ -187,6 +190,17 @@ export function showDistanceOverlays(editor, result) {
   }
 
   svg.appendChild(layer);
+}
+
+/**
+ * The hex the distances on screen are measured from, or null when none are showing.
+ * @param {HexEditor} editor
+ * @returns {string|null}
+ */
+export function distanceOverlaySource(editor) {
+  const svg = editor.svg || document.getElementById('hexMap');
+  const layer = /** @type {SVGGElement|null} */ (svg?.querySelector('#' + DISTANCE_LAYER_ID));
+  return layer?.dataset.source ?? null;
 }
 
 /**

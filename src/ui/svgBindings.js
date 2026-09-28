@@ -8,7 +8,7 @@
 // to user input. Used by HexEditor to make the map feel like a real app.
 // ───────────────────────────────────────────────────────────────
 import { clearDistanceOverlays } from '../features/baseOverlays.js';
-import { showDistancesFrom } from '../features/distanceTool.js';
+import { toggleDistancesFrom } from '../features/distanceTool.js';
 import { startSwapMode, isSwapModeActive } from '../features/tileSwap.js';
 import { disarmAll } from '../features/disarm.js';
 import { isSelectMode, beginSelectionStroke } from '../features/hexSelection.js';
@@ -89,7 +89,7 @@ export function bindSvgHandlers(editor) {
     if (shiftDActive) {
       // The same path as the rail's Distance tool, so both explain an empty answer.
       const label = hexLabelAt(e.clientX, e.clientY);
-      if (label) showDistancesFrom(editor, label);
+      if (label) toggleDistancesFrom(editor, label);
     } else {
       // Otherwise right-click means "put everything down": the paste ghost if one is up,
       // else every armed tool — which returns the map to select mode and to panning.

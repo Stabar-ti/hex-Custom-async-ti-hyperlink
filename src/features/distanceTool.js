@@ -15,9 +15,12 @@
  * The click is taken in the capture phase, the same way the system picker takes its
  * placement click, so an armed distance tool does not also paint the hex with whatever
  * sector mode happens to be selected.
+ *
+ * The reading outlives the tool: disarming leaves it on screen, so you can arm something
+ * else and still read it. Clicking its source hex again puts it away, as Escape does.
  */
 
-import { showDistanceOverlays } from './baseOverlays.js';
+import { showDistanceOverlays, clearDistanceOverlays, distanceOverlaySource } from './baseOverlays.js';
 import { registerMode, activateMode, deactivateMode } from '../core/registry.js';
 import { showToast } from '../ui/uiToast.js';
 
@@ -68,6 +71,18 @@ export function showDistancesFrom(editor, label) {
     }
 }
 
+/**
+ * Show the distances from a hex, or put them away if they are already the ones on screen.
+ * This is what a click does, from the armed tool and from Shift+D + right-click.
+ *
+ * @param {any} editor
+ * @param {string} label
+ */
+export function toggleDistancesFrom(editor, label) {
+    if (distanceOverlaySource(editor) === label) clearDistanceOverlays(editor);
+    else showDistancesFrom(editor, label);
+}
+
 /** Typing in a field must not arm a tool. */
 function isTypingTarget(target) {
     const el = /** @type {HTMLElement|null} */ (target);
@@ -91,7 +106,7 @@ export function armDistanceTool(editor) {
         // Take the click before the paint handlers further down see it.
         ev.preventDefault();
         ev.stopPropagation();
-        showDistancesFrom(editor, label);
+        toggleDistancesFrom(editor, label);
     };
     svg.addEventListener('click', clickHandler, true);
 
