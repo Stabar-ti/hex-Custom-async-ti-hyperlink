@@ -44,6 +44,12 @@
   Theme variables
 ──────────────────────────────────────────────────────────────────────────────*/
 :root {
+  /* Hover and active states used to set font-weight: bold. Bold glyphs are wider, so the
+     button grew and every button beside it in the row moved over by a few pixels. A
+     hairline shadow in the text colour reads as bold and is painted, not laid out, so
+     nothing moves. */
+  --faux-bold: 0.35px 0 0 currentColor, -0.35px 0 0 currentColor;
+
   --bg-color: #ffffff;
   --text-color: #000000;
   --modal-bg: #ffffff;
@@ -380,7 +386,8 @@ body.dark .primary-button {
 
 .mode-button:hover,
 .primary-button:hover {
-  font-weight: bold;
+  /* Bold without the reflow — see --faux-bold. */
+  text-shadow: var(--faux-bold);
 }
 
 .mode-button.active,
@@ -388,7 +395,8 @@ body.dark .primary-button {
   background: var(--color-accent-bg);
   color: #000;
   outline: 3px solid var(--color-accent-outline);
-  font-weight: bold;
+  /* Bold without the reflow — see --faux-bold. */
+  text-shadow: var(--faux-bold);
 }
 
 body.dark .mode-button.active,
@@ -416,7 +424,8 @@ body.dark #topBar .mode-button:not(.dropdown-toggle) {
 body.dark .dropdown-toggle:hover,
 body.dark .dropdown-toggle:focus {
   background-color: #828282;
-  font-weight: bold;
+  /* Bold without the reflow — see --faux-bold. */
+  text-shadow: var(--faux-bold);
 }
 
 /*──────────────────────────────────────────────────────────────────────────────
@@ -604,14 +613,16 @@ body.dark #effectsToggleBtn {
 }
 
 #effectsToggleBtn:hover {
-  font-weight: bold;
+  /* Bold without the reflow — see --faux-bold. */
+  text-shadow: var(--faux-bold);
 }
 
 #effectsToggleBtn.active {
   background-color: var(--color-accent-bg);
   color: #000;
   border-color: var(--color-accent-outline);
-  font-weight: bold;
+  /* Bold without the reflow — see --faux-bold. */
+  text-shadow: var(--faux-bold);
 }
 
 body.dark #effectsToggleBtn.active {
@@ -711,7 +722,8 @@ body.dark .mode-button.btn-lookup-id:focus {
 .popup-panel button:hover {
   background: var(--color-accent-bg);
   color: #222;
-  font-weight: bold;
+  /* Bold without the reflow — see --faux-bold. */
+  text-shadow: var(--faux-bold);
 }
 
 body.dark .popup-panel .mode-button:hover,
@@ -738,7 +750,8 @@ body.dark .popup-panel .divider {
 .wormhole-button.active {
   outline: 3px solid var(--text-color);
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-  font-weight: bold;
+  /* Bold without the reflow — see --faux-bold. */
+  text-shadow: var(--faux-bold);
 }
 
 #wormholeToggleBtn {
@@ -1556,17 +1569,15 @@ body.dark .mode-button.btn-special {
   margin-bottom: 16px;
 }
 
-/* ── Button hover — subtle background tint instead of just font-weight ─────── */
+/* ── Button hover — subtle background tint; the bold look is --faux-bold, above ── */
 .mode-button:hover,
 .primary-button:hover {
   background-color: color-mix(in srgb, currentColor 10%, var(--btn-bg-light));
-  font-weight: bold;
 }
 
 body.dark .mode-button:hover,
 body.dark .primary-button:hover {
   background-color: color-mix(in srgb, var(--color-accent) 10%, var(--btn-bg-dark));
-  font-weight: bold;
 }
 
 /* ── Top bar — glass border instead of flat line ──────────────────────────── */

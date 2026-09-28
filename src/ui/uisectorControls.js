@@ -1075,7 +1075,6 @@ function finishSectorControlsContent(editor, container) {
       tokenPlacementBtn.classList.add('active');
       tokenPlacementBtn.style.background = '#2980b9';
       tokenPlacementBtn.style.color = '#fff';
-      tokenPlacementBtn.style.fontWeight = 'bold';
       setRailLabel(tokenPlacementBtn, 'Click a Hex…');
       enableTokenHexSelection(editor);
     } else {
@@ -1113,7 +1112,6 @@ function finishSectorControlsContent(editor, container) {
     selectHexForLoreBtn.classList.add('active');
     selectHexForLoreBtn.style.background = '#27ae60';
     selectHexForLoreBtn.style.color = '#fff';
-    selectHexForLoreBtn.style.fontWeight = 'bold';
     setRailLabel(selectHexForLoreBtn, 'Click a Hex…');
 
     // The lore module owns the picking mode and the editor entry point; this button only

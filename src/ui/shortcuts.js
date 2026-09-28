@@ -45,25 +45,25 @@ export const SHORTCUTS = [
         items: [
             { combos: ['Mod+Z'], does: 'Undo' },
             { combos: ['Mod+Shift+Z'], does: 'Redo' },
-            { combos: ['Esc', 'RightClick'], does: 'Put the paste ghost away, or turn off the armed tool' },
+            { combos: ['Esc', 'RightClick'], does: 'Clear cursor/Disarm tool' },
+            { combos: ['Hover+Shift+R'], does: 'Clear everything from the hex under the cursor', hint: 'clear', hintCombo: 'Shift+R' },
             { combos: ['?'], does: 'Show this list' },
         ],
     },
     {
         id: 'map', title: 'Moving around', icon: '🗺',
         items: [
-            { combos: ['Drag'], does: 'Pan the map. A click that barely moves is still a click' },
-            { combos: ['MiddleDrag'], does: 'Pan, whatever tool is armed' },
-            { combos: ['Wheel'], does: 'Zoom, towards the pointer' },
-            { combos: ['Hover+Shift+R'], does: 'Clear everything from the hex under the pointer', hint: 'clear', hintCombo: 'Shift+R' },
+            { combos: ['Drag'], does: 'Pan the map, Has a small deadzone' },
+            { combos: ['MiddleDrag'], does: 'Pan the map' },
+            { combos: ['Wheel'], does: 'Zoom, towards the cursor' },
         ],
     },
     {
         id: 'select', title: 'Selecting', icon: '⬡',
         items: [
-            { combos: ['Click'], does: 'Select a hex; click it again to deselect. The Inspector shows what is on it' },
-            { combos: ['Shift+Click'], does: 'Add a hex to the selection, or take it back out' },
-            { combos: ['Shift+Drag'], does: 'Paint a selection: every hex you pass over is added', hint: 'select' },
+            { combos: ['Click'], does: 'Select/Deselect hex, inspector (panel to the right) shows hex info' },
+            { combos: ['Shift+Click'], does: 'Add/Remove hex from selection' },
+            { combos: ['Shift+Drag'], does: 'Paint hexes to add to selection', hint: 'select' },
         ],
         notes: ['Selecting only happens with no tool armed. With a tool armed, the click belongs to the tool.'],
     },
@@ -71,11 +71,11 @@ export const SHORTCUTS = [
         id: 'clipboard', title: 'Copy, paste, swap', icon: '✂',
         items: [
             { combos: ['Mod+C'], does: 'Copy the selected hexes' },
-            { combos: ['Mod+X'], does: 'Cut them: cleared at once, in one undo step' },
-            { combos: ['Mod+V'], does: 'Bring the clipboard back to the pointer as a ghost' },
-            { combos: ['R'], does: 'Turn the ghost 60°' },
-            { combos: ['Click'], does: 'Place the ghost. It stays up, so you can place it again' },
-            { combos: ['Shift+S+Click'], does: 'Pick the first tile of a swap; the next click picks the second' },
+            { combos: ['Mod+X'], does: 'Cut the selected hexes' },
+            { combos: ['Mod+V'], does: 'Summon last used ghost to cursor' },
+            { combos: ['R'], does: 'Rotate ghost 60° clockwise' },
+            { combos: ['Click'], does: 'Place the ghost, does not clear cursor' },
+            { combos: ['Shift+S+Click'], does: 'Pick the first tile of a swap; the next click swaps' },
         ],
         notes: ['The last 12 copies are listed in the Inspector. Select exactly two hexes to get a ⇄ swap button on them.'],
     },
@@ -83,7 +83,7 @@ export const SHORTCUTS = [
         id: 'distance', title: 'Distance', icon: '↔',
         items: [
             { combos: ['D'], does: 'Arm or disarm the Distance tool', hint: 'distance' },
-            { combos: ['Click'], does: 'With it armed: show distances from a tile. Click it again to hide them' },
+            { combos: ['Click'], does: 'Show distances from a tile. Click it again to hide them' },
             { combos: ['Shift+D+RightClick'], does: 'The same, without arming the tool' },
             { combos: ['Esc'], does: 'Clear the distances' },
         ],
@@ -100,7 +100,6 @@ export const SHORTCUTS = [
             { combos: ['Alt+Click'], does: 'A → B → C removes that one link' },
             { combos: ['Shift+Click'], does: 'Remove every arc on the tile' },
         ],
-        notes: ['These apply in Hyperlane mode, from the rail.'],
     },
 ];
 
@@ -291,7 +290,9 @@ export function showShortcutsPopup() {
         scalable: true,
         modal: false,
         actions: [{ label: 'Close', action: () => hidePopup(SHORTCUTS_POPUP_ID) }],
-        style: { width: '760px', maxWidth: '94vw', zIndex: 10010 },
+        // showPopup ignores maxWidth, so the cap is inside the width. Three columns of
+        // cards on a large screen, two on a laptop.
+        style: { width: 'min(1600px, 94vw)', zIndex: 10010 },
     });
     setTimeout(() => search.focus(), 0);
 }
