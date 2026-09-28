@@ -27,6 +27,11 @@ const closeHandlers = new WeakMap();
  * @param {function} [config.onClose] - Called when popup is closed.
  * @param {HTMLElement} [config.parent] - Parent element to attach popup to.
  * @param {Object} [config.style] - Inline style overrides.
+ * @param {boolean} [config.rememberPosition] - Reopen where it was last dragged to (needs an id).
+ * @param {boolean} [config.showHelp] - Show a ? button in the title bar.
+ * @param {function} [config.onHelp] - What the ? button opens.
+ * @param {string} [config.title] - Title bar text.
+ * @param {HTMLElement|null} [config.confineTo] - Keep the popup inside this element while dragging.
  * @returns {HTMLElement} The popup element.
  */
 export function showPopup({

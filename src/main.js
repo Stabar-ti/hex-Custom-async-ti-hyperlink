@@ -23,7 +23,8 @@ import { installBorderAnomaliesUI } from './ui/borderAnomaliesUI.js';
 import { loadBorderAnomalyTypes, clearCache } from './constants/borderAnomalies.js';
 import { overlayDefaults } from './config/toggleSettings.js';
 import { showOptionsPopup, showOverlayOptionsPopup, showSanityCheckPopup } from './ui/simplepPopup.js';
-import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
+import { showInfoPopup, showFeaturesPopup, openUserManual } from './ui/staticPopups.js';
+import { installShortcuts, showShortcutsPopup, SHORTCUTS_POPUP_ID } from './ui/shortcuts.js';
 import { togglePopup } from './ui/popupUI.js';
 import { installFileMenu } from './ui/fileMenu.js';
 import { installTopBarMenus } from './ui/topBarMenus.js';
@@ -345,9 +346,11 @@ bindMenuToggle('overlayToggleBtn', 'overlayOptionsPopup', () => showOverlayOptio
 // button that opened it sitting there doing nothing on a second press.
 bindMenuToggle('sanityCheckBtn', 'sanity-check-popup', () => showSanityCheckPopup(editor));
 bindMenuToggle('calcSliceBtn', 'calcSlicePopup', () => openCalcSlicePopup(editor));
-bindMenuToggle('helpToggle', 'help-popup', showHelpPopup);
+bindMenuToggle('helpToggle', SHORTCUTS_POPUP_ID, showShortcutsPopup);
+document.getElementById('manualBtn')?.addEventListener('click', openUserManual);
 bindMenuToggle('infoToggle', 'info-popup', showInfoPopup);
 bindMenuToggle('featuresToggle', 'features-popup', showFeaturesPopup);
 
 installToolsMenu(editor);
+installShortcuts();
 

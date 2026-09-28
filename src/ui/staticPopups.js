@@ -1,83 +1,15 @@
 import { showPopup, hidePopup } from './popupUI.js';
 
-export function showHelpPopup() {
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'line-height:1.6;font-size:13px;max-height:70vh;overflow-y:auto;padding-right:6px;';
-  wrapper.innerHTML = `
-    <p style="background:#1a2a1a;border:1px solid #2ecc40;border-radius:6px;padding:10px;margin:0 0 12px 0;">
-      📖 <strong>Full User Manual:</strong>
-      <a href="https://github.com/Stabar-ti/hex-Custom-async-ti-hyperlink/blob/main/src/manuals/Main%20usage%20manual.md"
-         target="_blank" rel="noopener noreferrer"
-         style="color:#2ecc40;text-decoration:underline;">
-        Open full manual on GitHub ↗
-      </a>
-    </p>
+const MANUAL_URL = 'https://github.com/Stabar-ti/hex-Custom-async-ti-hyperlink/blob/main/src/manuals/Main%20usage%20manual.md';
 
-    <h4 style="color:#ffe066;margin:0 0 6px 0;">⌨ Global</h4>
-    <ul style="margin:0 0 10px 16px;padding:0;">
-      <li><strong>Ctrl/Cmd+Z</strong> — Undo</li>
-      <li><strong>Ctrl/Cmd+Shift+Z</strong> — Redo</li>
-      <li><strong>Shift+R</strong> (hover a hex) — Clear everything from that hex</li>
-      <li><strong>Esc</strong> — Put away the paste ghost, or turn off the armed tool</li>
-    </ul>
-
-    <h4 style="color:#ffe066;margin:0 0 6px 0;">🗺 The map</h4>
-    <ul style="margin:0 0 10px 16px;padding:0;">
-      <li><strong>Click a hex</strong> (no tool armed) — Select it; the Inspector shows what is on it</li>
-      <li><strong>Shift+click</strong> — Add a hex to the selection, or take it out again</li>
-      <li><strong>Left-drag</strong> — Pan. The hand in the top bar is on by default; a click that
-          did not drag still reaches the hex under it</li>
-      <li><strong>Middle-drag</strong> — Pan, whatever the hand is set to</li>
-      <li><strong>Mouse wheel</strong> — Zoom</li>
-    </ul>
-
-    <h4 style="color:#ffe066;margin:0 0 6px 0;">✂ Copy, cut, paste, swap</h4>
-    <ul style="margin:0 0 10px 16px;padding:0;">
-      <li><strong>Ctrl/Cmd+C</strong> — Copy the selected hexes</li>
-      <li><strong>Ctrl/Cmd+X</strong> — Cut them. They are cleared straight away, in one undo step;
-          the tiles are on the clipboard</li>
-      <li><strong>Click</strong> — Place the ghost where it is showing</li>
-      <li><strong>R</strong> — Turn the block 60°</li>
-      <li><strong>Esc</strong> or <strong>right-click</strong> — Put the ghost away. Nothing is lost</li>
-      <li><strong>Ctrl/Cmd+V</strong> — Bring it back to the cursor</li>
-      <li>Pasting does not use the clip up. The last 12 copies are listed in the Inspector;
-          click one to place it again</li>
-      <li><strong>Swap</strong> — Select exactly two hexes and press the <strong>⇄</strong> button that
-          appears on them, or hold <strong>Shift+S</strong> and click the two tiles</li>
-    </ul>
-
-    <h4 style="color:#ffe066;margin:0 0 6px 0;">🌀 Hyperlanes</h4>
-    <ul style="margin:0 0 10px 16px;padding:0;">
-      <li><strong>Left-click</strong> A → B → C — Draw a curved arc through tile B</li>
-      <li><strong>Left-click</strong> A → B → A — Draw a self-loop on tile B</li>
-      <li><strong>Alt+click</strong> A → B → C (in Hyperlane mode) — Remove a single link</li>
-      <li><strong>Shift+click</strong> a via tile — Remove all hyperlane arcs on it</li>
-    </ul>
-
-    <h4 style="color:#ffe066;margin:0 0 6px 0;">📏 Distance</h4>
-    <ul style="margin:0 0 10px 16px;padding:0;">
-      <li><strong>Distance</strong> in the tool rail — Arm it, then left-click any hex</li>
-      <li><strong>Shift+D held</strong> + <strong>right-click</strong> a tile — The same thing without arming it</li>
-      <li>Hyperlanes are <em>conduits</em>: they get no number of their own and cost no
-          movement, however long the chain. This applies to hand-drawn hyperlanes as well as
-          imported ones — they used to cost a step each.</li>
-      <li>Which rules apply is set in <strong>Analyse ▸ Distance Options</strong>.</li>
-    </ul>
-  `;
-  showPopup({
-    id: 'help-popup',
-    className: 'help-popup',
-    content: wrapper,
-    actions: [{ label: 'Close', action: () => hidePopup('help-popup') }],
-    draggable: true,
-    dragHandleSelector: '.popup-ui-titlebar',
-    scalable: true,
-    rememberPosition: true,
-    modal: false,
-    title: '🧭 Help — Shortcuts',
-    style: { minWidth: '420px', maxWidth: '560px', borderRadius: '14px', zIndex: 10010 },
-    showHelp: false
-  });
+/**
+ * Open the full user manual on GitHub.
+ *
+ * This was a link at the top of the Help popup, whose body was the shortcut list. The list
+ * is src/ui/shortcuts.js now, and the manual is its own item in the Help menu.
+ */
+export function openUserManual() {
+  window.open(MANUAL_URL, '_blank', 'noopener,noreferrer');
 }
 
 export function showInfoPopup() {

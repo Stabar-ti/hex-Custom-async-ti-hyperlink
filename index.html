@@ -55,13 +55,17 @@
 
       <div id="rightControls">
         <button id="optionsBtn" class="mode-button">Distance Options</button>
-        <button id="helpToggle" class="mode-button">Help</button>
-        <button id="infoToggle" class="mode-button">Import/Export How-To</button>
-        <button id="featuresToggle" class="mode-button">Features</button>
+        <button id="shortcutsBtn" class="mode-button tb-icon-btn" type="button"
+                title="Keyboard &amp; mouse shortcuts (?)" aria-label="Keyboard and mouse shortcuts">⌨</button>
+        <!-- The four below are moved into the Help ▾ menu by topBarMenus.js. -->
+        <button id="helpToggle" class="mode-button">⌨ Keyboard &amp; mouse shortcuts</button>
+        <button id="manualBtn" class="mode-button">📖 User manual ↗</button>
+        <button id="infoToggle" class="mode-button">⇅ Import / export how-to</button>
+        <button id="featuresToggle" class="mode-button">✦ Features</button>
+        <!-- Last in the group, not positioned over it: see #versionTag in shell.css. -->
+        <div id="versionTag">v2.1</div>
+        <script>document.getElementById('versionTag').textContent = 'v' + (window.APP_VERSION || '2.1');</script>
       </div>
-
-      <div id="versionTag">v2.1</div>
-      <script>document.getElementById('versionTag').textContent = 'v' + (window.APP_VERSION || '2.1');</script>
     </div>
 
     <!-- Tool rail. Populated by src/ui/toolRail.js; collapses to icons. -->

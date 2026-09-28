@@ -52,7 +52,7 @@ function showCalcSliceHelpPopup() {
                 <ul>
                   <li>The distance used is set in <b>Distance Calculator Options</b> (gear icon or Options button).</li>
                   <li>Each slice includes all tiles within <b>max distance</b> (default: 2) from the homesystem, excluding the homesystem itself.</li>
-                  <li>Clicking a homesystem while holding <b>Shift</b> and <b>D</b> (Shift+D+Click) will also highlight the slice on the map using the same distance setting.</li>
+                  <li>To see a slice's reach on the map, press <b>D</b> for the Distance tool and click the homesystem (or hold <b>Shift+D</b> and right-click it). It uses the same distance setting.</li>
                   <li>Use this tool to quickly compare starting positions and plan your draft or game setup.</li>
                 </ul>
                 <b>Tip:</b> Adjust the max distance in <b>Distance Calculator Options</b> to match your preferred slice size.

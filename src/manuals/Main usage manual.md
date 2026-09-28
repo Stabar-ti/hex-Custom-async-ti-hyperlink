@@ -25,10 +25,14 @@ A guide to building and evaluating Twilight Imperium async maps at
 
 Open the tool in your browser. You'll see a hex grid representing your map. The interface is divided into:
 
-- **Top bar** — quick-access buttons: Calculate Slice, Copy/Cut Wizard, Sanity Check, Special Modes, and overlay/layout options
-- **Controls panel** (left) — import/export, map generation, and advanced tools
+- **Top bar** — File (new, save, load, import, export), undo/redo and zoom, Toggle Overlays, Tools (Milty designer, Spin-To-Win), Analyse (Slice Analysis, Sanity Check, Distance Options) and Help. The **⌨** button opens the list of keyboard and mouse shortcuts
+- **Tool rail** (left) — the drawing, connecting, balance, clipboard and annotation tools
 - **Hex grid** — the map itself; click any tile to interact with it
+- **Inspector** (right) — what is on the hex under the pointer, or the one you selected
+- **Status bar** (bottom) — the armed tool, the hex under the pointer, the zoom, and a few shortcuts
 - **Corner tiles** (TL / TR / BL / BR) — special reference tiles outside the main grid
+
+Press **?** at any time for the full list of shortcuts.
 
 Green **?** question mark buttons appear throughout the interface — click them for contextual hints about that panel.
 
@@ -181,18 +185,22 @@ The **Calculate Slice** button (top bar) evaluates the value of each player's sl
 ## 7. Distance calculation
 
 ![Distance calculation](images/07-distance-rings.png)
-*Colour rings radiating from a selected tile, with an anomaly visually blocking one direction*
+*Distances radiating from a selected tile, with an anomaly visually blocking one direction*
 
 ### Distance shortcuts
 
 | Shortcut | Action |
 |---|---|
-| `Shift+D` | Toggle distance mode on/off |
-| `Right-click` *(while Shift+D active)* | Calculate and display distance rings from that tile |
+| `D` | Arm or disarm the Distance tool (also **Distance** in the tool rail) |
+| `Click` *(tool armed)* | Show distances from that tile; click the same tile again to hide them |
+| `Shift+D` held + `Right-click` | The same, without arming the tool |
+| `Esc` | Clear the distances |
 
-**Shift+D** activates distance mode. While active, **right-click any tile** to calculate distances from that tile as the source.
+With the tool armed, **click any tile** to see how far everything is from it. Each reachable tile gets a badge with its distance, and the source tile is ringed. The reading stays on screen when you disarm the tool, so you can go on working with it visible.
 
-Coloured rings show how far each tile is. The calculation accounts for:
+Unpainted hexes are not tiles, so movement cannot pass through them. If nothing is in reach, the tool says so.
+
+The calculation accounts for:
 
 - **Anomalies** — supernovas and asteroid fields block outward movement. Nebulae block ships from leaving.
 - **Gravity rifts** — ships can enter but rift clusters allow spreading with modified costs.
@@ -200,7 +208,7 @@ Coloured rings show how far each tile is. The calculation accounts for:
 - **Custom adjacency links** — manually connected tiles are treated as neighbours.
 - **Border anomalies** — Spatial Tears block both ways; Gravity Waves allow one-way passage only.
 
-Press **Shift+D** again to exit distance mode.
+The range and the rules are set in **Analyse ▸ Distance Options**. The full list of shortcuts is under **Help ▸ Keyboard & mouse shortcuts**, or press **?**.
 
 > Distance calculation is correct in virtually all cases. Certain unusual multi-hop hyperlane combinations near border anomalies may still produce edge-case results.
 
@@ -321,28 +329,30 @@ Open **Sector Controls → Token Placement** and select a token from the categor
 
 ---
 
-## 13. Copy/Cut Wizard
+## 13. Selecting, copying and pasting
 
-![Copy/Cut Wizard](images/13-copy-cut-wizard.png)
-*Source selection step with highlighted hexes, and the target destination step*
+With no tool armed, a click on the map selects. The selection is outlined, and the Inspector shows the most recent hex in it.
 
-The **Copy/Cut Wizard** (top bar) lets you copy or move a region of tiles to another part of the map.
+1. **Select** the hexes you want: click one, then **Shift+click** to add more, or hold **Shift** and **drag** across the map to paint a selection. The hexes do not need to touch.
+2. **Copy** with **Ctrl+C**, or **cut** with **Ctrl+X**. Cutting clears the originals straight away, in one undo step.
+3. A ghost of the clipboard follows the pointer. **Click** to place it; it stays up, so you can place it again. **R** turns it 60°.
+4. **Esc** or **right-click** puts the ghost away. Nothing is lost: **Ctrl+V** brings it back, and the last 12 copies are listed in the Inspector.
 
-1. Click **Copy/Cut Wizard** to open the tool.
-2. Click the hexes you want to include (they are highlighted).
-3. Confirm your selection, then click the destination hex to place the copied/cut tiles.
+To **swap** two tiles, select exactly two and press the **⇄** button that appears on them, or hold **Shift+S**, click the first tile, and click the second.
 
-Cutting removes the tiles from their original positions. Copying leaves the originals intact.
-
-### Copy/Cut shortcuts
+### Selection and clipboard shortcuts
 
 | Shortcut | Action |
 |---|---|
-| `Shift+click` | Add a connected hex to the selection |
-| Release `Shift` | Finish selection, enter paste preview mode |
-| `Left-click` | Paste the selection at the previewed position |
-| `Alt+scroll` *(in paste mode)* | Rotate the selection |
-| `Esc` | Cancel the operation |
+| `Click` | Select a hex; click it again to deselect |
+| `Shift+click` | Add a hex to the selection, or take it back out |
+| `Shift+drag` | Paint a selection: every hex you pass over is added |
+| `Ctrl+C` / `Ctrl+X` | Copy / cut the selection |
+| `Ctrl+V` | Bring the clipboard back as a ghost |
+| `R` | Turn the ghost 60° |
+| `Click` *(ghost up)* | Place the ghost |
+| `Esc` or `Right-click` | Put the ghost away |
+| `Shift+S` held + `Click` | Pick the first tile of a swap; the next click picks the second |
 
 ---
 

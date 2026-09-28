@@ -53,11 +53,15 @@ export function installTopBarMenus() {
 
     // ── Help ─────────────────────────────────────────────────────────────────
     // Three buttons for three help popups, all in the bar at full weight.
+    //
+    // Placed before the version tag, which is the last thing in the group. Help used to be
+    // appended after it — and the tag, still absolutely positioned, sat on top of it.
     createDropdownFromExisting({
         id: 'helpMenu',
         label: 'Help',
-        title: 'Shortcuts, the import/export how-to, and the feature list',
-        itemIds: ['helpToggle', 'infoToggle', 'featuresToggle'],
+        title: 'Shortcuts, the manual, the import/export how-to, and the feature list',
+        itemIds: ['helpToggle', 'manualBtn', 'infoToggle', 'featuresToggle'],
         host: right,
+        before: document.getElementById('versionTag') ?? undefined,
     });
 }
