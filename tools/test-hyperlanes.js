@@ -19,6 +19,7 @@ import {
     withLink, withoutLink, symmetrised, rotated,
     segments, segmentKey,
     areNeighbors, dirIndexBetween, resolveSegment,
+    roundaboutSides, hasRoundabout, withRoundabout, withLaneDrawn, withLaneErased, sameMatrix, drawPlan,
     matrixToHex, hexToMatrix, hasLinks, isMatrixEmpty
 } from '../src/modules/Hyperlanes/hyperlaneModel.js';
 
@@ -30,6 +31,9 @@ import * as store from '../src/modules/Hyperlanes/hyperlaneState.js';
 import { hexPoints } from '../src/utils/hexGeometry.js';
 // Safe under node: the indicator only touches the DOM inside its functions.
 import { activeLabel } from '../src/modules/Hyperlanes/hyperlaneIndicator.js';
+import {
+    selectHex, finishLane, roundaboutAtHead, headIsOnRoundabout
+} from '../src/modules/Hyperlanes/hyperlaneEditing.js';
 
 let passed = 0;
 const failures = [];
@@ -611,6 +615,160 @@ const round = (n) => Math.round(n * 1e6) / 1e6;
         hasLink(symmetrised(legacy), 5, 2) && hasLink(symmetrised(legacy), 2, 5));
     check('symmetrising legacy data does not change what is drawn',
         segments(legacy).length === segments(symmetrised(legacy)).length);
+}
+
+// ── 14. Roundabouts ──────────────────────────────────────────────────────────
+//
+// A roundabout is its diagonal cells plus a link between every pair of its sides, and it
+// never shares a tile with ordinary lanes: a lane drawn onto it joins it at both ends.
+
+{
+    /** Every pair of `sides` linked, diagonal included — what a roundabout is stored as. */
+    const roundabout = sides => {
+        const m = emptyMatrix();
+        for (const i of sides) for (const j of sides) m[i][j] = 1;
+        return m;
+    };
+
+    check('an empty tile has no roundabout', !hasRoundabout(emptyMatrix()));
+    check('roundaboutSides reads the diagonal', eq(roundaboutSides(roundabout([4, 1])), [1, 4]));
+    check('roundaboutSides tolerates null', eq(roundaboutSides(null), []));
+
+    // Doubling back (A → B → A) puts a one-side roundabout down.
+    const one = withLaneDrawn(emptyMatrix(), 3, 3);
+    check('doubling back makes a roundabout of one side', eq(one, roundabout([3])), one.flat().join(''));
+
+    // The reported bug: a straight lane drawn through a roundabout was drawn as a line
+    // through the circle. It joins the roundabout instead.
+    const through = withLaneDrawn(one, 0, 5);
+    check('a lane across a roundabout joins it at both ends',
+        eq(roundaboutSides(through), [0, 3, 5]), roundaboutSides(through).join(','));
+    check('and every pair of its sides is linked', eq(through, roundabout([0, 3, 5])), through.flat().join(''));
+    check('so there is no lane left to draw through the circle', drawPlan(through).curves.length === 0,
+        JSON.stringify(drawPlan(through).curves));
+    check('drawing it again changes nothing', sameMatrix(withLaneDrawn(through, 0, 5), through));
+    check('withLaneDrawn does not mutate', eq(one, roundabout([3])));
+
+    // Traversal chains diagonals, but the export is read by the bot as written — so the
+    // pairs must be there too, or a lane through the roundabout would not connect there.
+    check('a lane through a roundabout is a link in the exported matrix',
+        hasLink(through, 0, 5) && hasLink(through, 5, 0) && hasLink(through, 0, 3));
+    check('the stored roundabout needs no symmetrising', eq(symmetrised(through), through));
+
+    // A roundabout started on a tile that already has lanes takes their ends in.
+    const lane = withLaneDrawn(emptyMatrix(), 0, 3);
+    check('an ordinary lane is a plain two-way link', eq(lane, symmetrised(withLink(emptyMatrix(), 0, 3))));
+    const merged = withLaneDrawn(lane, 1, 1);
+    check('a roundabout on a tile with a lane takes the lane in',
+        eq(roundaboutSides(merged), [0, 1, 3]), roundaboutSides(merged).join(','));
+    check('withRoundabout does the same from the ○ button', eq(withRoundabout(lane, [1]), merged));
+
+    // Erasing is the inverse.
+    const erased = withLaneErased(through, 0, 5);
+    check('erasing a lane through a roundabout takes both its ends off',
+        eq(erased, roundabout([3])), erased.flat().join(''));
+    check('Alt + doubling back takes one side off', eq(withLaneErased(through, 5, 5), roundabout([0, 3])));
+    check('taking the last side off leaves nothing', linkCount(withLaneErased(one, 3, 3)) === 0);
+    check('erasing a lane that is not on the tile changes nothing',
+        sameMatrix(withLaneErased(roundabout([0, 3]), 1, 4), roundabout([0, 3])));
+    check('erasing an ordinary lane clears both directions', linkCount(withLaneErased(lane, 3, 0)) === 0);
+
+    // Imported data can hold a roundabout AND a lane with one end off it. That lane means
+    // something the roundabout does not, so it is drawn, and erasing it leaves the rest.
+    const mixed = withLink(withLink(roundabout([0, 3]), 3, 4), 4, 3);
+    check('a lane with an end off the roundabout is still drawn',
+        eq(drawPlan(mixed).curves.map(c => c.key), ['3,4']), JSON.stringify(drawPlan(mixed).curves));
+    check('a lane between two roundabout sides is not', !drawPlan(mixed).curves.some(c => c.key === '0,3'));
+    check('erasing the off lane leaves the roundabout', eq(withLaneErased(mixed, 3, 4), roundabout([0, 3])));
+    check('drawPlan lists the roundabout sides', eq(drawPlan(mixed).roundabout, [0, 3]));
+
+    // A diagonal-only roundabout, as older saves have it, is still one roundabout.
+    const legacy = withLink(withLink(emptyMatrix(), 2, 2), 5, 5);
+    check('a diagonal-only roundabout draws as one', eq(drawPlan(legacy), { roundabout: [2, 5], curves: [] }));
+    check('touching it fills in the pairs', eq(withLaneDrawn(legacy, 2, 5), roundabout([2, 5])));
+
+    check('out-of-range sides change nothing', sameMatrix(withLaneDrawn(lane, -1, 9), lane));
+    check('sameMatrix spots one cell', !sameMatrix(lane, withLink(lane, 1, 1)));
+
+    // Rotation turns a roundabout into a roundabout.
+    check('a rotated roundabout is still a roundabout',
+        eq(rotated(roundabout([0, 3, 5]), 1), roundabout([1, 4, 0])));
+}
+
+// ── 15. The rim buttons and clicking the head ─────────────────────────────────
+//
+// The editing module needs an editor, not a DOM: a map of hexes and a saveState. The
+// renderer is reached through it but returns early without an SVG.
+
+{
+    const hexes = {};
+    for (const [label, c] of Object.entries(coords)) {
+        // A polygon with just enough of an element for the .selected highlight and the fill.
+        const classes = new Set();
+        const polygon = {
+            classList: { add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c) },
+            setAttribute() {}
+        };
+        hexes[label] = { q: c.q, r: c.r, matrix: emptyMatrix(), baseType: '', polygon };
+    }
+    let snapshots = 0;
+    const editor = {
+        hexes,
+        saveState() { snapshots++; },
+        areNeighbors: (a, b) => areNeighbors(hexes[a], hexes[b]),
+    };
+
+    store.__resetForTest();
+    selectHex(editor, 'N5');
+    selectHex(editor, 'C');
+    check('the path has reached C', eq(store.getPath(), ['N5', 'C']));
+
+    // ○: a roundabout on C, joined to the side the lane came in by. The gesture goes on.
+    roundaboutAtHead(editor);
+    check('○ puts a roundabout on the head, on the entry side', eq(roundaboutSides(hexes.C.matrix), [5]));
+    check('○ keeps the lane going', eq(store.getPath(), ['N5', 'C']));
+    check('○ is one undo step', snapshots === 1, `${snapshots}`);
+    check('the ○ reads as on once the lane is on it', headIsOnRoundabout(editor));
+    roundaboutAtHead(editor);
+    check('pressing ○ again records nothing', snapshots === 1, `${snapshots}`);
+
+    // The next click runs a lane out of the roundabout rather than across the tile.
+    selectHex(editor, 'N2');
+    check('a lane out of the roundabout joins it', eq(roundaboutSides(hexes.C.matrix), [2, 5]));
+    check('the lane goes on from there', eq(store.getPath(), ['C', 'N2']));
+
+    // Clicking the hex the path has reached finishes the lane, and writes nothing.
+    const before = snapshots;
+    selectHex(editor, 'N2');
+    check('clicking the head finishes the lane', store.getPathLength() === 0);
+    check('finishing writes nothing', snapshots === before);
+
+    // A single clicked hex, clicked again, is put down.
+    selectHex(editor, 'N0');
+    selectHex(editor, 'N0');
+    check('clicking a lone first hex again drops it', store.getPathLength() === 0);
+
+    // finishLane is what ✓ and Enter call.
+    selectHex(editor, 'N0');
+    selectHex(editor, 'C');
+    finishLane(editor);
+    check('✓ finishes the lane', store.getPathLength() === 0);
+
+    // With no hex to have come from there is no entry side, so ○ does nothing.
+    selectHex(editor, 'N1');
+    roundaboutAtHead(editor);
+    check('○ needs a lane coming in', linkCount(hexes.N1.matrix) === 0);
+
+    // The hex a lane starts from used to keep its highlight after it left the path, because
+    // only the last two were cleared; right-click's sweep of every hex hid it.
+    finishLane(editor);
+    selectHex(editor, 'N0');
+    selectHex(editor, 'C');
+    selectHex(editor, 'N3');
+    const lit = Object.keys(hexes).filter(l => hexes[l].polygon.classList.contains('selected'));
+    check('no hex stays highlighted once a lane is drawn', lit.length === 0, lit.join(','));
+    finishLane(editor);
+    store.__resetForTest();
 }
 
 // ── Report ────────────────────────────────────────────────────────────────────

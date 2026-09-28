@@ -96,12 +96,23 @@ Hyperlane connections are custom paths that pass *through* a tile rather than st
 3. Click the via tile (B) — it is highlighted.
 4. Click the tile *after* the via tile (C). A curved arc is drawn through B connecting A to C.
 
-Repeat steps 2–4 to chain multiple segments through the same or different via tiles.
+Each click after that carries the lane on by one tile. The tile the lane has reached has a gold ring, a dot on the side the lane came in by, and two small buttons on its rim:
+
+- **✓ Finish** — ends the lane there. Clicking that tile itself, or pressing **Enter**, does the same. The tool stays armed, so you can start the next lane straight away. (Right-click and Esc also end the lane, but they disarm the tool.)
+- **○ Roundabout** — puts a roundabout on that tile, with the lane joined to it. The lane stays live: click a neighbour to run a lane out of the roundabout, and repeat for as many lanes as you like.
+
+### Roundabouts
+
+A roundabout joins every lane that reaches its tile: a ship coming in by any of them can leave by any other. It is drawn as a circle in the middle of the tile with a stub out to each side on it.
+
+- Click A → B → A (go back to the tile you came from) to put a roundabout on B, joined to A's side. This ends the lane.
+- Or use the **○** button, which keeps the lane going (see above).
+- A lane drawn across a roundabout tile joins the roundabout at both ends instead of being drawn through it. Starting a roundabout on a tile that already has lanes joins those lanes to it as well: a tile holds either a roundabout or ordinary lanes, never both.
+- In the exported matrix, a side on the roundabout sets its diagonal cell, and every pair of roundabout sides is linked as well, so the lanes join however the bot reads the matrix.
 
 ### Special hyperlane actions
 
-- **Self-loop** — click A → B → A (start and end on the same tile) to draw a loopback arc on B. This means a ship can enter B from the A direction and be considered adjacent to A again.
-- **Unlink** — hold **Alt** and click A → B → C to *remove* an existing connection.
+- **Unlink** — hold **Alt** and click A → B → C to *remove* an existing connection. On a roundabout this takes both of those sides off it; Alt with A → B → A takes just A's side off.
 - **Delete all segments on a tile** — hover over a via tile and press **Shift+R** to clear all hyperlane arcs on it.
 
 ### Hyperlane shortcuts
@@ -111,6 +122,7 @@ Repeat steps 2–4 to chain multiple segments through the same or different via 
 | `Alt+click` A→B→C | Remove a single hyperlane connection |
 | `Shift+click` (on a via tile) | Delete *all* hyperlane segments on that tile |
 | `Shift+R` *(hover via tile)* | Same as Shift+click — clear all arcs on the tile |
+| Click the tile the lane has reached, or `Enter` | Finish the lane; the tool stays armed |
 | `Esc` | Cancel mid-path selection and start over |
 
 > Hyperlane data is saved in the map JSON and restored on import.

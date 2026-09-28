@@ -10,7 +10,7 @@
  * so the search could not match it.
  *
  * Here there is one direction of travel. The matrix is the truth; `renderHex` throws away
- * everything drawn for a hex and re-derives it from `segments(hex.matrix)`. Divergence
+ * everything drawn for a hex and re-derives it from `drawPlan(hex.matrix)`. Divergence
  * stops being a bug that has to be avoided and becomes a state that cannot be represented.
  *
  * The layer itself is the index. Nodes carry `data-via`, so the SVG can be queried for a
@@ -18,8 +18,8 @@
  * wiping the SVG leaves nothing stale behind, because the "index" went with it.
  */
 
-import { segments } from './hyperlaneModel.js';
-import { drawSegment, drawLoop } from '../../draw/hyperlaneDraw.js';
+import { drawPlan } from './hyperlaneModel.js';
+import { drawSegment, drawRoundabout } from '../../draw/hyperlaneDraw.js';
 import { enforceSvgLayerOrder } from '../../draw/enforceSvgLayerOrder.js';
 import { sectorColors } from '../../constants/constants.js';
 
@@ -96,14 +96,14 @@ export function renderHex(editor, label) {
     if (!layer) return;
 
     const radius = editor.hexRadius;
-    for (const seg of segments(hex.matrix)) {
-        if (seg.kind === 'loop') {
-            drawLoop(layer, { center: hex.center, entry: seg.entry, radius, viaLabel: label });
-        } else {
-            drawSegment(layer, {
-                center: hex.center, entry: seg.entry, exit: seg.exit, radius, viaLabel: label
-            });
-        }
+    const { roundabout, curves } = drawPlan(hex.matrix);
+    for (const seg of curves) {
+        drawSegment(layer, {
+            center: hex.center, entry: seg.entry, exit: seg.exit, radius, viaLabel: label
+        });
+    }
+    if (roundabout.length) {
+        drawRoundabout(layer, { center: hex.center, sides: roundabout, radius, viaLabel: label });
     }
 }
 

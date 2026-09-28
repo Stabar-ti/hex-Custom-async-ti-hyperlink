@@ -14,11 +14,13 @@
  */
 
 import * as state from './hyperlaneState.js';
-import { cancelGesture, deleteAllSegments, selectHex, tryCompleteSegment } from './hyperlaneEditing.js';
+import {
+    cancelGesture, deleteAllSegments, finishLane, selectHex, tryCompleteSegment
+} from './hyperlaneEditing.js';
 import { ensureHyperlaneLayer, renderAll } from './hyperlaneRender.js';
 import { installIndicator, refreshIndicator } from './hyperlaneIndicator.js';
 
-let escapeHandler = null;
+let keyHandler = null;
 
 /**
  * Re-points `editor.selectedPath`, `.linking` and `.unlinking` at the store.
@@ -46,22 +48,36 @@ function installStateAccessors(editor) {
     });
 }
 
+/** Whether a key press belongs to a field or a control rather than to the map. */
+function belongsToControl(target) {
+    const el = /** @type {HTMLElement | null} */ (target);
+    return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(el.tagName));
+}
+
 /**
- * Escape abandons a half-drawn path.
+ * Escape abandons a half-drawn path; Enter finishes the lane where it is.
  *
- * Right-click already did this (svgBindings.js:92-98) but nothing says so anywhere in the
- * UI, and Escape is the reflex. Bubble phase, not capture: unlike the picker's Escape this
- * is not trying to win against anything, and it must not stop Escape from also closing a
- * popup or clearing the distance overlay.
+ * Right-click already abandoned the path (svgBindings.js:92-98) but nothing says so
+ * anywhere in the UI, and Escape is the reflex. Both of those also disarm the tool, though,
+ * so neither is a way to finish one lane and start the next. Enter is, the way it ends a
+ * spline in a CAD tool, and it matches the ✓ on the active hex.
+ *
+ * Bubble phase, not capture: unlike the picker's Escape this is not trying to win against
+ * anything, and it must not stop Escape from also closing a popup or clearing the distance
+ * overlay.
  */
-function installEscape(editor) {
-    if (escapeHandler) document.removeEventListener('keydown', escapeHandler);
-    escapeHandler = event => {
-        if (event.key !== 'Escape') return;
+function installKeys(editor) {
+    if (keyHandler) document.removeEventListener('keydown', keyHandler);
+    keyHandler = event => {
         if (!state.getPathLength()) return;
-        cancelGesture(editor);
+        if (event.key === 'Escape') {
+            cancelGesture(editor);
+        } else if (event.key === 'Enter' && editor.mode === 'hyperlane' && !belongsToControl(event.target)) {
+            event.preventDefault();
+            finishLane(editor);
+        }
     };
-    document.addEventListener('keydown', escapeHandler);
+    document.addEventListener('keydown', keyHandler);
 }
 
 /**
@@ -72,7 +88,7 @@ function installEscape(editor) {
  */
 export function installHyperlanes(editor) {
     installStateAccessors(editor);
-    installEscape(editor);
+    installKeys(editor);
     installIndicator(editor);
 
     // The indicator hides itself outside hyperlane mode, and `mode` is a plain field the

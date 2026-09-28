@@ -36,7 +36,7 @@ export const MOUSE_TOKENS = /** @type {const} */ ({
 });
 
 /** Keys that are written differently from how they are named in a combo. */
-const KEY_NAMES = { Esc: 'Esc', Shift: 'Shift', Alt: 'Alt', Space: 'Space' };
+const KEY_NAMES = { Esc: 'Esc', Shift: 'Shift', Alt: 'Alt', Space: 'Space', Enter: 'Enter' };
 
 /** @type {ShortcutGroup[]} */
 export const SHORTCUTS = [
@@ -96,9 +96,16 @@ export const SHORTCUTS = [
     {
         id: 'hyperlanes', title: 'Hyperlanes', icon: '∿',
         items: [
-            { combos: ['Click'], does: 'A → B → C draws an arc through B; A → B → A draws a loop on B' },
-            { combos: ['Alt+Click'], does: 'A → B → C removes that one link' },
-            { combos: ['Shift+Click'], does: 'Remove every arc on the tile' },
+            { combos: ['Click'], does: 'A → B → C draws a lane through B, and the next click carries it on' },
+            { combos: ['Click', 'Enter'], does: 'Click the tile the lane has reached, or its ✓, to finish the lane. The tool stays armed' },
+            { combos: ['Click'], does: 'A → B → A, or the ○ on the tile the lane has reached, puts a roundabout there' },
+            { combos: ['Alt+Click'], does: 'A → B → C removes that one lane; A → B → A takes that side off a roundabout' },
+            { combos: ['Shift+Click'], does: 'Remove every lane on the tile' },
+        ],
+        notes: [
+            'A roundabout joins every lane that reaches its tile: a ship coming in by one can leave by any of them.',
+            'A lane drawn across a roundabout joins it at both ends instead of crossing it.',
+            'Right-click and Esc drop the lane too, but they also disarm the tool.',
         ],
     },
 ];

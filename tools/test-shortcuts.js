@@ -19,7 +19,7 @@ function check(name, condition, detail = '') {
 }
 
 // Named keys the list may use. Anything else must be a single character.
-const NAMED_KEYS = new Set(['Mod', 'Shift', 'Alt', 'Esc']);
+const NAMED_KEYS = new Set(['Mod', 'Shift', 'Alt', 'Esc', 'Enter']);
 
 const ids = new Set();
 const hints = new Set();

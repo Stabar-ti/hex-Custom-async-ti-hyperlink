@@ -333,6 +333,56 @@ svg text {
   fill: var(--color-danger, #e74c3c);
 }
 
+/* The ✓ (finish the lane) and ○ (roundabout) buttons on the rim of the active hex. */
+.hl-btn {
+  cursor: pointer;
+}
+
+.hl-btn__hit {
+  fill: transparent;
+  stroke: none;
+}
+
+.hl-btn__face {
+  fill: #16181d;
+  stroke: var(--color-accent-outline, #ffb800);
+  stroke-width: 1.5;
+}
+
+.hl-btn__icon {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hl-btn--finish .hl-btn__icon {
+  stroke: var(--color-success, #27ae60);
+}
+
+/* The lane's own blue, so the button looks like the circle it puts down. */
+.hl-btn--roundabout .hl-btn__icon {
+  stroke: var(--color-primary, #1fa3ff);
+}
+
+.hl-btn--finish:hover .hl-btn__face {
+  fill: var(--color-success, #27ae60);
+}
+
+.hl-btn--roundabout:hover .hl-btn__face,
+.hl-btn--roundabout.is-on .hl-btn__face {
+  fill: var(--color-primary, #1fa3ff);
+}
+
+.hl-btn:hover .hl-btn__icon,
+.hl-btn.is-on .hl-btn__icon {
+  stroke: #16181d;
+}
+
+.hl-btn.is-on {
+  cursor: default;
+}
+
 @keyframes hl-pulse {
 
   0%,
