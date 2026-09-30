@@ -19,9 +19,11 @@ import { dirname, join } from 'node:path';
 
 import {
     fillRemaining, analyzeMap, getAvailableSystems, classifySystem, resolveRequirement,
-    buildPoolTierMap,
+    buildPoolTierMap, rankPool,
 } from '../src/modules/automapper/autoBuilderCore.js';
-import { getFactors } from '../src/features/valueOverlay.js';
+import {
+    getFactors, calculateSystemValue, getTypeGroup, valueBandTier, valueBandEdges,
+} from '../src/features/valueOverlay.js';
 import { isWeirdTile, hasFactionHomeworld, sourceGroupOf, defaultFilter } from '../src/modules/SystemPicker/pickerModel.js';
 import * as pickerStore from '../src/modules/SystemPicker/pickerState.js';
 
@@ -498,14 +500,12 @@ const mkSys = (id, planetCount, extra = {}) => ({
         ['plain 1-planet demand against a short pool', repeat(10, { baseType: '1 planet' }),
             { sources: { pok: true } }],
         ['multi-effect hex', repeat(3, { baseType: 'special', effects: ['nebula', 'rift'] }), {}],
-        ['restricted type with nothing to give', repeat(3, { baseType: 'fracture' }),
-            { sources: { base: true } }],
         ['a realistic mixed map', [
             ...repeat(6, { baseType: '3 planet' }), ...repeat(10, { baseType: '2 planet' }),
             ...repeat(6, { baseType: '1 planet' }), ...repeat(4, { baseType: 'empty' }),
             ...repeat(3, { baseType: 'special', effects: ['nebula'] }),
             ...repeat(2, { baseType: 'empty', effects: ['asteroid'] }),
-            { baseType: 'fracture' }, { baseType: 'legendary planet' },
+            { baseType: 'legendary planet' },
         ], {}],
     ];
 
@@ -603,30 +603,50 @@ const mkSys = (id, planetCount, extra = {}) => ({
 
 // ── 7. Restricted hexes take their own type or nothing ────────────────────────
 //
-// The downgrade chain says fracture never downgrades; the last-resort fallback ignored it
-// and handed a fracture hex an ordinary blue tile.
+// Fracture hexes are not filled at all. There are only a handful, they belong to the
+// fracture rather than to the map's balance, and they are placed by hand. Fracture tiles
+// are not normally on the map either, so they stay out of the pool unless "Allow fracture
+// tiles" lets the ones with planets on as ordinary tiles.
 
 {
-    const noFracture = systems.filter(s => !s.isFracture);
-    const editor = makeEditor([{ label: '401', baseType: 'fracture' }], noFracture);
+    const editor = makeEditor([{ label: '401', baseType: 'fracture' }, { label: '402', baseType: '2 planet' }]);
     const result = fillRemaining(editor, {});
-
-    check('fracture hex with no fracture tiles is left unfilled', result.assignments.length === 0,
-        result.assignments.map(a => `${a.sys.id}(${byId.get(String(a.sys.id))?.tileBack})`).join(', '));
-    check('fracture hex is reported unmatched', result.unmatched.length === 1,
-        JSON.stringify(result.unmatched));
-    check('fracture hex carries an explanation',
-        /fracture/.test(result.unmatched[0]?.reason || ''),
-        result.unmatched[0]?.reason);
+    check('a fracture hex is never filled', !result.assignments.some(a => a.label === '401'),
+        result.assignments.map(a => `${a.label}→${a.sys.id}`).join(', '));
+    check('nor reported as a failure', !result.unmatched.some(u => u.label === '401'), JSON.stringify(result.unmatched));
+    check('the rest of the map still fills', result.assignments.some(a => a.label === '402'));
+    const analysis = analyzeMap(editor, {});
+    check('the analysis counts the fracture hex left for placing by hand',
+        analysis.fractureHexes === 1 && analysis.totalUnfilled === 1,
+        `fractureHexes ${analysis.fractureHexes}, unfilled ${analysis.totalUnfilled}`);
 }
 
-// A fracture hex WITH fracture tiles available still gets one.
 {
-    const editor = makeEditor([{ label: '401', baseType: 'fracture' }]);
-    const result = fillRemaining(editor, {});
-    const placed = byId.get(ids(result)[0]);
-    check('fracture hex takes a fracture tile when one exists',
-        placed?.isFracture === true, `got ${placed?.id} isFracture=${placed?.isFracture}`);
+    const editor = makeEditor([]);
+    const off = getAvailableSystems(editor, {});
+    check('fracture tiles are not in the pool by default', !off.some(s => s.isFracture),
+        off.filter(s => s.isFracture).map(s => s.id).join(', '));
+
+    const teOff = getAvailableSystems(editor, { sources: { te: true } });
+    check('nor in a Thunder\'s Edge pool', !teOff.some(s => s.isFracture));
+
+    const on = getAvailableSystems(editor, { sources: { te: true }, allowFracture: true });
+    const styx = on.find(s => s.id === 'fracture4');
+    const cocytus = on.find(s => s.id === 'fracture1');
+    check('allowed, Styx joins the pool as a legendary', styx && classifySystem(styx) === 'legendary planet',
+        styx ? classifySystem(styx) : 'missing');
+    check('allowed, Cocytus joins the pool as a 1-planet system', cocytus && classifySystem(cocytus) === '1 planet',
+        cocytus ? classifySystem(cocytus) : 'missing');
+    check('the planet-free fracture pieces never join',
+        !on.some(s => s.isFracture && !s.planets?.length),
+        on.filter(s => s.isFracture && !s.planets?.length).map(s => s.id).join(', '));
+
+    // The complaint that started this: Styx and Cocytus in the tier ranking of the regular
+    // groups, stretching their bands.
+    const ranked = rankPool(getAvailableSystems(editor, {}), getFactors(false, false, false))
+        .flatMap(g => g.rows.map(r => r.id));
+    check('Styx and Cocytus are not ranked in the default pool',
+        !ranked.includes('fracture4') && !ranked.includes('fracture1'));
 }
 
 // Home-system hexes are restricted the same way.
@@ -789,30 +809,63 @@ function gradeHints(specs, opts = {}, runs = 40) {
 
 const tierHex = (baseType, tier) => ({ baseType, valueTarget: { tier, r: false, i: false, t: false } });
 
-// Demand inside the band: every hex gets the tier it asked for.
-{
-    const g = gradeHints(repeat(6, tierHex('2 planet', 4)));
-    check('6 hexes at tier 4 all get tier 4', g.exactPct === 100, `${g.exactPct.toFixed(1)}%`);
+/** How many 2-planet tiles the default pool holds at each tier (index 1-5). */
+function twoPlanetSupply() {
+    const supply = [0, 0, 0, 0, 0, 0];
+    const probe = makeEditor([]);
+    const tiers = tierMapOf(probe);
+    for (const sys of getAvailableSystems(probe)) {
+        if (getTypeGroup(sys) !== '2') continue;
+        const t = tiers.get(String(sys.id).toUpperCase());
+        if (t) supply[t]++;
+    }
+    return supply;
 }
 
-// Demand past the band. Tiers are percentiles, so roughly a fifth of the 2-planet systems
-// sit in each — about 8. Twenty hexes asking for tier 5 is asking for something that does
-// not exist, and what matters is where the other twelve land: the nearest tiers that do
-// exist, never a uniform draw across the whole pool.
+// Demand inside the band: every hex gets the tier it asked for. The tiers are value bands,
+// so how many tiles a band holds depends on the pool — ask for no more than the best-stocked
+// band has.
 {
+    const supply = twoPlanetSupply();
+    const t = [2, 3, 4, 5].reduce((best, k) => (supply[k] > supply[best] ? k : best), 2);
+    const n = Math.min(6, supply[t]);
+    const g = gradeHints(repeat(n, tierHex('2 planet', t)));
+    check(`${n} hexes at tier ${t} all get tier ${t}`, g.exactPct === 100, `${g.exactPct.toFixed(1)}%`);
+}
+
+// Demand past the band. Twenty hexes asking for tier 5 is asking for more than the top
+// 2-planet band holds, and what matters is where the rest land: the nearest tiers that
+// still have stock, working down — never a uniform draw across the whole pool. So no hex
+// may land below the highest tier at which the stock from T5 down first covers twenty.
+{
+    const supply = twoPlanetSupply();
+    let floor = 5, stock = supply[5];
+    while (floor > 1 && stock < 20) stock += supply[--floor];
     const g = gradeHints(repeat(20, tierHex('2 planet', 5)));
     const tiersUsed = [...g.seen.keys()].filter(t => t != null).sort();
-    check('20 hexes at tier 5 fall back downward only',
-        tiersUsed.every(t => t >= 3), `used tiers ${tiersUsed.join(', ')}`);
-    check('20 hexes at tier 5 never reach tier 1 or 2',
-        !g.seen.has(1) && !g.seen.has(2), JSON.stringify([...g.seen]));
+    check(`20 hexes at tier 5 fall back no further than tier ${floor}`,
+        tiersUsed.every(t => t >= floor), `used tiers ${tiersUsed.join(', ')}, supply ${supply.slice(1).join('/')}`);
+    check('and every tier above that is used up first',
+        [5, 4, 3, 2].filter(t => t > floor).every(t => (g.seen.get(t) || 0) === supply[t] * 40),
+        JSON.stringify([...g.seen]));
 }
 
 // The order the hexes happen to sit in must not change the answer. Twelve hexes want tier 5
-// and eight want tier 4, against a supply of eight each: the best possible is 16 of 20,
-// reached by sending the four that cannot have tier 5 down to tier 3 rather than letting
-// them eat the tier-4 stock the tier-4 hexes need. A greedy pass cannot see that trade.
+// and eight want tier 4, against less tier-5 stock than that. The best possible gives every
+// tier-5 tile to a tier-5 hex and every tier-4 hex a tier-4 tile, sending the tier-5 hexes
+// that cannot be served down past tier 4 rather than letting them eat the stock the tier-4
+// hexes need. A greedy pass cannot see that trade.
 {
+    const supply = [0, 0, 0, 0, 0, 0];
+    const probe = makeEditor([]);
+    const probeTiers = tierMapOf(probe);
+    for (const sys of getAvailableSystems(probe)) {
+        if (getTypeGroup(sys) !== '2') continue;
+        const t = probeTiers.get(String(sys.id).toUpperCase());
+        if (t) supply[t]++;
+    }
+    const optimumPct = (100 * (Math.min(12, supply[5]) + Math.min(8, supply[4]))) / 20;
+
     const t5First = [...repeat(12, tierHex('2 planet', 5)), ...repeat(8, tierHex('2 planet', 4))];
     const t5Last = [...repeat(8, tierHex('2 planet', 4)), ...repeat(12, tierHex('2 planet', 5))];
 
@@ -823,7 +876,8 @@ const tierHex = (baseType, tier) => ({ baseType, valueTarget: { tier, r: false, 
         Math.abs(a.exactPct - b.exactPct) < 0.01,
         `${a.exactPct.toFixed(1)}% vs ${b.exactPct.toFixed(1)}%`);
     check('and it reaches the optimum, not the greedy answer',
-        a.exactPct >= 79.9, `${a.exactPct.toFixed(1)}% (greedy scored 60%)`);
+        a.exactPct >= optimumPct - 0.1,
+        `${a.exactPct.toFixed(1)}%, optimum ${optimumPct}% with T5/T4 supply ${supply[5]}/${supply[4]}`);
 }
 
 // The fallback direction is a setting, and it has to actually move the answer.
@@ -906,6 +960,110 @@ const tierHex = (baseType, tier) => ({ baseType, valueTarget: { tier, r: false, 
     check('the analysis reports what the pool holds per tier',
         Array.isArray(analysis.tierSupply) && analysis.tierSupply.some(g => g.group === '2'),
         JSON.stringify(analysis.tierSupply?.map(g => `${g.group}:${g.tiers.join('/')}`)));
+}
+
+// ── The pool view's ranking ───────────────────────────────────────────────────
+//
+// The pool view shows rankPool; the fill reads buildPoolTierMap. They must be the same
+// ranking, or the view explains a fill that is not the one that runs.
+
+{
+    const editor = makeEditor([]);
+    const available = getAvailableSystems(editor);
+    for (const [label, factors] of [['default', getFactors(false, false, false)],
+        ['R bias', getFactors(true, false, false)], ['R+I+T bias', getFactors(true, true, true)]]) {
+        const ranking = rankPool(available, factors);
+        const tierMap = buildPoolTierMap(available, factors);
+
+        const rows = ranking.flatMap(g => g.rows);
+        check(`rankPool (${label}) lists every tile in the pool once`,
+            rows.length === available.filter(s => s.id).length && new Set(rows.map(r => r.key)).size === rows.length,
+            `${rows.length} rows for ${available.length} tiles`);
+
+        const disagree = rows.filter(r => (tierMap.get(r.key) ?? null) !== r.tier);
+        check(`the pool view shows the tiers the fill uses (${label})`, disagree.length === 0,
+            disagree.slice(0, 5).map(r => `${r.id}: view T${r.tier}, fill T${tierMap.get(r.key)}`).join(', '));
+
+        const wrongValue = rows.filter(r => r.value !== calculateSystemValue(r.sys, factors));
+        check(`every row's value is the value the ranking sorts by (${label})`, wrongValue.length === 0,
+            wrongValue.slice(0, 5).map(r => r.id).join(', '));
+
+        // The terms shown have to add up to the value shown.
+        const badSum = rows.filter(r => Math.abs(Object.values(r.terms).reduce((a, b) => a + b, 0) - r.value) > 1e-9);
+        check(`the terms add up to the value (${label})`, badSum.length === 0,
+            badSum.slice(0, 5).map(r => r.id).join(', '));
+
+        // Tiers are fifths of the value range: each tile sits inside its band's edges, and
+        // equal values are always the same tier.
+        const outOfBand = ranking.filter(g => g.edges && g.hi > g.lo).flatMap(g => g.rows.filter(r => {
+            const lo = g.edges[r.tier - 1] - 1e-9;
+            const aboveTop = r.tier < 5 ? r.value >= g.edges[r.tier] - 1e-9 : r.value > g.edges[5] + 1e-9;
+            return r.value < lo || aboveTop;
+        }));
+        check(`every tile's value lies inside its tier's band (${label})`, outOfBand.length === 0,
+            outOfBand.slice(0, 5).map(r => `${r.id}=${r.value} T${r.tier}`).join(', '));
+
+        const split = ranking.filter(g => g.rows.some(r => g.rows.some(x => x.value === r.value && x.tier !== r.tier)));
+        check(`equal values share a tier (${label})`, split.length === 0, split.map(g => g.group).join(', '));
+
+        const uneven = ranking.filter(g => g.edges).filter(g => {
+            const w = g.edges.slice(1).map((e, k) => e - g.edges[k]);
+            return w.some(x => Math.abs(x - w[0]) > 1e-9) || Math.abs(g.edges[0] - g.lo) > 1e-9
+                || Math.abs(g.edges[5] - g.hi) > 1e-9;
+        });
+        check(`the five bands are equal in value and span the group (${label})`, uneven.length === 0,
+            uneven.map(g => g.group).join(', '));
+
+        // The lowest and highest tile of a group with any spread are T1 and T5.
+        const ends = ranking.filter(g => g.edges && g.hi > g.lo)
+            .filter(g => g.rows[0].tier !== 1 || g.rows[g.rows.length - 1].tier !== 5);
+        check(`the lowest tile is T1 and the highest T5 (${label})`, ends.length === 0,
+            ends.map(g => g.group).join(', '));
+
+        check(`rankPool groups tiles the way the value overlay does (${label})`,
+            ranking.every(g => g.rows.every(r => getTypeGroup(r.sys) === g.group)));
+    }
+
+    // Tiles without planets all score 0: there is nothing to rank, so they get no tier,
+    // and a tier-less tile carries no tier penalty in the solver.
+    const factors = getFactors(false, false, false);
+    const ranking = rankPool(available, factors);
+    const empty = ranking.find(g => g.group === 'empty');
+    // The exclusion list spelled Rexatol Mec's id 'rexmex', so this Mecatol stand-in was in the pool.
+    check('the Mecatol stand-in rexmec is never in the pool', !available.some(s => String(s.id).toLowerCase() === 'rexmec'));
+    check('tiles without planets are in the pool view', !!empty?.rows.length);
+    check('tiles without planets get no tier', empty?.rows.every(r => r.tier === null) && empty.edges === null);
+    check('and the fill gives them none either',
+        empty?.rows.every(r => !buildPoolTierMap(available, factors).has(r.key)));
+
+}
+
+// The value is the Milty value: the pool view's numbers are miltyScore.tileScore's, with
+// the R / I / T bias scaling its weights. The scoring rules themselves are tested in
+// tools/test-milty-score.js.
+{
+    const f = getFactors(false, false, false);
+    const tile = { planets: [
+        { resources: 2, influence: 1 }, { resources: 1, influence: 2 }, { resources: 1, influence: 1 },
+    ] };
+    check('unbiased, a tile is worth its Milty value',
+        Math.abs(calculateSystemValue(tile, f) - (2 * 0.9 + 2 * 1 + 1 * 0.95)) < 1e-9,
+        String(calculateSystemValue(tile, f)));
+    const rBias = getFactors(true, false, false);
+    check('the R bias scales the resource weight',
+        calculateSystemValue({ planets: [{ resources: 3, influence: 0 }] }, rBias)
+            > calculateSystemValue({ planets: [{ resources: 3, influence: 0 }] }, f));
+}
+
+// valueBandTier: fifths of the value range.
+{
+    check('the bottom of the range is T1', valueBandTier(3, 3, 8) === 1);
+    check('the top of the range is T5', valueBandTier(8, 3, 8) === 5);
+    check('a value on a band edge goes up', valueBandTier(4, 3, 8) === 2 && valueBandTier(7, 3, 8) === 5);
+    check('just under an edge stays down', valueBandTier(3.99, 3, 8) === 1);
+    check('floating-point noise does not drop a band', valueBandTier(3 + 0.1 + 0.2 - 0.3 + 1, 3, 8) === 2);
+    check('no range means the middle tier', valueBandTier(5, 5, 5) === 3);
+    check('band edges are equal steps', JSON.stringify(valueBandEdges(3, 8)) === JSON.stringify([3, 4, 5, 6, 7, 8]));
 }
 
 // ── report ────────────────────────────────────────────────────────────────────

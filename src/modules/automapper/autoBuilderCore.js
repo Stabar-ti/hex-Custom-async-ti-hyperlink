@@ -4,26 +4,25 @@
  */
 
 import { passesAutoMapperFilters } from '../../ui/uiFilters.js';
-import { calculateSystemValue, getFactors, getTypeGroup } from '../../features/valueOverlay.js';
+import {
+    getFactors, getTypeGroup, systemValueParts, valueBandTier, valueBandEdges,
+} from '../../features/valueOverlay.js';
 import { hasFactionHomeworld, isFractureTile } from '../SystemPicker/pickerModel.js';
 import {
     solveAssignment, DOWNGRADE_CHAIN, RESTRICTED_TYPES, TIER_POLICIES, STRICT_TIERS, TYPE_RANK,
 } from './assignSolver.js';
+import { getWeights, sliceScore } from '../Milty/miltyScore.js';
 
-// ---- Scoring weights (mirrors miltyBuilderRandomTool DEFAULT_WEIGHTS) ----
-// Open Milty Slice Designer → Weighting Settings to tune these values.
-export const SCORING_WEIGHTS = {
-    supernova: -3, asteroidField: -1, nebula: 0, gravityRift: -2, entropicScar: 1,
-    resourceValue: 1, influenceValue: 1,
-    techSpecialty: 2, legendaryPlanet: 5, wormhole: 1,
-    industrial: 0.5, cultural: 0.5, hazardous: 0.5,
-    resourceInfluenceImbalance: -0.5, lowPlanetCount: -3, highPlanetCount: -1
-};
+// Balanced mode scores slices with the Milty weights (miltyScore). This file had its own
+// table, commented "mirrors miltyBuilderRandomTool DEFAULT_WEIGHTS", which by then did not:
+// a legendary planet was worth 5 here and 1.5 there. There is one table now.
 
 // ---- System classification (mirrors assignSystem.js) ----
 export function classifySystem(sys) {
-    // Fracture is checked first — fracture tiles are a distinct category regardless of planet content
-    if (isFractureTile(sys)) return 'fracture';
+    // No 'fracture' class. Fracture-painted hexes are never filled (getUnfilledHexes), and a
+    // fracture tile only reaches the pool when "Allow fracture tiles" lets it onto the
+    // regular map — as the ordinary tile its planets make it: Styx a legendary, Cocytus a
+    // 1-planet system (getAvailableSystems).
     const planets = Array.isArray(sys.planets) ? sys.planets : [];
     // Faction homeworlds are tested before legendary: five systems (92, br1, br5b, et11,
     // th13) are both, and for auto-placement "never drop a homeworld on a normal hex" wins.
@@ -118,6 +117,10 @@ export function getUnfilledHexes(editor, { includeHomeSystems = false } = {}) {
             // Void means "intentionally blank" — never a candidate for filling, so it
             // must never show up as a downgrade/failure in the AutoMapper preview.
             if (h.baseType === 'void') return false;
+            // Fracture hexes are placed by hand: there are only a handful, and they belong to
+            // the fracture rather than to the map's balance. analyzeMap counts them so the
+            // panel can say they were left alone rather than seeming to forget them.
+            if (h.baseType === 'fracture') return false;
             if (!includeHomeSystems && h.baseType === 'homesystem') return false;
             return !h.realId;
         })
@@ -131,7 +134,7 @@ const EXCLUDED_IDS = new Set([
     '84a','84a60','84a120','84a180','84a240','84a300',
     '84b','84b60','84b120','84b180','84b240','84b300',
     '85a','85a60','85a120','85a180','85a240','85a300',
-    '85b','82','82b','82a','18','82ah','82h','c41','81','rexmex',
+    '85b','82','82b','82a','18','82ah','82h','c41','81','rexmec',
     'd35a','d35b','d36','m28','s11','s12','s13','silver_flame','94',
 ]);
 
@@ -139,6 +142,7 @@ export function getAvailableSystems(editor, {
     includeWormholes = false,
     allowDuplicatesNoPlanet = false,
     includeHomeSystems = false,
+    allowFracture = false,
     sources = null,   // null = picker filter only; object keyed by SOURCE_GROUPS key = narrow further
 } = {}) {
     const allSystems = editor.allSystems;
@@ -163,6 +167,10 @@ export function getAvailableSystems(editor, {
 
         seen.add(id);
         if (sys.isHyperlane) return false;
+        // Fracture tiles are not normally on the map. "Allow fracture tiles" lets the ones
+        // with planets on as ordinary tiles; the planet-free pieces — voids, egress — are
+        // parts of the fracture itself and never are.
+        if (isFractureTile(sys) && (!allowFracture || !sys.planets?.length)) return false;
         if (EXCLUDED_IDS.has(id.toLowerCase())) return false;          // milty excluded IDs (req 4)
         if (!includeWormholes && sys.wormholes?.length) return false;
 
@@ -460,67 +468,31 @@ function tryAssign(unfilled, pools, valueTierMap = null, {
     return { assignments, tokenPlacements, downgrades, unmatched, resolutions };
 }
 
-// ---- Scoring (same logic as miltyBuilderRandomTool calculateSliceScore) ----
-
-function scoreSlice(systems, weights) {
-    let res = 0, inf = 0, legends = 0;
-    const techs = [], wormholes = [], anomalies = [];
-    let industrialCount = 0, culturalCount = 0, hazardousCount = 0;
-
-    for (const sys of systems) {
-        for (const p of (sys.planets || [])) {
-            res += p.resources || 0;
-            inf += p.influence || 0;
-            if (p.legendaryAbilityName) legends++;
-            if (p.techSpecialty) techs.push(p.techSpecialty);
-            if (p.planetType === 'INDUSTRIAL') industrialCount++;
-            else if (p.planetType === 'CULTURAL') culturalCount++;
-            else if (p.planetType === 'HAZARDOUS') hazardousCount++;
-        }
-        if (sys.wormholes?.length) wormholes.push(...sys.wormholes);
-        if (sys.isSupernova)     anomalies.push('supernova');
-        if (sys.isAsteroidField) anomalies.push('asteroidField');
-        if (sys.isNebula)        anomalies.push('nebula');
-        if (sys.isGravityRift)   anomalies.push('gravityRift');
-        if (sys.isScar)          anomalies.push('entropicScar');
-    }
-
-    const planetCount = systems.reduce((s, sys) => s + (sys.planets?.length || 0), 0);
-    const imbalance = Math.abs(res - inf);
-    const w = weights;
-
-    let score = 0;
-    score += res * w.resourceValue;
-    score += inf * w.influenceValue;
-    score += imbalance * w.resourceInfluenceImbalance;
-    score += legends * w.legendaryPlanet;
-    score += techs.length * w.techSpecialty;
-    score += wormholes.length * w.wormhole;
-    score += industrialCount * w.industrial;
-    score += culturalCount  * w.cultural;
-    score += hazardousCount * w.hazardous;
-    for (const a of anomalies) score += (w[a] || 0);
-    if (planetCount < 3) score += w.lowPlanetCount;
-    if (planetCount > 5) score += w.highPlanetCount;
-
-    return score;
-}
+// ---- Scoring ----
 
 /**
- * Score by std-dev of slice scores across home systems.
- * Also penalises slices that fall below milty's min R/I thresholds (from settings).
+ * Score by std-dev of Milty slice scores across home systems.
+ * Also penalises slices that fall outside Milty's optimal R/I limits (from its settings).
  * Only considers assigned hexes within balanceRange of each home. (req 9)
+ *
+ * The slice score is miltyScore.sliceScore, the one the Milty generator uses. This used to
+ * be a copy of it with its own weights, and the copy read tech skips from a field the data
+ * does not have — Balanced mode never counted one.
+ *
+ * The limits compare optimal resources and influence, which is what Milty's settings
+ * name. They used to be compared against raw totals, so a slice of 2/2 planets met a
+ * "minimum 4 optimal resources" it does not have.
  *
  * Returns null when the map can't be scored — fewer than two placed home systems means
  * there is no spread to even out. Returning 0 instead made balanced mode silently keep
  * the first iteration and discard the rest, since no later score could beat it.
  */
-function scoreAssignments(assignments, editor, { balanceRange = 2, weights = SCORING_WEIGHTS, settings = null } = {}) {
+function scoreAssignments(assignments, editor, { balanceRange = 2, weights = getWeights(), settings = null } = {}) {
     const homes = Object.values(editor.hexes).filter(h => h.baseType === 'homesystem');
     if (homes.length < 2) return null;
 
     // Bucket systems by nearest home within balanceRange
-    const sliceData = new Map(homes.map(h => [h, { systems: [], res: 0, inf: 0 }]));
+    const slices = new Map(homes.map(h => [h, []]));
 
     for (const { label, sys } of assignments) {
         const hex = editor.hexes[label];
@@ -530,26 +502,21 @@ function scoreAssignments(assignments, editor, { balanceRange = 2, weights = SCO
             const d = axialDist(hex, h);
             if (d < nearestDist) { nearest = h; nearestDist = d; }
         }
-        if (nearestDist <= balanceRange) {
-            const s = sliceData.get(nearest);
-            s.systems.push(sys);
-            for (const p of (sys.planets || [])) {
-                s.res += p.resources || 0;
-                s.inf += p.influence || 0;
-            }
-        }
+        if (nearestDist <= balanceRange) slices.get(nearest).push(sys);
     }
 
-    // Min R/I thresholds from milty settings (req 8)
+    // Optimal R/I limits from milty settings (req 8)
     const minRes   = settings?.sliceGeneration?.minOptimalResources ?? 0;
     const minInf   = settings?.sliceGeneration?.minOptimalInfluence ?? 0;
     const minTotal = settings?.sliceGeneration?.minOptimalTotal     ?? 0;
     const maxTotal = settings?.sliceGeneration?.maxOptimalTotal     ?? Infinity;
 
     const scores = [];
-    for (const { systems, res, inf } of sliceData.values()) {
-        let score = scoreSlice(systems, weights);
-        // Penalty for falling below milty minimums (large weight so optimizer avoids them)
+    for (const systems of slices.values()) {
+        const slice = sliceScore(systems, weights);
+        const res = slice.optimalResources, inf = slice.optimalInfluence;
+        let score = slice.score;
+        // Penalty for falling outside milty's limits (large weight so optimizer avoids them)
         if (res   < minRes)   score -= (minRes   - res)   * 10;
         if (inf   < minInf)   score -= (minInf   - inf)   * 10;
         if (res + inf < minTotal) score -= (minTotal - (res + inf)) * 5;
@@ -557,8 +524,8 @@ function scoreAssignments(assignments, editor, { balanceRange = 2, weights = SCO
         scores.push(score);
     }
 
-    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-    const variance = scores.reduce((s, v) => s + (v - mean) ** 2, 0) / scores.length;
+    const mean = scores.reduce((x, y) => x + y, 0) / scores.length;
+    const variance = scores.reduce((acc, v) => acc + (v - mean) ** 2, 0) / scores.length;
     return Math.sqrt(variance); // lower = better
 }
 
@@ -572,7 +539,7 @@ function scoreAssignments(assignments, editor, { balanceRange = 2, weights = SCO
  * @param {number}  opts.balanceRange       Axial distance from home systems to consider (req 9)
  * @param {boolean} opts.includeHomeSystems Include HS tiles in fill (req 1)
  * @param {boolean} opts.includeWormholes   Include wormhole systems in pool (req 3)
- * @param {Object}  opts.weights            Score weights (from milty if available) (req 8)
+ * @param {Object}  opts.settings           Milty settings, for the optimal R/I limits (req 8)
  * @returns {{ assignments, tokenPlacements, downgrades, unmatched, score, info, notice }}
  *          `info` means nothing was produced and the caller should say so; `notice` means
  *          the fill succeeded but an option was ignored.
@@ -580,13 +547,13 @@ function scoreAssignments(assignments, editor, { balanceRange = 2, weights = SCO
 /**
  * Rank the available pool into value tiers 1-5, per planet-count group.
  *
- * Tiers are percentiles, so tier 5 always means "the top fifth of what is currently
- * loaded" rather than an absolute quality — load another tile set and the boundaries move
- * with it. Two things follow that are worth knowing at the call sites:
+ * Tiers are fifths of each group's value range (valueBandTier), relative to what is
+ * currently loaded — load another tile set and the bands move with it. Two things follow
+ * that are worth knowing at the call sites:
  *
- *   - supply per tier is fixed at about a fifth of the group, so painting more than that
- *     many hexes at one tier cannot be satisfied no matter how good the solver is;
- *   - tiles of equal value can land either side of a boundary, purely on sort order.
+ *   - supply per tier is whatever the pool holds in that band. It is not a fixed fifth of
+ *     the tiles: a band can be crowded, or empty when one tile stretches the range;
+ *   - equal values are always the same tier.
  *
  * Grouping is by planet count so tier 5 means "best 2-planet system", not "best overall" —
  * the same grouping the on-map value overlay uses.
@@ -594,23 +561,68 @@ function scoreAssignments(assignments, editor, { balanceRange = 2, weights = SCO
  * @returns {Map<string, number>} upper-cased system id -> tier
  */
 export function buildPoolTierMap(available, factors) {
-    const groups = {};
-    available.filter(s => s.id).forEach(s => {
-        const g = getTypeGroup(s);
-        if (!groups[g]) groups[g] = [];
-        groups[g].push({ id: String(s.id).toUpperCase(), value: calculateSystemValue(s, factors) });
-    });
-
     const tierMap = new Map();
-    for (const entries of Object.values(groups)) {
-        entries.sort((a, b) => a.value - b.value);
-        const n = entries.length;
-        entries.forEach(({ id }, idx) => {
-            const pct = idx / n;
-            tierMap.set(id, pct < 0.2 ? 1 : pct < 0.4 ? 2 : pct < 0.6 ? 3 : pct < 0.8 ? 4 : 5);
-        });
+    for (const { rows } of rankPool(available, factors)) {
+        for (const row of rows) if (row.tier) tierMap.set(row.key, row.tier);
     }
     return tierMap;
+}
+
+/** Planet-count groups in reading order, the way the rail lists them. */
+const GROUP_ORDER = ['1', '2', '3+', 'legendary', 'home', 'empty'];
+
+/**
+ * Every tile in the pool with its value, the parts the value is made of, and its tier.
+ *
+ * This is the ranking itself. buildPoolTierMap reads its tiers from here, and so does the
+ * pool view, so what the view shows is what the fill uses — not a second calculation that
+ * could drift from it.
+ *
+ * Within each planet-count group the lowest and highest values set the range, and the
+ * range is cut into five equal value bands (valueBandTier): a tile's tier is the band its
+ * value falls in. It depends on nothing but the value, so tiles that score the same are
+ * the same tile as far as tiers go. `edges` are the band boundaries, for the view to show.
+ *
+ * Tiles with no planets all score 0, so there is nothing to rank. They get no tier (null)
+ * and no edges, and pairCost charges no tier penalty against a tile without one.
+ *
+ * @returns {{group: string, lo: number|null, hi: number|null, edges: number[]|null,
+ *            rows: {sys: object, key: string, id: string, name: string,
+ *                   r: number, i: number, flex: number, tech: number, planets: number,
+ *                   legendary: boolean, value: number, tier: number|null}[]}[]}
+ *          groups in GROUP_ORDER; rows lowest value first
+ */
+export function rankPool(available, factors) {
+    const groups = new Map();
+    for (const sys of available) {
+        if (!sys.id) continue;
+        const group = getTypeGroup(sys);
+        if (!groups.has(group)) groups.set(group, []);
+        groups.get(group).push({
+            sys,
+            key: String(sys.id).toUpperCase(),
+            id: String(sys.id),
+            name: sys.name || String(sys.id),
+            ...systemValueParts(sys, factors),
+            tier: null,
+        });
+    }
+
+    const out = [];
+    for (const [group, rows] of groups) {
+        rows.sort((a, b) => a.value - b.value);
+        if (group === 'empty') {
+            out.push({ group, lo: null, hi: null, edges: null, rows });
+            continue;
+        }
+        const lo = rows[0].value;
+        const hi = rows[rows.length - 1].value;
+        for (const row of rows) row.tier = valueBandTier(row.value, lo, hi);
+        out.push({ group, lo, hi, edges: valueBandEdges(lo, hi), rows });
+    }
+
+    return out.sort(
+        (a, b) => (GROUP_ORDER.indexOf(a.group) + 1 || 99) - (GROUP_ORDER.indexOf(b.group) + 1 || 99));
 }
 
 /**
@@ -642,8 +654,8 @@ export function fillRemaining(editor, {
     includeHomeSystems = false,
     includeWormholes = false,
     allowDuplicatesNoPlanet = false,
+    allowFracture = false,
     sources = null,
-    weights = SCORING_WEIGHTS,
     settings = null,
     valueROn = false,
     valueIOn = false,
@@ -657,7 +669,7 @@ export function fillRemaining(editor, {
     const unfilled = getUnfilledHexes(editor, { includeHomeSystems });
     if (!unfilled.length) return { ...empty, info: 'No unfilled hexes found.' };
 
-    const available = getAvailableSystems(editor, { includeWormholes, allowDuplicatesNoPlanet, includeHomeSystems, sources });
+    const available = getAvailableSystems(editor, { includeWormholes, allowDuplicatesNoPlanet, includeHomeSystems, allowFracture, sources });
     if (!available.length) return {
         ...empty,
         unmatched: unfilled.map(h => ({ label: h.label, reason: 'No systems passed the current source filters.' })),
@@ -680,7 +692,7 @@ export function fillRemaining(editor, {
     // Balance scoring needs at least two placed home systems to have a spread to even out.
     // Say so rather than running `iterations` attempts and keeping the first regardless.
     const probe = attempt();
-    const probeScore = scoreAssignments(probe.assignments, editor, { balanceRange, weights, settings });
+    const probeScore = scoreAssignments(probe.assignments, editor, { balanceRange, settings });
     if (probeScore === null) {
         return { ...probe, score: null, notice: 'Balanced mode needs at least 2 placed home systems — filled without balance scoring.' };
     }
@@ -688,7 +700,7 @@ export function fillRemaining(editor, {
     let best = probe, bestScore = probeScore;
     for (let i = 1; i < iterations; i++) {
         const result = attempt();
-        const score = scoreAssignments(result.assignments, editor, { balanceRange, weights, settings });
+        const score = scoreAssignments(result.assignments, editor, { balanceRange, settings });
         if (score !== null && score < bestScore) { bestScore = score; best = result; }
     }
     return { ...best, score: bestScore };
@@ -697,10 +709,10 @@ export function fillRemaining(editor, {
 /**
  * What the pool actually holds, per planet-count group and tier.
  *
- * This is the table that was missing. Tiers are percentiles, so each one holds about a
- * fifth of its group — roughly 8 two-planet systems per tier on the default set. Painting
- * twelve hexes at tier 5 is asking for something that does not exist, and until this was
- * shown there was nothing anywhere in the UI that said so.
+ * This is the table that was missing. Tiers are value bands, so each holds however many
+ * tiles score in its band — six 2-planet systems at T5 on the default set. Painting twelve
+ * hexes at tier 5 is asking for something that does not exist, and until this was shown
+ * there was nothing anywhere in the UI that said so.
  *
  * @returns {{group: string, tiers: number[], total: number, systems: Record<number, {id: string, name: string}[]>}[]}
  */
@@ -779,20 +791,19 @@ export function summariseTierDemand(unfilled) {
  */
 export function analyzeMap(editor, {
     includeHomeSystems = false, includeWormholes = false, allowDuplicatesNoPlanet = false,
-    sources = null, valueROn = false, valueIOn = false, valueTOn = false,
+    allowFracture = false, sources = null, valueROn = false, valueIOn = false, valueTOn = false,
     tierPolicy = 'down', strictTiers = false, unfilledCost = null,
 } = {}) {
     const unfilled = getUnfilledHexes(editor, { includeHomeSystems });
-    const available = getAvailableSystems(editor, { includeWormholes, allowDuplicatesNoPlanet, includeHomeSystems, sources });
+    const available = getAvailableSystems(editor, { includeWormholes, allowDuplicatesNoPlanet, includeHomeSystems, allowFracture, sources });
     const pools = buildPools(available);
 
     // The dry run used to be handed a null tier map, so the table could report every row
     // green while the fill delivered 40% of the tiers that were asked for. It reports on
     // the same ranking the fill will use.
     const anyTarget = unfilled.some(({ hex }) => hex.valueTarget);
-    const valueTierMap = anyTarget
-        ? buildPoolTierMap(available, getFactors(valueROn, valueIOn, valueTOn))
-        : null;
+    const factors = getFactors(valueROn, valueIOn, valueTOn);
+    const valueTierMap = anyTarget ? buildPoolTierMap(available, factors) : null;
 
     const dry = tryAssign(unfilled, pools, valueTierMap, {
         allowDuplicatesNoPlanet, deterministic: true,
@@ -839,10 +850,16 @@ export function analyzeMap(editor, {
 
     return {
         totalUnfilled: unfilled.length,
+        // Painted fracture hexes still empty — never filled here; the panel says so.
+        fractureHexes: Object.values(editor.hexes).filter(h => h.baseType === 'fracture' && !h.realId).length,
         totalAvailable: available.length,
         requirements,
         tierSupply: valueTierMap ? summariseTierSupply(available, valueTierMap) : null,
         tierDemand: anyTarget ? summariseTierDemand(unfilled) : null,
+        // The whole ranking, hints or not: the pool view shows it before anything is
+        // painted, so a tier can be understood before it is asked for.
+        poolRanking: rankPool(available, factors),
+        factors,
         canFill: unfilled.length > 0,
         hasHomeSystems: Object.values(editor.hexes).some(h => h.baseType === 'homesystem'),
         // Balance scoring needs two homes to have a spread between them.

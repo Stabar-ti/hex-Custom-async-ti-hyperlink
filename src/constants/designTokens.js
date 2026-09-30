@@ -64,6 +64,14 @@ export const COLORS = {
   autoValueI:           '#7ecfff',
   autoValueT:           '#b07cff',
 
+  // Value tiers 1-5, red to green, in the AutoMapper's pool view. The value overlay's own
+  // badge colours are tuned for light tiles and go muddy on the dark panel.
+  autoTier1:            '#ff5c5c',
+  autoTier2:            '#ff9f40',
+  autoTier3:            '#e6d34a',
+  autoTier4:            '#8fd14f',
+  autoTier5:            '#2ecc71',
+
   // SVG overlays — used with setAttribute, must be plain hex/named values
   linkLine:             '#1fa3ff',
   distanceNumber:       '#ffd700',

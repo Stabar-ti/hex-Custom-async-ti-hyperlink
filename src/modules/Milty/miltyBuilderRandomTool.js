@@ -8,7 +8,7 @@ const EXCLUDED_TILE_IDS = [
     '84a', '84a60', '84a120', '84a180', '84a240', '84a300',
     '84b', '84b60', '84b120', '84b180', '84b240', '84b300',
     '85a', '85a60', '85a120', '85a180', '85a240', '85a300',
-    '85b', '82', '82b', '82a', '18', '82ah', '82h', 'c41', '81', 'rexmex',
+    '85b', '82', '82b', '82a', '18', '82ah', '82h', 'c41', '81', 'rexmec',
     'd35a', 'd35b', 'd36', 'm28', "s11", "s12", "s13", "silver_flame",
     '94', '112'  // TE faction-specific tile — not suitable for general slice use
 ];
@@ -19,6 +19,7 @@ const EXCLUDED_TILE_IDS = [
 import { assignSystem } from '../../features/assignSystem.js';
 import { markRealIDUsed, refreshSystemList } from '../../ui/uiFilters.js';
 import { slotPositions } from './miltyBuilderCore.js';
+import { getWeights, setWeights, resetWeights, sliceScore } from './miltyScore.js';
 
 // Default generation settings
 const DEFAULT_SETTINGS = {
@@ -58,42 +59,12 @@ const DEFAULT_SETTINGS = {
     }
 };
 
-// Default feature weights for slice evaluation
-const DEFAULT_WEIGHTS = {
-    // Anomalies
-    supernova: -3,
-    asteroidField: -1,
-    nebula: 0,
-    gravityRift: -1,
-    entropicScar: 1,
-
-    // Resources/Influence
-    resourceValue: 0.9,
-    influenceValue: 1,
-
-    // Special features
-    techSpecialty: 2,
-    legendaryPlanet: 1.5,     // base legendary value
-    legendaryIndustrex: 2.5,  // Industrex (TE)
-    legendaryEmelpar: 3,      // Emelpar (TE)
-    wormhole: 0.5,            // non-gamma wormholes
-    gammaWormhole: 1.5,       // gamma wormhole
-    tradeStation: 0.5,        // trade station bonus
-
-    // Planet types
-    industrial: 0.5,
-    cultural: 0.5,
-    hazardous: 0.5,
-
-    // Balance penalties
-    resourceInfluenceImbalance: -0.5,
-    lowPlanetCount: -3,
-    highPlanetCount: -1
-};
+// The slice weights live in miltyScore.js — one table for the generator, the home overlay,
+// the AutoMapper and Slice Analysis, saved across reloads. There used to be one here, a
+// drifted copy in the AutoMapper and the overlay, and a fourth, unused, in the UI module.
 
 let currentSettings = { ...DEFAULT_SETTINGS };
 
-let currentWeights = { ...DEFAULT_WEIGHTS };
 
 // Whether a generation run records why each attempt failed. Off by default: the tracking
 // below is cheap but the logging it drives is not.
@@ -146,7 +117,7 @@ let debugDetails = {
 
 // Export accessor functions for UI module
 export function getCurrentWeights() {
-    return { ...currentWeights };
+    return getWeights();
 }
 
 export function setCurrentSettings(settings) {
@@ -161,11 +132,11 @@ export function getCurrentSettings() {
 }
 
 export function setCurrentWeights(weights) {
-    currentWeights = { ...weights };
+    setWeights(weights);
 }
 
 export function resetWeightsToDefault() {
-    currentWeights = { ...DEFAULT_WEIGHTS };
+    resetWeights();
 }
 
 export function getDebugDetails() {
@@ -190,6 +161,7 @@ export const moduleTest = 'Module loaded successfully!';
  * Creates the weighting settings popup content
  */
 export function createWeightingPopupContent() {
+    const currentWeights = getWeights();
     return `
         <div style="padding: 20px; line-height: 1.5; max-height: 60vh; overflow-y: auto;">
             <p style="color: #ccc; margin-bottom: 20px;">
@@ -1315,76 +1287,15 @@ function validateSliceSet(slices) {
 }
 
 /**
- * Calculate slice score based on weights
+ * A slice's score: miltyScore.sliceScore of its systems, under the current weights.
+ *
+ * The formula used to be written out here, and copied into the home overlay and the
+ * AutoMapper. It now scores resources and influence at their optimal use (R, I and flex)
+ * rather than as raw totals, which counted a 2/2 planet as 2 resources and 2 influence at
+ * once; and it measures R/I imbalance after flex has been spent to close the gap.
  */
 function calculateSliceScore(slice) {
-    let score = 0;
-
-    // Resource/influence values
-    score += slice.totalResources * currentWeights.resourceValue;
-    score += slice.totalInfluence * currentWeights.influenceValue;
-
-    // Resource/influence imbalance penalty
-    const imbalance = Math.abs(slice.totalResources - slice.totalInfluence);
-    score += imbalance * currentWeights.resourceInfluenceImbalance;
-
-    // Legendaries — specific TE planets score differently
-    if (slice.legendaryNames && slice.legendaryNames.length > 0) {
-        slice.legendaryNames.forEach(name => {
-            if (name.includes('industrex')) score += currentWeights.legendaryIndustrex ?? 2.5;
-            else if (name.includes('emelpar')) score += currentWeights.legendaryEmelpar ?? 3;
-            else score += currentWeights.legendaryPlanet;
-        });
-    } else {
-        score += slice.legendaries * currentWeights.legendaryPlanet;
-    }
-
-    score += slice.techSpecialties.length * currentWeights.techSpecialty;
-
-    // Wormholes — gamma scores higher than alpha/beta/other
-    const gammaCount = slice.wormholes.filter(w => (w || '').toLowerCase() === 'gamma').length;
-    const nonGammaCount = slice.wormholes.length - gammaCount;
-    score += nonGammaCount * currentWeights.wormhole;
-    score += gammaCount * (currentWeights.gammaWormhole ?? 1.5);
-
-    // Trade station bonus
-    score += (slice.tradeStations || 0) * (currentWeights.tradeStation ?? 0.5);
-
-    // Planet type bonuses — data uses planetType (string) or planetTypes (array)
-    let industrialCount = 0;
-    let culturalCount = 0;
-    let hazardousCount = 0;
-
-    slice.systems.forEach(system => {
-        if (system.planets && Array.isArray(system.planets)) {
-            system.planets.forEach(planet => {
-                const types = [];
-                if (typeof planet.planetType === 'string' && planet.planetType) types.push(planet.planetType.toUpperCase());
-                if (Array.isArray(planet.planetTypes)) planet.planetTypes.forEach(t => { if (t) types.push(t.toUpperCase()); });
-                if (types.includes('INDUSTRIAL')) industrialCount++;
-                if (types.includes('CULTURAL'))   culturalCount++;
-                if (types.includes('HAZARDOUS'))   hazardousCount++;
-            });
-        }
-    });
-
-    score += industrialCount * currentWeights.industrial;
-    score += culturalCount * currentWeights.cultural;
-    score += hazardousCount * currentWeights.hazardous;
-
-    // Anomalies
-    slice.anomalies.forEach(anomaly => {
-        score += currentWeights[anomaly] || 0;
-    });
-
-    // Planet count penalties
-    const planetCount = slice.systems.reduce((sum, sys) => {
-        return sum + (sys.planets && Array.isArray(sys.planets) ? sys.planets.length : 0);
-    }, 0);
-    if (planetCount < 3) score += currentWeights.lowPlanetCount;
-    if (planetCount > 5) score += currentWeights.highPlanetCount;
-
-    return score;
+    return sliceScore(slice.systems || [], getWeights()).score;
 }
 
 /**
