@@ -31,7 +31,7 @@ function toastStack() {
         position: fixed;
         top: 20px;
         right: 20px;
-        z-index: 10000;
+        z-index: var(--layer-notice);
         display: flex;
         flex-direction: column;
         gap: 8px;

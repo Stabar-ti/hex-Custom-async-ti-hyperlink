@@ -112,7 +112,6 @@ export function showRandomTilePopup(editor, candidates) {
         rememberPosition: true,
         style: {
             width: '340px',
-            zIndex: 10005,
             border: '2px solid var(--popup-border-picker)'
         }
     });

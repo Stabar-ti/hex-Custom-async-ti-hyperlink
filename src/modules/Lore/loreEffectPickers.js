@@ -52,7 +52,7 @@ function createPanel(anchorEl, { width = 220 } = {}) {
 
     const panel = document.createElement('div');
     panel.className = 'lore-mini-picker';
-    panel.style.cssText = `position:fixed;z-index:10050;width:${width}px;max-height:70vh;overflow-y:auto;` +
+    panel.style.cssText = `position:fixed;z-index:var(--layer-picker);width:${width}px;max-height:70vh;overflow-y:auto;` +
         'background:#2c3e50;border:1px solid #666;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.5);' +
         'padding:8px;color:#fff;font-size:0.85em';
 

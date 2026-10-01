@@ -133,7 +133,7 @@ class LoreOverlay {
             Object.assign(tip.style, {
                 position:     'fixed',
                 display:      'none',
-                zIndex:       '9999',
+                zIndex:       'var(--layer-tooltip)',
                 maxWidth:     '320px',
                 padding:      '10px 12px',
                 background:   '#1c1c2e',
@@ -752,7 +752,7 @@ class LoreOverlay {
                 border:        '1px solid #9b59b6',
                 borderRadius:  '20px',
                 fontSize:      '12px',
-                zIndex:        '8888',
+                zIndex:        'var(--layer-floating)',
                 cursor:        'pointer',
                 boxShadow:     '0 2px 10px rgba(0,0,0,0.6)',
                 whiteSpace:    'nowrap',
@@ -824,7 +824,7 @@ class LoreOverlay {
         picker.id = 'lore-planet-picker';
         Object.assign(picker.style, {
             position:     'fixed',
-            zIndex:       '10000',
+            zIndex:       'var(--layer-picker)',
             background:   '#1c1c2e',
             border:       '1px solid #9b59b6',
             borderRadius: '6px',
@@ -943,7 +943,7 @@ class LoreOverlay {
                 border:        '1px solid #9b59b6',
                 borderRadius:  '20px',
                 fontSize:      '12px',
-                zIndex:        '8888',
+                zIndex:        'var(--layer-floating)',
                 pointerEvents: 'none',
                 boxShadow:     '0 2px 10px rgba(0,0,0,0.6)',
                 whiteSpace:    'nowrap',

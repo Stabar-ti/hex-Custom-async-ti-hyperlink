@@ -354,7 +354,7 @@
         box.id = 'bootFailure';
         box.setAttribute('role', 'alert');
         box.style.cssText =
-          'position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:99999;' +
+          'position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:var(--layer-notice, 700);' +
           'max-width:520px;padding:20px 24px;border-radius:8px;border:1px solid #e74c3c;' +
           'background:#1e1e1e;color:#f0f0f0;font:14px/1.5 system-ui,Segoe UI,sans-serif;' +
           'box-shadow:0 8px 40px rgba(0,0,0,.6)';

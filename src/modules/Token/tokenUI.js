@@ -836,7 +836,7 @@ function showNotification(message) {
         border-radius: 6px;
         font-size: 0.95em;
         font-family: sans-serif;
-        z-index: 99999;
+        z-index: var(--layer-notice);
         box-shadow: 0 4px 16px rgba(0,0,0,0.4);
         pointer-events: none;
         opacity: 1;

@@ -492,7 +492,6 @@ body.dark .dropdown-toggle:focus {
   padding: 8px 16px;
   background: var(--bg-color);
   border-bottom: 1px solid var(--modal-border);
-  z-index: 100;
   box-sizing: border-box;
 }
 
@@ -528,7 +527,6 @@ body.dark .dropdown-toggle:focus {
   padding: 4px 10px;
   border-radius: 4px;
   font-family: var(--font-mono);
-  z-index: 200;
 }
 
 /* group styling for hidden rows */
@@ -552,7 +550,7 @@ body.dark .dropdown-toggle:focus {
 ──────────────────────────────────────────────────────────────────────────────*/
 #sectorControlsContainer {
   position: fixed;
-  z-index: 50;
+  z-index: var(--layer-floating);
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -727,7 +725,6 @@ body.dark .mode-button.btn-lookup-id:focus {
   box-shadow: 0 8px 18px #222a;
   border-radius: 10px;
   padding: 10px 0;
-  z-index: 500;
   animation: popupFadeIn 0.13s;
   resize: both;
   overflow: auto;
@@ -885,7 +882,7 @@ body.dark .filter-button.active {
   color: var(--text-color);
   padding: 1em;
   border: 1px solid var(--modal-border);
-  z-index: 1000;
+  z-index: var(--layer-modal);
   max-width: 90vw;
   max-height: 90vh;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
@@ -927,7 +924,6 @@ body.dark .filter-button.active {
 }
 
 #calcSlicePopup.modal {
-  z-index: 9999;
   position: fixed;
   top: 60px;
   /* or as you like */
@@ -1057,7 +1053,6 @@ body.dark .mode-button.btn-special {
   background: var(--surface-2);
   --popup-accent: var(--popup-border-danger);
   padding: 12px 14px 12px 10px;
-  z-index: 1000;
   min-width: 180px;
   color: var(--text-color);
 }
@@ -1113,7 +1108,6 @@ body.dark .mode-button.btn-special {
   background: var(--surface-2);
   --popup-accent: #0097d6;
   padding: 12px 14px 12px 10px;
-  z-index: 1000;
   min-width: 220px;
   color: var(--text-color);
   box-shadow: 0 8px 22px #222a;
@@ -1239,7 +1233,7 @@ body.dark .mode-button.btn-special {
   display: none;
   position: fixed;
   pointer-events: none;
-  z-index: 9999;
+  z-index: var(--layer-tooltip);
   background: rgba(30, 30, 40, 0.98);
   color: #fff;
   border-radius: 10px;
@@ -1289,7 +1283,6 @@ body.dark .mode-button.btn-special {
 
 #tilePreviewPopup {
   position: fixed;
-  z-index: 10000;
   pointer-events: none;
   display: none;
   background: rgba(0, 0, 0, 0.9);
@@ -1364,7 +1357,6 @@ body.dark .mode-button.btn-special {
   background: var(--surface-2);
   color: var(--text-on-surface);
   --popup-accent: #ffb800;
-  z-index: 10010;
   min-width: 320px;
   box-shadow: 0 4px 24px #000a;
   font-size: 1.08em;
@@ -1484,7 +1476,6 @@ body.dark .mode-button.btn-special {
   position: fixed;
   padding: 0.5em 1.2em;
   pointer-events: auto;
-  z-index: 10003;
 }
 
 .popup-ui-info,
@@ -2089,7 +2080,7 @@ body.lore-picking #hexMap {
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10001;
+  z-index: var(--layer-notice);
   padding: 6px 14px;
   border-radius: 14px;
   border: 1px solid var(--popup-border-lore, #9b59b6);
@@ -2105,7 +2096,7 @@ body.lore-picking #hexMap {
   position: fixed;
   top: 70px;
   right: 16px;
-  z-index: 1002;
+  z-index: var(--layer-floating);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2527,7 +2518,7 @@ body.lore-picking #hexMap {
    belong in a band it will never reach. */
 .sp-picker-panel {
   position: fixed;
-  z-index: 99990;
+  z-index: var(--layer-picker);
   max-height: 70vh;
   overflow-y: auto;
   background: var(--surface-3);
@@ -3042,7 +3033,7 @@ body.lore-picking #hexMap {
 
 .sp-preview-popup {
   position: fixed;
-  z-index: 99995;
+  z-index: var(--layer-tooltip);
   /* see .sp-picker-panel */
   pointer-events: none;
   background: var(--surface-2);
@@ -3129,7 +3120,7 @@ body.sp-placing #hexMap polygon {
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 99980;
+  z-index: var(--layer-notice);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -3241,7 +3232,7 @@ body.sp-placing #hexMap polygon {
   bottom: 72px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 99981;
+  z-index: var(--layer-notice);
   display: flex;
   align-items: center;
   gap: 10px;

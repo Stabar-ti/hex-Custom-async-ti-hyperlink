@@ -28,17 +28,29 @@
 
 :root {
   /* ── Layers ────────────────────────────────────────────────────────────────
-     Named steps, in the order things sit on top of each other. Existing rules
-     still carry their own numbers; these are what new work should use, and what
-     the old values get folded into as each panel is touched. The gaps are
-     deliberate — room to slot something in without renumbering. */
+     Named steps, in the order things sit on top of each other. Every z-index in
+     the app is one of these; a number of its own is only for ordering children
+     inside one element (a sticky table header, a close button over a title bar).
+
+     The values used to be an arms race running to 99999, and the order between
+     them was an accident: toasts, modals and the hex hover tooltip were all
+     numbered below the popups, so a popup covered them; the lore planet picker
+     opened beneath the lore popup it was picked from.
+
+     Popups are a band, not a step. raisePopup in popupUI.js numbers the open
+     ones from --layer-popup up, in the order they were raised, and stops short
+     of --layer-menu — so however much they are clicked they never climb into
+     what has to sit over them. It reads these two values from here. */
   --layer-map:       0;    /* the SVG and its overlays */
   --layer-shell:    10;    /* rail, inspector, status */
   --layer-topbar:   20;    /* above the rail, below anything floating */
-  --layer-floating: 100;   /* the import/export panel and friends */
-  --layer-popup:    200;   /* draggable tool popups */
-  --layer-modal:    300;   /* the export/import modals */
-  --layer-overlay:  400;   /* transient: toasts, pickers, drag ghosts */
+  --layer-floating: 100;   /* over the map, under windows: resizers, lore banners */
+  --layer-popup:    200;   /* draggable popups, stacked up to 299 */
+  --layer-menu:     300;   /* top-bar menus: opened over the popups */
+  --layer-modal:    400;   /* the export/import modals, upload dialogs */
+  --layer-picker:   500;   /* small lists opened from inside a popup */
+  --layer-tooltip:  600;   /* hover info, tile previews */
+  --layer-notice:   700;   /* toasts, the armed-tile bar, hints, boot failure */
 
   --shell-topbar-h: 46px;
   --shell-status-h: 26px;
@@ -972,7 +984,7 @@ body {
   /* Not --text-color: this panel is dark in both themes, and that token is black in the
      light one, so the whole menu rendered black on #1e1e1e. */
   color: var(--text-on-surface);
-  z-index: var(--layer-floating);
+  z-index: var(--layer-menu);
   min-width: 190px;
   max-height: calc(100vh - var(--shell-topbar-h) - 24px);
   overflow-y: auto;
@@ -1098,7 +1110,7 @@ body {
   border-radius: 8px;
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
   color: var(--text-color);
-  z-index: var(--layer-floating);
+  z-index: var(--layer-menu);
   /* The New map drop-out hangs outside the panel, so this cannot clip. */
   overflow: visible;
 }

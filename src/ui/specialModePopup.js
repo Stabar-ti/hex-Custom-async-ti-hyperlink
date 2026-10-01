@@ -73,8 +73,7 @@ export function openMiltySliceDesigner(editor) {
                 border: '2px solid var(--popup-border-special)',
                 borderRadius: '10px',
                 boxShadow: '0 8px 40px #000a',
-                padding: '24px',
-                zIndex: 10011
+                padding: '24px'
             }
         });
     }).catch(err => {
@@ -152,8 +151,7 @@ export function showSpecialModePopup(editor) {
                             border: '2px solid var(--popup-border-spin)',
                             borderRadius: '10px',
                             boxShadow: '0 8px 40px #000a',
-                            padding: '16px',
-                            zIndex: 10012
+                            padding: '16px'
                         }
                     });
                 }).catch(err => {

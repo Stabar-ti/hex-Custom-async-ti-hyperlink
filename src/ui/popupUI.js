@@ -14,13 +14,15 @@
 const closeHandlers = new WeakMap();
 
 /**
- * The z-index the popup stack is numbered up from.
+ * A layer token from shell.css, as a number.
  *
- * The band popups already lived in: callers ask for 10010–10013, and the first raise put
- * them just above that. Below it are toasts (10000); above it are the things that open
- * over a popup and must stay over it, such as the lore effect picker (10050).
+ * @param {string} name      e.g. '--layer-popup'
+ * @param {number} fallback  its value there, for a document without the stylesheet
  */
-const STACK_BASE = 10010;
+function layer(name, fallback) {
+    const value = parseInt(getComputedStyle(document.documentElement).getPropertyValue(name), 10);
+    return Number.isFinite(value) ? value : fallback;
+}
 
 /** @param {Element} el */
 function zOf(el) {
@@ -30,33 +32,29 @@ function zOf(el) {
 /**
  * Put a popup on top of the others on screen.
  *
- * The whole stack is renumbered from STACK_BASE, in its current order with this one moved
- * to the end, so z-indexes stay between STACK_BASE and STACK_BASE plus the number of
- * popups open. Raising used to set the highest value plus one on every press inside any
- * popup, the top one included, so the numbers only ever went up while a popup stayed
- * open: a few dozen clicks took popups past the lore effect picker that opens over them,
- * and nothing stopped them short of the ceiling browsers clamp to (2^31 − 1).
+ * Popups are the band from --layer-popup up to just under --layer-menu. The whole stack
+ * is renumbered from the bottom of the band, in its current order with this one moved to
+ * the end, so z-indexes stay inside the band, one step per popup open.
+ *
+ * Raising used to set the highest value plus one on every press inside any popup, the top
+ * one included, so the numbers only ever went up while a popup stayed open. A few dozen
+ * clicks took popups past the lore effect picker that opens over them, and nothing
+ * stopped them short of the ceiling browsers clamp to (2^31 − 1). The band has a hundred
+ * steps; the stack would have to hold a hundred popups at once to reach its top, and past
+ * that the highest ones share it rather than climbing into the menus.
  *
  * @param {HTMLElement} popup
  */
 export function raisePopup(popup) {
+    const base = layer('--layer-popup', 200);
+    const top = layer('--layer-menu', 300) - 1;
     const stack = [...document.querySelectorAll('.popup-ui')]
         .filter(p => p !== popup)
         .sort((a, b) => zOf(a) - zOf(b));   // stable, so ties keep document order
     stack.push(popup);
-    stack.forEach((p, i) => { /** @type {HTMLElement} */ (p).style.zIndex = String(STACK_BASE + i); });
-}
-
-/**
- * The z-index just above every popup on screen: where a top-bar menu goes, so a menu
- * opened over a popup is not drawn beneath it. Bounded, because the stack is.
- *
- * @returns {number}
- */
-export function aboveAllPopups() {
-    let top = STACK_BASE - 1;
-    document.querySelectorAll('.popup-ui').forEach(p => { top = Math.max(top, zOf(p)); });
-    return top + 1;
+    stack.forEach((p, i) => {
+        /** @type {HTMLElement} */ (p).style.zIndex = String(Math.min(base + i, top));
+    });
 }
 
 /**
@@ -107,8 +105,8 @@ export function showPopup({
     if (id) popup.id = id;
     if (typeof onClose === 'function') closeHandlers.set(popup, onClose);
 
-    // Set initial z-index and make focusable
-    popup.style.zIndex = '1000';
+    // Make focusable. Its z-index is the stack's: raisePopup numbers it once it is in the
+    // document, and a zIndex in `style` is overwritten there.
     popup.tabIndex = -1; // Make focusable but not in tab order
     popup.style.outline = 'none'; // Remove focus outline for cleaner appearance
 

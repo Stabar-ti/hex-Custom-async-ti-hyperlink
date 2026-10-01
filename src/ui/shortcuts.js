@@ -299,7 +299,7 @@ export function showShortcutsPopup() {
         actions: [{ label: 'Close', action: () => hidePopup(SHORTCUTS_POPUP_ID) }],
         // showPopup ignores maxWidth, so the cap is inside the width. Three columns of
         // cards on a large screen, two on a laptop.
-        style: { width: 'min(1600px, 94vw)', zIndex: 10010 },
+        style: { width: 'min(1600px, 94vw)' },
     });
     setTimeout(() => search.focus(), 0);
 }

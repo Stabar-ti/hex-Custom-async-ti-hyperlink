@@ -226,7 +226,7 @@ export function ensureHighlightStyles() {
     if (!document.getElementById('miltySliceHighlightStyle')) {
         const style = document.createElement('style');
         style.id = 'miltySliceHighlightStyle';
-        style.textContent = `.milty-slice-highlight { outline: 3px solid red !important; z-index: 10002 !important; }`;
+        style.textContent = `.milty-slice-highlight { outline: 3px solid red !important; }`;
         document.head.appendChild(style);
     }
 }

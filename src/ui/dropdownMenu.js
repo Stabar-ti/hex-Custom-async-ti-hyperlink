@@ -24,7 +24,7 @@
  * them where they are.
  */
 
-import { aboveAllPopups, hidePopup, onPopupClose, togglePopup } from './popupUI.js';
+import { hidePopup, onPopupClose, togglePopup } from './popupUI.js';
 
 const OPEN_CLASS = 'dropdown-open';
 
@@ -91,12 +91,6 @@ function opened(menu) {
     if (current && current.panel !== menu.panel) current.close();
     current = menu;
     setAnchorState(menu.anchor, true);
-    // Above every popup, taken at the moment it opens. The stylesheet's layer for menus
-    // is far below the band popups are numbered in, so a menu opened where a popup
-    // overlapped the bar was drawn beneath it — and a press on one of its items landed
-    // on the popup instead. Pressing a popup raises it, but that press is outside the
-    // menu and closes it first; a popup a shortcut opens lands over it, being newer.
-    menu.panel.style.zIndex = String(aboveAllPopups());
     place(menu.panel, menu.anchor);
 }
 

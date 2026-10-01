@@ -193,7 +193,7 @@ function showDownloadLink(url, type = 'map') {
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 10000;
+        z-index: var(--layer-modal);
     `;
 
     // Create modal content
@@ -378,7 +378,7 @@ async function saveMapInfo(editor) {
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 10000;
+        z-index: var(--layer-modal);
     `;
 
     // Create modal content with improved GUI

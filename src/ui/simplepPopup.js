@@ -391,8 +391,7 @@ export function showSanityCheckPopup(editor) {
         style: {
             minWidth: '500px',
             maxWidth: '700px',
-            borderRadius: '12px',
-            zIndex: 10010
+            borderRadius: '12px'
         },
         showHelp: false
     });

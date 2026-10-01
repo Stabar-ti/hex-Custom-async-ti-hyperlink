@@ -74,7 +74,7 @@ export function showInfoPopup() {
     rememberPosition: true,
     modal: false,
     title: '📁 Import & Export — How To',
-    style: { minWidth: '440px', maxWidth: '620px', borderRadius: '14px', zIndex: 10010 },
+    style: { minWidth: '440px', maxWidth: '620px', borderRadius: '14px' },
     showHelp: false
   });
 }
@@ -181,7 +181,7 @@ export function showFeaturesPopup() {
     rememberPosition: true,
     modal: false,
     title: '✨ Features',
-    style: { minWidth: '440px', maxWidth: '620px', borderRadius: '14px', zIndex: 10010 },
+    style: { minWidth: '440px', maxWidth: '620px', borderRadius: '14px' },
     showHelp: false
   });
 }

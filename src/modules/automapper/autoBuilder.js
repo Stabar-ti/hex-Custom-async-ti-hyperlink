@@ -793,7 +793,6 @@ export function openAutoMapperPopup(editor) {
                 borderRadius: '10px',
                 boxShadow: '0 8px 40px #000a',
                 padding: '16px',
-                zIndex: 10012,
             },
         });
     });

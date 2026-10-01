@@ -35,8 +35,7 @@ export function openCalcSlicePopup(editor) {
             minWidth: '420px',
             minHeight: '220px',
             left: '25vw',
-            top: '100px',
-            zIndex: 2000
+            top: '100px'
         },
         actions: [
             {
@@ -85,8 +84,7 @@ function showCalcSliceHelpPopup() {
             maxWidth: '600px',
             border: '2px solid var(--popup-border-default)',
             borderRadius: '14px',
-            boxShadow: '0 8px 40px #000a',
-            zIndex: 2100
+            boxShadow: '0 8px 40px #000a'
         }
     });
 }

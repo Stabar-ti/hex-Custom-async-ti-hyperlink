@@ -381,7 +381,6 @@ export function showSystemPicker() {
             minHeight: '380px',
             maxWidth: '96vw',
             maxHeight: '92vh',
-            zIndex: 10003,
             border: '2px solid var(--popup-border-picker)',
             resize: 'both',
             overflow: 'hidden'

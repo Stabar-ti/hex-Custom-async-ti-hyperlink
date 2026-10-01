@@ -437,7 +437,6 @@ export function showPoolValues(getAnalysis, focus = {}) {
                 borderRadius: '10px',
                 boxShadow: '0 8px 40px #000a',
                 padding: '14px',
-                zIndex: 10013,
             },
         });
         paint();
