@@ -629,8 +629,7 @@ body {
   box-sizing: border-box;
 }
 
-.insp-tool .popup-btn-grid,
-.insp-tool .border-anomaly-btn-row {
+.insp-tool .popup-btn-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
