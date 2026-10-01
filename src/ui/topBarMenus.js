@@ -11,7 +11,7 @@
  * This groups them:
  *
  *   Analyse ▾   Calculate Slice, Sanity Check, Distance Options
- *   Generate ▾  the Milty designer, the random generator, AutoMapper, Spin-To-Win
+ *   Tools ▾     the Milty designer and Spin-To-Win
  *   Help ▾      Help, Import/Export How-To, Features
  *
  * and moves Copy/Cut Swap into the Edit group beside undo and redo, where it belongs by
@@ -41,15 +41,10 @@ export function installTopBarMenus() {
         host: left,
     });
 
-    // ── Setup ────────────────────────────────────────────────────────────────
-    // Special Modes is the Milty designer and friends: bulk tools for building a map
-    // before the game starts. It was briefly called Generate, which described one of the
-    // four items — the designer designs, the AutoMapper fills and Spin-To-Win rearranges.
-    const special = document.getElementById('specialModesBtn');
-    if (special) {
-        special.textContent = 'Tools ▾';
-        special.title = 'Milty slice designer, draft generator and Spin-To-Win';
-    }
+    // Tools — the Milty designer and Spin-To-Win — is its own button in index.html, and
+    // builds its panel as it opens: see installToolsMenu in specialModePopup.js. It was
+    // briefly called Generate, which described one of its items, and before that Special
+    // Modes, a label this file used to overwrite at startup.
 
     // ── Help ─────────────────────────────────────────────────────────────────
     // Three buttons for three help popups, all in the bar at full weight.

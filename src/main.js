@@ -26,6 +26,7 @@ import { showOptionsPopup, showOverlayOptionsPopup, showSanityCheckPopup } from 
 import { showInfoPopup, showFeaturesPopup, openUserManual } from './ui/staticPopups.js';
 import { installShortcuts, showShortcutsPopup, SHORTCUTS_POPUP_ID } from './ui/shortcuts.js';
 import { togglePopup } from './ui/popupUI.js';
+import { bindAnchoredPanel } from './ui/dropdownMenu.js';
 import { installFileMenu } from './ui/fileMenu.js';
 import { installTopBarMenus } from './ui/topBarMenus.js';
 import { installInspector } from './ui/inspector.js';
@@ -135,9 +136,9 @@ tokenManager.initialize().then(success => {
 clearCache();
 loadBorderAnomalyTypes().catch(console.error);
 
-// Distance Options is an anchored panel under the Analyse menu; the button opens and
-// closes it like the rest of them.
-bindMenuToggle('optionsBtn', 'options-popup', () => showOptionsPopup(editor));
+// Distance Options is an anchored panel under the Analyse menu. Its button is an item in
+// that menu, which closes as the panel opens, so a press here only ever opens it.
+document.getElementById('optionsBtn')?.addEventListener('click', () => showOptionsPopup(editor));
 
 // The overlay toggles (planet types, R/I, ideal R/I, RealID, tile images, wormholes,
 // effects, link wormholes) all live in the Toggle Overlays popup and are wired by
@@ -340,7 +341,9 @@ function bindMenuToggle(buttonId, popupId, open) {
   };
 }
 
-bindMenuToggle('overlayToggleBtn', 'overlayOptionsPopup', () => showOverlayOptionsPopup(editor));
+// A menu, not a window: it goes with the other menus, so opening it closes whichever
+// of them was open.
+bindAnchoredPanel('overlayToggleBtn', 'overlayOptionsPopup', () => showOverlayOptionsPopup(editor));
 
 // The three Analyse items and the three Help items opened a window each and left the
 // button that opened it sitting there doing nothing on a second press.

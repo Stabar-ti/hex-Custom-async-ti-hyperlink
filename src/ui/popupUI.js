@@ -14,6 +14,52 @@
 const closeHandlers = new WeakMap();
 
 /**
+ * The z-index the popup stack is numbered up from.
+ *
+ * The band popups already lived in: callers ask for 10010–10013, and the first raise put
+ * them just above that. Below it are toasts (10000); above it are the things that open
+ * over a popup and must stay over it, such as the lore effect picker (10050).
+ */
+const STACK_BASE = 10010;
+
+/** @param {Element} el */
+function zOf(el) {
+    return parseInt(window.getComputedStyle(el).zIndex, 10) || 0;
+}
+
+/**
+ * Put a popup on top of the others on screen.
+ *
+ * The whole stack is renumbered from STACK_BASE, in its current order with this one moved
+ * to the end, so z-indexes stay between STACK_BASE and STACK_BASE plus the number of
+ * popups open. Raising used to set the highest value plus one on every press inside any
+ * popup, the top one included, so the numbers only ever went up while a popup stayed
+ * open: a few dozen clicks took popups past the lore effect picker that opens over them,
+ * and nothing stopped them short of the ceiling browsers clamp to (2^31 − 1).
+ *
+ * @param {HTMLElement} popup
+ */
+export function raisePopup(popup) {
+    const stack = [...document.querySelectorAll('.popup-ui')]
+        .filter(p => p !== popup)
+        .sort((a, b) => zOf(a) - zOf(b));   // stable, so ties keep document order
+    stack.push(popup);
+    stack.forEach((p, i) => { /** @type {HTMLElement} */ (p).style.zIndex = String(STACK_BASE + i); });
+}
+
+/**
+ * The z-index just above every popup on screen: where a top-bar menu goes, so a menu
+ * opened over a popup is not drawn beneath it. Bounded, because the stack is.
+ *
+ * @returns {number}
+ */
+export function aboveAllPopups() {
+    let top = STACK_BASE - 1;
+    document.querySelectorAll('.popup-ui').forEach(p => { top = Math.max(top, zOf(p)); });
+    return top + 1;
+}
+
+/**
  * Show a popup with flexible content and options.
  * @param {Object} config - Popup configuration object.
  * @param {string|HTMLElement} config.content - HTML string or DOM node for the popup body.
@@ -387,25 +433,15 @@ export function showPopup({
     // Add to DOM
     (parent || document.body).appendChild(popup);
 
-    /** Raise this popup above every other .popup-ui currently on screen. */
-    function bringToFront() {
-        let maxZ = 1000;
-        document.querySelectorAll('.popup-ui').forEach(p => {
-            const z = parseInt(window.getComputedStyle(p).zIndex) || 1000;
-            if (z > maxZ) maxZ = z;
-        });
-        popup.style.zIndex = maxZ + 1;
-    }
-
     // A popup that just opened belongs on top. Without this it keeps whatever z-index
     // its config asked for, while any popup the user has clicked has already been raised
     // above that by the handler below — so opening a second popup could put it behind the
     // first, with its close button unreachable.
-    bringToFront();
+    raisePopup(popup);
 
     // Click to focus - bring popup to front when clicked
     popup.addEventListener('mousedown', function (e) {
-        bringToFront();
+        raisePopup(popup);
         // Focus the popup for keyboard accessibility
         popup.focus();
     });

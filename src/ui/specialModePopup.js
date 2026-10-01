@@ -1,7 +1,7 @@
 // src/ui/specialModePopup.js
 // Popup for special setup modes using PopupUI mechanics
-import { showPopup, hidePopup, togglePopup } from './popupUI.js';
-import { showAnchoredPanel } from './dropdownMenu.js';
+import { showPopup, hidePopup } from './popupUI.js';
+import { showAnchoredPanel, bindAnchoredPanel } from './dropdownMenu.js';
 
 /**
  * Open the Milty Slice Designer.
@@ -174,7 +174,6 @@ export function showSpecialModePopup(editor) {
  * @param {any} editor
  */
 export function installToolsMenu(editor) {
-    const btn = document.getElementById('specialModesBtn');
     // Pressing Tools again puts the panel away, the same as every other menu.
-    if (btn) btn.addEventListener('click', () => togglePopup('special-mode-popup', () => showSpecialModePopup(editor)));
+    bindAnchoredPanel('specialModesBtn', 'special-mode-popup', () => showSpecialModePopup(editor));
 }

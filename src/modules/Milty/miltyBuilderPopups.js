@@ -5,7 +5,7 @@
 // for better separation of concerns. This module now focuses on popup content
 // and business logic while delegating UI element creation to the UI module.
 
-import { showPopup } from '../../ui/popupUI.js';
+import { showPopup, raisePopup } from '../../ui/popupUI.js';
 import { slotPositions, capitalizeTech, generateOutputString } from './miltyBuilderCore.js';
 
 // Show output copy popup with generated string and analysis
@@ -56,7 +56,8 @@ export function showDraftValuesPopup(editor, forceRefresh = false) {
     // If popup already exists and not forceRefresh, just bring to front
     let popup = document.getElementById('milty-draft-values-popup');
     if (popup && !forceRefresh) {
-        popup.style.zIndex = 10001;
+        // A fixed 10001 put it beneath every other popup, which sit above that.
+        raisePopup(popup);
         return popup;
     }
     // Remove old popup if forceRefresh
