@@ -1458,8 +1458,10 @@ function showLoreHelp() {
                 </p>
                 <p style="margin-top:0">
                     While the overlay is on, the <strong>Lore filter strip</strong> over the map shows only the
-                    markers you ask for — by trigger, Accept/Reject, dice roll, bot effects or round window.
-                    Drag it by its <strong>⠿</strong> grip; double-click the grip to put it back in the corner.
+                    markers you ask for. <em>Trigger</em>, <em>Gate</em> and <em>Receiver</em> are pick-one (an entry
+                    has one trigger and one receiver, and is behind a choice ⚖, a roll 🎲 or neither); <em>Has</em> ⚙ effects and ⏱ rounds are
+                    checkboxes you can combine. A marker stays when one of its entries matches everything you
+                    picked. Drag the strip by its <strong>⠿</strong> grip; double-click the grip to put it back.
                 </p>
 
                 <h4 style="color:#9b59b6">Export / Import</h4>

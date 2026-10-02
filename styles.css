@@ -1470,7 +1470,7 @@ body.lore-picking #hexMap {
   display: flex;
   align-items: stretch;
   gap: 6px;
-  max-width: min(440px, calc(100% - 24px));
+  max-width: min(720px, calc(100% - 24px));
   padding: 5px 8px 5px 4px;
   border-radius: 8px;
   border: 1px solid var(--popup-border-lore, #9b59b6);
@@ -1505,44 +1505,148 @@ body.lore-picking #hexMap {
 
 .lore-filter-body {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: flex-end;
+  gap: 4px 10px;
   flex-wrap: wrap;
   min-width: 0;
 }
 
-.lore-filter-label {
-  font-size: 0.75em;
-  color: #aaa;
-  margin-right: 2px;
+/* One captioned group per filter dimension. */
+.lore-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.lore-filter-chip {
+.lore-filter-caption {
+  font-size: 0.68em;
+  line-height: 1.2;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* Pick-one groups (trigger, gate): buttons joined into one control, exactly one lit. */
+.lore-filter-seg {
+  display: flex;
+  border: 1px solid var(--surface-5);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.lore-filter-seg-btn {
   min-width: 26px;
   padding: 3px 7px;
   font-family: var(--font-icon);
   font-size: 0.9em;
   line-height: 1.1;
-  border: 1px solid var(--surface-5);
-  border-radius: 5px;
+  border: 0;
+  border-left: 1px solid var(--surface-5);
   background: var(--surface-3);
   color: var(--text-color);
   cursor: pointer;
 }
 
-.lore-filter-chip:hover {
+.lore-filter-seg-btn:first-child {
+  border-left: 0;
+}
+
+.lore-filter-seg-btn.is-any {
+  font-family: inherit;
+  font-size: 0.72em;
+  color: #aaa;
+}
+
+.lore-filter-seg-btn:hover {
+  background: var(--surface-4);
+  color: var(--text-color);
+}
+
+.lore-filter-seg-btn.is-on {
+  background: var(--popup-border-lore, #9b59b6);
+  color: #ffffff;
+}
+
+/* Receiver: pick-one too, as a dropdown — seven long names don't fit as segments. */
+.lore-filter-select {
+  max-width: 130px;
+  padding: 2px 4px;
+  font-size: 0.75em;
+  line-height: 1.3;
+  border: 1px solid var(--surface-5);
+  border-radius: 6px;
+  background: var(--surface-3);
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.lore-filter-select:hover {
   border-color: var(--color-primary);
 }
 
-.lore-filter-chip.is-on {
+.lore-filter-select.is-on {
+  border-color: var(--popup-border-lore, #9b59b6);
   background: var(--popup-border-lore, #9b59b6);
-  border-color: #ffffff;
+  color: #ffffff;
+}
+
+/* Combine-freely group (effects, rounds): separate pills, each with its own checkbox. */
+.lore-filter-toggles {
+  display: flex;
+  gap: 4px;
+}
+
+.lore-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 6px;
+  font-family: var(--font-icon);
+  font-size: 0.8em;
+  line-height: 1.1;
+  border: 1px solid var(--surface-5);
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-color);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.lore-filter-toggle::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border: 1px solid #999;
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+
+.lore-filter-toggle:hover {
+  border-color: var(--color-primary);
+}
+
+.lore-filter-toggle.is-on {
+  border-color: var(--popup-border-lore, #9b59b6);
+  background: rgba(155, 89, 182, 0.25);
+}
+
+.lore-filter-toggle.is-on::before {
+  content: "✓";
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  line-height: 1;
+  border-color: var(--popup-border-lore, #9b59b6);
+  background: var(--popup-border-lore, #9b59b6);
   color: #ffffff;
 }
 
 .lore-filter-clear {
   padding: 3px 8px;
   font-size: 0.72em;
+  line-height: 1.5;
   border: 1px solid var(--surface-5);
   border-radius: 5px;
   background: transparent;
@@ -1550,13 +1654,13 @@ body.lore-picking #hexMap {
   cursor: pointer;
 }
 
-.lore-filter-clear:hover {
+.lore-filter-clear:hover:not(:disabled) {
   border-color: var(--color-accent);
 }
 
-.lore-filter-note {
-  font-size: 0.72em;
-  color: #888;
+.lore-filter-clear:disabled {
+  color: #666;
+  cursor: default;
 }
 
 

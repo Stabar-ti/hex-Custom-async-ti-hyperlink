@@ -7,7 +7,10 @@ import {
     getDisplayFooter, getEffectLines, getGate,
     retargetFooterReferences, parseEffectLine
 } from '../modules/Lore/loreEffects.js';
-import { normalizeLoreEntries, isNonEmptyLoreEntry, formatRoundWindow, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
+import {
+    normalizeLoreEntries, isNonEmptyLoreEntry, formatRoundWindow, LORE_PHASE_TARGETS,
+    LORE_RECEIVERS, LORE_RECEIVER_LABELS
+} from '../modules/Lore/loreCore.js';
 
 const PHASE_SHORT = { strategy: 'Str', action: 'Act', status: 'Sta', agenda: 'Agn' };
 // popup-pos- prefix: resetAllPopupPositions puts the filter strip back with the windows.
@@ -52,21 +55,37 @@ function mapFooterHost() {
 /**
  * What one marker stands for. A target can hold several entries, so the marker shows the
  * first entry's trigger and gate (the common case is one entry) plus a count, and flags
- * whether ANY entry is round-restricted or carries effects.
+ * whether ANY entry is round-restricted or carries effects. `facts` keeps each entry's own
+ * values for the filter, which has to match them entry by entry.
  */
 function summarizeEntries(entries) {
-    const first = entries[0] || {};
-    const gate = getGate(first.footerText || '').type;
+    const facts = entries.map(e => ({
+        trigger: e.trigger,
+        receiver: e.receiver,
+        gate: getGate(e.footerText || '').type,
+        hasRounds: e.fromRound > 0 || e.tillRound > 0,
+        hasEffects: getEffectLines(e.footerText || '').length > 0
+    }));
+    const first = facts[0] || {};
     return {
         count: entries.length,
         trigger: first.trigger,
-        gate,
-        triggers: entries.map(e => e.trigger),
-        receivers: entries.map(e => e.receiver),
-        hasRounds: entries.some(e => e.fromRound > 0 || e.tillRound > 0),
-        hasEffects: entries.some(e => getEffectLines(e.footerText || '').length > 0)
+        gate: first.gate,
+        facts,
+        hasRounds: facts.some(f => f.hasRounds),
+        hasEffects: facts.some(f => f.hasEffects)
     };
 }
+
+/** Filter groups, in strip order. `pick` groups hold one value; `toggles` combine freely. */
+const GATE_LEGEND = [
+    ['choice', '⚖', 'Only entries behind an Accept/Reject choice'],
+    ['roll',   '🎲', 'Only entries behind a dice roll']
+];
+const HAS_LEGEND = [
+    ['withEffects', '⚙', 'effects', 'Only entries that carry bot effects'],
+    ['withRounds',  '⏱', 'rounds',  'Only entries restricted to a round window']
+];
 
 /**
  * Tiles the entries act on, derived from their effect lines:
@@ -538,19 +557,21 @@ class LoreOverlay {
     }
 
     /**
-     * Show only markers matching the active filter. Filtering dims rather than deletes so the
-     * board's shape stays recognisable — a lore-heavy map is otherwise an undifferentiated
-     * field of icons you can't audit.
+     * Show only markers matching the active filter. A marker passes when ONE of its entries
+     * meets every criterion. Checked per criterion across all entries, "◎ activated + 🎲
+     * roll" matched a hex whose activated entry fired at once and whose roll belonged to a
+     * different, control entry — and the gate was read from the first entry only, so a roll
+     * on any later entry was never found.
      */
     passesFilter(summary) {
         const f = this._filter;
         if (!f) return true;
-        if (f.trigger && !summary.triggers.includes(f.trigger)) return false;
-        if (f.receiver && !summary.receivers.includes(f.receiver)) return false;
-        if (f.gate && summary.gate !== f.gate) return false;
-        if (f.withEffects && !summary.hasEffects) return false;
-        if (f.withRounds && !summary.hasRounds) return false;
-        return true;
+        return summary.facts.some(e =>
+            (!f.trigger || e.trigger === f.trigger) &&
+            (!f.receiver || e.receiver === f.receiver) &&
+            (!f.gate || e.gate === f.gate) &&
+            (!f.withEffects || e.hasEffects) &&
+            (!f.withRounds || e.hasRounds));
     }
 
     setFilter(filter) {
@@ -578,58 +599,96 @@ class LoreOverlay {
         const strip = host.querySelector('.lore-filter-body');
         strip.innerHTML = '';
 
+        // Three kinds of control, and each looks like what it does. An entry has exactly one
+        // trigger and at most one gate, so those are joined segments with one always lit
+        // ("Any" included) — picking another moves the light. Effects and a round window are
+        // independent facts, so they are separate checkbox pills that combine. They used to be
+        // one row of identical chips, which hid that ⚑ and ◎ replace each other while ⚙ and ⏱
+        // stack.
         const active = this._filter || {};
-        const chip = (label, title, isOn, onClick) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'lore-filter-chip' + (isOn ? ' is-on' : '');
-            btn.textContent = label;
-            btn.title = title;
-            btn.onclick = onClick;
-            strip.appendChild(btn);
-        };
-
-        const toggle = (key, value) => {
-            const next = { ...(this._filter || {}) };
-            if (next[key] === value) delete next[key];
+        const set = (key, value) => {
+            const next = { ...active };
+            if (value == null) delete next[key];
             else next[key] = value;
             this.setFilter(next);
         };
 
-        const heading = document.createElement('span');
-        heading.className = 'lore-filter-label';
-        heading.textContent = 'Lore:';
-        strip.appendChild(heading);
+        const group = (caption, title, className) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'lore-filter-group';
+            wrap.title = title;
+            const cap = document.createElement('span');
+            cap.className = 'lore-filter-caption';
+            cap.textContent = caption;
+            const controls = document.createElement('div');
+            controls.className = className;
+            wrap.append(cap, controls);
+            strip.appendChild(wrap);
+            return { controls, cap };
+        };
 
-        for (const [trigger, glyph, description] of TRIGGER_LEGEND) {
-            chip(glyph, description, active.trigger === trigger, () => toggle('trigger', trigger));
-        }
-        chip('⚖', 'Only entries behind an Accept/Reject choice',
-            active.gate === 'choice', () => toggle('gate', 'choice'));
-        chip('🎲', 'Only entries behind a dice roll',
-            active.gate === 'roll', () => toggle('gate', 'roll'));
-        chip('!', 'Only entries that carry bot effects',
-            !!active.withEffects, () => toggle('withEffects', true));
-        chip('⏱', 'Only entries restricted to a round window',
-            !!active.withRounds, () => toggle('withRounds', true));
-
-        if (Object.keys(active).length) {
-            const clear = document.createElement('button');
-            clear.type = 'button';
-            clear.className = 'lore-filter-clear';
-            clear.textContent = 'Clear';
-            clear.onclick = () => this.setFilter(null);
-            strip.appendChild(clear);
-
-            const hidden = this._countHiddenByFilter();
-            if (hidden) {
-                const note = document.createElement('span');
-                note.className = 'lore-filter-note';
-                note.textContent = `${hidden} hidden`;
-                strip.appendChild(note);
+        /** One-of-N: "Any" plus each option; exactly one is lit. */
+        const segmented = (caption, title, key, options) => {
+            const { controls } = group(caption, title, 'lore-filter-seg');
+            controls.setAttribute('role', 'radiogroup');
+            controls.setAttribute('aria-label', caption);
+            for (const [value, label, tip] of [[null, 'Any', `Any ${caption.toLowerCase()}`], ...options]) {
+                const on = (active[key] ?? null) === value;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'lore-filter-seg-btn' + (value == null ? ' is-any' : '') + (on ? ' is-on' : '');
+                btn.textContent = label;
+                btn.title = tip;
+                btn.setAttribute('role', 'radio');
+                btn.setAttribute('aria-checked', String(on));
+                btn.onclick = () => set(key, value);
+                controls.appendChild(btn);
             }
+        };
+
+        segmented('Trigger', 'Pick one trigger — every entry has exactly one', 'trigger',
+            TRIGGER_LEGEND);
+        segmented('Gate', 'Pick one gate — an entry is behind a choice, a roll, or neither', 'gate',
+            GATE_LEGEND);
+
+        // Also one per entry, but seven long names have no glyphs: a dropdown keeps it narrow.
+        const { controls: receiverWrap } = group('Receiver', 'Pick one receiver — who each entry is shown to', 'lore-filter-select-wrap');
+        const receiver = document.createElement('select');
+        receiver.className = 'lore-filter-select' + (active.receiver ? ' is-on' : '');
+        receiver.setAttribute('aria-label', 'Receiver');
+        for (const [value, label] of [['', 'Any'], ...LORE_RECEIVERS.map(r => [r, LORE_RECEIVER_LABELS[r] || r])]) {
+            receiver.add(new Option(label, value, false, (active.receiver || '') === value));
         }
-        // Clear and the hidden count widen it; keep the far edge inside the map.
+        receiver.onchange = () => set('receiver', receiver.value || null);
+        receiverWrap.appendChild(receiver);
+
+        const { controls: toggles } = group('Has', 'Turn on any mix — each narrows the result further', 'lore-filter-toggles');
+        for (const [key, glyph, label, tip] of HAS_LEGEND) {
+            const on = !!active[key];
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'lore-filter-toggle' + (on ? ' is-on' : '');
+            btn.textContent = `${glyph} ${label}`;
+            btn.title = tip;
+            btn.setAttribute('role', 'checkbox');
+            btn.setAttribute('aria-checked', String(on));
+            btn.onclick = () => set(key, on ? null : true);
+            toggles.appendChild(btn);
+        }
+
+        // Always there, so the strip doesn't jump when the first filter goes on; the hidden
+        // count rides in its caption.
+        const hidden = Object.keys(active).length ? this._countHiddenByFilter() : 0;
+        const { controls: reset, cap } = group('', 'Show every marker again', 'lore-filter-reset');
+        cap.textContent = hidden ? `${hidden} hidden` : ' ';
+        const clear = document.createElement('button');
+        clear.type = 'button';
+        clear.className = 'lore-filter-clear';
+        clear.textContent = 'Clear';
+        clear.disabled = !Object.keys(active).length;
+        clear.onclick = () => this.setFilter(null);
+        reset.appendChild(clear);
+        // The hidden count can widen it; keep the far edge inside the map.
         this._placeFilterStrip(host);
     }
 
