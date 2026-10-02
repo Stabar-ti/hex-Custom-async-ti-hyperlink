@@ -16,13 +16,14 @@
  *      and hands it to panning.
  *
  * Tools are disarmed by clicking the lit buttons rather than by calling setMode directly.
- * Each one owns its own turning-off — clearing an inspector panel, unregistering a map
+ * Each one owns its own turning-off — clearing a half-picked hex, unregistering a map
  * handler, putting a label back — and a bare setMode('none') would leave all of that
  * behind. This is the behaviour the Escape handler already had; it is shared now rather
  * than copied.
  */
 
 import { dismissGhost, isGhostArmed } from './pasteGhost.js';
+import { deactivateModes } from '../core/registry.js';
 
 /**
  * @param {any} editor
@@ -34,7 +35,10 @@ export function disarmAll(editor) {
         return 'ghost';
     }
 
-    const armed = document.querySelectorAll('.mode-button.active');
+    // Not a button marked data-launcher. It opens a panel of tools and is lit while one of
+    // them is armed, so pressing it would close the panel rather than put the tool down;
+    // the tool's own lit button is in the panel, and pressing that disarms it.
+    const armed = document.querySelectorAll('.mode-button.active:not([data-launcher])');
     if (armed.length) {
         armed.forEach(btn => /** @type {HTMLElement} */(btn).click());
     } else if (typeof editor?.setMode === 'function') {
@@ -42,5 +46,8 @@ export function disarmAll(editor) {
         // shortcut, or a button that has since been rebuilt.
         editor.setMode('none');
     }
+    // And every registered mode, for the tools whose armed state is not a lit button: the
+    // value hints show theirs in inline colours, so there was nothing above to press.
+    deactivateModes();
     return 'tools';
 }

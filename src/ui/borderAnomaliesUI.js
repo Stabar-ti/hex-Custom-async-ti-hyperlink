@@ -1,23 +1,16 @@
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js';
-import { provide, COMMANDS, registerMode, activateMode, deactivateMode } from '../core/registry.js';
-import { setInspectorTool, clearInspectorTool, isInspectorToolShowing } from './inspector.js';
-
-const MODE_BORDER_ANOMALIES = 'borderAnomalies';
+import { provide, COMMANDS } from '../core/registry.js';
+import { createToolPanel } from './toolPanel.js';
 import { loadBorderAnomalyTypes, getEnabledBorderAnomalyTypes, updateBorderAnomalyStyle, updateBorderAnomalyBidirectional } from '../constants/borderAnomalies.js';
 import { buildCoordIndex, neighborHex, sideBetween, oppositeSide } from '../utils/hexGrid.js';
 
-export function installBorderAnomaliesUI(editor) {
-    async function showBorderAnomaliesPopup() {
-        if (isInspectorToolShowing('Border Anomalies')) {
-            deactivateMode(MODE_BORDER_ANOMALIES);
-            editor.setMode('none');
-            return;
-        }
-        activateMode(MODE_BORDER_ANOMALIES);
-        if (document.getElementById('borderAnomaliesPopup')) return;
+const MODE_BORDER_ANOMALIES = 'borderAnomalies';
 
+export function installBorderAnomaliesUI(editor) {
+    // The panel's controls: a tool per enabled anomaly type, and Remove.
+    async function buildBorderAnomaliesPanel() {
         // Load border anomaly types
         await loadBorderAnomalyTypes();
         const allBorderTypes = await import('../constants/borderAnomalies.js').then(m => m.getBorderAnomalyTypes());
@@ -56,6 +49,7 @@ export function installBorderAnomaliesUI(editor) {
             const btn = document.createElement('button');
             btn.textContent = text;
             btn.className = 'mode-button border-anomaly-tool-btn';
+            btn.dataset.tool = '';
             btn.title = title;
             btn.style.margin = '0';
             btn.style.minWidth = '90px';
@@ -189,6 +183,7 @@ export function installBorderAnomaliesUI(editor) {
         const removeBtn = document.createElement('button');
         removeBtn.textContent = '🗑️ Remove All';
         removeBtn.className = 'mode-button border-anomaly-tool-btn remove-btn';
+        removeBtn.dataset.tool = '';
         removeBtn.title = 'Remove all border anomalies from selected hex';
         removeBtn.style.margin = '0';
         removeBtn.style.minWidth = '110px';
@@ -369,54 +364,54 @@ export function installBorderAnomaliesUI(editor) {
 
         settingsSection.appendChild(settingsBtn);
         content.appendChild(settingsSection);
-
-
-
-        // Reference text, so it stays a window you can leave open beside the map.
-        const showHelp = () => {
-            showPopup({
-                id: 'borderAnomaliesHelpPopup',
-                className: 'popup-ui popup-ui-info',
-                title: 'Border Anomaly Tools Help',
-                content:
-                    "<b>How to place border anomalies</b>:<br>" +
-                    "1. Click a primary hex, then click a neighboring hex to select the edge.<br>" +
-                    "2. Choose a type from the lists below. Icons indicate direction: ↔ Bidirectional (both sides), → Unidirectional (one side).<br>" +
-                    "3. <b>Scripted</b> types (Gravity Wave, Spatial Tear) apply game mechanics; <b>Not Scripted</b> types are visual only.<br>" +
-                    "4. To remove anomalies: click the <b>🗑️ Remove All</b> button (beside the Scripted types) then click the hex to clear anomalies.<br>" +
-                    "5. Use <b>⚙️ Border Settings</b> (at bottom) to enable/disable anomaly types and customize their appearance.<br>" +
-                    "<i>Tip:</i> The active type is highlighted. Switch modes using the buttons; cancel selection by choosing Remove All or another tool.",
-                draggable: true,
-                dragHandleSelector: '.popup-ui-titlebar',
-                scalable: true,
-                rememberPosition: true,
-                style: {
-                    // background intentionally omitted
-                    // color intentionally omitted
-                    border: '2px solid var(--popup-border-special)',
-                    borderRadius: '10px',
-                    boxShadow: '0 8px 40px #000a',
-                    minWidth: '340px',
-                    maxWidth: '800px',
-                    minHeight: '200px',
-                    maxHeight: '800px',
-                    padding: '24px'
-                }
-            });
-        };
-
-        const helpBtn = document.createElement('button');
-        helpBtn.type = 'button';
-        helpBtn.className = 'mode-button insp-tool__help';
-        helpBtn.textContent = '?';
-        helpBtn.title = 'How border anomalies work';
-        helpBtn.onclick = showHelp;
-        content.appendChild(helpBtn);
-
-        // Placing a border anomaly means clicking two neighbouring hexes to pick an edge.
-        // Doing that from a window sitting over those hexes was the awkward part.
-        setInspectorTool('Border Anomalies', content);
+        return content;
     }
+
+    // Reference text, so it stays a window you can leave open beside the map.
+    const showHelp = () => {
+        showPopup({
+            id: 'borderAnomaliesHelpPopup',
+            className: 'popup-ui popup-ui-info',
+            title: 'Border Anomaly Tools Help',
+            content:
+                "<b>How to place border anomalies</b>:<br>" +
+                "1. Click a primary hex, then click a neighboring hex to select the edge.<br>" +
+                "2. Choose a type from the lists below. Icons indicate direction: ↔ Bidirectional (both sides), → Unidirectional (one side).<br>" +
+                "3. <b>Scripted</b> types (Gravity Wave, Spatial Tear) apply game mechanics; <b>Not Scripted</b> types are visual only.<br>" +
+                "4. To remove anomalies: click the <b>🗑️ Remove All</b> button (beside the Scripted types) then click the hex to clear anomalies.<br>" +
+                "5. Use <b>⚙️ Border Settings</b> (at bottom) to enable/disable anomaly types and customize their appearance.<br>" +
+                "<i>Tip:</i> The active type is highlighted. Switch modes using the buttons; cancel selection by choosing Remove All or another tool.",
+            draggable: true,
+            dragHandleSelector: '.popup-ui-titlebar',
+            scalable: true,
+            rememberPosition: true,
+            style: {
+                // background intentionally omitted
+                // color intentionally omitted
+                border: '2px solid var(--popup-border-special)',
+                borderRadius: '10px',
+                boxShadow: '0 8px 40px #000a',
+                minWidth: '340px',
+                maxWidth: '800px',
+                minHeight: '200px',
+                maxHeight: '800px',
+                padding: '24px'
+            }
+        });
+    };
+
+    // Placing one means clicking two neighbouring hexes to pick an edge, so the panel opens
+    // beside the rail rather than over those hexes.
+    const borderAnomaliesPanel = createToolPanel({
+        id: 'borderAnomaliesPopup',
+        title: '⌗ Border Anomalies',
+        mode: MODE_BORDER_ANOMALIES,
+        launcherId: 'launchBorderAnomaliesPopup',
+        accent: 'var(--popup-border-special)',
+        width: '340px',
+        build: buildBorderAnomaliesPanel,
+        onHelp: showHelp,
+    });
 
     // --- Error popup utility using popupUI ---
     function showErrorPopup(message) {
@@ -746,10 +741,6 @@ export function installBorderAnomaliesUI(editor) {
         });
     }
 
-    registerMode(MODE_BORDER_ANOMALIES, {
-        deactivate: () => { if (isInspectorToolShowing('Border Anomalies')) clearInspectorTool(); },
-    });
-
-    provide(COMMANDS.showBorderAnomalies, showBorderAnomaliesPopup);
+    provide(COMMANDS.showBorderAnomalies, borderAnomaliesPanel.toggle);
     provide(COMMANDS.showBorderAnomalySettings, showBorderAnomalySettings);
 }

@@ -7,7 +7,7 @@
 import { wormholeTypes } from '../constants/constants.js';
 import { showPopup, togglePopup } from './popupUI.js';
 import { railButton, railGroupLabel, setRailLabel } from './kit/index.js';
-import { setInspectorTool, clearInspectorTool, isInspectorToolShowing } from './inspector.js';
+import { createToolPanel, armExclusively } from './toolPanel.js';
 import { HEX_SELECTED, selectedHexes } from '../features/hexSelection.js';
 import {
   CLIPBOARD_CHANGED, COPY_OPTIONS_CHANGED, activeClip, copyOptions, setCopyOption,
@@ -28,6 +28,14 @@ import {
 const MODE_LORE = 'lore';
 const MODE_TOKEN = 'token';
 const MODE_WORMHOLES = 'wormholes';
+const MODE_VALUE_HINTS = 'valueHints';
+
+/**
+ * Puts down whatever value hint the open Balance panel has armed; null while it is shut.
+ * The registry calls it, so right-click, Escape and arming any other tool reach it.
+ * @type {(() => void) | null}
+ */
+let disarmValueHints = null;
 
 // Where the rail's collapsed state is remembered between sessions.
 const RAIL_COLLAPSED_KEY = 'ti4-tool-rail-collapsed';
@@ -504,14 +512,17 @@ export function openBalancePopup(editor) {
       vtPreview.textContent = parts.length ? `Painting: ${parts.join('+')}` : 'Nothing selected';
       vtPreview.style.color = parts.length ? '#ffe066' : '#666';
       // Activate or deactivate painting mode
+      const wasActive = vtPaintActive;
       vtPaintActive = parts.length > 0;
       if (vtPaintActive) {
+        if (!wasActive) armExclusively(MODE_VALUE_HINTS);
         editor._valuePaintConfig = { tier: vt_tier, r: vt_R, i: vt_I, t: vt_T };
         editor.setMode('value-target-apply');
         setLauncherActive(true);
       } else {
         editor._valuePaintConfig = null;
         if (editor.mode === 'value-target-apply') editor.setMode('');
+        if (editor.mode !== 'value-target-clear') setLauncherActive(false);
       }
     }
 
@@ -549,8 +560,10 @@ export function openBalancePopup(editor) {
       { label:'I  Inf', color:'#7ecfff', get: ()=>vt_I, set: v=>{ vt_I=v; } },
       { label:'T  Tech',color:'#b07cff', get: ()=>vt_T, set: v=>{ vt_T=v; } },
     ];
+    const skewBtns = [];
     SKEW_CFG.forEach(({ label, color, get, set }) => {
       const btn = document.createElement('button');
+      skewBtns.push({ btn, color });
       btn.textContent  = label;
       btn.className    = 'mode-button';
       btn.title        = `Toggle preference for ${label.split(' ')[1]} — can combine with tier and other skews`;
@@ -571,6 +584,10 @@ export function openBalancePopup(editor) {
     vtClearBtn.title         = 'Remove all value hints from a hex (click hex after)';
     vtClearBtn.style.cssText = 'flex:0 0 54px;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid var(--surface-5);border-radius:4px;color:#aaa;cursor:pointer;';
     vtClearBtn.addEventListener('click', () => {
+      // A second press puts it down. It used to arm clear mode again, and right-click,
+      // which disarms by pressing what is lit, armed it instead of disarming it.
+      if (vtClearBtn.classList.contains('active')) { disarmValueHints?.(); return; }
+      armExclusively(MODE_VALUE_HINTS);
       // Activate clear mode regardless of config state
       amSection.querySelectorAll('.mode-button').forEach(b => {
         b.classList.remove('active');
@@ -590,6 +607,20 @@ export function openBalancePopup(editor) {
     vtPreview.style.cssText = 'font-size:0.8em;font-weight:bold;color:#666;';
     vtPreview.textContent   = 'Nothing selected';
     amSection.appendChild(vtPreview);
+
+    // Every way out comes here. The tier and skew buttons show their state in inline
+    // colours rather than .active, so right-click found nothing lit to press, and the rail
+    // button it did find closed the panel and left the paint mode armed behind it.
+    disarmValueHints = () => {
+      vt_tier = null; vt_R = false; vt_I = false; vt_T = false;
+      tierBtns.forEach((b, i) => { b.style.background = ''; b.style.color = TIER_COLORS[i]; });
+      skewBtns.forEach(({ btn, color }) => { btn.style.background = ''; btn.style.color = color; });
+      vtClearBtn.classList.remove('active');
+      vtClearBtn.style.background = '';
+      if (editor.mode === 'value-target-clear') editor.setMode('none');
+      updateVtPreview();
+      setLauncherActive(false);
+    };
 
     const amBtn = document.createElement('button');
     amBtn.textContent = '🤖 Open AutoMapper';
@@ -702,6 +733,7 @@ export function openBalancePopup(editor) {
 
   return showPopup({
     id: 'balancePopupModal',
+    onClose: () => { disarmValueHints?.(); disarmValueHints = null; },
     className: 'layout-options-popup',
     title: 'Balance',
     draggable: true,
@@ -748,55 +780,42 @@ function finishSectorControlsContent(editor, container) {
     text: 'Wormholes…',
     title: 'Place a wormhole',
   });
-  // A tool that owns the inspector is a mode like any other: arming something else has to
-  // take its panel down, or the inspector keeps showing controls for a tool that is no
-  // longer armed. Registering it means deactivateModes() does that for free.
-  registerMode(MODE_WORMHOLES, {
-    deactivate: () => {
-      if (isInspectorToolShowing('Wormholes')) clearInspectorTool();
-      wormholesBtn.classList.remove('active');
+  wormholesBtn.dataset.launcher = '';
+
+  // Fourteen wormhole types: pick one, then click hexes.
+  const wormholesPanel = createToolPanel({
+    id: 'wormholesPopup',
+    title: '◎ Wormholes',
+    mode: MODE_WORMHOLES,
+    launcherId: 'launchWormholesPopup',
+    width: '280px',
+    build: () => {
+      const grid = document.createElement('div');
+      grid.className = 'tool-panel__grid';
+
+      Object.entries(wormholeTypes).forEach(([type, { label, color }]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.className = 'mode-button btn-wormhole';
+        btn.dataset.tool = '';
+        btn.style.backgroundColor = color;
+        btn.addEventListener('click', () => {
+          const turningOff = btn.classList.contains('active');
+          grid.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));
+          if (turningOff) {
+            editor.setMode('none');
+            return;
+          }
+          btn.classList.add('active');
+          editor.setMode(type);
+        });
+        grid.appendChild(btn);
+      });
+      return grid;
     },
   });
-
-  wormholesBtn.onclick = () => {
-    // Pressing the tool again puts the inspector back to plain hex detail.
-    if (isInspectorToolShowing('Wormholes')) {
-      deactivateMode(MODE_WORMHOLES);
-      editor.setMode('none');
-      return;
-    }
-
-    container.querySelectorAll('.mode-button').forEach(btn => btn.classList.remove('active'));
-    activateMode(MODE_WORMHOLES);
-    wormholesBtn.classList.add('active');
-
-    // Fourteen wormhole types. These used to be a draggable window over the map, which is
-    // an awkward place for "pick one, then click hexes" — the thing you are aiming at is
-    // behind the thing you are picking from.
-    const grid = document.createElement('div');
-    grid.className = 'insp-tool__grid';
-
-    Object.entries(wormholeTypes).forEach(([type, { label, color }]) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = label;
-      btn.className = 'mode-button btn-wormhole insp-tool__btn';
-      btn.style.backgroundColor = color;
-      btn.addEventListener('click', () => {
-        const turningOff = btn.classList.contains('active');
-        grid.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));
-        if (turningOff) {
-          editor.setMode('none');
-          return;
-        }
-        btn.classList.add('active');
-        editor.setMode(type);
-      });
-      grid.appendChild(btn);
-    });
-
-    setInspectorTool('Wormholes', grid);
-  };
+  wormholesBtn.onclick = () => wormholesPanel.toggle();
   container.appendChild(wormholesBtn);
 
   // ───────────── Custom Links Modal Launcher ─────────────
@@ -806,19 +825,10 @@ function finishSectorControlsContent(editor, container) {
     text: 'Custom Links…',
     title: 'Manage custom adjacency links',
   });
-  customLinksBtn.onclick = (e) => {
-    // Clear active state from all buttons in the sector controls first
-    container.querySelectorAll('.mode-button').forEach(btn => {
-      btn.classList.remove('active');
-      btn.style.background = '';
-      btn.style.color = '';
-      btn.style.fontWeight = '';
-    });
-
-    deactivateModes();
-
-    invoke(COMMANDS.showCustomLinks);
-  };
+  customLinksBtn.dataset.launcher = '';
+  // Opens and closes the panel. It used to disarm every mode first, which took the panel
+  // down before the command could see it was showing — so pressing it again rebuilt it.
+  customLinksBtn.onclick = () => invoke(COMMANDS.showCustomLinks);
   container.appendChild(customLinksBtn);
 
   // ───────────── Border Anomalies Modal Launcher ─────────────
@@ -828,19 +838,10 @@ function finishSectorControlsContent(editor, container) {
     text: 'Border Anomalies…',
     title: 'Manage border anomalies',
   });
-  borderAnomaliesBtn.onclick = (e) => {
-    // Clear active state from all buttons in the sector controls first
-    container.querySelectorAll('.mode-button').forEach(btn => {
-      btn.classList.remove('active');
-      btn.style.background = '';
-      btn.style.color = '';
-      btn.style.fontWeight = '';
-    });
-
-    deactivateModes();
-
-    invoke(COMMANDS.showBorderAnomalies);
-  };
+  borderAnomaliesBtn.dataset.launcher = '';
+  // Opens and closes the panel. It used to disarm every mode first, which took the panel
+  // down before the command could see it was showing — so pressing it again rebuilt it.
+  borderAnomaliesBtn.onclick = () => invoke(COMMANDS.showBorderAnomalies);
   container.appendChild(borderAnomaliesBtn);
 
   // ───────────── Balance ─────────────
@@ -856,6 +857,9 @@ function finishSectorControlsContent(editor, container) {
     text: 'Value hints…',
     title: 'Paint V1–V5 and R/I/T targets, and weight the value overlay',
   });
+  // Lit while a value hint is armed, like the tool-panel launchers, and skipped by
+  // right-click for the same reason: pressing it closes the panel.
+  balanceBtn.dataset.launcher = '';
   balanceBtn.onclick = () => togglePopup('balancePopupModal', () => {
     deactivateModes();
     openBalancePopup(editor);
@@ -1042,6 +1046,7 @@ function finishSectorControlsContent(editor, container) {
 
   // Registered here rather than at module load, so that disarming either one can hand
   // the editor over the way every other tool in this panel does.
+  registerMode(MODE_VALUE_HINTS, { deactivate: () => disarmValueHints?.() });
   registerMode(MODE_LORE, { deactivate: () => deactivateLoreMode(editor) });
   registerMode(MODE_TOKEN, { deactivate: () => deactivateTokenMode(editor) });
 

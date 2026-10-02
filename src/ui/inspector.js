@@ -254,55 +254,6 @@ function placedTier(editor, label) {
     return tierCache.get(label)?.tier ?? null;
 }
 
-// ── The tool region ──────────────────────────────────────────────────────────
-/**
- * Tools render their controls into the top of the inspector rather than opening a window
- * over the map. Wormholes, Custom Links and Border Anomalies are all "pick an option, then
- * click hexes" — you need the map and the options visible at the same time, which is
- * exactly what a floating panel covering the map makes hard.
- *
- * The hex detail stays below it, so arming a wormhole and reading what is already on the
- * tile you are about to change are not two different views.
- */
-
-/** @returns {HTMLElement|null} */
-function toolHost() {
-    return document.getElementById('inspectorTool');
-}
-
-/**
- * Show a tool's controls in the inspector.
- *
- * @param {string} title
- * @param {HTMLElement} content
- * @returns {HTMLElement|null} the region, so callers can query their own controls back
- */
-export function setInspectorTool(title, content) {
-    const host = toolHost();
-    if (!host) return null;
-
-    host.textContent = '';
-    host.appendChild(el('div', { className: 'insp-tool__title', text: title }));
-    host.appendChild(content);
-    host.hidden = false;
-    return host;
-}
-
-/** Empty the tool region — the tool was disarmed, or another took over. */
-export function clearInspectorTool() {
-    const host = toolHost();
-    if (!host) return;
-    host.textContent = '';
-    host.hidden = true;
-}
-
-/** @param {string} title */
-export function isInspectorToolShowing(title) {
-    const host = toolHost();
-    if (!host || host.hidden) return false;
-    return host.querySelector('.insp-tool__title')?.textContent === title;
-}
-
 /**
  * Wire the inspector to an editor.
  *
@@ -318,10 +269,6 @@ export function installInspector(editor) {
 
     const title = el('div', { className: 'insp-title', text: 'Inspector' });
     const toolLine = field('Tool', 'none', 'insp-field--tool');
-
-    // Where an armed tool puts its controls. Empty and hidden until one does.
-    const toolRegion = el('div', { className: 'insp-tool', id: 'inspectorTool' });
-    toolRegion.hidden = true;
 
     const empty = el('div', {
         className: 'insp-empty',
@@ -340,7 +287,7 @@ export function installInspector(editor) {
     unpin.addEventListener('click', () => clearHexSelection(editor));
     pinned.append(pinnedText, unpin);
 
-    host.append(title, toolLine, pinned, toolRegion, body);
+    host.append(title, toolLine, pinned, body);
 
     const setTool = () => {
         const slot = toolLine.querySelector('.insp-field__value');
@@ -393,6 +340,9 @@ export function installInspector(editor) {
     // the same interactions that can change it.
     svg.addEventListener('click', () => setTimeout(setTool, 0));
     document.addEventListener('click', () => setTimeout(setTool, 0));
+    // Right-click disarms, and a tool that is not a lit button (a value hint) is disarmed
+    // without a click anywhere, so the line kept naming it.
+    document.addEventListener('contextmenu', () => setTimeout(setTool, 0));
     document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') setTimeout(setTool, 0); });
     document.addEventListener(DISTANCE_TOOL_CHANGED, setTool);
 }

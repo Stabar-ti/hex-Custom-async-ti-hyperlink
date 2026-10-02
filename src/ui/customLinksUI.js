@@ -1,24 +1,15 @@
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js';
-import { provide, COMMANDS, registerMode, activateMode, deactivateMode } from '../core/registry.js';
-import { setInspectorTool, clearInspectorTool, isInspectorToolShowing } from './inspector.js';
-
-const MODE_CUSTOM_LINKS = 'customLinks';
+import { provide, COMMANDS } from '../core/registry.js';
+import { createToolPanel } from './toolPanel.js';
 import { oppositeSide } from '../utils/hexGrid.js';
 
-export function installCustomLinksUI(editor) {
-    // --- Main Custom Links popup using PopupUI ---
-    function showCustomLinksPopup() {
-        if (isInspectorToolShowing('Custom Links')) {
-            deactivateMode(MODE_CUSTOM_LINKS);
-            editor.setMode('none');
-            return;
-        }
-        activateMode(MODE_CUSTOM_LINKS);
-        // Only one instance
-        if (document.getElementById('customLinksPopup')) return;
+const MODE_CUSTOM_LINKS = 'customLinks';
 
+export function installCustomLinksUI(editor) {
+    // The panel's controls: four tools that each arm a map mode.
+    function buildCustomLinksPanel() {
         // Build content
         const content = document.createElement('div');
         // Tool label
@@ -51,6 +42,7 @@ export function installCustomLinksUI(editor) {
             const btn = document.createElement('button');
             btn.textContent = text;
             btn.className = 'mode-button';
+            btn.dataset.tool = '';
             btn.title = title;
             btn.style.margin = '2px 4px 2px 0';
             btn.onclick = () => {
@@ -87,48 +79,48 @@ export function installCustomLinksUI(editor) {
         btnRow.appendChild(toolBtn('Adj Override', 'custom-adj-override', '3 clicks: PRIMARY, DIRECTION, SECONDARY'));
         btnRow.appendChild(toolBtn('Remove Links', 'custom-adj-remove', 'Click hex to remove its custom links'));
         content.appendChild(btnRow);
-
-        // Reference text, so it stays a window you can leave open beside the map.
-        const showHelp = () => {
-            showPopup({
-                id: 'customLinksHelpPopup',
-                title: 'Custom Link Tools Help',
-                content:
-                    "Single Link: Click two hexes to create a dark yellow one-way link. (No labels)<br>" +
-                    "Double Link: Click two hexes for a blue bidirectional link. (No labels)<br>" +
-                    "Adj Override: Click PRIMARY hex, then a DIRECTION hex (neighbor), then SECONDARY hex. This draws a magenta label on the PRIMARY hex (edge facing DIRECTION, showing SECONDARY label) and on the SECONDARY hex (opposite edge, showing PRIMARY label). No lines.<br>" +
-                    "Remove: Click a hex to remove ALL its custom links and overrides.",
-                draggable: true,
-                dragHandleSelector: '.popup-ui-titlebar',
-                scalable: true,
-                rememberPosition: true,
-                style: {
-                    //       background: '#222',
-                    color: '#fff',
-                    border: '2px solid var(--popup-border-special)',
-                    borderRadius: '10px',
-                    boxShadow: '0 8px 40px #000a',
-                    minWidth: '340px',
-                    maxWidth: '800px',
-                    minHeight: '200px',
-                    maxHeight: '800px',
-                    padding: '24px'
-                }
-            });
-        };
-
-        const helpBtn = document.createElement('button');
-        helpBtn.type = 'button';
-        helpBtn.className = 'mode-button insp-tool__help';
-        helpBtn.textContent = '?';
-        helpBtn.title = 'How custom links work';
-        helpBtn.onclick = showHelp;
-        content.appendChild(helpBtn);
-
-        // Into the inspector rather than a window over the map: these are "pick a tool,
-        // then click hexes" controls, and the hexes you are aiming at were behind them.
-        setInspectorTool('Custom Links', content);
+        return content;
     }
+
+    // Reference text, so it stays a window you can leave open beside the map.
+    const showHelp = () => {
+        showPopup({
+            id: 'customLinksHelpPopup',
+            title: 'Custom Link Tools Help',
+            content:
+                "Single Link: Click two hexes to create a dark yellow one-way link. (No labels)<br>" +
+                "Double Link: Click two hexes for a blue bidirectional link. (No labels)<br>" +
+                "Adj Override: Click PRIMARY hex, then a DIRECTION hex (neighbor), then SECONDARY hex. This draws a magenta label on the PRIMARY hex (edge facing DIRECTION, showing SECONDARY label) and on the SECONDARY hex (opposite edge, showing PRIMARY label). No lines.<br>" +
+                "Remove: Click a hex to remove ALL its custom links and overrides.",
+            draggable: true,
+            dragHandleSelector: '.popup-ui-titlebar',
+            scalable: true,
+            rememberPosition: true,
+            style: {
+                //       background: '#222',
+                color: '#fff',
+                border: '2px solid var(--popup-border-special)',
+                borderRadius: '10px',
+                boxShadow: '0 8px 40px #000a',
+                minWidth: '340px',
+                maxWidth: '800px',
+                minHeight: '200px',
+                maxHeight: '800px',
+                padding: '24px'
+            }
+        });
+    };
+
+    const customLinksPanel = createToolPanel({
+        id: 'customLinksPopup',
+        title: '⇄ Custom Links',
+        mode: MODE_CUSTOM_LINKS,
+        launcherId: 'launchCustomLinksPopup',
+        accent: 'var(--popup-border-special)',
+        width: '320px',
+        build: buildCustomLinksPanel,
+        onHelp: showHelp,
+    });
 
     // --- Custom link warning popup utility ---
     function showCustomLinkWarning(confirmCallback, cancelCallback) {
@@ -422,10 +414,5 @@ export function installCustomLinksUI(editor) {
     // Expose redraw method
     editor.redrawCustomAdjacencyOverlay = () => drawCustomAdjacencyLayer(editor);
 
-    // So that arming any other tool takes this panel out of the inspector.
-    registerMode(MODE_CUSTOM_LINKS, {
-        deactivate: () => { if (isInspectorToolShowing('Custom Links')) clearInspectorTool(); },
-    });
-
-    provide(COMMANDS.showCustomLinks, showCustomLinksPopup);
+    provide(COMMANDS.showCustomLinks, customLinksPanel.toggle);
 }
