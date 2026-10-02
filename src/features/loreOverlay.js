@@ -10,6 +10,44 @@ import {
 import { normalizeLoreEntries, isNonEmptyLoreEntry, formatRoundWindow, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
 
 const PHASE_SHORT = { strategy: 'Str', action: 'Act', status: 'Sta', agenda: 'Agn' };
+// popup-pos- prefix: resetAllPopupPositions puts the filter strip back with the windows.
+const FILTER_STRIP_POS_KEY = 'popup-pos-lore-filter-strip';
+const FILTER_STRIP_MARGIN = 12;   // px kept clear of the map area's edges
+
+/**
+ * Where the overlay's floating controls live: #mapArea, so they sit over the map and never
+ * over the tool rail or the inspector, as window-fixed corners did.
+ */
+function mapAreaHost() {
+    return document.getElementById('mapArea') || document.body;
+}
+
+/**
+ * A row along the map's bottom edge for the phase banner (left) and the clipboard badge
+ * (centred in what's left). Positioned separately, the two overlapped on a narrow map;
+ * in one wrapping row the badge moves up a line instead.
+ */
+function mapFooterHost() {
+    let footer = document.getElementById('lore-map-footer');
+    if (!footer) {
+        footer = document.createElement('div');
+        footer.id = 'lore-map-footer';
+        Object.assign(footer.style, {
+            position:      'absolute',
+            left:          '12px',
+            right:         '12px',
+            bottom:        '12px',
+            display:       'flex',
+            flexWrap:      'wrap-reverse',
+            alignItems:    'flex-end',
+            gap:           '8px',
+            zIndex:        'var(--layer-floating)',
+            pointerEvents: 'none',
+        });
+        mapAreaHost().appendChild(footer);
+    }
+    return footer;
+}
 
 /**
  * What one marker stands for. A target can hold several entries, so the marker shows the
@@ -73,6 +111,8 @@ class LoreOverlay {
         this._focus = null;            // target ref the editor/user is looking at
         this._hover = null;            // target ref under the cursor
         this._filter = null;           // {trigger?, receiver?, gate?, withEffects?, withRounds?}
+        this._stripPos = null;         // filter strip offset in #mapArea once dragged; null = corner
+        this._stripObserver = null;    // keeps the strip inside #mapArea as it resizes
     }
 
     initialize() {
@@ -530,18 +570,12 @@ class LoreOverlay {
      * save file.
      */
     _updateFilterStrip() {
-        let strip = document.getElementById('lore-filter-strip');
-
         if (!this.isActive) {
-            if (strip) strip.remove();
+            this._removeFilterStrip();
             return;
         }
-        if (!strip) {
-            strip = document.createElement('div');
-            strip.id = 'lore-filter-strip';
-            strip.className = 'lore-filter-strip';
-            document.body.appendChild(strip);
-        }
+        const host = this._getOrCreateFilterStrip();
+        const strip = host.querySelector('.lore-filter-body');
         strip.innerHTML = '';
 
         const active = this._filter || {};
@@ -595,6 +629,106 @@ class LoreOverlay {
                 strip.appendChild(note);
             }
         }
+        // Clear and the hidden count widen it; keep the far edge inside the map.
+        this._placeFilterStrip(host);
+    }
+
+    /**
+     * The strip lives inside #mapArea, so it can only ever sit over the map — never over the
+     * tool rail or the inspector, which is where a fixed top-right corner put it. A grip on
+     * its left edge drags it; where it was left is remembered, as an offset from the map's
+     * top-left, and pulled back inside whenever the map shrinks (a panel widened, the
+     * window resized).
+     */
+    _getOrCreateFilterStrip() {
+        let strip = document.getElementById('lore-filter-strip');
+        if (strip) return strip;
+
+        const area = mapAreaHost();
+        strip = document.createElement('div');
+        strip.id = 'lore-filter-strip';
+        strip.className = 'lore-filter-strip';
+
+        const grip = document.createElement('span');
+        grip.className = 'lore-filter-grip';
+        grip.textContent = '⠿';
+        grip.title = 'Drag to move · double-click to put back';
+        strip.appendChild(grip);
+
+        const body = document.createElement('div');
+        body.className = 'lore-filter-body';
+        strip.appendChild(body);
+        area.appendChild(strip);
+
+        try {
+            const saved = JSON.parse(localStorage.getItem(FILTER_STRIP_POS_KEY) || 'null');
+            if (saved) this._stripPos = { left: saved.left, top: saved.top };
+        } catch { /* private mode, or a bad value — fall back to the corner */ }
+
+        grip.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            grip.setPointerCapture(e.pointerId);
+            strip.classList.add('is-dragging');
+            const start = { x: e.clientX, y: e.clientY, left: strip.offsetLeft, top: strip.offsetTop };
+
+            const move = (ev) => {
+                this._stripPos = {
+                    left: start.left + ev.clientX - start.x,
+                    top:  start.top  + ev.clientY - start.y
+                };
+                this._placeFilterStrip(strip);
+            };
+            const end = () => {
+                grip.removeEventListener('pointermove', move);
+                grip.removeEventListener('pointerup', end);
+                grip.removeEventListener('pointercancel', end);
+                strip.classList.remove('is-dragging');
+                // Where it visibly landed, not where the pointer overshot the map's edge.
+                this._stripPos = { left: strip.offsetLeft, top: strip.offsetTop };
+                try {
+                    localStorage.setItem(FILTER_STRIP_POS_KEY, JSON.stringify(this._stripPos));
+                } catch { /* not remembered, still moved */ }
+            };
+            grip.addEventListener('pointermove', move);
+            grip.addEventListener('pointerup', end);
+            grip.addEventListener('pointercancel', end);
+        });
+
+        grip.addEventListener('dblclick', () => {
+            this._stripPos = null;
+            try { localStorage.removeItem(FILTER_STRIP_POS_KEY); } catch { /* ignore */ }
+            this._placeFilterStrip(strip);
+        });
+
+        if (area !== document.body && typeof ResizeObserver !== 'undefined') {
+            this._stripObserver = new ResizeObserver(() => this._placeFilterStrip(strip));
+            this._stripObserver.observe(area);
+        }
+        return strip;
+    }
+
+    /** Apply the remembered offset (or the default corner), clamped inside the map area. */
+    _placeFilterStrip(strip) {
+        const area = strip.parentElement;
+        if (!area) return;
+        const margin = FILTER_STRIP_MARGIN;
+        const pos = this._stripPos || { left: margin, top: margin };
+        // Measure at the corner: near the far edge it would shrink to fit and wrap, rather
+        // than reporting the width it needs to slide back by.
+        strip.style.left = margin + 'px';
+        strip.style.top = margin + 'px';
+        const maxLeft = Math.max(margin, area.clientWidth  - strip.offsetWidth  - margin);
+        const maxTop  = Math.max(margin, area.clientHeight - strip.offsetHeight - margin);
+        strip.style.left = Math.round(Math.min(Math.max(pos.left, margin), maxLeft)) + 'px';
+        strip.style.top  = Math.round(Math.min(Math.max(pos.top,  margin), maxTop))  + 'px';
+    }
+
+    _removeFilterStrip() {
+        this._stripObserver?.disconnect();
+        this._stripObserver = null;
+        document.getElementById('lore-filter-strip')?.remove();
     }
 
     _countHiddenByFilter() {
@@ -718,13 +852,15 @@ class LoreOverlay {
         document.getElementById('lore-clipboard-badge')?.remove();
         document.getElementById('lore-planet-picker')?.remove();
         document.getElementById('lore-phase-banner')?.remove();
+        document.getElementById('lore-map-footer')?.remove();
+        this._removeFilterStrip();
         this.isActive = false;
     }
 
     // ── Phase lore banner ─────────────────────────────────────────
 
-    /** Phase lore isn't hex-bound, so while the overlay is on it shows as a fixed corner
-     *  chip like "📜 Phase lore: Str(2) Sta(1)" — clicking opens the Lore popup on that list. */
+    /** Phase lore isn't hex-bound, so while the overlay is on it shows in the map's
+     *  bottom-left corner as a chip like "📜 Phase lore: Str(2) Sta(1)" — clicking opens the Lore popup on that list. */
     _updatePhaseBanner() {
         let banner = document.getElementById('lore-phase-banner');
         const counts = [];
@@ -743,22 +879,23 @@ class LoreOverlay {
             banner = document.createElement('div');
             banner.id = 'lore-phase-banner';
             Object.assign(banner.style, {
-                position:      'fixed',
-                bottom:        '24px',
-                left:          '24px',
+                order:         '0',
+                maxWidth:      '100%',
+                pointerEvents: 'auto',
+                overflow:      'hidden',
+                textOverflow:  'ellipsis',
                 padding:       '5px 14px',
                 background:    '#1c1c2e',
                 color:         '#ccc',
                 border:        '1px solid #9b59b6',
                 borderRadius:  '20px',
                 fontSize:      '12px',
-                zIndex:        'var(--layer-floating)',
                 cursor:        'pointer',
                 boxShadow:     '0 2px 10px rgba(0,0,0,0.6)',
                 whiteSpace:    'nowrap',
             });
             banner.title = 'Lore attached to game phases (strategy/action/status/agenda). Click to open.';
-            document.body.appendChild(banner);
+            mapFooterHost().appendChild(banner);
         }
         banner.textContent = '📜 Phase lore: ' + counts.map(([p, n]) => `${PHASE_SHORT[p]}(${n})`).join(' ');
         banner.style.display = 'block';
@@ -933,22 +1070,22 @@ class LoreOverlay {
             badge = document.createElement('div');
             badge.id = 'lore-clipboard-badge';
             Object.assign(badge.style, {
-                position:      'fixed',
-                bottom:        '24px',
-                left:          '50%',
-                transform:     'translateX(-50%)',
+                order:         '1',
+                margin:        '0 auto',
+                maxWidth:      '100%',
+                overflow:      'hidden',
+                textOverflow:  'ellipsis',
                 padding:       '5px 16px',
                 background:    '#1c1c2e',
                 color:         '#ccc',
                 border:        '1px solid #9b59b6',
                 borderRadius:  '20px',
                 fontSize:      '12px',
-                zIndex:        'var(--layer-floating)',
                 pointerEvents: 'none',
                 boxShadow:     '0 2px 10px rgba(0,0,0,0.6)',
                 whiteSpace:    'nowrap',
             });
-            document.body.appendChild(badge);
+            mapFooterHost().appendChild(badge);
         }
         const typeLabel = this._clipboard.type === 'system' ? 'System Lore' : 'Planet Lore';
         badge.textContent = overrideText ||

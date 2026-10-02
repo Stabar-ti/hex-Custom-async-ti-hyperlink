@@ -1460,22 +1460,55 @@ body.lore-picking #hexMap {
   pointer-events: none;
 }
 
-/* Lore filter strip — isolate markers by trigger, gate, effects or round window */
+/* Lore filter strip — isolate markers by trigger, gate, effects or round window.
+   A child of #mapArea, so it stays over the map; left/top are set by loreOverlay.js. */
 .lore-filter-strip {
-  position: fixed;
-  top: 70px;
-  right: 16px;
+  position: absolute;
+  top: 12px;
+  left: 12px;
   z-index: var(--layer-floating);
   display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-  max-width: 320px;
-  padding: 5px 8px;
+  align-items: stretch;
+  gap: 6px;
+  max-width: min(440px, calc(100% - 24px));
+  padding: 5px 8px 5px 4px;
   border-radius: 8px;
   border: 1px solid var(--popup-border-lore, #9b59b6);
   background: rgba(30, 30, 30, 0.92);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.lore-filter-strip.is-dragging {
+  opacity: 0.85;
+  user-select: none;
+}
+
+.lore-filter-grip {
+  display: flex;
+  align-items: center;
+  padding: 0 3px;
+  border-radius: 4px;
+  color: #888;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.lore-filter-grip:hover {
+  color: var(--text-color);
+  background: var(--surface-3);
+}
+
+.lore-filter-strip.is-dragging .lore-filter-grip {
+  cursor: grabbing;
+}
+
+.lore-filter-body {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .lore-filter-label {

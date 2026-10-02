@@ -1456,6 +1456,11 @@ function showLoreHelp() {
                     the full tooltip (every entry, with per-entry Copy); Ctrl+click a hex pastes the clipboard onto it.
                     Phase lore shows as a corner banner while the overlay is on.
                 </p>
+                <p style="margin-top:0">
+                    While the overlay is on, the <strong>Lore filter strip</strong> over the map shows only the
+                    markers you ask for — by trigger, Accept/Reject, dice roll, bot effects or round window.
+                    Drag it by its <strong>⠿</strong> grip; double-click the grip to put it back in the corner.
+                </p>
 
                 <h4 style="color:#9b59b6">Export / Import</h4>
                 <p style="margin-top:0">
