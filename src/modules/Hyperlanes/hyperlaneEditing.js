@@ -30,9 +30,10 @@
 
 import * as state from './hyperlaneState.js';
 import {
-    dirIndexBetween, resolveSegment, roundaboutSides, sameMatrix,
+    dirIndexBetween, resolveSegment, roundaboutSides, sameMatrix, sidesReachedFrom,
     withLaneDrawn, withLaneErased, withRoundabout
 } from './hyperlaneModel.js';
+import { buildCoordIndex, neighborHex } from '../../utils/hexGrid.js';
 import { renderHex, clearHex } from './hyperlaneRender.js';
 
 /**
@@ -226,6 +227,34 @@ export function roundaboutAtHead(editor) {
     const hex = editor.hexes[label];
     if (!hex?.matrix) return;
     applyMatrix(editor, label, withRoundabout(hex.matrix, [side]));
+}
+
+/**
+ * What a roundabout put on this tile from outside a gesture (the tile context menu) would
+ * be: one that takes in every lane already on the tile and every lane on a neighbouring
+ * tile that runs into it. Only this tile's matrix is written, so those neighbouring lanes
+ * stay exactly as they are and simply arrive at the roundabout — the same as the ○ button
+ * does for the one lane being drawn.
+ *
+ * @returns {{ next: number[][] | null, sides: number[], changed: boolean }}
+ *   `sides` are the roundabout's members; empty when no lane touches the tile at all
+ */
+export function roundaboutPlan(editor, label) {
+    const hex = editor.hexes[label];
+    if (!hex?.matrix) return { next: null, sides: [], changed: false };
+    const index = buildCoordIndex(editor.hexes);
+    const neighbours = [0, 1, 2, 3, 4, 5].map(s => neighborHex(editor.hexes, index, hex, s)?.matrix ?? null);
+    const next = withRoundabout(hex.matrix, sidesReachedFrom(neighbours));
+    const sides = roundaboutSides(next);
+    return { next, sides, changed: sides.length > 0 && !sameMatrix(hex.matrix, next) };
+}
+
+/** Puts that roundabout down as one undo step. Returns whether anything changed. */
+export function placeRoundabout(editor, label) {
+    const plan = roundaboutPlan(editor, label);
+    if (!plan.changed || !plan.next) return false;
+    applyMatrix(editor, label, plan.next);
+    return true;
 }
 
 /**

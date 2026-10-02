@@ -20,7 +20,7 @@ import {
     segments, segmentKey,
     areNeighbors, dirIndexBetween, resolveSegment,
     roundaboutSides, hasRoundabout, withRoundabout, withLaneDrawn, withLaneErased, sameMatrix, drawPlan,
-    matrixToHex, hexToMatrix, hasLinks, isMatrixEmpty
+    matrixToHex, hexToMatrix, hasLinks, isMatrixEmpty, touchesSide, sidesReachedFrom
 } from '../src/modules/Hyperlanes/hyperlaneModel.js';
 
 import {
@@ -32,7 +32,7 @@ import { hexPoints } from '../src/utils/hexGeometry.js';
 // Safe under node: the indicator only touches the DOM inside its functions.
 import { activeLabel } from '../src/modules/Hyperlanes/hyperlaneIndicator.js';
 import {
-    selectHex, finishLane, roundaboutAtHead, headIsOnRoundabout
+    selectHex, finishLane, roundaboutAtHead, headIsOnRoundabout, roundaboutPlan, placeRoundabout
 } from '../src/modules/Hyperlanes/hyperlaneEditing.js';
 
 let passed = 0;
@@ -769,6 +769,50 @@ const round = (n) => Math.round(n * 1e6) / 1e6;
     check('no hex stays highlighted once a lane is drawn', lit.length === 0, lit.join(','));
     finishLane(editor);
     store.__resetForTest();
+}
+
+// ── 16. A roundabout from the tile menu ───────────────────────────────────────
+//
+// Outside a gesture there is no "lane coming in" to join, so the roundabout takes every
+// lane already on the tile plus every lane on a neighbour that runs into it — and writes
+// only this tile, so those neighbouring lanes are left exactly as they were.
+
+{
+    const lane = (a, b) => withLink(withLink(emptyMatrix(), a, b), b, a);
+    check('touchesSide sees either end of a link', touchesSide(lane(1, 4), 1) && touchesSide(lane(1, 4), 4));
+    check('touchesSide ignores other sides', !touchesSide(lane(1, 4), 0));
+    check('touchesSide tolerates a missing matrix', !touchesSide(null, 0));
+
+    // Neighbour across side 1 has a lane on its side 4 — the shared edge — so it reaches in.
+    // Neighbour across side 3 has a lane, but along its sides 2↔5, not onto side 0.
+    const neighbours = [null, lane(4, 1), null, lane(2, 5), null, null];
+    check('sidesReachedFrom finds lanes on the shared edge only', eq(sidesReachedFrom(neighbours), [1]));
+
+    const hexes = {};
+    for (const [label, c] of Object.entries(coords)) {
+        hexes[label] = { label, q: c.q, r: c.r, matrix: emptyMatrix(), polygon: null };
+    }
+    let snapshots = 0;
+    const editor = { hexes, saveState() { snapshots++; } };
+
+    let plan = roundaboutPlan(editor, 'C');
+    check('no lane anywhere: nothing to make a roundabout of', plan.sides.length === 0 && !plan.changed);
+    check('…and placing one writes nothing', !placeRoundabout(editor, 'C') && snapshots === 0);
+
+    hexes.N1.matrix = lane(4, 0);   // N1's side 4 faces C's side 1
+    hexes.N4.matrix = lane(1, 3);   // N4's side 1 faces C's side 4
+    hexes.C.matrix = lane(0, 3);    // and a lane already across C
+    const n1Before = JSON.stringify(hexes.N1.matrix);
+    const n4Before = JSON.stringify(hexes.N4.matrix);
+
+    plan = roundaboutPlan(editor, 'C');
+    check('the plan joins its own lane and both lanes reaching in', eq(plan.sides, [0, 1, 3, 4]), JSON.stringify(plan.sides));
+    check('placeRoundabout writes it', placeRoundabout(editor, 'C') && eq(roundaboutSides(hexes.C.matrix), [0, 1, 3, 4]));
+    check('it is one undo step', snapshots === 1, `${snapshots}`);
+    check('neighbouring lanes are untouched',
+        JSON.stringify(hexes.N1.matrix) === n1Before && JSON.stringify(hexes.N4.matrix) === n4Before);
+    check('a second time there is nothing to change', !roundaboutPlan(editor, 'C').changed);
+    check('…and nothing is recorded', !placeRoundabout(editor, 'C') && snapshots === 1);
 }
 
 // ── Report ────────────────────────────────────────────────────────────────────

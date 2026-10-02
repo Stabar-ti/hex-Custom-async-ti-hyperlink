@@ -46,6 +46,7 @@ export const SHORTCUTS = [
             { combos: ['Mod+Z'], does: 'Undo' },
             { combos: ['Mod+Shift+Z'], does: 'Redo' },
             { combos: ['Esc', 'RightClick'], does: 'Clear cursor/Disarm tool' },
+            { combos: ['RightClick'], does: 'With no tool armed: tile menu — wormholes, border anomalies, hyperlane, lore' },
             { combos: ['Hover+Shift+R'], does: 'Clear everything from the hex under the cursor', hint: 'clear', hintCombo: 'Shift+R' },
             { combos: ['?'], does: 'Show this list' },
         ],
@@ -106,7 +107,19 @@ export const SHORTCUTS = [
             'A roundabout joins every lane that reaches its tile: a ship coming in by one can leave by any of them.',
             'A lane drawn across a roundabout joins it at both ends instead of crossing it.',
             'Right-click and Esc drop the lane too, but they also disarm the tool.',
+            'From the tile menu (right-click, no tool armed): Hyperlane ▸ Start here arms the tool on that tile; Place roundabout joins every lane on it and every lane running into it, leaving the neighbouring tiles as they are.',
         ],
+    },
+    {
+        id: 'tilemenu', title: 'Tile menu', icon: '☰',
+        items: [
+            { combos: ['RightClick'], does: 'Open it on the tile under the cursor — only when no tool is armed; otherwise right-click disarms first' },
+            { combos: ['Click'], does: 'Wormholes ▸ toggles a type on the tile. ✓ marks the ones there; the system’s own are greyed' },
+            { combos: ['Click'], does: 'Border anomalies ▸ a type, then click the neighbour whose edge it goes on' },
+            { combos: ['Click'], does: 'Lore ▸ opens the lore editor on the system or one of its planets' },
+            { combos: ['Esc', 'RightClick'], does: 'Close the menu, or cancel the pick-a-neighbour step' },
+        ],
+        notes: ['Arrow keys move through the menu; → or Enter opens a submenu, ← goes back.'],
     },
 ];
 

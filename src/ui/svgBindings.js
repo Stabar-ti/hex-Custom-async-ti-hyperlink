@@ -10,7 +10,8 @@
 import { clearDistanceOverlays } from '../features/baseOverlays.js';
 import { toggleDistancesFrom } from '../features/distanceTool.js';
 import { startSwapMode, isSwapModeActive } from '../features/tileSwap.js';
-import { disarmAll } from '../features/disarm.js';
+import { disarmAll, isAnythingArmed } from '../features/disarm.js';
+import { openHexContextMenu } from '../features/hexContextMenu.js';
 import { isSelectMode, beginSelectionStroke } from '../features/hexSelection.js';
 import { isGhostArmed } from '../features/pasteGhost.js';
 import { activeMode } from '../core/registry.js';
@@ -90,6 +91,11 @@ export function bindSvgHandlers(editor) {
       // The same path as the rail's Distance tool, so both explain an empty answer.
       const label = hexLabelAt(e.clientX, e.clientY);
       if (label) toggleDistancesFrom(editor, label);
+    } else if (!isAnythingArmed(editor)) {
+      // Nothing to put down: right-click on a tile opens the tile menu. Only when nothing
+      // is armed, so right-click never stops meaning "put the tool down" while one is up.
+      const label = hexLabelAt(e.clientX, e.clientY);
+      if (label) openHexContextMenu(editor, label, e.clientX, e.clientY);
     } else {
       // Otherwise right-click means "put everything down": the paste ghost if one is up,
       // else every armed tool — which returns the map to select mode and to panning.

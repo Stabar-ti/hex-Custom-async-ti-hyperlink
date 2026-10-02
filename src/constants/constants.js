@@ -183,6 +183,9 @@ export const SVG_LAYER_ORDER = [
   // Transient "what will the next click do" cue for hyperlane drawing. Topmost on purpose:
   // it is only on screen mid-gesture, and it is useless if an overlay covers it.
   'hyperlane-indicator-layer',
+  // The tile menu's "click an adjacent tile" step: the tile, its neighbours and the edge
+  // under the pointer. Same reasoning — only up mid-step, and no use if covered.
+  'tile-pick-layer',
   // A distance reading is the answer to a question you just asked, so nothing covers it.
   // Escape clears it.
   'distanceLayer'

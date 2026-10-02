@@ -1,10 +1,9 @@
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
-import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js';
 import { provide, COMMANDS } from '../core/registry.js';
 import { createToolPanel } from './toolPanel.js';
 import { loadBorderAnomalyTypes, getEnabledBorderAnomalyTypes, updateBorderAnomalyStyle, updateBorderAnomalyBidirectional } from '../constants/borderAnomalies.js';
-import { buildCoordIndex, neighborHex, sideBetween, oppositeSide } from '../utils/hexGrid.js';
+import { placeBorderAnomaly, removeBorderAnomalies } from '../features/borderAnomalyPlacement.js';
 
 const MODE_BORDER_ANOMALIES = 'borderAnomalies';
 
@@ -451,114 +450,38 @@ export function installBorderAnomaliesUI(editor) {
     const oldClickHandler = editor._onHexClick;
 
     editor._onHexClick = function (e, label) {
-        // Add border anomaly (bidirectional)
-        if (this.mode === 'border-anomaly-double') {
-            if (!this._pendingBorderAnomaly) {
+        // Add a border anomaly: the first click picks the tile it belongs to, the second a
+        // neighbour across the edge. The writing itself is shared with the tile context menu
+        // (features/borderAnomalyPlacement.js).
+        if (this.mode === 'border-anomaly-double' || this.mode === 'border-anomaly-single') {
+            const pending = this._pendingBorderAnomaly;
+            if (!pending) {
                 this._pendingBorderAnomaly = label;
                 this.hexes[label].polygon.classList.add('selected');
-            } else if (this._pendingBorderAnomaly && this._pendingBorderAnomaly !== label) {
-                const primary = this._pendingBorderAnomaly, secondary = label;
-                const anomalyTypeId = this._selectedAnomalyType || 'SPATIALTEAR';
-
-                editor.beginUndoGroup();
-                editor.saveState(primary);
-                editor.saveState(secondary);
-                const side = getSideBetween(this.hexes, primary, secondary);
-                if (side === undefined) {
-                    hidePopup('borderAnomaliesErrorPopup');
-                    showErrorPopup('Tiles are not neighbors!');
-                    this.hexes[primary].polygon.classList.remove('selected');
-                    this._pendingBorderAnomaly = null;
-                    return;
-                }
-
-                if (!this.hexes[primary].borderAnomalies) this.hexes[primary].borderAnomalies = {};
-                if (!this.hexes[secondary].borderAnomalies) this.hexes[secondary].borderAnomalies = {};
-                this.hexes[primary].borderAnomalies[side] = { type: anomalyTypeId };
-                this.hexes[secondary].borderAnomalies[getOppositeSide(side)] = { type: anomalyTypeId };
-                editor.commitUndoGroup();
-                this.hexes[primary].polygon.classList.remove('selected');
-                this._pendingBorderAnomaly = null;
-                drawBorderAnomaliesLayer(this);
-                enforceSvgLayerOrder(editor.svg);
+                return;
             }
-            return;
-        }
+            if (pending === label) return;
 
-        // Add border anomaly (unidirectional)
-        if (this.mode === 'border-anomaly-single') {
-            if (!this._pendingBorderAnomaly) {
-                this._pendingBorderAnomaly = label;
-                this.hexes[label].polygon.classList.add('selected');
-            } else if (this._pendingBorderAnomaly && this._pendingBorderAnomaly !== label) {
-                const primary = this._pendingBorderAnomaly, secondary = label;
-                const anomalyTypeId = this._selectedAnomalyType || 'GRAVITYWAVE';
-
-                editor.saveState(primary);
-                const side = getSideBetween(this.hexes, primary, secondary);
-                if (side === undefined) {
-                    hidePopup('borderAnomaliesErrorPopup');
-                    showErrorPopup('Tiles are not neighbors!');
-                    this.hexes[primary].polygon.classList.remove('selected');
-                    this._pendingBorderAnomaly = null;
-                    return;
-                }
-
-                if (!this.hexes[primary].borderAnomalies) this.hexes[primary].borderAnomalies = {};
-                this.hexes[primary].borderAnomalies[side] = { type: anomalyTypeId };
-                this.hexes[primary].polygon.classList.remove('selected');
-                this._pendingBorderAnomaly = null;
-                drawBorderAnomaliesLayer(this);
-                enforceSvgLayerOrder(editor.svg);
+            const bidirectional = this.mode === 'border-anomaly-double';
+            const anomalyTypeId = this._selectedAnomalyType || (bidirectional ? 'SPATIALTEAR' : 'GRAVITYWAVE');
+            this.hexes[pending].polygon.classList.remove('selected');
+            this._pendingBorderAnomaly = null;
+            if (!placeBorderAnomaly(this, pending, label, anomalyTypeId, { bidirectional })) {
+                hidePopup('borderAnomaliesErrorPopup');
+                showErrorPopup('Tiles are not neighbors!');
             }
             return;
         }
 
         // Remove all border anomalies from a tile
         if (this.mode === 'border-anomaly-remove') {
-            const hex = this.hexes[label];
-            if (hex.borderAnomalies) {
-                editor.saveState(label);
-                for (const [side, anomaly] of Object.entries(hex.borderAnomalies)) {
-                    // Check if this anomaly type is bidirectional
-                    const borderTypes = getEnabledBorderAnomalyTypes();
-                    const anomalyTypeId = anomaly.type.toUpperCase().replace(/\s+/g, '');
-                    const anomalyConfig = borderTypes[anomalyTypeId];
-
-                    if (anomalyConfig && anomalyConfig.bidirectional) {
-                        const neighbor = getNeighborHex(this.hexes, label, side);
-                        if (neighbor && neighbor.borderAnomalies) {
-                            delete neighbor.borderAnomalies[getOppositeSide(side)];
-                            if (Object.keys(neighbor.borderAnomalies).length === 0)
-                                delete neighbor.borderAnomalies;
-                        }
-                    }
-                }
-                delete hex.borderAnomalies;
-                drawBorderAnomaliesLayer(this);
-                enforceSvgLayerOrder(editor.svg);
-            }
+            removeBorderAnomalies(this, label);
             return;
         }
 
         // Fallback
         if (typeof oldClickHandler === "function") oldClickHandler.call(this, e, label);
     };
-
-    function getSideBetween(hexes, a, b) {
-        return sideBetween(hexes[a], hexes[b]);
-    }
-    function getNeighborHex(hexes, label, side) {
-        const hex = hexes[label];
-        if (!hex) return null;
-        return neighborHex(hexes, buildCoordIndex(hexes), hex, side);
-    }
-    // A function declaration, not `const getOppositeSide = oppositeSide` — this
-    // sits below its call sites (500, 553), and a const would be in the temporal
-    // dead zone for any handler that fired before this line was reached.
-    function getOppositeSide(side) {
-        return oppositeSide(side);
-    }
 
     // Redraw after map (re)generation
     const oldGenerateMap = editor.generateMap;

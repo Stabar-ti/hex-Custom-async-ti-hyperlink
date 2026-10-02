@@ -231,6 +231,32 @@ function linkedSides(m) {
     return out;
 }
 
+/** Whether any link on the tile — lane or roundabout — uses `side`. */
+export function touchesSide(m, side) {
+    if (!Array.isArray(m) || !isSide(side)) return false;
+    for (let j = 0; j < SIDES; j++) {
+        if (m[side]?.[j] === 1 || m[j]?.[side] === 1) return true;
+    }
+    return false;
+}
+
+/**
+ * The sides of a tile that a lane on a neighbouring tile runs into.
+ *
+ * `neighbours[s]` is the matrix of the tile across side `s` (or null). Its lane reaches
+ * this tile when it uses the far side of that shared edge — `oppositeSide(s)`.
+ *
+ * @param {Array<number[][]|null|undefined>} neighbours  indexed by this tile's side
+ * @returns {number[]} ascending
+ */
+export function sidesReachedFrom(neighbours) {
+    const out = [];
+    for (let s = 0; s < SIDES; s++) {
+        if (touchesSide(neighbours?.[s], oppositeSide(s))) out.push(s);
+    }
+    return out;
+}
+
 /** Every member linked to every member, itself included. */
 function roundaboutOver(sides) {
     const out = emptyMatrix();
