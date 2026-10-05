@@ -23,7 +23,7 @@
 // ───────────────────────────────────────────────────────────────
 
 import { clearAllEffects, applyEffectToHex } from './effects.js';
-import { toggleWormhole, updateHexWormholes } from './wormholes.js';
+import { updateHexWormholes, redrawWormholeOverlays, removeWormholeOverlay } from './wormholes.js';
 import { drawMatrixLinks } from './hyperlanes.js';
 import { redrawAllRealIDOverlays } from './realIDsOverlays.js';
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
@@ -162,6 +162,9 @@ export function initHistory(editor) {
             }
         } finally {
             this._historyLocked = false;
+            // The stacks have already moved, so say so even if a restore threw — otherwise
+            // the buttons and the session autosave keep the state from before the press.
+            announceHistoryChange(this);
         }
 
         _rebuildOverlays(this);
@@ -192,6 +195,7 @@ export function initHistory(editor) {
             }
         } finally {
             this._historyLocked = false;
+            announceHistoryChange(this);
         }
 
         _rebuildOverlays(this);
@@ -244,8 +248,10 @@ export function initHistory(editor) {
         // 1. Tear down existing visual state
         this.deleteAllSegments(snap.id);
         clearAllEffects(this, snap.id);
-        hex.wormholeOverlays?.forEach(o => this.svg?.removeChild(o));
-        hex.wormholeOverlays = [];
+        // Not svg.removeChild: icons live in #wormholeIconLayer whenever the map was built by
+        // generateMap, and removing them from the svg threw NotFoundError. That aborted the
+        // undo halfway — hex unrestored, icon left on screen, buttons never resynced.
+        removeWormholeOverlay(this, snap.id);
 
         // 2. Update realID filter tags before changing realId
         if (hex.realId && hex.realId !== snap.realId) unmarkRealIDUsed(hex.realId);
@@ -274,9 +280,10 @@ export function initHistory(editor) {
         hex.inherentWormholes = new Set(snap.inherentWormholes || []);
         hex.customWormholes   = new Set(snap.customWormholes   || []);
         updateHexWormholes(hex);
-        for (const w of hex.customWormholes) {
-            toggleWormhole(this, snap.id, w);
-        }
+        // Draw rather than toggleWormhole: toggling a wormhole the snapshot already holds
+        // removes it, so restoring a hex with a custom wormhole used to drop it — and inherent
+        // wormholes were never redrawn at all.
+        redrawWormholeOverlays(this, snap.id);
 
         // 5. Restore token state
         hex.systemTokens = snap.systemTokens ? [...snap.systemTokens] : [];
@@ -303,8 +310,6 @@ export function initHistory(editor) {
 
 // ── Rebuild all visual overlays after undo/redo ───────────────────
 function _rebuildOverlays(editor) {
-    // Both undo() and redo() finish here, so this is the one place that catches either.
-    announceHistoryChange(editor);
     redrawAllRealIDOverlays(editor);
     drawCustomAdjacencyLayer(editor);
     drawBorderAnomaliesLayer(editor);

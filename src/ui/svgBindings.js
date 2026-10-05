@@ -15,6 +15,7 @@ import { openHexContextMenu } from '../features/hexContextMenu.js';
 import { isSelectMode, beginSelectionStroke } from '../features/hexSelection.js';
 import { isGhostArmed } from '../features/pasteGhost.js';
 import { activeMode } from '../core/registry.js';
+import { buildCoordIndex, neighborLabel } from '../utils/hexGrid.js';
 
 // How far a press has to travel before it is a drag rather than a click. Without one, the
 // pixel or two a hand wobbles while clicking quickly turned the click into a pan, and the
@@ -116,8 +117,7 @@ export function bindSvgHandlers(editor) {
   // Shift+R over a hovered hex: clear all content from that hex
   document.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'r' && e.shiftKey && editor.hoveredHexLabel) {
-      editor.clearAll(editor.hoveredHexLabel);
-      editor.clearCustomAdjacenciesBothSides(editor.hoveredHexLabel);
+      clearHexAsOneStep(editor, editor.hoveredHexLabel);
       // Optionally, redraw overlays if needed:
       if (typeof editor.redrawCustomAdjacencyOverlay === 'function') editor.redrawCustomAdjacencyOverlay();
       if (typeof editor.redrawBorderAnomaliesOverlay === 'function') editor.redrawBorderAnomaliesOverlay();
@@ -276,4 +276,36 @@ export function bindSvgHandlers(editor) {
     requestAnimationFrame(panLoop);
   }
   panLoop();
+}
+
+/**
+ * Shift+R: empties a hex as one undo step.
+ *
+ * clearAll records nothing useful on its own — deleteAllSegments, clearAllEffects and
+ * setSectorType each pushed their own entry as they went, so one Undo brought back only
+ * the sector type. clearCustomAdjacenciesBothSides recorded nothing at all, including the
+ * border anomalies it removes from neighbouring hexes. Snapshotting here rather than in
+ * clearAll, which also runs under a history lock from the ring resize and the importers.
+ *
+ * @param {any} editor
+ * @param {string} label
+ */
+function clearHexAsOneStep(editor, label) {
+  const hex = editor.hexes[label];
+  if (!hex) return;
+
+  editor.beginUndoGroup();
+  try {
+    editor.saveState(label);
+    // Only neighbours carrying anomalies can be touched by the facing-anomaly cleanup.
+    const coordIndex = buildCoordIndex(editor.hexes);
+    for (let side = 0; side < 6; side++) {
+      const n = neighborLabel(coordIndex, hex, side);
+      if (n && editor.hexes[n]?.borderAnomalies) editor.saveState(n);
+    }
+    editor.clearAll(label);
+    editor.clearCustomAdjacenciesBothSides(label);
+  } finally {
+    editor.commitUndoGroup();
+  }
 }
