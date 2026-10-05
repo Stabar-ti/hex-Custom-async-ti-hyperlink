@@ -1215,7 +1215,22 @@ body {
   display: block;
 }
 
-.file-menu .fm-row {
+.file-menu .fm-note {
+  margin: 5px 4px 2px;
+  font-size: var(--ui-font-xs);
+  color: var(--surface-5);
+}
+
+/* ── The Map size menu ────────────────────────────────────────────────────────
+   Rings and the AsyncTI4-boundaries switch. They were in File ▸ New map, but both
+   resize the current map as they change. Small: two rows, no title. */
+.map-size-menu.tb-menu--panel {
+  min-width: 0;
+  width: 220px;
+  padding: 6px;
+}
+
+.map-size-menu .ms-row {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1223,22 +1238,22 @@ body {
   font-size: 0.9em;
 }
 
-.file-menu .fm-row label {
+.map-size-menu .ms-row label {
   flex: 1;
 }
 
-.file-menu .fm-row input[type="number"] {
+.map-size-menu .ms-row input[type="number"] {
   width: 46px;
   padding: 4px 5px;
   background: var(--surface-1);
   border: 1px solid var(--surface-4);
   border-radius: var(--ui-radius);
-  color: var(--text-color);
+  color: var(--text-on-surface);
   font-family: var(--font-ui);
   text-align: center;
 }
 
-#controlsPanel.file-menu .fm-step {
+.map-size-menu .ms-step {
   width: 24px;
   height: 24px;
   margin: 0;
@@ -1246,17 +1261,17 @@ body {
   background: var(--surface-3);
   border: 1px solid var(--surface-4);
   border-radius: var(--ui-radius);
-  color: var(--text-color);
+  color: var(--text-on-surface);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
 }
 
-#controlsPanel.file-menu .fm-step:hover {
+.map-size-menu .ms-step:hover {
   background: #343434;
 }
 
-.file-menu .fm-check {
+.map-size-menu .ms-check {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -1267,16 +1282,10 @@ body {
   user-select: none;
 }
 
-.file-menu .fm-check input {
+.map-size-menu .ms-check input {
   flex: none;
   margin: 0;
   accent-color: var(--color-primary);
-}
-
-.file-menu .fm-note {
-  margin: 5px 4px 2px;
-  font-size: var(--ui-font-xs);
-  color: var(--surface-5);
 }
 
 

@@ -1,9 +1,9 @@
 // @ts-check
 /**
- * Dropdowns hanging off top-bar buttons: File, Toggle Overlays, Analyse, Tools and Help,
- * and Distance Options, which hangs off Analyse.
+ * Dropdowns hanging off top-bar buttons: File, Map size, Toggle Overlays, Analyse, Tools
+ * and Help, and Distance Options, which hangs off Analyse.
  *
- * They come in two kinds. File, Analyse and Help are panels that stay in the document and
+ * They come in two kinds. File, Map size, Analyse and Help are panels that stay in the document and
  * are shown by a class; Analyse and Help **move existing buttons** into theirs rather than
  * rebuilding them, because those buttons have handlers bound to them by id in main.js and
  * elsewhere. Toggle Overlays, Tools and Distance Options are built each time they open and

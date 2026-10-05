@@ -10,6 +10,7 @@
  *
  * This groups them:
  *
+ *   Map size ▾  rings and the AsyncTI4-boundaries switch
  *   Analyse ▾   Calculate Slice, Sanity Check, Distance Options
  *   Tools ▾     the Milty designer and Spin-To-Win
  *   Help ▾      Help, Import/Export How-To, Features
@@ -19,12 +20,30 @@
  * handlers bound to them elsewhere keep working.
  */
 
-import { createDropdownFromExisting } from './dropdownMenu.js';
+import { createDropdownFromExisting, makeDropdown } from './dropdownMenu.js';
+
+/**
+ * Map size ▾: the ring count and the AsyncTI4-boundaries switch.
+ *
+ * They lived in File ▸ New map beside Generate Empty Map, which read as if they were
+ * settings for the next map. They are not: both resize the current map the moment they
+ * change. Generate still reads the ring count from here.
+ *
+ * Holds inputs, so pressing a step button leaves it open.
+ */
+function installMapSizeMenu() {
+    const panel = document.getElementById('mapSizeMenu');
+    const trigger = document.getElementById('mapSizeBtn');
+    if (!panel || !trigger) return;
+    makeDropdown({ panel, trigger });
+}
 
 export function installTopBarMenus() {
     const left = document.getElementById('leftControls');
     const right = document.getElementById('rightControls');
     if (!left || !right) return;
+
+    installMapSizeMenu();
 
     // Copy/Cut Swap is built into the rail's Edit group by uisectorControls — it arms a
     // selection mode, which makes it a tool rather than a command like undo. It briefly

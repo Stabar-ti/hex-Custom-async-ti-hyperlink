@@ -58,8 +58,9 @@ export function installFileMenu(editor) {
         onClose: () => setNewMapOpen(false),
     });
 
-    // Generating a map is destructive and takes a ring count and a bounds setting with it,
-    // so it sits behind its own drop-out rather than in the list beside Save and Load.
+    // Generating a map is destructive, so it sits behind its own drop-out rather than in
+    // the list beside Save and Load. Its size comes from the Map size menu: the ring and
+    // bounds controls lived in this drop-out, though they resize the current map.
     const newMapBtn = document.getElementById('newMapToggle');
     newMapBtn?.addEventListener('click', () => {
         const flyout = document.getElementById('newMapFlyout');

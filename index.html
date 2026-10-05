@@ -38,6 +38,10 @@
 
         <!-- Dropdown: Layout Options -->
 
+        <!-- Dropdown: Map size. Wired by installMapSizeMenu in src/ui/topBarMenus.js. -->
+        <button id="mapSizeBtn" class="mode-button"
+                title="Rings on the current map, and whether it keeps to AsyncTI4's boundaries">Map size ▾</button>
+
         <!-- Dropdown: Toggle Overlays -->
         <button id="overlayToggleBtn" class="mode-button dropdown-toggle">Toggle Overlays ▾</button>
 
@@ -155,22 +159,30 @@
          scrolls — a flyout inside a scrolling box gets clipped by it. -->
     <div id="newMapFlyout" class="fm-flyout">
       <div class="fm-label">New map</div>
-      <div class="fm-row">
-        <label for="ringCount">Rings</label>
-        <button id="removeRingBtn" class="fm-step" title="One ring fewer">−</button>
-        <input id="ringCount" type="number" min="1" max="15" value="6" />
-        <button id="addRingBtn" class="fm-step" title="One ring more">+</button>
-      </div>
-      <label class="fm-check">
-        <input id="cornerToggle" type="checkbox" checked>
-        <span>Limit to AsyncTI4 map boundaries</span>
-      </label>
-      <button id="genMapBtn" class="fm-item fm-item--primary">Generate Empty Map</button>
+      <button id="genMapBtn" class="fm-item fm-item--primary"
+              title="Clears the map at the size set under Map size">Generate Empty Map</button>
       <div class="fm-sep"></div>
       <button id="genMiltyMapBtn" class="fm-item">New Milty Map</button>
       <div class="fm-note">Either replaces everything on the map. New Milty Map loads the
         draft layout and opens the slice designer on it.</div>
     </div>
+  </div>
+
+  <!-- The Map size menu, under #mapSizeBtn. These controls used to sit in the New map
+       drop-out, but they resize the map in place the moment they change — nothing to do
+       with generating one. Generate Empty Map still reads #ringCount. Ids are bound in
+       uiBindings.js and read in HexEditor.js and import.js, so they are kept as they were. -->
+  <div id="mapSizeMenu" class="tb-menu tb-menu--panel map-size-menu">
+    <div class="ms-row">
+      <label for="ringCount">Rings</label>
+      <button id="removeRingBtn" class="ms-step" title="One ring fewer">−</button>
+      <input id="ringCount" type="number" min="1" max="15" value="6" />
+      <button id="addRingBtn" class="ms-step" title="One ring more">+</button>
+    </div>
+    <label class="ms-check">
+      <input id="cornerToggle" type="checkbox" checked>
+      <span>Limit to AsyncTI4 map boundaries</span>
+    </label>
   </div>
 
   <div id="sectorControlsContainer" class="pos-left"></div>
