@@ -750,13 +750,17 @@ export default class HexEditor {
       hex.planetTokens = {};
       this.tokenOverlay?.updateHex(label);
 
-      // if there was a real system assigned, unmark it and clear planet data
+      // Planets before the redraw below, which draws the planet-type and res/inf symbols
+      // from them: emptied after it, the cleared tile kept its symbols until the next
+      // redraw of anything else.
+      hex.planets = [];
+
+      // if there was a real system assigned, unmark it and redraw without it
       if (hex.realId != null) {
         unmarkRealIDUsed(hex.realId.toString());
         hex.realId = null;
         redrawAllRealIDOverlays(this);
       }
-      hex.planets = [];
     }
 
     // 4) Reset the fill/type of the hex back to “blank”
