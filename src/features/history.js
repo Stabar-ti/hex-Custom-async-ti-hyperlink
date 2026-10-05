@@ -26,6 +26,8 @@ import { clearAllEffects, applyEffectToHex } from './effects.js';
 import { updateHexWormholes, redrawWormholeOverlays, removeWormholeOverlay } from './wormholes.js';
 import { drawMatrixLinks } from './hyperlanes.js';
 import { redrawAllRealIDOverlays } from './realIDsOverlays.js';
+import { updateTileImageLayer } from './imageSystemsOverlay.js';
+import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 import { markRealIDUsed, unmarkRealIDUsed, refreshSystemList } from '../ui/uiFilters.js';
@@ -311,10 +313,15 @@ export function initHistory(editor) {
 // ── Rebuild all visual overlays after undo/redo ───────────────────
 function _rebuildOverlays(editor) {
     redrawAllRealIDOverlays(editor);
+    // A restored system needs its tile image back, and an undone clear needs its image
+    // gone. The redraw above also appends the planet-type and R/I layers at the top of the
+    // svg, over the images, so the order is put back after it.
+    updateTileImageLayer(editor);
     drawCustomAdjacencyLayer(editor);
     drawBorderAnomaliesLayer(editor);
     editor.tokenOverlay?.refresh();
     editor.loreOverlay?.refresh();
+    enforceSvgLayerOrder(editor.svg);
     refreshSystemList();
     // Refresh value-target badges and value overlay if active
     import('./valueOverlay.js').then(({ drawValueTargetLayer, drawValueOverlay, getFactors, isValueOverlayActive }) => {

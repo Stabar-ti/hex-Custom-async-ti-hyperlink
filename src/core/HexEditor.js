@@ -760,6 +760,11 @@ export default class HexEditor {
         unmarkRealIDUsed(hex.realId.toString());
         hex.realId = null;
         redrawAllRealIDOverlays(this);
+        // The tile image too: it is drawn from realId, and was left on screen until the
+        // image overlay was next toggled. And the layer order after it: the redraw above
+        // appends the planet-type and R/I layers at the top of the svg, over the images.
+        updateTileImageLayer(this);
+        enforceSvgLayerOrder(this.svg);
       }
     }
 
