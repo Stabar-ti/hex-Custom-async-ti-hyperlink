@@ -42,7 +42,7 @@ import { applySavedTheme } from '../ui/uiTheme.js';
 import { calculateDistancesFrom, isScriptedAnomaly } from '../distance/index.js';
 import { clearHexSelection, refreshHexSelection } from '../features/hexSelection.js';
 import { disarmAll } from '../features/disarm.js';
-import { restoreSession } from '../features/session.js';
+import { restoreSession, announceMapReshaped } from '../features/session.js';
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import {
   buildCoordIndex, neighborHex, oppositeSide, normalizeSide, areAxialNeighbors,
@@ -102,9 +102,16 @@ export default class HexEditor {
     drawHexGrid(this, this.fillCorners); // Draw initial empty grid
 
     // ─── Corner map toggle logic ───
+    // Regenerating asks first. If that is declined, the setting goes back: it used to stay
+    // switched while the map kept its old shape, and the ring buttons then cut and drew
+    // to the new one.
     this.toggleCorners = (isChecked) => {
+      const was = this.fillCorners;
       this.fillCorners = isChecked;
-      this.generateMap();
+      if (this.generateMap() === false) {
+        this.fillCorners = was;
+        this._syncRingControls();
+      }
     };
 
     // ─── Global escape key handler for clearing overlays, links, and any active cursor mode ───
@@ -289,14 +296,26 @@ export default class HexEditor {
   /**
    * Generate a new blank map of the selected ring count.
    * Loads system data for each tile, initializes overlays/layers.
+   *
+   * Asks first unless told not to. Restoring the session at startup must not ask: it is
+   * not erasing anything, and Cancel — which reads as "keep my map" — skipped the
+   * generate while the restore carried on, onto the default six-ring grid. Anything in
+   * the rings beyond it was dropped, and the autosave then kept the smaller map.
+   *
+   * @param {{ confirm?: boolean }} [opts]
+   * @returns {boolean} false when nothing was generated (declined, or a bad ring count)
    */
-  generateMap() {
-    if (this.confirmReset && this.confirmReset() === false) return;
+  generateMap({ confirm = true } = {}) {
+    if (confirm && this.confirmReset && this.confirmReset() === false) {
+      this._syncRingControls();
+      return false;
+    }
 
     const rings = parseInt(document.getElementById('ringCount').value, 10);
     if (isNaN(rings) || rings < 1 || rings > MAX_MAP_RINGS) {
       alert(`Enter 1–${MAX_MAP_RINGS}`);
-      return;
+      this._syncRingControls();
+      return false;
     }
     this.currentRings = rings;
     this.currentFillCorners = this.fillCorners;
@@ -361,69 +380,84 @@ export default class HexEditor {
     this.tokenOverlay?.refresh();
     this.loreOverlay?.refresh();
     refreshHexSelection(this);
+
+    this._syncRingControls();
+    announceMapReshaped();
+    return true;
+  }
+
+  /**
+   * Make the Map size controls show the map as it is.
+   *
+   * The map is the record of its own size, not the Rings box. The box used to be: + and −
+   * stepped from whatever it said, and it could say something else — a reload brought the
+   * box back at its last value over a map restored at another size. Then − warned about a
+   * ring the map did not have, and + quietly cut a ring that did.
+   */
+  _syncRingControls() {
+    const ringsInput = /** @type {HTMLInputElement|null} */ (document.getElementById('ringCount'));
+    if (ringsInput) ringsInput.value = String(this.currentRings);
+    const cornerToggle = /** @type {HTMLInputElement|null} */ (document.getElementById('cornerToggle'));
+    if (cornerToggle) cornerToggle.checked = !!this.fillCorners;
   }
 
   addRing() {
-    const ringsInput = document.getElementById('ringCount');
-    let rings = parseInt(ringsInput.value, 10);
-    if (isNaN(rings)) rings = 1;
-    if (rings >= MAX_MAP_RINGS) return;
-    rings += 1;
-    ringsInput.value = rings;
-    this._setRingCount(rings);
-
+    if (this.currentRings >= MAX_MAP_RINGS) return;
+    this._setRingCount(this.currentRings + 1);
   }
 
   removeRing() {
-    const ringsInput = document.getElementById('ringCount');
-    let rings = parseInt(ringsInput.value, 10);
-    if (isNaN(rings) || rings <= 1) return;
-    rings -= 1;
-    ringsInput.value = rings;
-    this._setRingCount(rings);
+    if (this.currentRings <= 1) return;
+    this._setRingCount(this.currentRings - 1);
+  }
 
+  /**
+   * The hexes resizing to `rings` would delete. The corners are never among them: they
+   * are redrawn around whatever size the map is.
+   *
+   * @param {number} rings
+   * @returns {object[]}
+   */
+  hexesCutBy(rings) {
+    const keep = new Set(generateRings(rings, this.fillCorners).map(h => h.label));
+    return Object.values(this.hexes)
+      .filter(h => !keep.has(h.label) && !CORNER_LABELS.includes(h.label));
   }
 
   // Internal: Adjust rings, preserve hexes inside new bounds
   _setRingCount(newRings) {
+    // Taken before anything is drawn, so it is measured against the map as it stands.
+    const cut = this.hexesCutBy(newRings);
+
     this.currentRings = newRings;
     this.currentFillCorners = this.fillCorners;
 
-    const layout = generateRings(newRings, this.fillCorners);
-    const newLabels = new Set(layout.map(h => h.label));
-    const oldLabels = new Set(Object.keys(this.hexes));
-
     // Add new hexes
-    for (const h of layout) {
+    for (const h of generateRings(newRings, this.fillCorners)) {
       if (!this.hexes[h.label]) {
         drawHex(this, h.q, h.r, h.label);
       }
     }
 
-    // Remove cut hexes (with clearAll and polygon/label removal), but skip corners!
+    // Remove cut hexes (with clearAll and polygon/label removal). Corners are not cut.
     // Lock history: deleted hexes cannot be restored, so these saves would only pollute the undo stack.
     this._historyLocked = true;
-    for (const label of oldLabels) {
-      if (
-        !newLabels.has(label) &&
-        !CORNER_LABELS.includes(label)
-      ) {
-        this.clearAll(label);
-        this.clearCustomAdjencies(label);
+    for (const { label } of cut) {
+      this.clearAll(label);
+      this.clearCustomAdjencies(label);
 
-        // Remove the hex polygon from SVG
-        const hex = this.hexes[label];
-        if (hex && hex.polygon && hex.polygon.parentNode) {
-          hex.polygon.parentNode.removeChild(hex.polygon);
-        }
-        // Remove the sector label <text>
-        const labelEl = document.getElementById(`label-${label}`);
-        if (labelEl && labelEl.parentNode) {
-          labelEl.parentNode.removeChild(labelEl);
-        }
-
-        delete this.hexes[label];
+      // Remove the hex polygon from SVG
+      const hex = this.hexes[label];
+      if (hex && hex.polygon && hex.polygon.parentNode) {
+        hex.polygon.parentNode.removeChild(hex.polygon);
       }
+      // Remove the sector label <text>
+      const labelEl = document.getElementById(`label-${label}`);
+      if (labelEl && labelEl.parentNode) {
+        labelEl.parentNode.removeChild(labelEl);
+      }
+
+      delete this.hexes[label];
     }
     this._historyLocked = false;
 
@@ -556,6 +590,9 @@ export default class HexEditor {
     this.tokenOverlay?.refresh();
     this.loreOverlay?.refresh();
     refreshHexSelection(this);
+
+    this._syncRingControls();
+    announceMapReshaped();
   }
 
 
@@ -692,7 +729,12 @@ export default class HexEditor {
         }
       });
       hex.wormholeOverlays = [];
-      hex.wormholes.clear();
+      // All three sets, not just the union: hex.wormholes is rebuilt from the other two
+      // on every toggle, so clearing only it brought back the wormholes you had cleared
+      // as soon as you placed another, and the wormhole menu still ticked them.
+      hex.customWormholes = new Set();
+      hex.inherentWormholes = new Set();
+      hex.wormholes = new Set();
 
       // Clear new features
       // delete hex.customAdjacents;
@@ -711,10 +753,10 @@ export default class HexEditor {
       // if there was a real system assigned, unmark it and clear planet data
       if (hex.realId != null) {
         unmarkRealIDUsed(hex.realId.toString());
-        hex.planets = [];
         hex.realId = null;
         redrawAllRealIDOverlays(this);
       }
+      hex.planets = [];
     }
 
     // 4) Reset the fill/type of the hex back to “blank”

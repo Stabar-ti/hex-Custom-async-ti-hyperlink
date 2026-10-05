@@ -483,15 +483,18 @@ export function installBorderAnomaliesUI(editor) {
         if (typeof oldClickHandler === "function") oldClickHandler.call(this, e, label);
     };
 
-    // Redraw after map (re)generation
+    // Redraw after map (re)generation. Arguments and result pass through: generateMap
+    // takes { confirm } and says whether it generated, and a wrapper that dropped them
+    // made every caller ask, the startup restore included.
     const oldGenerateMap = editor.generateMap;
-    editor.generateMap = function () {
-        oldGenerateMap.call(this);
+    editor.generateMap = function (...args) {
+        const generated = oldGenerateMap.apply(this, args);
         drawBorderAnomaliesLayer(this);
         let layer = this.svg.querySelector('#borderAnomalyLayer');
         if (layer) layer.setAttribute('visibility', this.showBorderAnomalies ? 'visible' : 'hidden');
         const btn = document.getElementById('toggleBorderAnomalies');
         if (btn) btn.classList.toggle('active', this.showBorderAnomalies);
+        return generated;
     };
 
     editor.redrawBorderAnomaliesOverlay = () => {

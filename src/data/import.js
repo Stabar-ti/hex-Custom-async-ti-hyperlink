@@ -188,13 +188,17 @@ export function importSectorTypes(editor, tokenString) {
     tokens.length = labelList.length;
   }
 
+  // Asked before anything changes. The question used to come from generateMap below, and
+  // a Cancel there left the import running into the old grid.
+  if (editor.confirmReset?.() === false) return;
+
   // Set the ring count and rectangular mode (even for n <= 9, this is fine)
   const ringInput = document.getElementById('ringCount');
   if (ringInput) ringInput.value = n;
   editor.fillCorners = true;
   const cornerToggle = document.getElementById('cornerToggle');
   if (cornerToggle) cornerToggle.checked = true;
-  editor.generateMap();
+  editor.generateMap({ confirm: false });
 
   // 6. Apply the types to each hex in order
   beginBatch?.();
@@ -344,8 +348,19 @@ export function importSectorTypes(editor, tokenString) {
  * Imports a full map state from a saved JSON export.
  * Re-creates all hexes, overlays, links, types, effects, and overlays.
  * Handles new grid/ring count, clears overlays, and redraws everything.
+ *
+ * Asks before replacing the map, unless `confirm` is false — the startup restore, which
+ * replaces nothing. Asked up front: the question used to come from generateMap halfway
+ * through, and a Cancel there skipped the new grid while the import carried on into the
+ * old one.
+ *
+ * @param {any} editor
+ * @param {string} jsonText
+ * @param {{ confirm?: boolean }} [opts]
+ * @returns {boolean} false when the replace was declined
  */
-export function importFullState(editor, jsonText) {
+export function importFullState(editor, jsonText, { confirm = true } = {}) {
+  if (confirm && editor.confirmReset?.() === false) return false;
   beginBatch?.();
   try {
     const obj = JSON.parse(jsonText);
@@ -385,7 +400,7 @@ export function importFullState(editor, jsonText) {
     editor.fillCorners = true;
     const cornerToggle = document.getElementById('cornerToggle');
     if (cornerToggle) cornerToggle.checked = true;
-    editor.generateMap();
+    editor.generateMap({ confirm: false });
 
     // ---- 5. Assign all hexes by label order (EXACT classification order)
     const unresolvedTileIds = new Set();
@@ -696,6 +711,7 @@ export function importFullState(editor, jsonText) {
   } finally {
     endBatch?.();
   }
+  return true;
 }
 
 /**
@@ -867,6 +883,9 @@ async function getBorderAnomalyAliasMap() {
  * @param {string|Object} jsonData - Either a JSON string or parsed object with mapInfo array
  */
 export async function importMapInfo(editor, jsonData) {
+  // Asked up front, as in importFullState: a Cancel from generateMap used to leave the
+  // import running into the old grid.
+  if (editor.confirmReset?.() === false) return;
   beginBatch?.();
   try {
     // Parse JSON if it's a string
@@ -919,7 +938,7 @@ export async function importMapInfo(editor, jsonData) {
     editor.fillCorners = true;
     const cornerToggle = document.getElementById('cornerToggle');
     if (cornerToggle) cornerToggle.checked = true;
-    editor.generateMap();
+    editor.generateMap({ confirm: false });
 
     // Process each hex in the mapInfo
     const unresolvedTileIds = new Set();

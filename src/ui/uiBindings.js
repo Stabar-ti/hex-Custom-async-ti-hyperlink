@@ -5,9 +5,29 @@
 
 import { openSectorControlsPopup } from './uisectorControls.js';
 import { showModal, closeModal } from './uiModals.js';
-import { generateRings } from '../draw/drawHexes.js';
+import { isEmptyHex } from '../features/tileClipboardEngine.js';
+import { MAX_MAP_RINGS } from '../constants/constants.js';
 
 import { exportAdjacencyOverrides, exportCustomAdjacents, exportBorderAnomaliesGrouped } from '../data/export.js'; // use your actual path
+
+// A key whose list has been emptied is not content: removing a planet's last lore entry
+// or token can leave the key behind.
+const nonEmpty = (/** @type {any} */ o) => !!o && Object.values(o)
+  .some(v => (Array.isArray(v) ? v.length > 0 : v != null));
+
+/**
+ * Whether cutting a hex would lose anything. Everything a resize removes counts: on top of
+ * what isEmptyHex looks at, the lore, the tokens and the custom links, which the old
+ * check here missed — a hex holding only lore was cut without a word.
+ *
+ * @param {any} h
+ */
+function hasContent(h) {
+  return !isEmptyHex(h)
+    || h.systemLore?.length > 0 || nonEmpty(h.planetLore)
+    || h.systemTokens?.length > 0 || nonEmpty(h.planetTokens)
+    || nonEmpty(h.customAdjacents) || nonEmpty(h.adjacencyOverrides) || nonEmpty(h.borderAnomalies);
+}
 
 export function bindUI(editor) {
   // Nothing to do here for the theme switcher, the three help buttons or any of the
@@ -93,24 +113,34 @@ export function bindUI(editor) {
     editor.wormholeLinksShown = !editor.wormholeLinksShown;
   });
 
-  // Ring add/remove controls
+  // Ring controls. All three resize the map in place.
+  //
+  // Which hexes would lose content is measured from the map rather than the Rings box, and
+  // through the same list the resize cuts, which leaves the corners alone: this used to
+  // count TL/TR/BL/BR, so anything on a corner warned on every shrink though nothing there
+  // was ever removed.
+  const confirmShrinkTo = (/** @type {number} */ rings) => {
+    const lostHexes = editor.hexesCutBy(rings).filter(hasContent);
+    if (!lostHexes.length) return true;
+    return window.confirm(`Warning: ${lostHexes.length} tile(s) with data will be removed if you shrink the map. Proceed?`);
+  };
+
   document.getElementById('addRingBtn')?.addEventListener('click', () => editor.addRing());
   document.getElementById('removeRingBtn')?.addEventListener('click', () => {
-    const ringsInput = document.getElementById('ringCount');
-    const rings = ringsInput ? parseInt(ringsInput.value, 10) : 1;
-    if (rings <= 1) return; // Don't go below 1
+    if (editor.currentRings <= 1) return; // Don't go below 1
+    if (confirmShrinkTo(editor.currentRings - 1)) editor.removeRing();
+  });
 
-    // Which labels/hexes would be lost by shrinking to one ring fewer.
-    const nextLayout = editor.ringDirections ? generateRings(rings - 1, editor.fillCorners) : [];
-    const nextLabels = new Set(nextLayout.map(h => h.label));
-    const lostHexes = Object.values(editor.hexes).filter(h => !nextLabels.has(h.label) && (
-      h.baseType || h.realId || (h.planets && h.planets.length) || (h.wormholes && h.wormholes.size)
-    ));
-    if (lostHexes.length) {
-      const confirmMsg = `Warning: ${lostHexes.length} tile(s) with data will be removed if you shrink the map. Proceed?`;
-      if (!window.confirm(confirmMsg)) return;
+  // Typing a count resizes too. It used to do nothing until Generate Empty Map, so the box
+  // could say one size while the map was another.
+  document.getElementById('ringCount')?.addEventListener('change', (e) => {
+    const rings = parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10);
+    const valid = rings >= 1 && rings <= MAX_MAP_RINGS && rings !== editor.currentRings;
+    if (valid && (rings > editor.currentRings || confirmShrinkTo(rings))) {
+      editor._setRingCount(rings);
+    } else {
+      editor._syncRingControls();
     }
-    editor.removeRing();
   });
 
   // Corner toggle: When enabled, set ring count and redraw map with corners

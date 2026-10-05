@@ -151,8 +151,9 @@ export function setupHexHoverInfo(editor) {
         attachHexHoverHandlers();
         const origGenMap = editor.generateMap.bind(editor);
         editor.generateMap = function (...args) {
-            origGenMap(...args);
+            const generated = origGenMap(...args);
             attachHexHoverHandlers();
+            return generated;
         };
     }
 

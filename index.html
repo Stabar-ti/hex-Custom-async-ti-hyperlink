@@ -176,11 +176,13 @@
     <div class="ms-row">
       <label for="ringCount">Rings</label>
       <button id="removeRingBtn" class="ms-step" title="One ring fewer">−</button>
-      <input id="ringCount" type="number" min="1" max="15" value="6" />
+      <!-- autocomplete off: the browser restores a form control's last value on reload,
+           over the size of the map that was restored with it. -->
+      <input id="ringCount" type="number" min="1" max="15" value="6" autocomplete="off" />
       <button id="addRingBtn" class="ms-step" title="One ring more">+</button>
     </div>
     <label class="ms-check">
-      <input id="cornerToggle" type="checkbox" checked>
+      <input id="cornerToggle" type="checkbox" checked autocomplete="off">
       <span>Limit to AsyncTI4 map boundaries</span>
     </label>
   </div>

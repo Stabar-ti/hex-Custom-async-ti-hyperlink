@@ -403,12 +403,14 @@ export function installCustomLinksUI(editor) {
         return undefined;
     }
 
-    // Redraw after map (re)generation
+    // Redraw after map (re)generation. Arguments and result pass through, as in
+    // borderAnomaliesUI.js.
     const oldGenerateMap = editor.generateMap;
-    editor.generateMap = function () {
-        oldGenerateMap.call(this);
+    editor.generateMap = function (...args) {
+        const generated = oldGenerateMap.apply(this, args);
         drawCustomAdjacencyLayer(this);
         enforceSvgLayerOrder(editor.svg);
+        return generated;
     };
 
     // Expose redraw method

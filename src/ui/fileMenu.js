@@ -77,8 +77,7 @@ export function installFileMenu(editor) {
                 import('../modules/Milty/miltyBuilderUI.js'),
                 import('./specialModePopup.js'),
             ]);
-            await loadMiltyMap(editor);
-            openMiltySliceDesigner(editor);
+            if (await loadMiltyMap(editor)) openMiltySliceDesigner(editor);
         } catch (err) {
             console.error('Failed to start a Milty map:', err);
             alert('Could not load the Milty layout: ' + err);

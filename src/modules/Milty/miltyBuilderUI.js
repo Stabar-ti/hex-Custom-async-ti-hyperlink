@@ -54,13 +54,13 @@ export function isMiltyMapLoaded() {
  * map ▸ New Milty Map now, and the designer's button calls the same function.
  *
  * @param {any} editor
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} false when replacing the current map was declined
  */
 export async function loadMiltyMap(editor) {
     const { importFullState } = await import('../../data/import.js');
     const res = await fetch('public/data/MiltyBuilder.json');
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    importFullState(editor, await res.text());
+    if (importFullState(editor, await res.text()) === false) return false;
     miltyMapLoaded = true;
 
     // The overlays need the import to have finished drawing. The delay is the one the
@@ -69,6 +69,7 @@ export async function loadMiltyMap(editor) {
         applyMiltyDisplay(editor);
         drawSlicePositionOverlays(editor);
     }, 800);
+    return true;
 }
 
 // Main UI function to create and display the Milty Builder popup
@@ -225,7 +226,7 @@ export function showMiltyBuilderUI(container, editor) {
         if (loadBtn) {
             loadBtn.onclick = async () => {
                 try {
-                    await loadMiltyMap(editor);
+                    if (!(await loadMiltyMap(editor))) return;
 
                     // The layout is drawn by loadMiltyMap; this is the designer's own view
                     // of it — the slice numbers and the button that turns them off.

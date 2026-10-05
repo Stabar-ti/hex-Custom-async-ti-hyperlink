@@ -41,6 +41,21 @@ const DEBOUNCE_MS = 1500;
 let storageFull = false;
 
 /**
+ * Fired when the map is regenerated or resized.
+ *
+ * Neither goes through the undo history — a resize locks it, since the hexes it cuts
+ * cannot be put back — so neither announced anything here, and a resize was not kept
+ * until some later edit happened to save it. Reload before that and the map came back at
+ * its old size.
+ */
+const MAP_RESHAPED = 'ti4:map-reshaped';
+
+export function announceMapReshaped() {
+    if (typeof document === 'undefined') return;   // imported under node by the tests
+    document.dispatchEvent(new CustomEvent(MAP_RESHAPED));
+}
+
+/**
  * Write the map to localStorage.
  *
  * @param {any} editor
@@ -116,7 +131,7 @@ export function restoreSession(editor) {
     }
 
     try {
-        importFullState(editor, raw);
+        importFullState(editor, raw, { confirm: false });
         return true;
     } catch (err) {
         console.warn('[session] the stored map could not be restored, starting fresh:', err);
@@ -144,6 +159,7 @@ export function installSessionAutosave(editor) {
     // keeping — the overlay toggles and the zoom announce nothing here, and neither is
     // part of the map.
     document.addEventListener(HISTORY_CHANGED, schedule);
+    document.addEventListener(MAP_RESHAPED, schedule);
 
     // A reload inside the debounce window would otherwise lose the last edit. pagehide
     // rather than beforeunload: it fires on mobile and on tab discard, where beforeunload
