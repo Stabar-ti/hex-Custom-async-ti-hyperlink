@@ -332,7 +332,8 @@
   <div id="hexHoverInfo" class="hover-info"></div>
 
   <!-- Invisible Cloudflare Turnstile widget -->
-  <div class="cf-turnstile" data-sitekey="0x4AAAAAAB7Xo7ZilyUzi6KU" data-size="invisible"></div>
+  <!-- Fork-specific: replaces upstream site key 0x4AAAAAAB7Xo7ZilyUzi6KU (pairs with API_ORIGIN in src/data/cloudflare.js) -->
+  <div class="cf-turnstile" data-sitekey="0x4AAAAAAFPow8GksKxnOUTM" data-size="invisible"></div>
 
   <!-- Cache-buster: reads APP_VERSION from top of file — no other place to update.
        Also injects main.js with ?v= so Chrome's bytecode cache never serves stale code. -->
