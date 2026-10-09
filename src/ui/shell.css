@@ -1,0 +1,1499 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   App shell — the layout the application did not have.
+
+   Before this file, nothing was laid out. The map was an SVG at `width: 95%;
+   margin: 10px auto`, and every panel was one of seventeen `position: fixed`
+   rules floating over it. Panels always covered the map because nothing reserved
+   space for anything, and the stacking order was settled by an arms race of
+   nineteen different z-index values running from 1 to 99995.
+
+   #appShell replaces that with one grid holding five regions:
+
+       ┌──────────────────────────────────────────┐
+       │ topbar                                   │
+       ├──────┬────────────────────┬──────────────┤
+       │ rail │        map         │  inspector   │
+       ├──────┴────────────────────┴──────────────┤
+       │ status                                   │
+       └──────────────────────────────────────────┘
+
+   The rail and the inspector are `auto` tracks: they take the width they need and
+   collapse to nothing when empty, so the map gets everything left over and is
+   never covered by them.
+
+   Loaded after styles.css and kit.css, so the handful of overrides below win
+   without any !important. Things that genuinely float — the import/export panel,
+   modals, popups, the hover tooltip — are outside the shell and unaffected.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Layers ────────────────────────────────────────────────────────────────
+     Named steps, in the order things sit on top of each other. Every z-index in
+     the app is one of these; a number of its own is only for ordering children
+     inside one element (a sticky table header, a close button over a title bar).
+
+     The values used to be an arms race running to 99999, and the order between
+     them was an accident: toasts, modals and the hex hover tooltip were all
+     numbered below the popups, so a popup covered them; the lore planet picker
+     opened beneath the lore popup it was picked from.
+
+     Popups are a band, not a step. raisePopup in popupUI.js numbers the open
+     ones from --layer-popup up, in the order they were raised, and stops short
+     of --layer-menu — so however much they are clicked they never climb into
+     what has to sit over them. It reads these two values from here. */
+  --layer-map:       0;    /* the SVG and its overlays */
+  --layer-shell:    10;    /* rail, inspector, status */
+  --layer-topbar:   20;    /* above the rail, below anything floating */
+  --layer-floating: 100;   /* over the map, under windows: resizers, lore banners */
+  --layer-popup:    200;   /* draggable popups, stacked up to 299 */
+  --layer-menu:     300;   /* top-bar menus: opened over the popups */
+  --layer-modal:    400;   /* the export/import modals, upload dialogs */
+  --layer-picker:   500;   /* small lists opened from inside a popup */
+  --layer-tooltip:  600;   /* hover info, tile previews */
+  --layer-notice:   700;   /* toasts, the armed-tile bar, hints, boot failure */
+
+  --shell-topbar-h: 46px;
+  --shell-status-h: 26px;
+  --shell-rail-w: 178px;
+  --shell-inspector-w: 232px;
+  --shell-rail-w-collapsed: 48px;
+}
+
+/* ── The grid ─────────────────────────────────────────────────────────────── */
+
+html {
+  height: 100%;
+}
+
+body {
+  /* The fixed top bar is a grid row now, so the body no longer pads around it. */
+  padding-top: 0;
+  height: 100%;
+  /* The map area scrolls if it must; the page itself does not. Modals and popups
+     are position:fixed, so they still escape. */
+  overflow: hidden;
+}
+
+#appShell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "topbar topbar topbar"
+    "rail   map    inspector"
+    "status status status";
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── Top bar ──────────────────────────────────────────────────────────────── */
+
+#topBar {
+  grid-area: topbar;
+  /* Was position: fixed with the body padded to match. It is a grid row now, so
+     it reserves its own space and nothing has to compensate for it. */
+  position: static;
+  z-index: var(--layer-topbar);
+  min-height: var(--shell-topbar-h);
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+/* #rightControls was absolutely positioned to dodge the version tag. In a flex
+   row with `justify-content: space-between` it can simply be the second group. */
+#rightControls {
+  position: static;
+  right: auto;
+  top: auto;
+}
+
+/* A group of related controls at the front of the bar, with a hairline between
+   groups. These are the verbs (undo, zoom, pan) as opposed to the menus after them. */
+.tb-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tb-sep {
+  width: 1px;
+  align-self: stretch;
+  min-height: 20px;
+  margin-inline: 5px;
+  background: var(--surface-4);
+}
+
+#leftControls .mode-button.tb-icon-btn {
+  min-width: 30px;
+  padding: 5px 7px;
+  font-size: 14px;
+  line-height: 1;
+  flex: none;
+}
+
+/* The zoom readout is a button — pressing it resets the view — so it gets the digits
+   treatment rather than the icon one. */
+#leftControls .mode-button.tb-zoom-level {
+  min-width: 52px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A disabled undo or redo says "there is nothing to undo", which is information. */
+#leftControls .mode-button.tb-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+#leftControls .mode-button.tb-icon-btn:disabled:hover {
+  text-shadow: none;
+}
+
+/* ── Map ──────────────────────────────────────────────────────────────────── */
+
+#mapArea {
+  grid-area: map;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-color);
+}
+
+#hexMap {
+  /* Was width:95%; height:calc(95vh - 60px); margin:10px auto — sized against the
+     viewport because there was no container to fill. Now it fills its cell. */
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  display: block;
+}
+
+/* ── Tool rail ────────────────────────────────────────────────────────────── */
+
+#toolRail {
+  grid-area: rail;
+  z-index: var(--layer-shell);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: var(--shell-rail-w);
+  padding: 8px 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--surface-2);
+  border-right: 1px solid var(--surface-4);
+  box-sizing: border-box;
+}
+
+/* Empty until toolRail.js fills it — take no space rather than leaving a strip. */
+#toolRail:empty {
+  display: none;
+}
+
+/* The tool list fills the rail; the collapse button is pinned under it. */
+#toolRail .sector-controls-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+#toolRail.is-collapsed {
+  width: var(--shell-rail-w-collapsed);
+  padding-inline: 4px;
+  align-items: stretch;
+}
+
+/* Collapsed, every button is just its icon — but it still works, which is the point of an
+   icon rail rather than a drawer that has to be reopened to do anything. */
+#toolRail.is-collapsed .ui-rail-btn {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+#toolRail.is-collapsed .ui-rail-btn__label {
+  display: none;
+}
+
+/* ── Folding paint groups (Planets, Effects) ──────────────────────────────── */
+
+/* The caret sits at the far right of the header, so the label and icon line up with
+   every other rail button. */
+.ui-rail-btn--group .ui-rail-btn__label {
+  flex: 1;
+}
+
+.ui-rail-btn__caret {
+  flex: none;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--surface-5);
+}
+
+.ui-rail-sub {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  /* A rule down the left ties the children to their header without indenting them so
+     far that the labels stop lining up. */
+  margin: 2px 0 4px 10px;
+  padding-left: 7px;
+  border-left: 1px solid var(--surface-4);
+}
+
+.ui-rail-sub.is-open {
+  display: flex;
+}
+
+.ui-btn.ui-rail-btn--sub {
+  min-height: 26px;
+  padding-block: 3px;
+  font-size: var(--ui-font-xs);
+}
+
+/* Collapsed, there is no room for a fold: the children show as a plain icon strip under
+   their header, which is still everything you need to arm a mode. */
+#toolRail.is-collapsed .ui-rail-btn__caret {
+  display: none;
+}
+
+#toolRail.is-collapsed .ui-rail-sub {
+  display: flex;
+  margin: 2px 0 4px;
+  padding-left: 0;
+  border-left: 0;
+  border-top: 1px solid var(--surface-4);
+  padding-top: 3px;
+}
+
+/* Group names would not fit; the rules between groups carry the grouping instead. */
+#toolRail.is-collapsed .ui-rail-group {
+  height: 1px;
+  margin: 7px 4px;
+  padding: 0;
+  overflow: hidden;
+  text-indent: -999px;
+  background: var(--surface-4);
+}
+
+/* ── Tile colours in the rail ─────────────────────────────────────────────────
+
+   The rail inherited its tile colours from the .btn-* classes the popups use: a
+   full-bleed fill per type, in a dozen unrelated hues, plus gold for System Tiles.
+   Against a shell that is otherwise black and grey that reads as a paint palette,
+   and the loudest button in it was the one that opens a picker.
+
+   TI4 codes its tiles on the back — blue for systems, red for anomalies, green for
+   home systems — so the rail uses those three and nothing else. Every button keeps
+   the neutral surface the rest of the tools have and carries its family as a stripe
+   down the left edge, with the icon in the same colour; lightness inside a family
+   separates its members. The stripe survives collapsing the rail, so the colour
+   coding still reads when the labels are gone.
+
+   Two of them are not one flat colour: hyperlanes are blue with white striping on
+   the tile, and the wormhole button covers fourteen types at once, so its stripe
+   runs through the type colours themselves.
+
+   --rail-accent is the solid colour (icon, and the stripe unless overridden).
+   --rail-stripe overrides the stripe with an image.
+   ────────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Systems — blue. Light to dark by planet count. */
+  --tile-blue-1: #8fbde8;
+  --tile-blue-2: #5e93cc;
+  --tile-blue-3: #3d6da8;
+  --tile-blue-empty: #4b6d8c;
+
+  /* Anomalies — red, warm through to dark. */
+  --tile-red-asteroid: #c08f80;
+  --tile-red-nebula: #b2645f;
+  --tile-red-supernova: #d1714c;
+  --tile-red-rift: #8b423c;
+  --tile-red-scar: #a15448;
+
+  /* Home systems — green. */
+  --tile-green: #55a05c;
+
+  /* Neither a system nor an anomaly: no place in the three-colour language. */
+  --tile-grey: #6f6f6f;
+  --tile-violet: #8f7bb8;
+  --tile-gold: #d9ae4f;
+}
+
+#toolRail .ui-rail-btn {
+  background-color: var(--surface-3) !important;
+  background-image: var(--rail-stripe, linear-gradient(var(--rail-accent, transparent), var(--rail-accent, transparent))) !important;
+  background-repeat: no-repeat;
+  background-size: 3px calc(100% - 8px);
+  background-position: left center;
+  border: 1px solid var(--surface-4) !important;
+  color: var(--text-color) !important;
+  padding-left: 11px;
+  /* One weight whatever the state, so a label never changes width. */
+  font-weight: 500;
+}
+
+#toolRail .ui-rail-btn:hover {
+  background-color: #343434 !important;
+  font-weight: 500;
+}
+
+/* .mode-button.active sets its own background, so the armed state has to be restated
+   here or it would paint over the family stripe. */
+#toolRail .ui-rail-btn.active {
+  background-color: #3c3c3c !important;
+  background-size: 4px calc(100% - 4px);
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-accent-outline-dark);
+  color: var(--text-color) !important;
+  /* Armed reads heavier, without the label changing width. */
+  text-shadow: var(--faux-bold);
+}
+
+/* The same variable, with a different fallback: a button with no family keeps the icon
+   colour every other control has. */
+#toolRail .ui-rail-btn .ui-rail-btn__icon {
+  color: var(--rail-accent, currentColor);
+  opacity: 1;
+}
+
+/* Systems */
+#toolRail .ui-rail-btn.btn-1 { --rail-accent: var(--tile-blue-1); }
+#toolRail .ui-rail-btn.btn-2 { --rail-accent: var(--tile-blue-2); }
+#toolRail .ui-rail-btn.btn-3 { --rail-accent: var(--tile-blue-3); }
+#toolRail .ui-rail-btn.btn-empty { --rail-accent: var(--tile-blue-empty); }
+
+/* Legendary planets sit on an ordinary blue tile; the gold is on the star. */
+#toolRail .ui-rail-btn.btn-legendary { --rail-accent: var(--tile-blue-2); }
+#toolRail .ui-rail-btn.btn-legendary .ui-rail-btn__icon { color: var(--tile-gold); }
+
+/* Anomalies */
+#toolRail .ui-rail-btn.btn-asteroid { --rail-accent: var(--tile-red-asteroid); }
+#toolRail .ui-rail-btn.btn-nebula { --rail-accent: var(--tile-red-nebula); }
+#toolRail .ui-rail-btn.btn-supernova { --rail-accent: var(--tile-red-supernova); }
+#toolRail .ui-rail-btn.btn-rift { --rail-accent: var(--tile-red-rift); }
+#toolRail .ui-rail-btn.btn-scar { --rail-accent: var(--tile-red-scar); }
+
+/* Home systems */
+#toolRail .ui-rail-btn.btn-homesystem { --rail-accent: var(--tile-green); }
+
+/* Neither */
+#toolRail .ui-rail-btn.btn-void { --rail-accent: var(--tile-grey); }
+#toolRail .ui-rail-btn.btn-special,
+#toolRail .ui-rail-btn.btn-fracture { --rail-accent: var(--tile-violet); }
+
+/* The two fold headers take their family's colour, so a folded group still says
+   which one it is. */
+#toolRail .ui-rail-btn--group.is-planets { --rail-accent: var(--tile-blue-2); }
+#toolRail .ui-rail-btn--group.is-anomalies { --rail-accent: var(--tile-red-nebula); }
+
+/* The picker covers every tile in the game, so its stripe is all three backs. */
+#toolRail .ui-rail-btn.btn-lookup-id {
+  --rail-accent: var(--tile-blue-2);
+  --rail-stripe: linear-gradient(180deg,
+      var(--tile-blue-2) 0 34%,
+      var(--tile-red-nebula) 34% 67%,
+      var(--tile-green) 67%);
+  border-radius: var(--ui-radius) !important;
+  padding: 5px 8px 5px 11px !important;
+}
+
+/* Hyperlane tiles are blue with white striping across them. */
+#toolRail .ui-rail-btn.btn-hyperlane {
+  --rail-accent: #6aa6de;
+  --rail-stripe: repeating-linear-gradient(135deg,
+      #3f7fc4 0 4px,
+      #e4eefa 4px 7px);
+}
+
+/* Fourteen wormhole types behind one button, so the stripe carries their colours
+   rather than picking one. */
+#toolRail .ui-rail-btn.btn-wormhole-all {
+  --rail-accent: #b98ad6;
+  --rail-stripe: linear-gradient(180deg,
+      orange 0 20%,
+      green 20% 40%,
+      #d46a9f 40% 60%,
+      #4a7fd0 60% 80%,
+      #8a4fa8 80%);
+}
+
+/* The ? in a fold header. Its explanation is a native title, the same way every other
+   affordance in the rail explains itself — a bespoke hover card here would be the only
+   one in the app, and would need its own dismissal rules to boot. */
+.ui-rail-btn__help {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin-right: 2px;
+  border: 1px solid var(--surface-5);
+  border-radius: 50%;
+  color: var(--surface-5);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 11px;
+  text-align: center;
+  cursor: help;
+}
+
+.ui-rail-btn__help:hover {
+  color: var(--text-color);
+  border-color: var(--text-color);
+}
+
+/* The one line of prose in the rail: what to do before the buttons under it will work. */
+.ui-rail-note {
+  margin: 1px 2px 4px;
+  font-size: 9.5px;
+  line-height: 1.35;
+  color: var(--label-on-surface);
+}
+
+/* An action whose precondition is not met. Dimmed rather than hidden: the list is a
+   description of what the tool can do, and hiding half of it depending on the selection
+   would make it a worse description. The title says what is missing. */
+#toolRail .ui-rail-btn.is-unavailable {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#toolRail .ui-rail-btn.is-unavailable:hover {
+  background-color: var(--surface-3) !important;
+}
+
+/* Switches that belong to a rail group rather than to any one of its actions. */
+.ui-rail-opts {
+  margin-top: 5px;
+  padding-top: 4px;
+  border-top: 1px solid var(--surface-4);
+}
+
+.ui-rail-note--opts {
+  margin-bottom: 2px;
+}
+
+.ui-rail-opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--info-color);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ui-rail-opt:hover {
+  color: var(--text-color);
+}
+
+.ui-rail-opt__box {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* Collapsed, the rail is icons; these have no icon and no room for their labels. */
+#toolRail.is-collapsed .ui-rail-opts,
+#toolRail.is-collapsed .ui-rail-note {
+  display: none;
+}
+
+/* ── Panel resizers ───────────────────────────────────────────────────────────
+   A grab strip on the inner edge of the rail and the inspector. Siblings of the panels
+   rather than children: a child of a scrolling column scrolls away with it, and this has
+   to stay on the edge and stay clickable.
+
+   Invisible until pointed at. A permanent divider on both sides of the map would be two
+   more lines competing with the map for attention, to advertise something you do once. */
+.panel-resizer {
+  position: fixed;
+  width: 6px;
+  z-index: var(--layer-floating);
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.12s;
+}
+
+.panel-resizer:hover,
+.panel-resizer.is-dragging {
+  background: var(--color-primary);
+}
+
+.rail-collapse-btn {
+  margin-top: auto;
+  align-self: stretch;
+  padding: 5px 0;
+  border: 1px solid transparent;
+  border-top: 1px solid var(--surface-4);
+  border-radius: 0;
+  background: none;
+  color: var(--info-color);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rail-collapse-btn:hover {
+  color: var(--text-color);
+  background: var(--surface-3);
+}
+
+.rail-collapse-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* The SVG sits flush in its cell; without this it reports 2px larger than the cell. */
+#hexMap {
+  box-sizing: border-box;
+}
+
+/* ── Inspector ────────────────────────────────────────────────────────────── */
+
+#inspector {
+  grid-area: inspector;
+  z-index: var(--layer-shell);
+  width: var(--shell-inspector-w, 232px);
+  padding: 10px 12px;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border-left: 1px solid var(--surface-4);
+  box-sizing: border-box;
+}
+
+#inspector[hidden] {
+  display: none;
+}
+
+/* ── Inspector contents ───────────────────────────────────────────────────── */
+
+.insp-title {
+  font-family: var(--font-ui);
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--surface-5);
+  padding-bottom: 7px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--surface-4);
+}
+
+/* ── Tool panels: Wormholes, Custom Links, Border Anomalies (toolPanel.js) ──── */
+
+/* Two columns of tool buttons, each filling its cell. */
+.tool-panel__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.tool-panel__grid .mode-button {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.insp-field {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.insp-field__label {
+  flex: none;
+  color: var(--info-color);
+}
+
+/* Values can be long (a system name, a list of wormholes); they wrap rather than
+   widening the column or being clipped. */
+.insp-field__value {
+  min-width: 0;
+  text-align: right;
+  color: var(--text-color);
+  overflow-wrap: anywhere;
+}
+
+.insp-field--tool .insp-field__value {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.insp-field--total {
+  margin-top: 4px;
+  padding-top: 5px;
+  border-top: 1px solid var(--surface-4);
+}
+
+.insp-heading {
+  margin: 12px 0 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--surface-5);
+}
+
+.insp-planet {
+  padding: 5px 7px;
+  margin-bottom: 4px;
+  background: var(--surface-3);
+  border-radius: var(--ui-radius);
+}
+
+.insp-planet__name {
+  font-size: 12px;
+  color: var(--text-color);
+}
+
+.insp-planet__stats {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--info-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.insp-empty {
+  margin-top: 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--surface-5);
+}
+
+/* The tile art, when SystemInfo has a path for it and the file is present. The element
+   starts hidden and reveals itself on load, so a missing download shows nothing rather
+   than a broken-image icon. */
+.insp-tile {
+  display: block;
+  width: 100%;
+  max-width: 132px;
+  margin: 2px auto 8px;
+  border-radius: 6px;
+  border: 1px solid var(--surface-4);
+  background: var(--surface-1);
+}
+
+.insp-planet__tokens,
+.insp-tokens {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--color-accent);
+}
+
+.insp-planet__tokens {
+  margin-top: 2px;
+}
+
+.insp-tokens {
+  margin: 1px 0 4px 2px;
+}
+
+.insp-field--hint .insp-field__value {
+  color: var(--color-accent);
+}
+
+.insp-field--tier .insp-field__value {
+  color: #7ecfff;
+}
+
+/* The pinned bar. Present only while a hex is selected, so the panel says which of its
+   two modes it is in rather than leaving you to work out why hovering stopped doing
+   anything. */
+.insp-pinned {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0 2px;
+  padding: 3px 6px;
+  border-radius: var(--ui-radius);
+  background: var(--surface-3);
+  border-left: 3px solid #4fc3f7;
+}
+
+.insp-pinned__text {
+  font-size: 10.5px;
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.insp-pinned__clear {
+  padding: 1px 7px;
+  background: none;
+  border: 1px solid var(--surface-5);
+  border-radius: var(--ui-radius);
+  color: var(--info-color);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.insp-pinned__clear:hover {
+  color: var(--text-color);
+  border-color: var(--text-color);
+}
+
+/* ── Clipboard history ────────────────────────────────────────────────────── */
+
+/* Sits under the hex detail, which the inspector swaps out in place on every hover, so
+   this is a sibling rather than part of it. */
+.clip-panel {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--surface-4);
+}
+
+.clip-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.clip-panel__title {
+  flex: 1;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--label-on-surface);
+}
+
+.clip-panel__count {
+  font-size: 10px;
+  color: var(--surface-5);
+  font-variant-numeric: tabular-nums;
+}
+
+.clip-panel__clear {
+  padding: 1px 6px;
+  background: none;
+  border: 1px solid var(--surface-4);
+  border-radius: var(--ui-radius);
+  color: var(--info-color);
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+.clip-panel__clear:hover {
+  color: var(--text-color);
+  border-color: var(--text-color);
+}
+
+.clip-empty {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--surface-5);
+}
+
+.clip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /* Twelve clips is a list, not a page. Anything past about five scrolls rather than
+     pushing the hex detail off the top of the column. */
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.clip-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  background: var(--surface-3);
+  cursor: pointer;
+}
+
+.clip-row:hover {
+  background: #343434;
+}
+
+/* Which clip Ctrl+V will place. With several in the list that stops being obvious, and
+   guessing wrong overwrites tiles. */
+.clip-row.is-active {
+  border-color: #4fc3f7;
+  background: #2f3a40;
+}
+
+.clip-shape {
+  flex: none;
+  opacity: 0.9;
+}
+
+.clip-row__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.clip-row__name {
+  font-size: 11px;
+  color: var(--text-color);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.clip-row__meta {
+  font-size: 9.5px;
+  color: var(--surface-5);
+  font-variant-numeric: tabular-nums;
+}
+
+.clip-row__drop {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--ui-radius);
+  color: var(--surface-5);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.clip-row__drop:hover {
+  background: var(--surface-4);
+  color: var(--text-color);
+}
+
+/* ── Status bar ───────────────────────────────────────────────────────────── */
+
+#statusBar {
+  grid-area: status;
+  z-index: var(--layer-shell);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: var(--shell-status-h);
+  padding: 0 12px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--surface-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--info-color);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.status-item b {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+/* The hint is the first thing to go when the window is narrow — it is a reminder,
+   not information. */
+.status-hint {
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .status-hint { display: none; }
+}
+
+/* ── Floating panels, now that the shell owns the page ────────────────────── */
+
+/* A note inside a popup: quieter than the controls it sits above. Replaces an
+   orphan <li> that rendered as a stray bullet outside any list. */
+.overlay-note {
+  margin: 0 0 10px;
+  font-size: 0.8em;
+  line-height: 1.4;
+  color: var(--info-color);
+}
+
+/* ── Top-bar dropdown menus ───────────────────────────────────────────────────
+   Analyse, Generate and Help. Each holds buttons that used to sit in the bar at full
+   weight; the elements are moved rather than rebuilt, so their handlers survive. */
+.tb-menu {
+  display: none;
+  position: fixed;
+  /* Not --text-color: this panel is dark in both themes, and that token is black in the
+     light one, so the whole menu rendered black on #1e1e1e. */
+  color: var(--text-on-surface);
+  z-index: var(--layer-menu);
+  min-width: 190px;
+  max-height: calc(100vh - var(--shell-topbar-h) - 24px);
+  overflow-y: auto;
+  padding: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-4);
+  border-radius: 6px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+}
+
+.tb-menu.dropdown-open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Panels whose content is a grid of toggles rather than a list of commands: Toggle
+   Overlays, Layout Options, Generate. Wider, and they keep their own internal grid. */
+.tb-menu--panel {
+  min-width: 260px;
+  max-width: 420px;
+  padding: 10px 12px;
+}
+
+/* A line of prose at the top of a menu, where one sentence saves a tooltip. */
+.tb-menu__note {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--label-on-surface);
+}
+
+.tb-menu__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* A command in a menu: a row you click, not a button competing for attention. The four
+   in Map setup were 16px buttons with their own padding and, in one case, a coloured
+   border — which made a menu of four items look like a dialog. */
+.tb-menu__item {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  color: var(--text-on-surface);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tb-menu__item:hover {
+  background: var(--surface-3);
+}
+
+.tb-menu__item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.tb-menu__title {
+  font-family: var(--font-ui);
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--surface-4);
+}
+
+/* A settings panel's own Save/Close, which used to be the popup's titlebar actions. */
+.tb-menu__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--surface-4);
+}
+
+/* Inside a menu a button is a row, not a chip: full width and left-aligned, so the
+   labels line up and the list reads as a list. */
+.tb-menu .tb-menu__item {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  text-align: left;
+  white-space: nowrap;
+  border-radius: var(--ui-radius);
+}
+
+/* ── The File menu ────────────────────────────────────────────────────────────
+   #controlsPanel held import, export and map generation, and sat permanently over the
+   top-left of the map — the largest surface in the app, for the jobs you do once a
+   session. It is a dropdown under the File button now.
+
+   It kept the panel's own look when it moved: a 600px-wide box of full-width buttons at
+   one weight, two of them painted orange and green with inline styles, and the ring
+   controls loose at the bottom as a bare label, a number box and three buttons. This is
+   the same set of controls as a menu — grouped, one row per action, the destinations
+   named rather than the mechanism.
+
+   Hidden by default and positioned in JS, since it hangs off a button whose position
+   depends on how the bar has wrapped. */
+#controlsPanel.file-menu {
+  display: none;
+  position: fixed;
+  width: 292px;
+  max-width: 95vw;
+  padding: 6px;
+  box-sizing: border-box;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-4);
+  border-radius: 8px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  color: var(--text-color);
+  z-index: var(--layer-menu);
+  /* The New map drop-out hangs outside the panel, so this cannot clip. */
+  overflow: visible;
+}
+
+#controlsPanel.file-menu.file-menu-open {
+  display: block;
+}
+
+/* The list scrolls if it ever has to; the drop-out is outside it for that reason. */
+.file-menu .fm-body {
+  max-height: calc(100vh - var(--shell-topbar-h) - 32px);
+  overflow-y: auto;
+}
+
+.file-menu .fm-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--surface-5);
+  margin: 9px 0 3px 9px;
+}
+
+.file-menu .fm-body > .fm-label:first-child,
+.file-menu .fm-flyout > .fm-label:first-child {
+  margin-top: 2px;
+}
+
+.file-menu .fm-sep {
+  border-top: 1px solid var(--surface-4);
+  margin: 7px 4px;
+}
+
+/* One row per action. .mode-button is gone from these, so the panel's old
+   #controlsPanel button rule no longer reaches them. */
+#controlsPanel.file-menu .fm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  color: var(--text-color);
+  font-family: var(--font-ui);
+  font-size: 0.9em;
+  text-align: left;
+  cursor: pointer;
+}
+
+#controlsPanel.file-menu .fm-item:hover {
+  background: var(--surface-3);
+}
+
+#controlsPanel.file-menu .fm-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* The two AsyncTI4 rows were a solid orange and a solid green fill. The colours said
+   something worth keeping — in, and out — so they are a stripe rather than the button. */
+#controlsPanel.file-menu .fm-item--in,
+#controlsPanel.file-menu .fm-item--out {
+  padding-left: 13px;
+}
+
+#controlsPanel.file-menu .fm-item--in {
+  box-shadow: inset 3px 0 0 #c9832a;
+}
+
+#controlsPanel.file-menu .fm-item--out {
+  box-shadow: inset 3px 0 0 #43914a;
+}
+
+#controlsPanel.file-menu .fm-item--primary {
+  justify-content: center;
+  margin-top: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+#controlsPanel.file-menu .fm-item--primary:hover {
+  background: #3bb0ff;
+}
+
+.file-menu .fm-caret {
+  flex: none;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--surface-5);
+}
+
+#controlsPanel.file-menu .fm-item[aria-expanded="true"] {
+  background: var(--surface-3);
+}
+
+#controlsPanel.file-menu .fm-item[aria-expanded="true"] .fm-caret {
+  color: var(--text-color);
+}
+
+/* ── The Advanced fold ────────────────────────────────────────────────────── */
+
+.file-menu .fm-fold {
+  margin: 2px 0 4px 10px;
+  padding-left: 7px;
+  border-left: 1px solid var(--surface-4);
+}
+
+.file-menu .fm-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+
+#controlsPanel.file-menu .fm-chip {
+  margin: 0;
+  padding: 5px 7px;
+  background: var(--surface-3);
+  border: 1px solid var(--surface-4);
+  border-radius: var(--ui-radius);
+  color: var(--text-color);
+  font-family: var(--font-ui);
+  font-size: var(--ui-font-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+#controlsPanel.file-menu .fm-chip:hover {
+  background: #343434;
+}
+
+/* ── The New map drop-out ─────────────────────────────────────────────────── */
+
+.file-menu .fm-flyout {
+  display: none;
+  position: absolute;
+  top: 6px;
+  left: calc(100% + 6px);
+  width: 214px;
+  padding: 6px;
+  box-sizing: border-box;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-4);
+  border-radius: 8px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+}
+
+.file-menu .fm-flyout.is-open {
+  display: block;
+}
+
+.file-menu .fm-note {
+  margin: 5px 4px 2px;
+  font-size: var(--ui-font-xs);
+  color: var(--surface-5);
+}
+
+/* ── The Map size menu ────────────────────────────────────────────────────────
+   Rings and the AsyncTI4-boundaries switch. They were in File ▸ New map, but both
+   resize the current map as they change. Small: two rows, no title. */
+.map-size-menu.tb-menu--panel {
+  min-width: 0;
+  width: 220px;
+  padding: 6px;
+}
+
+.map-size-menu .ms-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 4px;
+  font-size: 0.9em;
+}
+
+.map-size-menu .ms-row label {
+  flex: 1;
+}
+
+.map-size-menu .ms-row input[type="number"] {
+  width: 46px;
+  padding: 4px 5px;
+  background: var(--surface-1);
+  border: 1px solid var(--surface-4);
+  border-radius: var(--ui-radius);
+  color: var(--text-on-surface);
+  font-family: var(--font-ui);
+  text-align: center;
+}
+
+.map-size-menu .ms-step {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  background: var(--surface-3);
+  border: 1px solid var(--surface-4);
+  border-radius: var(--ui-radius);
+  color: var(--text-on-surface);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.map-size-menu .ms-step:hover {
+  background: #343434;
+}
+
+.map-size-menu .ms-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 4px;
+  font-size: 0.85em;
+  line-height: 1.3;
+  cursor: pointer;
+  user-select: none;
+}
+
+.map-size-menu .ms-check input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+
+/* ── Top bar: the right-hand group ────────────────────────────────────────── */
+
+/* The version tag was absolutely positioned 15px from the right edge, from when the
+   controls beside it were too. They moved into the flex row and it did not, so once the
+   version string grew past "v2.1" the pill sat on top of Help ▾. It is the last item in
+   #rightControls now, and takes its space like everything else. */
+#rightControls #versionTag {
+  position: static;
+  margin-left: 4px;
+}
+
+#rightControls .mode-button.tb-icon-btn {
+  min-width: 30px;
+  padding: 5px 8px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* ── Keyboard & mouse shortcuts ───────────────────────────────────────────── */
+
+.sc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 72vh;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-on-surface);
+}
+
+.sc-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--surface-4);
+  border-radius: 6px;
+  color: var(--text-on-surface);
+  font: inherit;
+}
+
+.sc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.sc-group {
+  background: var(--surface-3);
+  border: 1px solid var(--surface-4);
+  border-radius: 8px;
+  padding: 10px 12px 8px;
+}
+
+.sc-group[hidden], .sc-row[hidden], .sc-note[hidden] { display: none; }
+
+.sc-group__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.sc-group__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-family: var(--font-icon), var(--font-ui);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+/* The keys get a fixed column, so every description in a card starts at the same place.
+   It used to be `auto`, and one long combo (Hover + Shift + R) took the width from its
+   own description and squeezed it into a narrow column. A combo longer than the column
+   wraps inside it instead. */
+.sc-row {
+  display: grid;
+  grid-template-columns: 14.5em minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.sc-row:first-of-type { border-top: none; }
+
+.sc-row__keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.sc-row__does {
+  line-height: 1.4;
+  color: var(--text-on-surface);
+}
+
+.sc-combo {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+/* A keycap: a lighter top face over a darker edge, so it reads as a key and not a tag. */
+.sc-key {
+  display: inline-block;
+  min-width: 20px;
+  padding: 2px 6px 3px;
+  box-sizing: border-box;
+  background: linear-gradient(#4a4a4a, #383838);
+  border: 1px solid #1a1a1a;
+  border-bottom-width: 3px;
+  border-radius: 5px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.sc-plus, .sc-or {
+  color: var(--surface-5);
+  font-size: 11px;
+}
+.sc-or { margin: 0 3px; font-style: italic; }
+
+.sc-mouse {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 1px 4px;
+  border: 1px solid var(--surface-4);
+  border-radius: 11px;
+  background: var(--surface-2);
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.sc-mouse__icon { width: 12px; height: 17px; flex: none; }
+.sc-mouse__btn, .sc-mouse__body { fill: #2a2a2a; stroke: #9a9a9a; stroke-width: 1; }
+.sc-mouse__wheel { fill: #9a9a9a; }
+.sc-mouse__lit { fill: var(--color-primary); stroke: var(--color-primary); }
+
+.sc-note {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #a8a8a8;
+}
+
+.sc-empty {
+  margin: 0;
+  text-align: center;
+  color: var(--surface-5);
+}
+
+/* The status bar's short list uses the same keycaps, shrunk to fit the line. */
+.sc-combo--mini .sc-key {
+  min-width: 16px;
+  padding: 0 4px 1px;
+  border-bottom-width: 2px;
+  font-size: 10px;
+}
+.sc-combo--mini .sc-mouse {
+  padding: 0 5px 0 3px;
+  font-size: 10px;
+}
+.sc-combo--mini .sc-mouse__icon { width: 9px; height: 13px; }
+
+/* Wide windows only: below 900px the hint is hidden, and this must not undo that. */
+@media (min-width: 901px) {
+  .status-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+.sc-hint-sep { margin: 0 4px; color: var(--surface-5); }
+
+.sc-hint-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  color: var(--info-color);
+  font: inherit;
+  cursor: pointer;
+}
+.sc-hint-more:hover { color: var(--color-primary); }

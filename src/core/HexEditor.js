@@ -20,9 +20,9 @@ import { drawHexGrid, drawHex, drawSpecialHexes, generateRings, autoscaleView, c
 // Exporting helpers for map, hyperlane tiles, wormholes
 import { exportMap, exportHyperlaneTilePositions, exportWormholePositions } from '../data/export.js';
 // Importers for map string (hyperlanes) and sector types
-import { importMap, importSectorTypes } from '../data/import.js';
+import { importMap, importSectorTypes, loadSystemInfo, loadHyperlaneMatrices } from '../data/import.js';
 // Logic for toggling wormhole overlays and visibility
-import { toggleWormhole, removeWormholeOverlay, redrawWormholeOverlays, updateHexWormholes } from '../features/wormholes.js';
+import { toggleWormhole, updateHexWormholes } from '../features/wormholes.js';
 // Hex-grid geometry math utilities (distance, neighbors)
 import { hexDistance, getNeighbors } from '../utils/geometry.js';
 // Common constants: directions, colors, icon offsets, etc.
@@ -40,6 +40,9 @@ import { registerClickHandler } from '../ui/uiEvents.js';
 import { applySavedTheme } from '../ui/uiTheme.js';
 // Calculate shortest path distances for overlays, etc.
 import { calculateDistancesFrom, isScriptedAnomaly } from '../distance/index.js';
+import { clearHexSelection, refreshHexSelection } from '../features/hexSelection.js';
+import { disarmAll } from '../features/disarm.js';
+import { restoreSession, announceMapReshaped } from '../features/session.js';
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import {
   buildCoordIndex, neighborHex, oppositeSide, normalizeSide, areAxialNeighbors,
@@ -48,8 +51,6 @@ import {
 import { unmarkRealIDUsed, clearRealIDUsage } from '../ui/uiFilters.js';
 // RealID/overlay features (sector ID overlays, toggles, etc.)
 import { initRealIDFeatures, updateLayerVisibility, redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
-// Loads system data for all tiles (names, IDs, etc.)
-import { loadSystemInfo, loadHyperlaneMatrices } from '../data/import.js';
 import { updateEffectsVisibility, updateWormholeVisibility, createWormholeOverlay } from '../features/baseOverlays.js'
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
@@ -71,7 +72,9 @@ export default class HexEditor {
   constructor({ svg, confirmReset = null }) {
     // ─── Core state variables ───
     this.hexes = {};            // Map of all hexes by label/id
-    this.mode = 'hyperlane';    // Current editing mode ("hyperlane", "nebula", etc.)
+    // Idle. The editor used to boot armed with the hyperlane tool, so the first click on
+    // a fresh map drew a hyperlane nobody asked for, and the rail showed nothing selected.
+    this.mode = 'select';       // Current editing mode ('select', 'hyperlane', 'nebula', ...)
     this.hoveredHexLabel = null;// Which hex is being hovered (for highlight)
     this.fillCorners = true;   // If true, adds corner hexes to map grid
     this.showWormholes = true;  // If wormhole icons are shown
@@ -99,27 +102,27 @@ export default class HexEditor {
     drawHexGrid(this, this.fillCorners); // Draw initial empty grid
 
     // ─── Corner map toggle logic ───
+    // Regenerating asks first. If that is declined, the setting goes back: it used to stay
+    // switched while the map kept its old shape, and the ring buttons then cut and drew
+    // to the new one.
     this.toggleCorners = (isChecked) => {
+      const was = this.fillCorners;
       this.fillCorners = isChecked;
-      this.generateMap();
+      if (this.generateMap() === false) {
+        this.fillCorners = was;
+        this._syncRingControls();
+      }
     };
 
     // ─── Global escape key handler for clearing overlays, links, and any active cursor mode ───
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.clearWormholeLinks();
-        if (typeof this.clearDistanceOverlays === 'function') {
-          this.clearDistanceOverlays();
-        }
-        // Re-click any currently-active mode/tool button so it runs its own
-        // "turning off" logic (clears its highlight + calls setMode('none')),
-        // then fall back to clearing the mode directly in case nothing was active.
-        const activeButtons = document.querySelectorAll('.mode-button.active');
-        if (activeButtons.length > 0) {
-          activeButtons.forEach(btn => btn.click());
-        } else if (typeof this.setMode === 'function') {
-          this.setMode('none');
-        }
+        // Distance overlays are cleared by svgBindings' own Escape handler. This used to
+        // call this.clearDistanceOverlays, which the editor has never had.
+        // Each tool owns its own turning-off, so disarmAll clicks the lit buttons rather
+        // than calling setMode behind their backs. Right-click asks for the same thing.
+        disarmAll(this);
       }
     });
 
@@ -129,15 +132,31 @@ export default class HexEditor {
     installHyperlanes(this);      // Allows drawing hyperlane links with clicks
     registerClickHandler(this);   // Handles click mode (effect/sector/wormhole/hyperlane)
 
-    // ─── DEFERRED: Wait for system info to load before generating grid ───
-    // This ensures all system/sector metadata is ready before drawing.
-    Promise.all([loadSystemInfo(this), loadHyperlaneMatrices(this)])
+    // ─── DEFERRED: wait for the system data before putting a map on screen ───
+    //
+    // Both branches belong here, and for the same reason: each needs the data that has
+    // just arrived. Generating a grid needs the hyperlane matrices; restoring a stored map
+    // needs sectorIDLookup, because its tiles are ids that have to be looked up.
+    //
+    // This used to generate unconditionally, and the session was restored separately from
+    // main.js on DOM-ready. Those are two different clocks — a network fetch and the
+    // parser — so which finished last decided whether you got your map back or a blank
+    // grid over the top of it. On a warm localhost cache the fetch usually won and the
+    // restore stuck; on a cold one the generate landed second and wiped it. A restored map
+    // is not something to draw a default grid over and hope, so one place decides.
+    //
+    // The promise is kept on the editor so callers can wait for a map to exist rather
+    // than guess at how long it takes.
+    this.ready = Promise.all([loadSystemInfo(this), loadHyperlaneMatrices(this)])
       .then(() => {
-        this.generateMap();
+        if (!restoreSession(this)) this.generateMap();
         console.log("HexEditor fully initialized.");
       })
       .catch(err => {
         console.error("Could not load system/hyperlane info:", err);
+        // Without that data there is nothing to restore from, but an empty grid still
+        // beats an empty page.
+        try { this.generateMap(); } catch { /* the boot guard reports a failure itself */ }
       });
   }
 
@@ -188,7 +207,7 @@ export default class HexEditor {
 
     // Group hexes by which wormholes they contain
     const groups = {};
-    for (const [label, hex] of Object.entries(this.hexes)) {
+    for (const hex of Object.values(this.hexes)) {
       if (hex.wormholes && hex.wormholes.size) {
         hex.wormholes.forEach((type) => {
           if (!groups[type]) groups[type] = [];
@@ -277,14 +296,26 @@ export default class HexEditor {
   /**
    * Generate a new blank map of the selected ring count.
    * Loads system data for each tile, initializes overlays/layers.
+   *
+   * Asks first unless told not to. Restoring the session at startup must not ask: it is
+   * not erasing anything, and Cancel — which reads as "keep my map" — skipped the
+   * generate while the restore carried on, onto the default six-ring grid. Anything in
+   * the rings beyond it was dropped, and the autosave then kept the smaller map.
+   *
+   * @param {{ confirm?: boolean }} [opts]
+   * @returns {boolean} false when nothing was generated (declined, or a bad ring count)
    */
-  generateMap() {
-    if (this.confirmReset && this.confirmReset() === false) return;
+  generateMap({ confirm = true } = {}) {
+    if (confirm && this.confirmReset && this.confirmReset() === false) {
+      this._syncRingControls();
+      return false;
+    }
 
     const rings = parseInt(document.getElementById('ringCount').value, 10);
     if (isNaN(rings) || rings < 1 || rings > MAX_MAP_RINGS) {
       alert(`Enter 1–${MAX_MAP_RINGS}`);
-      return;
+      this._syncRingControls();
+      return false;
     }
     this.currentRings = rings;
     this.currentFillCorners = this.fillCorners;
@@ -306,7 +337,7 @@ export default class HexEditor {
 
     // Initialize empty state for all hexes - don't auto-assign planets
     // Planets should only be assigned when user explicitly assigns a system
-    for (const [label, hex] of Object.entries(this.hexes)) {
+    for (const hex of Object.values(this.hexes)) {
       hex.planets = [];
       hex.wormholes = new Set();
       hex.realId = null;
@@ -348,69 +379,85 @@ export default class HexEditor {
     // Restore overlays after SVG was wiped and rebuilt
     this.tokenOverlay?.refresh();
     this.loreOverlay?.refresh();
+    refreshHexSelection(this);
+
+    this._syncRingControls();
+    announceMapReshaped();
+    return true;
+  }
+
+  /**
+   * Make the Map size controls show the map as it is.
+   *
+   * The map is the record of its own size, not the Rings box. The box used to be: + and −
+   * stepped from whatever it said, and it could say something else — a reload brought the
+   * box back at its last value over a map restored at another size. Then − warned about a
+   * ring the map did not have, and + quietly cut a ring that did.
+   */
+  _syncRingControls() {
+    const ringsInput = /** @type {HTMLInputElement|null} */ (document.getElementById('ringCount'));
+    if (ringsInput) ringsInput.value = String(this.currentRings);
+    const cornerToggle = /** @type {HTMLInputElement|null} */ (document.getElementById('cornerToggle'));
+    if (cornerToggle) cornerToggle.checked = !!this.fillCorners;
   }
 
   addRing() {
-    const ringsInput = document.getElementById('ringCount');
-    let rings = parseInt(ringsInput.value, 10);
-    if (isNaN(rings)) rings = 1;
-    if (rings >= MAX_MAP_RINGS) return;
-    rings += 1;
-    ringsInput.value = rings;
-    this._setRingCount(rings);
-
+    if (this.currentRings >= MAX_MAP_RINGS) return;
+    this._setRingCount(this.currentRings + 1);
   }
 
   removeRing() {
-    const ringsInput = document.getElementById('ringCount');
-    let rings = parseInt(ringsInput.value, 10);
-    if (isNaN(rings) || rings <= 1) return;
-    rings -= 1;
-    ringsInput.value = rings;
-    this._setRingCount(rings);
+    if (this.currentRings <= 1) return;
+    this._setRingCount(this.currentRings - 1);
+  }
 
+  /**
+   * The hexes resizing to `rings` would delete. The corners are never among them: they
+   * are redrawn around whatever size the map is.
+   *
+   * @param {number} rings
+   * @returns {object[]}
+   */
+  hexesCutBy(rings) {
+    const keep = new Set(generateRings(rings, this.fillCorners).map(h => h.label));
+    return Object.values(this.hexes)
+      .filter(h => !keep.has(h.label) && !CORNER_LABELS.includes(h.label));
   }
 
   // Internal: Adjust rings, preserve hexes inside new bounds
   _setRingCount(newRings) {
+    // Taken before anything is drawn, so it is measured against the map as it stands.
+    const cut = this.hexesCutBy(newRings);
+
     this.currentRings = newRings;
     this.currentFillCorners = this.fillCorners;
 
-    const layout = generateRings(newRings, this.fillCorners);
-    const newLabels = new Set(layout.map(h => h.label));
-    const oldLabels = new Set(Object.keys(this.hexes));
-
     // Add new hexes
-    for (const h of layout) {
+    for (const h of generateRings(newRings, this.fillCorners)) {
       if (!this.hexes[h.label]) {
         drawHex(this, h.q, h.r, h.label);
       }
     }
 
-    // Remove cut hexes (with clearAll and polygon/label removal), but skip corners!
+    // Remove cut hexes (with clearAll and polygon/label removal). Corners are not cut.
     // Lock history: deleted hexes cannot be restored, so these saves would only pollute the undo stack.
     this._historyLocked = true;
-    for (const label of oldLabels) {
-      if (
-        !newLabels.has(label) &&
-        !CORNER_LABELS.includes(label)
-      ) {
-        this.clearAll(label);
-        this.clearCustomAdjencies(label);
+    for (const { label } of cut) {
+      this.clearAll(label);
+      this.clearCustomAdjencies(label);
 
-        // Remove the hex polygon from SVG
-        const hex = this.hexes[label];
-        if (hex && hex.polygon && hex.polygon.parentNode) {
-          hex.polygon.parentNode.removeChild(hex.polygon);
-        }
-        // Remove the sector label <text>
-        const labelEl = document.getElementById(`label-${label}`);
-        if (labelEl && labelEl.parentNode) {
-          labelEl.parentNode.removeChild(labelEl);
-        }
-
-        delete this.hexes[label];
+      // Remove the hex polygon from SVG
+      const hex = this.hexes[label];
+      if (hex && hex.polygon && hex.polygon.parentNode) {
+        hex.polygon.parentNode.removeChild(hex.polygon);
       }
+      // Remove the sector label <text>
+      const labelEl = document.getElementById(`label-${label}`);
+      if (labelEl && labelEl.parentNode) {
+        labelEl.parentNode.removeChild(labelEl);
+      }
+
+      delete this.hexes[label];
     }
     this._historyLocked = false;
 
@@ -542,6 +589,10 @@ export default class HexEditor {
     // Redraw token overlays at the new corner positions
     this.tokenOverlay?.refresh();
     this.loreOverlay?.refresh();
+    refreshHexSelection(this);
+
+    this._syncRingControls();
+    announceMapReshaped();
   }
 
 
@@ -551,6 +602,13 @@ export default class HexEditor {
    * Switch editing mode and clear selection
    */
   setMode(mode) {
+
+    // '' counts as idle: that is how the value-hint panel releases the map.
+    const idle = !mode || mode === 'select' || mode === 'none';
+
+    // A tool taking the map ends the read: the ring would otherwise sit there while the
+    // next click paints, saying something is selected when nothing is being read.
+    if (!idle) clearHexSelection(this);
 
     this.mode = mode;
     this.selectedPath = [];
@@ -671,7 +729,12 @@ export default class HexEditor {
         }
       });
       hex.wormholeOverlays = [];
-      hex.wormholes.clear();
+      // All three sets, not just the union: hex.wormholes is rebuilt from the other two
+      // on every toggle, so clearing only it brought back the wormholes you had cleared
+      // as soon as you placed another, and the wormhole menu still ticked them.
+      hex.customWormholes = new Set();
+      hex.inherentWormholes = new Set();
+      hex.wormholes = new Set();
 
       // Clear new features
       // delete hex.customAdjacents;
@@ -687,12 +750,21 @@ export default class HexEditor {
       hex.planetTokens = {};
       this.tokenOverlay?.updateHex(label);
 
-      // if there was a real system assigned, unmark it and clear planet data
+      // Planets before the redraw below, which draws the planet-type and res/inf symbols
+      // from them: emptied after it, the cleared tile kept its symbols until the next
+      // redraw of anything else.
+      hex.planets = [];
+
+      // if there was a real system assigned, unmark it and redraw without it
       if (hex.realId != null) {
         unmarkRealIDUsed(hex.realId.toString());
-        hex.planets = [];
         hex.realId = null;
         redrawAllRealIDOverlays(this);
+        // The tile image too: it is drawn from realId, and was left on screen until the
+        // image overlay was next toggled. And the layer order after it: the redraw above
+        // appends the planet-type and R/I layers at the top of the svg, over the images.
+        updateTileImageLayer(this);
+        enforceSvgLayerOrder(this.svg);
       }
     }
 

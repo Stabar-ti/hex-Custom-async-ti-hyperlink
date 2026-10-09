@@ -3,6 +3,7 @@
  */
 
 import { showPopup, hidePopup } from '../../ui/popupUI.js';
+import { provide, COMMANDS } from '../../core/registry.js';
 import { getCategories } from './tokenCategories.js';
 import { buildTokenTooltip } from './tokenCore.js';
 
@@ -13,15 +14,14 @@ let currentSubcategory = null;
 
 export function installTokenUI(editor) {
     console.log('installTokenUI called with editor:', editor);
-    tokenManager = window.tokenManager;
+    tokenManager = editor.tokenManager;
     
     if (!tokenManager) {
         console.error('TokenManager not found! Make sure it is initialized before installing Token UI');
         return;
     }
     
-    // Add to global window for console access
-    window.showTokenPopup = showTokenPopup;
+    provide(COMMANDS.showTokenPopup, showTokenPopup);
     console.log('Token UI installed successfully');
 }
 
@@ -836,7 +836,7 @@ function showNotification(message) {
         border-radius: 6px;
         font-size: 0.95em;
         font-family: sans-serif;
-        z-index: 99999;
+        z-index: var(--layer-notice);
         box-shadow: 0 4px 16px rgba(0,0,0,0.4);
         pointer-events: none;
         opacity: 1;

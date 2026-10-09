@@ -1,0 +1,38 @@
+{
+  // Type checking ONLY. This project has no build step and never will — index.html loads
+  // src/ as native ES modules straight from disk. `noEmit` is what keeps that true: tsc
+  // is run as a linter (`npm run typecheck`), it never writes a file, and nothing about
+  // how the app is served or opened changes. No .ts files, no renames, no bundler.
+  //
+  // Types come from JSDoc comments the codebase already carries. `checkJs` is OFF by
+  // default and turned on per file with a `// @ts-check` comment at the top, so this can
+  // be adopted one file at a time instead of dumping a thousand errors on day one.
+  // To opt a file in: add `// @ts-check` as its first line and run `npm run typecheck`.
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": false,
+
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+
+    // The browser resolves these imports literally, so tsc must too.
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+
+    // Strictness. These are the checks worth having on a codebase that passes plain
+    // objects around a shared editor instance; the rest of `strict` is noise without
+    // annotations on every parameter.
+    "strictNullChecks": true,
+    "noImplicitThis": true,
+    "useUnknownInCatchVariables": false,
+    "noImplicitAny": false,
+
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.js", "tools/**/*.js", "types/**/*.d.ts"],
+  "exclude": ["node_modules", "public", "html test"]
+}

@@ -1,3 +1,4 @@
+// @ts-check
 // Geometry utilities
 //
 // Thin compatibility layer over utils/hexGrid.js, which is the canonical home

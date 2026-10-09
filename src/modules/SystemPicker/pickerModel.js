@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * What a system tile *is*, as far as the picker cares: which expansion it came from,
  * which attributes it has, and which columns can describe it.
@@ -188,7 +189,9 @@ export const COLUMNS = [
     { key: 'used',        label: 'Used',    defaultVisible: false, width: '50px' }
 ];
 
+/** @returns {Record<string, boolean>} */
 export function defaultColumnVisibility() {
+    /** @type {Record<string, boolean>} */
     const out = {};
     for (const col of COLUMNS) out[col.key] = col.defaultVisible;
     return out;
@@ -197,7 +200,26 @@ export function defaultColumnVisibility() {
 // ── Defaults ──────────────────────────────────────────────────────────────────
 
 /** A fresh filter state, equivalent to the old buttons' `defaultOn` flags. */
+/**
+ * @typedef {"hide"|"only"|"any"} TriValue
+ */
+
+/**
+ * The picker's filter state. Shared with the AutoMapper, which builds one of these by
+ * hand (autoBuilderCore.js) rather than reading the picker's DOM.
+ *
+ * @typedef {object} PickerFilter
+ * @property {Record<string, boolean>} sources      - source group key -> included
+ * @property {Record<string, boolean>} attrs        - attribute key -> required
+ * @property {number[]} planetCounts                - planet counts to keep; empty = all
+ * @property {{faction: TriValue, hyperlanes: TriValue, weird: TriValue}} tri
+ * @property {"and"|"nand"} mode                    - AND matches all attrs, NAND matches tiles missing at least one
+ * @property {boolean} unplacedOnly
+ */
+
+/** @returns {PickerFilter} */
 export function defaultFilter() {
+    /** @type {Record<string, boolean>} */
     const sources = {};
     for (const g of SOURCE_GROUPS) sources[g.key] = true;
     return {

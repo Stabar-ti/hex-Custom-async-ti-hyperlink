@@ -1,3 +1,4 @@
+// @ts-check
 // ─────────────────────────────────────────────────────────────────────────────
 // hexGrid.js — the single home for axial hex-grid math.
 //
@@ -76,8 +77,14 @@ export function hasAxialCoords(hex) {
   return !!hex && Number.isFinite(hex.q) && Number.isFinite(hex.r);
 }
 
-/** Map key for a coordinate index. */
-function coordKey(q, r) {
+/**
+ * Map key for a coordinate index.
+ *
+ * Exported because a coordinate index is no use without it: callers that want to ask
+ * "which hex is at (q, r)" had been scanning every hex in the map instead, one linear
+ * pass per lookup inside a loop over tiles.
+ */
+export function coordKey(q, r) {
   return `${q},${r}`;
 }
 

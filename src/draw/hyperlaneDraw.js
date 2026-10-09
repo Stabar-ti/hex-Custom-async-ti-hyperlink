@@ -62,31 +62,28 @@ export function drawSegment(parent, { center, entry, exit, radius, viaLabel }) {
 }
 
 /**
- * A self-loop: a stub in from the edge, meeting a circle at the hex centre.
+ * A roundabout: one circle at the hex centre, and a stub in to it from each of its sides.
  *
- * Returns both nodes. They are drawn and removed together, and both carry the same
- * identity, so neither can be left behind when the other goes.
+ * The circle used to be drawn once per side, all of them stacked on the same spot; it is
+ * drawn once now. Every node carries the tile's label, so clearing the tile takes all of
+ * them and none can be left behind when the others go.
  *
  * @param {SVGElement} parent
- * @param {{center: {x: number, y: number}, entry: number,
+ * @param {{center: {x: number, y: number}, sides: number[],
  *          radius: number, viaLabel: string}} opts
- * @returns {[SVGLineElement, SVGCircleElement]}
+ * @returns {SVGElement[]}
  */
-export function drawLoop(parent, { center, entry, radius, viaLabel }) {
-    const { x1, y1, x2, y2 } = loopArm(center, entry, radius);
-    const arm = el('line', { x1, y1, x2, y2 });
-    tag(arm, viaLabel, entry, entry);
-
-    const circle = el('circle', {
-        cx: center.x,
-        cy: center.y,
-        r: loopCircleRadius(radius)
+export function drawRoundabout(parent, { center, sides, radius, viaLabel }) {
+    const nodes = sides.map(side => {
+        const { x1, y1, x2, y2 } = loopArm(center, side, radius);
+        return tag(el('line', { x1, y1, x2, y2 }), viaLabel, side, side);
     });
-    tag(circle, viaLabel, entry, entry);
-
-    parent.appendChild(arm);
-    parent.appendChild(circle);
-    return [arm, circle];
+    const circle = el('circle', { cx: center.x, cy: center.y, r: loopCircleRadius(radius) });
+    tag(circle, viaLabel, sides[0], sides[0]);
+    circle.classList.add('link-roundabout');
+    nodes.push(circle);
+    for (const node of nodes) parent.appendChild(node);
+    return nodes;
 }
 
 // Re-exported so callers that only need a point on the hex edge (hover targets, future

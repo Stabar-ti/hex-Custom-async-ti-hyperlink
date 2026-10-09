@@ -11,6 +11,9 @@
 import { wormholeTypes } from '../constants/constants.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { handleHexClick } from '../modules/Hyperlanes/hyperlaneEditing.js';
+import { selectHex, isSelectMode } from '../features/hexSelection.js';
+import { isGhostArmed } from '../features/pasteGhost.js';
+import { activeClip, pasteAt } from '../features/tileClipboard.js';
 
 export function registerClickHandler(editor) {
   editor._onHexClick = function (e, label) {
@@ -47,7 +50,7 @@ export function registerClickHandler(editor) {
         if (this.mode === 'value-target-clear') {
           hex.valueTarget = null;
         } else {
-          // Stamp the current configuration from the Draw Helpers UI
+          // Stamp the current configuration from the Balance panel
           const cfg = this._valuePaintConfig;
           if (cfg) {
             hex.valueTarget = { tier: cfg.tier || null, r: !!cfg.r, i: !!cfg.i, t: !!cfg.t };
@@ -63,8 +66,33 @@ export function registerClickHandler(editor) {
       return;
     }
 
-    // 5. Sector type fill (for all other modes): snapshot BEFORE clearAll wipes the hex,
-    // then lock history so setSectorType doesn't double-save.
+    // 5. Nothing is armed, so the click is a read rather than an edit.
+    //
+    // Everything below this point paints, and it used to run for any mode the branches
+    // above did not claim — including 'none', which is how every tool disarms, and '',
+    // which is how the value-hint panel releases the map. Neither is a paint type, so
+    // setSectorType looked them up in sectorColors, found nothing, and filled the hex with
+    // the blank default. Clicking with no tool armed wiped tiles and pushed undo entries.
+    //
+    // isSelectMode guards on sectorColors rather than on a list of names, which is what
+    // makes that safe: the paint modes ARE its keys, so a mode that is not one of them
+    // cannot be painted by definition, whatever it is called.
+    if (isSelectMode(this.mode)) {
+      // With a ghost up, the click places it. The ghost stays armed afterwards: putting
+      // the same block down in several places is the ordinary case, not an edge one.
+      if (isGhostArmed() && activeClip()) {
+        pasteAt(this, label, {
+          confirmOverwrite: (labels) => window.confirm(
+            `${labels.length} destination tile${labels.length === 1 ? ' is' : 's are'} not empty. Overwrite?`),
+        });
+        return;
+      }
+      selectHex(this, label, { additive: !!e?.shiftKey });
+      return;
+    }
+
+    // 6. Sector type fill: snapshot BEFORE clearAll wipes the hex, then lock history so
+    // setSectorType doesn't double-save.
     this.saveState(label);
     this._historyLocked = true;
     if (this.clearAll) this.clearAll(label);

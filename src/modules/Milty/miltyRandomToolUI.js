@@ -2,23 +2,15 @@
 // User interface functions for Milty Random Tool
 // Extracted from miltyBuilderRandomTool.js for better separation of concerns
 
-import { showPopup } from '../../ui/popupUI.js';
+import { showPopup, togglePopup } from '../../ui/popupUI.js';
 
 // Shared module instance to maintain state
 let sharedModuleInstance = null;
 
 // Function to get or import the shared module instance
-async function getSharedModule(forceReload = false) {
-    console.log('🔄 getSharedModule called with forceReload:', forceReload);
-    console.log('🔄 Current sharedModuleInstance exists:', !!sharedModuleInstance);
-
-    if (!sharedModuleInstance || forceReload) {
-        const cacheBuster = forceReload ? '?v=' + Date.now() : '';
-        console.log('🔄 Loading module with cacheBuster:', cacheBuster);
-        sharedModuleInstance = await import('./miltyBuilderRandomTool.js' + cacheBuster);
-        console.log('📦 Loaded shared module instance (forceReload:', forceReload, ')');
-    } else {
-        console.log('📦 Reusing existing shared module instance');
+async function getSharedModule() {
+    if (!sharedModuleInstance) {
+        sharedModuleInstance = await import('./miltyBuilderRandomTool.js');
     }
     return sharedModuleInstance;
 }
@@ -29,7 +21,7 @@ async function getSharedModule(forceReload = false) {
 /**
  * Generate slices with UI handling
  */
-async function generateSlicesWithUI() {
+async function generateSlicesWithUI(editor) {
     try {
         hideSliceScores();
         showGenerationProgress('Initializing generation...', 0);
@@ -38,7 +30,7 @@ async function generateSlicesWithUI() {
 
         // Import and call the core generation function with force reload
         console.log('Attempting to import core module...');
-        const module = await getSharedModule(true); // Force reload for generation
+        const module = await getSharedModule();
 
         // Update settings from UI first using the same module instance
         console.log('🔧 Updating settings from UI...');
@@ -58,7 +50,7 @@ async function generateSlicesWithUI() {
         showGenerationProgress('Generating slices...', 20);
 
         // Call the core function and get the slices
-        const slices = await module.generateMiltySlices();
+        const slices = await module.generateMiltySlices(editor);
 
         showGenerationProgress('Generation complete!', 100);
         console.log('Slice generation complete!', slices.length, 'slices generated');
@@ -84,13 +76,13 @@ async function generateSlicesWithUI() {
 /**
  * Show the main Milty Draft Generator popup
  */
-export function showMiltyDraftGeneratorPopup() {
+export function showMiltyDraftGeneratorPopup(editor) {
     showPopup({
         content: createGeneratorPopupContent(),
         actions: [
-            { label: 'Generate Slices', action: generateSlicesWithUI },
-            { label: 'Weighting Settings', action: () => showWeightingSettingsPopup() },
-            { label: 'Debug Info', action: () => showDebugInfo() }
+            { label: 'Generate Slices', action: () => generateSlicesWithUI(editor) },
+            { label: 'Weighting Settings', action: () => togglePopup('milty-weighting-popup', showWeightingSettingsPopup) },
+            { label: 'Debug Info', action: () => togglePopup('milty-debug-info', showDebugInfo) }
         ],
         title: 'Milty Draft Generator',
         id: 'milty-generator-popup',
@@ -257,8 +249,7 @@ export function createGeneratorPopupContent() {
  * Show the weighting settings popup
  */
 export function showWeightingSettingsPopup() {
-    const cacheBuster = '?v=' + Date.now();
-    import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
+    getSharedModule().then(module => {
         const { createWeightingPopupContent: buildContent } = module;
 
         showPopup({
@@ -284,110 +275,9 @@ export function showWeightingSettingsPopup() {
     });
 }
 
-/**
- * Create the weighting settings popup content
- */
-export function createWeightingPopupContent() {
-    // Get current weights from the main module
-    let currentWeights = {};
-
-    // Fallback default weights if module not loaded yet
-    const DEFAULT_WEIGHTS = {
-        resourceValue: 1.0,
-        influenceValue: 1.0,
-        resourceInfluenceImbalance: -0.5,
-        legendaryPlanet: 1.5,
-        legendaryIndustrex: 2.5,
-        legendaryEmelpar: 3.0,
-        techSpecialty: 2.0,
-        wormhole: 0.5,
-        gammaWormhole: 1.5,
-        tradeStation: 0.5,
-        industrial: 0.5,
-        cultural: 0.5,
-        hazardous: 0.5,
-        supernova: -5.0,
-        asteroidField: -1.0,
-        nebula: 0.0,
-        gravityRift: 0.5,
-        entropicScar: 1.0,
-        lowPlanetCount: -3.0,
-        highPlanetCount: -2.0
-    };
-
-    // Try to get current weights from the main module
-    try {
-        const cacheBuster = '?v=' + Date.now();
-        import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
-            currentWeights = module.getCurrentWeights?.() || DEFAULT_WEIGHTS;
-            // Update the UI with current weights
-            Object.keys(currentWeights).forEach(key => {
-                const input = document.getElementById(`weight_${key}`);
-                if (input) {
-                    input.value = currentWeights[key];
-                }
-            });
-        });
-    } catch (e) {
-        currentWeights = DEFAULT_WEIGHTS;
-    }
-
-    const weightCategories = {
-        'Basic Values': {
-            resourceValue: 'Resource Value',
-            influenceValue: 'Influence Value',
-            resourceInfluenceImbalance: 'Resource/Influence Imbalance (penalty)'
-        },
-        'Special Features': {
-            legendaryPlanet:    'Legendary Planet (base)',
-            legendaryIndustrex: 'Legendary: Industrex (TE)',
-            legendaryEmelpar:   'Legendary: Emelpar (TE)',
-            techSpecialty:      'Tech Specialty',
-            wormhole:           'Wormhole (non-Gamma)',
-            gammaWormhole:      'Wormhole (Gamma)',
-            tradeStation:       'Trade Station (TE)',
-        },
-        'Planet Types': {
-            industrial: 'Industrial Planet',
-            cultural: 'Cultural Planet',
-            hazardous: 'Hazardous Planet'
-        },
-        'Anomalies': {
-            supernova: 'Supernova',
-            asteroidField: 'Asteroid Field',
-            nebula: 'Nebula',
-            gravityRift: 'Gravity Rift',
-            entropicScar: 'Entropic Scar (TE)'
-        },
-        'Planet Count': {
-            lowPlanetCount: 'Low Planet Count (< 3, penalty)',
-            highPlanetCount: 'High Planet Count (> 5, penalty)'
-        }
-    };
-
-    let content = '<div style="padding: 15px; max-height: 60vh; overflow-y: auto;">';
-    content += '<p style="color: #ccc; margin-bottom: 20px; font-size: 14px;">Adjust the weighting values to customize slice evaluation. Positive values are bonuses, negative values are penalties.</p>';
-
-    Object.entries(weightCategories).forEach(([category, weights]) => {
-        content += `<div style="margin-bottom: 20px;">`;
-        content += `<h4 style="color: #4CAF50; margin: 0 0 10px 0;">${category}</h4>`;
-        content += `<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; align-items: center;">`;
-
-        Object.entries(weights).forEach(([key, label]) => {
-            const value = currentWeights[key] || DEFAULT_WEIGHTS[key] || 0;
-            content += `
-                <label style="color: #ccc;">${label}:</label>
-                <input type="number" id="weight_${key}" value="${value}" step="0.1" 
-                       style="padding: 4px; border: 1px solid #555; background: #2a2a2a; color: #fff; border-radius: 3px;">
-            `;
-        });
-
-        content += `</div></div>`;
-    });
-
-    content += '</div>';
-    return content;
-}
+// The weighting popup is built by miltyBuilderRandomTool.createWeightingPopupContent, from
+// the saved weights in miltyScore. A second builder lived here, never called, with its own
+// fallback defaults that disagreed with every other table (supernova -5, rift +0.5).
 
 /**
  * Show slice scores
@@ -777,8 +667,7 @@ export async function updateSettingsFromUI(moduleInstance = null) {
  * Save weighting settings
  */
 export function saveWeightingSettings() {
-    const cacheBuster = '?v=' + Date.now();
-    import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
+    getSharedModule().then(module => {
         const { getCurrentWeights, setCurrentWeights } = module;
         const currentWeights = getCurrentWeights();
 
@@ -806,8 +695,7 @@ export function saveWeightingSettings() {
  * Reset weighting settings to defaults
  */
 export function resetWeightingSettings() {
-    const cacheBuster = '?v=' + Date.now();
-    import('./miltyBuilderRandomTool.js' + cacheBuster).then(module => {
+    getSharedModule().then(module => {
         const { resetWeightsToDefault, getCurrentWeights } = module;
         resetWeightsToDefault();
         const currentWeights = getCurrentWeights();

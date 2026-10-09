@@ -3,12 +3,13 @@
 
 /**
  * Check for duplicate realIDs on the map
+ * @param {any} editor
  * @param {boolean} planetsOnly - If true, only check hexes with planets
  * @param {boolean} checkAll - If true, check all realIDs regardless of content
  * @returns {Object} - Analysis results with duplicates and summary
  */
-export function checkRealIdUniqueness(planetsOnly = true, checkAll = false) {
-    if (!window.editor?.hexes) {
+export function checkRealIdUniqueness(editor, planetsOnly = true, checkAll = false) {
+    if (!editor?.hexes) {
         return {
             success: false,
             error: "No hex editor or hexes available",
@@ -18,7 +19,7 @@ export function checkRealIdUniqueness(planetsOnly = true, checkAll = false) {
         };
     }
 
-    const hexes = window.editor.hexes;
+    const hexes = editor.hexes;
     const realIdMap = new Map(); // realId -> array of hex labels
     const duplicates = [];
     let totalChecked = 0;

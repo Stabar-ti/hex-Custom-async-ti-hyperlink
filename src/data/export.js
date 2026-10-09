@@ -17,8 +17,6 @@ import { matrixToHex, hasLinks } from '../utils/matrix.js';
 import { symmetrised } from '../modules/Hyperlanes/hyperlaneModel.js';
 import { typeCodeMap } from '../constants/constants.js';
 import { showModal } from '../ui/uiModals.js';
-import { generateRings } from '../draw/drawHexes.js';
-import { wormholeTypes } from '../constants/constants.js'; // Adjust import path if needed
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import { normalizeLoreEntries, isNonEmptyLoreEntry, loreEntryToShort, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
 // Aliased: a local `neighborLabel` string variable is destructured in
@@ -256,7 +254,7 @@ export function exportFullState(editor) {
       h.st = hex.systemTokens;
     }
 
-    // Value target (Draw Helpers V1–V5 painting)
+    // Value target (the V1–V5 hints painted from the Balance panel)
     if (hex.valueTarget) h.vt = hex.valueTarget;
 
     // Add planet tokens if they exist
@@ -295,15 +293,6 @@ export function exportFullState(editor) {
  * Each hex's realId is exported if available, otherwise falls back to type codes.
  * Only includes up to the last "significant" hex with a non-empty type or hyperlane.
  */
-function parseLabel(id) {
-  if (id === '000') return [0, 0];
-  const len = id.length;
-  const ring = +id.slice(0, len - 2);
-  const idx = +id.slice(len - 2);
-  return [ring, idx];
-}
-
-
 export function exportSectorTypes(editor) {
   const getCode = (hex) => {
     if (!hex) return '-1';

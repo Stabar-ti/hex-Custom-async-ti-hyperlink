@@ -98,7 +98,7 @@ async function pickArgs(verb, anchorEl, block) {
         return await openUnitPicker(anchorEl, verb === 'removeunit' ? 'remove' : 'add');
     }
     if (verb === 'token' || verb === 'removetoken') {
-        return await openTokenPicker(anchorEl, tokenScopeFor(block));
+        return await openTokenPicker(anchorEl, tokenScopeFor(block), editor);
     }
     if (verb === 'swap') {
         const pair = await openSwapPicker(anchorEl, editor);

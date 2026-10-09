@@ -52,7 +52,7 @@ function createPanel(anchorEl, { width = 220 } = {}) {
 
     const panel = document.createElement('div');
     panel.className = 'lore-mini-picker';
-    panel.style.cssText = `position:fixed;z-index:10050;width:${width}px;max-height:70vh;overflow-y:auto;` +
+    panel.style.cssText = `position:fixed;z-index:var(--layer-picker);width:${width}px;max-height:70vh;overflow-y:auto;` +
         'background:#2c3e50;border:1px solid #666;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.5);' +
         'padding:8px;color:#fff;font-size:0.85em';
 
@@ -139,7 +139,7 @@ const FALLBACK_COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', '
 
 /** Player colors from the synced loreData bundle, falling back to the classic nine. */
 function getPlayerColors(editor) {
-    const synced = (editor || window.loreManager?.editor)?.loreData?.colors;
+    const synced = editor?.loreData?.colors;
     if (synced?.length) return synced.map(c => ({ id: c.name, label: c.display || c.name }));
     return FALLBACK_COLORS.map(c => ({ id: c, label: c.charAt(0).toUpperCase() + c.slice(1) }));
 }
@@ -265,15 +265,15 @@ export function openUnitPicker(anchorEl, mode = 'add') {
 }
 
 /**
- * Searchable picker over the app's real token list (window.tokenManager), so GMs pick
+ * Searchable picker over the app's real token list (editor.tokenManager), so GMs pick
  * the same token IDs already used by the map's token module instead of typing them.
  * @param {'space'|'planet'} scope - system lore can only sensibly drop space tokens
  *   (anomalies, wormholes, frontier, etc.); planet lore can only drop planet
  *   tokens/attachments — matches what the bot's `!token`/`!removetoken` effects do
  *   with whichever holder the lore (or its @target) resolves to.
  */
-export async function openTokenPicker(anchorEl, scope = 'space') {
-    const tm = window.tokenManager;
+export async function openTokenPicker(anchorEl, scope = 'space', editor = null) {
+    const tm = editor?.tokenManager;
     if (tm && !tm.initialized && typeof tm.initialize === 'function') {
         await tm.initialize();
     }
@@ -342,7 +342,7 @@ export function openColorPicker(anchorEl, editor, { title = 'Choose a color', al
 
 /** Searchable faction picker (from loreData.factions). Resolves the faction id or null. */
 export function openFactionPicker(anchorEl, editor, { title = 'Choose a faction' } = {}) {
-    const factions = (editor || window.loreManager?.editor)?.loreData?.factions;
+    const factions = editor?.loreData?.factions;
     if (!factions?.length) {
         const id = prompt('Faction data not loaded — type a faction id (e.g. "winnu"):');
         return Promise.resolve(id ? id.trim().toLowerCase() : null);
@@ -369,7 +369,7 @@ const TECH_TYPE_FILTERS = [
  * Resolves the operand string or null.
  */
 export function openTechPicker(anchorEl, editor, { mode = 'grant' } = {}) {
-    const loreData = (editor || window.loreManager?.editor)?.loreData;
+    const loreData = editor?.loreData;
     if (!loreData?.techs?.length) {
         const id = prompt('Tech data not loaded — type a tech id (e.g. "gd"):');
         return Promise.resolve(id ? id.trim() : null);
@@ -462,7 +462,7 @@ export function openTechPicker(anchorEl, editor, { mode = 'grant' } = {}) {
 
 /** Searchable tile picker over SystemInfo. Resolves a tile id or null. */
 export function openTilePicker(anchorEl, editor, { title = 'Choose a tile' } = {}) {
-    const systems = (editor || window.loreManager?.editor)?.allSystems;
+    const systems = editor?.allSystems;
     if (!systems?.length) {
         const id = prompt('System data not loaded — type a tile id (e.g. "41"):');
         return Promise.resolve(id ? id.trim() : null);

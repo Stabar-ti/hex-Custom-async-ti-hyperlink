@@ -8,7 +8,7 @@
 //   +28S  Planet balls row 3
 
 import { slotPositions } from './miltyBuilderCore.js';
-import { getCurrentWeights } from './miltyBuilderRandomTool.js';
+import { getWeights, hexAsTile, sliceScore } from './miltyScore.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const LAYER_ID = 'miltyHomeOverlayLayer';
@@ -50,21 +50,12 @@ function collectSliceData(editor, hexIds) {
         totalRes: 0, totalInf: 0,
         idealRes: 0, idealInf: 0,
         pureRes: 0, pureInf: 0, equalVal: 0,
-        // Real-scoring fields (mirror calculateSliceScore in miltyBuilderRandomTool.js)
-        techSpecialtyCount: 0,
-        legendaryNames: [],
-        tradeStations: 0,
-        industrialCount: 0, culturalCount: 0, hazardousCount: 0,
-        anomalies: [],            // 'supernova','asteroidField','nebula','gravityRift','entropicScar'
-        planetCount: 0,
+        // The slot's Milty score — miltyScore.sliceScore, the generator's own. This file
+        // used to recompute it from fields of its own, with its own weights and its own idea
+        // of a trade station, commented as replicating the generator "exactly".
+        miltyScore: 0,
     };
     const seenWH = new Set();
-
-    // hex.effects keys → scoring anomaly keys
-    const EFFECT_TO_ANOMALY = {
-        supernova: 'supernova', asteroid: 'asteroidField', nebula: 'nebula',
-        rift: 'gravityRift', scar: 'entropicScar',
-    };
 
     for (let i = 1; i < hexIds.length; i++) {
         const hex = editor.hexes[String(hexIds[i])];
@@ -77,14 +68,6 @@ function collectSliceData(editor, hexIds) {
             return types.some(t => String(t).toUpperCase() === 'SPACESTATION');
         })) d.hasSpaceStation = true;
 
-        // Anomalies from hex effects (for scoring parity with the generator)
-        if (hex.effects) {
-            for (const e of hex.effects) {
-                const key = EFFECT_TO_ANOMALY[String(e).toLowerCase()];
-                if (key) d.anomalies.push(key);
-            }
-        }
-
         if (hex.wormholes) {
             for (const w of hex.wormholes) {
                 const wl = String(w).toLowerCase();
@@ -94,7 +77,6 @@ function collectSliceData(editor, hexIds) {
 
         if (!hex.planets) continue;
         for (const p of hex.planets) {
-            d.planetCount++;
             d.totalRes += p.resources || 0;
             d.totalInf += p.influence || 0;
 
@@ -108,24 +90,16 @@ function collectSliceData(editor, hexIds) {
                 d.idealInf += inf; d.pureInf += inf;
             }
 
-            if (p.legendaryAbilityName) {
-                d.legendaries++;
-                d.legendaryNames.push(String(p.name || p.legendaryAbilityName).toLowerCase());
-            }
-            if (p.isTradeStation || /trade.?station/i.test(String(p.name || ''))) d.tradeStations++;
+            if (p.legendaryAbilityName) d.legendaries++;
 
             const allT = [];
             if (p.techSpecialty) allT.push(p.techSpecialty.toUpperCase());
             if (Array.isArray(p.techSpecialties)) p.techSpecialties.forEach(t => { if (t) allT.push(t.toUpperCase()); });
-            for (const t of allT) { d.techs[t] = (d.techs[t] || 0) + 1; d.techSpecialtyCount++; }
+            for (const t of allT) d.techs[t] = (d.techs[t] || 0) + 1;
 
             const types = [];
             if (typeof p.planetType === 'string' && p.planetType) types.push(p.planetType.toUpperCase());
             else if (Array.isArray(p.planetTypes)) p.planetTypes.forEach(t => { if (t) types.push(t.toUpperCase()); });
-            // Planet-type counts for scoring (matches generator: checks each planet's primary type)
-            if (types.includes('INDUSTRIAL')) d.industrialCount++;
-            if (types.includes('CULTURAL')) d.culturalCount++;
-            if (types.includes('HAZARDOUS')) d.hazardousCount++;
 
             const isSpace = types.some(t => t === 'SPACESTATION');
             d.planets.push({
@@ -136,57 +110,13 @@ function collectSliceData(editor, hexIds) {
             });
         }
     }
+    const lookup = editor.sectorIDLookup || {};
+    const tiles = hexIds.slice(1)
+        .map(id => editor.hexes[String(id)])
+        .filter(Boolean)
+        .map(hex => hexAsTile(hex, hex.realId ? lookup[String(hex.realId).toUpperCase()] : null));
+    d.miltyScore = sliceScore(tiles, getWeights()).score;
     return d;
-}
-
-// Default scoring weights — mirror DEFAULT_WEIGHTS in miltyBuilderRandomTool.js
-const SCORE_WEIGHTS = {
-    supernova: -3, asteroidField: -1, nebula: 0, gravityRift: -1, entropicScar: 1,
-    resourceValue: 0.9, influenceValue: 1.0,
-    resourceInfluenceImbalance: -0.5,
-    techSpecialty: 2,
-    legendaryPlanet: 1.5, legendaryIndustrex: 2.5, legendaryEmelpar: 3,
-    wormhole: 0.5, gammaWormhole: 1.5,
-    tradeStation: 0.5,
-    industrial: 0.5, cultural: 0.5, hazardous: 0.5,
-    lowPlanetCount: -3, highPlanetCount: -1,
-};
-
-// Replicates calculateSliceScore() from miltyBuilderRandomTool.js exactly
-function computeSliceScore(d, W = SCORE_WEIGHTS) {
-    let score = 0;
-    score += d.totalRes * W.resourceValue;
-    score += d.totalInf * W.influenceValue;
-    score += Math.abs(d.totalRes - d.totalInf) * W.resourceInfluenceImbalance;
-
-    if (d.legendaryNames.length > 0) {
-        d.legendaryNames.forEach(name => {
-            if (name.includes('industrex')) score += W.legendaryIndustrex ?? 2.5;
-            else if (name.includes('emelpar')) score += W.legendaryEmelpar ?? 3;
-            else score += W.legendaryPlanet;
-        });
-    } else {
-        score += d.legendaries * W.legendaryPlanet;
-    }
-
-    score += d.techSpecialtyCount * W.techSpecialty;
-
-    const gammaCount = d.wormholes.filter(w => w === 'gamma').length;
-    score += (d.wormholes.length - gammaCount) * W.wormhole;
-    score += gammaCount * (W.gammaWormhole ?? 1.5);
-
-    score += d.tradeStations * (W.tradeStation ?? 0.5);
-
-    score += d.industrialCount * W.industrial;
-    score += d.culturalCount * W.cultural;
-    score += d.hazardousCount * W.hazardous;
-
-    d.anomalies.forEach(a => { score += W[a] || 0; });
-
-    if (d.planetCount < 3) score += W.lowPlanetCount;
-    if (d.planetCount > 5) score += W.highPlanetCount;
-
-    return score;
 }
 
 // ── SVG helpers ───────────────────────────────────────────────────────────────
@@ -363,7 +293,7 @@ function buildGroup(data, cx, cy, R) {
 
     // ── Milty score badge — left of ball row 1, aligned to top of grid ──
     {
-        const mScore = computeSliceScore(data, getCurrentWeights());
+        const mScore = data.miltyScore;
         const mLabel = fmt(Math.round(mScore * 10) / 10);
 
         const sbx = cx - 19.5 * S;

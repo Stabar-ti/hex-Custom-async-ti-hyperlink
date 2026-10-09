@@ -15,7 +15,8 @@
  * call those; the hex-label input is now just a convenience for typing a label directly.
  */
 
-import { showPopup, hidePopup } from '../../ui/popupUI.js';
+import { showPopup, hidePopup, togglePopup } from '../../ui/popupUI.js';
+import { provide, COMMANDS } from '../../core/registry.js';
 import { planetDisplayName } from '../../draw/hexAnchors.js';
 import {
     LoreManager, LORE_RECEIVERS, LORE_TRIGGERS, LORE_PINGS, LORE_PERSISTANCE,
@@ -54,11 +55,13 @@ export function installLoreUI(editor) {
         effectRows.refresh();
         updateDirtyUI();
     });
-    window.loreManager = loreManager;
-    window.showLorePopup = showLorePopup;
-    window.openLorePopupAtPhase = openLorePopupAtPhase;
-    window.openLoreEditor = openLoreEditor;
-    // Dev guard: verifies every footer on the map survives a structured round-trip.
+    provide(COMMANDS.showLorePopup, showLorePopup);
+    provide(COMMANDS.openLorePopupAtPhase, openLorePopupAtPhase);
+    provide(COMMANDS.openLoreEditor, openLoreEditor);
+
+    // The one global this app still publishes: a dev guard that verifies every footer
+    // on the map survives a structured round-trip. No module reads it — the in-app help
+    // in the Footer section tells you to run it from the console.
     window.__loreCheckAllFooters = () => checkAllFooters(loreManager.editor);
 }
 
@@ -163,7 +166,7 @@ function createHeaderSection() {
     overviewBtn.title = 'Table of every lore entry on the map (systems, planets, and phases).';
     overviewBtn.style.cssText = 'padding:6px 12px;border:1px solid #9b59b6;border-radius:4px;' +
         'background:#2c3e50;color:#9b59b6;cursor:pointer';
-    overviewBtn.onclick = () => showLoreOverview();
+    overviewBtn.onclick = () => togglePopup('loreOverviewPopup', showLoreOverview);
     row.appendChild(overviewBtn);
 
     return row;
@@ -727,7 +730,7 @@ function buildValidationData() {
         data.factionIds = loreData.factionIds;
         data.unitAliases = loreData.unitAliases;
     }
-    const categorized = window.tokenManager?.getCategorizedTokens?.();
+    const categorized = loreManager?.editor?.tokenManager?.getCategorizedTokens?.();
     if (categorized) {
         data.tokenIds = new Set();
         Object.values(categorized).forEach(cat => cat.tokens.forEach(t => data.tokenIds.add(t.id.toLowerCase())));
@@ -1063,9 +1066,6 @@ function afterMutation() {
 // ─────────────────────────────────────────── overview ───────────────────────────────────────────
 
 function showLoreOverview() {
-    const existing = document.getElementById('loreOverviewPopup');
-    if (existing) existing.remove();
-
     const content = document.createElement('div');
     content.style.cssText = 'max-height:65vh;overflow-y:auto';
 
@@ -1455,6 +1455,13 @@ function showLoreHelp() {
                     removals — so lore that moves or alters another system is visible on the board. Hover also shows
                     the full tooltip (every entry, with per-entry Copy); Ctrl+click a hex pastes the clipboard onto it.
                     Phase lore shows as a corner banner while the overlay is on.
+                </p>
+                <p style="margin-top:0">
+                    While the overlay is on, the <strong>Lore filter strip</strong> over the map shows only the
+                    markers you ask for. <em>Trigger</em>, <em>Gate</em> and <em>Receiver</em> are pick-one (an entry
+                    has one trigger and one receiver, and is behind a choice ⚖, a roll 🎲 or neither); <em>Has</em> ⚙ effects and ⏱ rounds are
+                    checkboxes you can combine. A marker stays when one of its entries matches everything you
+                    picked. Drag the strip by its <strong>⠿</strong> grip; double-click the grip to put it back.
                 </p>
 
                 <h4 style="color:#9b59b6">Export / Import</h4>

@@ -8,11 +8,12 @@
  * instead of three functions poking each other's element ids.
  *
  * Entry points are real functions, not DOM ids (the rule the lore rework settled on).
- * window.showSystemPicker is the name; window.showSystemLookupPopup stays as an alias
- * because console users and older call sites know it.
+ * Other modules open the picker through the registry (COMMANDS.showSystemPicker). The
+ * window aliases below stay only so console users keep the names they already know.
  */
 
-import { showPopup, hidePopup } from '../../ui/popupUI.js';
+import { showPopup, hidePopup, togglePopup } from '../../ui/popupUI.js';
+import { provide, COMMANDS } from '../../core/registry.js';
 import { loadSystemInfo } from '../../data/import.js';
 import { isRealIDUsed } from '../../ui/uiFilters.js';
 import { selectSystems } from './pickerSelect.js';
@@ -20,7 +21,7 @@ import { onUsedIdsChanged } from './pickerEvents.js';
 import { installPlacement } from './pickerPlacement.js';
 import { destroyPreview } from './pickerPreview.js';
 import { tileImage } from './pickerCells.js';
-import { showRandomTilePopup } from './pickerRandom.js';
+import { showRandomTilePopup, RANDOM_POPUP_ID } from './pickerRandom.js';
 import { showPickerHelp } from './pickerHelp.js';
 import { exportSystemsCsv } from './pickerExport.js';
 import * as state from './pickerState.js';
@@ -56,9 +57,9 @@ export function installSystemPickerUI(editor) {
     applyTextScale();
     installPlacement(editor);
 
-    window.showSystemPicker = showSystemPicker;
-    window.showSystemLookupPopup = showSystemPicker;   // legacy alias
-    window.systemPickerState = state;                  // console escape hatch
+    provide(COMMANDS.showSystemPicker, showSystemPicker);
+    provide(COMMANDS.toggleSystemPicker, toggleSystemPicker);
+
 
     // Load the corpus up front so the first open is instant. Errors are non-fatal: the
     // picker shows its empty state rather than throwing during startup.
@@ -237,7 +238,8 @@ function buildSearchRow() {
     random.className = 'sp-addbtn';
     random.textContent = '🎲 Random';
     random.title = 'Pick a random tile from the current results';
-    random.addEventListener('click', () => showRandomTilePopup(editorRef, getResult().results));
+    random.addEventListener('click', () =>
+        togglePopup(RANDOM_POPUP_ID, () => showRandomTilePopup(editorRef, getResult().results)));
     row.appendChild(random);
 
     return row;
@@ -379,7 +381,6 @@ export function showSystemPicker() {
             minHeight: '380px',
             maxWidth: '96vw',
             maxHeight: '92vh',
-            zIndex: 10003,
             border: '2px solid var(--popup-border-picker)',
             resize: 'both',
             overflow: 'hidden'
@@ -408,4 +409,16 @@ export function showSystemPicker() {
 
 export function hideSystemPicker() {
     hidePopup(POPUP_ID);
+}
+
+/**
+ * What the rail's System Tiles button does.
+ *
+ * showSystemPicker is deliberately idempotent — placement and the random tool call it to
+ * make sure the picker is up — so it cannot be the toggle as well. A button that stays on
+ * screen while the picker is open needs the second press to put it away.
+ */
+export function toggleSystemPicker() {
+    if (document.getElementById(POPUP_ID)) hideSystemPicker();
+    else showSystemPicker();
 }

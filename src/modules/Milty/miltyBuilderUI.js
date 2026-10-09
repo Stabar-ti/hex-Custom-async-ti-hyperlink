@@ -7,20 +7,76 @@
 // - UI helper functions for form creation and DOM manipulation
 // - Reusable UI components moved from miltyBuilderPopups.js for better separation of concerns
 
-import { defaultSlices, slotPositions, moveSlice, analyzeSliceOccupancy, generateOutputString, capitalizeTech, applyMiltyDisplay } from './miltyBuilderCore.js';
+import { defaultSlices, slotPositions, moveSlice, analyzeSliceOccupancy, applyMiltyDisplay } from './miltyBuilderCore.js';
 import { drawSlicePositionOverlays, drawSliceBordersOverlay, highlightSliceOnMap, clearSliceHighlights, ensureHighlightStyles } from './miltyBuilderDraw.js';
-import { showOutputCopyPopup, showDraftValuesPopup } from './miltyBuilderPopups.js';
 import { showMiltyDraftGeneratorPopup } from './miltyRandomToolUI.js';
 import { showSanityCheckPopup } from '../../ui/simplepPopup.js';
+import { togglePopup } from '../../ui/popupUI.js';
 import { showSliceExportPopup } from './miltyBuilderExport.js';
+import { provide, COMMANDS } from '../../core/registry.js';
+
+/**
+ * Has the Milty layout been put on the map this session?
+ *
+ * The designer's buttons are disabled until it has, because every one of them acts on
+ * slices that do not exist until the layout is loaded. The flag is what lets the designer
+ * open with its buttons already live when the map was loaded from the File menu instead
+ * of from its own button.
+ */
+let miltyMapLoaded = false;
+
+/** Everything in the designer that needs slices to exist before it means anything. */
+const NEEDS_MAP = [
+    '#importSlicesBtn', '#outputCopyBtn', '#exportSlicesPngBtn',
+    '#generateSlicesBtn', '#calcDraftValuesBtn', '#miltySanityCheckBtn',
+    '#refreshOccupancyBtn', '#toggleSliceBordersBtn', '#toggleSliceNumbersBtn',
+    '#toggleHomeInfoBtn', '#toggleSplitIdealBtn', '#liveSliceAnalysisToggle',
+];
+
+/** @param {HTMLElement} container */
+function enableDesignerControls(container) {
+    for (const sel of NEEDS_MAP) container.querySelector(sel)?.removeAttribute('disabled');
+    const loadBtn = container.querySelector('#loadMiltyJsonBtn');
+    const info = loadBtn?.nextElementSibling;
+    if (info && info.tagName === 'SPAN') info.style.display = 'none';
+}
+
+/** @returns {boolean} */
+export function isMiltyMapLoaded() {
+    return miltyMapLoaded;
+}
+
+/**
+ * Put the Milty draft layout on the map.
+ *
+ * This lived inside the designer's own Load Map button, which made "start a Milty map" a
+ * thing you could only do from inside the tool you needed the map for. It is File ▸ New
+ * map ▸ New Milty Map now, and the designer's button calls the same function.
+ *
+ * @param {any} editor
+ * @returns {Promise<boolean>} false when replacing the current map was declined
+ */
+export async function loadMiltyMap(editor) {
+    const { importFullState } = await import('../../data/import.js');
+    const res = await fetch('public/data/MiltyBuilder.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (importFullState(editor, await res.text()) === false) return false;
+    miltyMapLoaded = true;
+
+    // The overlays need the import to have finished drawing. The delay is the one the
+    // designer's button already used.
+    setTimeout(() => {
+        applyMiltyDisplay(editor);
+        drawSlicePositionOverlays(editor);
+    }, 800);
+    return true;
+}
 
 // Main UI function to create and display the Milty Builder popup
-export function showMiltyBuilderUI(container) {
+export function showMiltyBuilderUI(container, editor) {
     // Slice state tracking
     const sliceMap = { ...defaultSlices };
     const sliceSlots = Array(12).fill(null);
-    let selectedMapSlice = null;
-    let selectedSlot = null;
     let selectedSource = null; // Can be 'A'-'F' or 1-12
     let selectedSourceType = null; // 'map' or 'slot'
 
@@ -45,7 +101,7 @@ export function showMiltyBuilderUI(container) {
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 10px;">
                     <button id="generateSlicesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Generate Slices</button>
                     <button id="calcDraftValuesBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Analyse Slices</button>
-                    <button id="sanityCheckBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Sanity Check</button>
+                    <button id="miltySanityCheckBtn" class="mode-button" style="font-size:13px;padding:6px 12px;" disabled>Sanity Check</button>
                 </div>
                 <!-- Row 3: Refresh, Slice Borders, Slice Numbers, Home Info, Live Slice Analysis -->
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
@@ -106,7 +162,7 @@ export function showMiltyBuilderUI(container) {
                 liveAnalysisEnabled = this.checked;
                 if (liveAnalysisEnabled) {
                     import('./miltyBuilderPopups.js').then(mod => {
-                        mod.showDraftValuesPopup();
+                        mod.showDraftValuesPopup(editor);
                         setupObserver();
                     });
                 } else {
@@ -117,19 +173,17 @@ export function showMiltyBuilderUI(container) {
 
         function setupObserver() {
             if (observer) observer.disconnect();
-            if (window.editor && window.editor.svg) {
+            if (editor && editor.svg) {
                 observer = new MutationObserver(() => {
                     if (liveAnalysisEnabled) {
                         import('./miltyBuilderPopups.js').then(mod => {
-                            mod.showDraftValuesPopup(true); // force refresh
+                            mod.showDraftValuesPopup(editor, true); // force refresh
                         });
                     }
                 });
-                observer.observe(window.editor.svg, { childList: true, subtree: true });
+                observer.observe(editor.svg, { childList: true, subtree: true });
             }
         }
-        // Import wormholes for custom wormhole transfer
-        const { updateHexWormholes } = await import('../../features/wormholes.js');
         let sliceBordersVisible = false;
         let sliceNumbersVisible = false;
         let homeInfoVisible     = true;   // ON by default
@@ -141,7 +195,7 @@ export function showMiltyBuilderUI(container) {
 
         function startHomeOverlayObserver() {
             if (_overlayObserver) return;
-            if (!window.editor?.svg) return;
+            if (!editor?.svg) return;
             _overlayObserver = new MutationObserver((mutations) => {
                 if (!homeInfoVisible) return;
                 // Only react to fill changes on actual hex polygons
@@ -150,11 +204,11 @@ export function showMiltyBuilderUI(container) {
                 clearTimeout(_overlayDebounce);
                 _overlayDebounce = setTimeout(() => {
                     import('./miltyHomeOverlay.js').then(({ drawMiltyHomeOverlay }) => {
-                        if (homeInfoVisible) drawMiltyHomeOverlay(window.editor);
+                        if (homeInfoVisible) drawMiltyHomeOverlay(editor);
                     });
                 }, 250);
             });
-            _overlayObserver.observe(window.editor.svg, { subtree: true, attributeFilter: ['fill'] });
+            _overlayObserver.observe(editor.svg, { subtree: true, attributeFilter: ['fill'] });
         }
 
         function stopHomeOverlayObserver() {
@@ -172,16 +226,11 @@ export function showMiltyBuilderUI(container) {
         if (loadBtn) {
             loadBtn.onclick = async () => {
                 try {
-                    const { importFullState } = await import('../../data/import.js');
-                    const res = await fetch('public/data/MiltyBuilder.json');
-                    if (!res.ok) throw new Error('HTTP ' + res.status);
-                    const jsonText = await res.text();
-                    importFullState(window.editor, jsonText);
+                    if (!(await loadMiltyMap(editor))) return;
 
-                    // Draw slice overlays after map is loaded
+                    // The layout is drawn by loadMiltyMap; this is the designer's own view
+                    // of it — the slice numbers and the button that turns them off.
                     setTimeout(() => {
-                        applyMiltyDisplay();
-                        drawSlicePositionOverlays(window.editor);
                         sliceNumbersVisible = true;
                         const numbersBtn = container.querySelector('#toggleSliceNumbersBtn');
                         if (numbersBtn) {
@@ -193,25 +242,7 @@ export function showMiltyBuilderUI(container) {
                         console.log('Slice overlays drawn after MiltyBuilder.json load');
                     }, 800);
 
-                    // Enable all other buttons after loading
-                    [
-                        '#importSlicesBtn',
-                        '#outputCopyBtn',
-                        '#exportSlicesPngBtn',
-                        '#generateSlicesBtn',
-                        '#calcDraftValuesBtn',
-                        '#sanityCheckBtn',
-                        '#refreshOccupancyBtn',
-                        '#toggleSliceBordersBtn',
-                        '#toggleSliceNumbersBtn',
-                        '#toggleHomeInfoBtn',
-                        '#toggleSplitIdealBtn',
-                    ].forEach(sel => {
-                        const btn = container.querySelector(sel);
-                        if (btn) btn.removeAttribute('disabled');
-                    });
-                    const liveToggle = container.querySelector('#liveSliceAnalysisToggle');
-                    if (liveToggle) liveToggle.removeAttribute('disabled');
+                    enableDesignerControls(container);
 
                     // Home Info is ON by default — apply active style and start observer
                     const homeInfoBtn = container.querySelector('#toggleHomeInfoBtn');
@@ -223,10 +254,6 @@ export function showMiltyBuilderUI(container) {
                         startHomeOverlayObserver();
                     }
 
-                    // Remove the green info message
-                    const infoMsg = loadBtn.nextElementSibling;
-                    if (infoMsg && infoMsg.tagName === 'SPAN') infoMsg.style.display = 'none';
-
                     alert('MiltyBuilder.json loaded!');
                 } catch (err) {
                     alert('Failed to load MiltyBuilder.json: ' + err);
@@ -234,13 +261,18 @@ export function showMiltyBuilderUI(container) {
             };
         }
 
+        // The map may already be on screen: File ▸ New map ▸ New Milty Map loads it
+        // without opening this. Start with the controls live rather than asking for a
+        // Load Map press that would only reload what is already there.
+        if (isMiltyMapLoaded()) enableDesignerControls(container);
+
         // Toggle slice borders button
         const bordersBtn = container.querySelector('#toggleSliceBordersBtn');
         if (bordersBtn) {
             bordersBtn.onclick = () => {
                 if (sliceBordersVisible) {
                     // Hide borders
-                    const layer = window.editor?.svg?.querySelector('#sliceBordersOverlayLayer');
+                    const layer = editor?.svg?.querySelector('#sliceBordersOverlayLayer');
                     if (layer) layer.remove();
                     sliceBordersVisible = false;
                     bordersBtn.textContent = 'Slice Borders';
@@ -248,7 +280,7 @@ export function showMiltyBuilderUI(container) {
                     bordersBtn.style.color = '';
                 } else {
                     // Show borders
-                    drawSliceBordersOverlay(window.editor);
+                    drawSliceBordersOverlay(editor);
                     sliceBordersVisible = true;
                     bordersBtn.textContent = 'Hide Slice Borders';
                     bordersBtn.style.background = '#4a8a4a';
@@ -263,7 +295,7 @@ export function showMiltyBuilderUI(container) {
             numbersBtn.onclick = () => {
                 if (sliceNumbersVisible) {
                     // Hide numbers
-                    const layer = window.editor?.svg?.querySelector('#sliceNumbersOverlayLayer');
+                    const layer = editor?.svg?.querySelector('#sliceNumbersOverlayLayer');
                     if (layer) layer.remove();
                     sliceNumbersVisible = false;
                     numbersBtn.textContent = 'Slice Numbers';
@@ -271,7 +303,7 @@ export function showMiltyBuilderUI(container) {
                     numbersBtn.style.color = '';
                 } else {
                     // Show numbers
-                    drawSlicePositionOverlays(window.editor);
+                    drawSlicePositionOverlays(editor);
                     sliceNumbersVisible = true;
                     numbersBtn.textContent = 'Hide Slice Numbers';
                     numbersBtn.style.background = '#4a8a4a';
@@ -289,13 +321,13 @@ export function showMiltyBuilderUI(container) {
                 homeInfoVisible = !homeInfoVisible;
                 setHomeOverlayEnabled(homeInfoVisible);
                 if (homeInfoVisible) {
-                    drawMiltyHomeOverlay(window.editor);
+                    drawMiltyHomeOverlay(editor);
                     homeInfoBtn.textContent = 'Hide Home Info';
                     homeInfoBtn.style.background = '#4a8a4a';
                     homeInfoBtn.style.color = '#fff';
                     startHomeOverlayObserver();
                 } else {
-                    clearMiltyHomeOverlay(window.editor);
+                    clearMiltyHomeOverlay(editor);
                     homeInfoBtn.textContent = 'Show Home Info';
                     homeInfoBtn.style.background = '';
                     homeInfoBtn.style.color = '';
@@ -313,7 +345,7 @@ export function showMiltyBuilderUI(container) {
                     await import('./miltyHomeOverlay.js');
                 splitEnabled = !splitEnabled;
                 setIdealSplitEnabled(splitEnabled);
-                drawMiltyHomeOverlay(window.editor);
+                drawMiltyHomeOverlay(editor);
                 splitIdealBtn.textContent = splitEnabled ? 'Ideal: Split ✓' : 'Ideal: Split';
                 splitIdealBtn.style.background = splitEnabled ? '#4a8a4a' : '';
                 splitIdealBtn.style.color      = splitEnabled ? '#fff'    : '';
@@ -339,62 +371,63 @@ export function showMiltyBuilderUI(container) {
         // Analysis and Output buttons
         const calcDraftBtn = container.querySelector('#calcDraftValuesBtn');
         if (calcDraftBtn) {
-            calcDraftBtn.onclick = () => {
+            calcDraftBtn.onclick = () => togglePopup('milty-draft-values-popup', () => {
                 import('./miltyBuilderPopups.js').then(mod => {
-                    mod.showDraftValuesPopup();
+                    mod.showDraftValuesPopup(editor);
                 });
-            };
+            });
         }
 
         const outputBtn = container.querySelector('#outputCopyBtn');
         if (outputBtn) {
-            outputBtn.onclick = () => {
+            outputBtn.onclick = () => togglePopup('milty-output-popup', () => {
                 import('./miltyBuilderPopups.js').then(mod => {
-                    mod.showOutputCopyPopup();
+                    mod.showOutputCopyPopup(editor);
                 });
-            };
+            });
         }
 
         const exportPngBtn = container.querySelector('#exportSlicesPngBtn');
         if (exportPngBtn) {
-            exportPngBtn.onclick = () => showSliceExportPopup();
+            exportPngBtn.onclick = () => togglePopup('milty-export-popup', () => showSliceExportPopup(editor));
         }
 
         // Import button
         const importBtn = container.querySelector('#importSlicesBtn');
         if (importBtn) {
-            importBtn.onclick = () => {
+            importBtn.onclick = () => togglePopup('milty-import-popup', () => {
                 import('./miltyBuilderPopups.js').then(mod => {
-                    mod.showImportSlicesPopup();
+                    mod.showImportSlicesPopup(editor);
                 });
-            };
+            });
         }
 
         // Generate Slices button
         const generateBtn = container.querySelector('#generateSlicesBtn');
         if (generateBtn) {
             generateBtn.onclick = () => {
-                showMiltyDraftGeneratorPopup();
+                showMiltyDraftGeneratorPopup(editor);
                 // The generator places tiles async — re-draw overlay after it finishes
                 // by listening for the next batch of hex fill changes via the observer.
                 // Also schedule an explicit redraw as a safety net.
                 setTimeout(async () => {
                     if (!homeInfoVisible) return;
                     const { drawMiltyHomeOverlay } = await import('./miltyHomeOverlay.js');
-                    drawMiltyHomeOverlay(window.editor);
+                    drawMiltyHomeOverlay(editor);
                 }, 3000);
             };
         }
 
         // Sanity Check button
-        const sanityCheckBtn = container.querySelector('#sanityCheckBtn');
+        const sanityCheckBtn = container.querySelector('#miltySanityCheckBtn');
         if (sanityCheckBtn) {
             sanityCheckBtn.onclick = () => {
-                showSanityCheckPopup();
+                showSanityCheckPopup(editor);
             };
         }
 
         // Update slice button colors based on occupancy
+        provide(COMMANDS.refreshMiltySliceColors, () => updateSliceButtonColors());
         function updateSliceButtonColors() {
             // Update standard map slices (A-F)
             ['A', 'B', 'C', 'D', 'E', 'F'].forEach(sliceLetter => {
@@ -404,7 +437,7 @@ export function showMiltyBuilderUI(container) {
                 const sliceHexes = defaultSlices[sliceLetter];
                 if (!sliceHexes) return;
 
-                const colors = analyzeSliceOccupancy(sliceHexes, sliceLetter);
+                const colors = analyzeSliceOccupancy(editor, sliceHexes, sliceLetter);
 
                 // Clear selection styling first
                 if (selectedSource !== sliceLetter || selectedSourceType !== 'map') {
@@ -426,7 +459,7 @@ export function showMiltyBuilderUI(container) {
                 const slotHexes = slotPositions[slotNum];
                 if (!slotHexes) continue;
 
-                const colors = analyzeSliceOccupancy(slotHexes, `Slot ${slotNum}`);
+                const colors = analyzeSliceOccupancy(editor, slotHexes, `Slot ${slotNum}`);
 
                 // Clear selection styling first
                 if (selectedSource !== slotNum || selectedSourceType !== 'slot') {
@@ -456,7 +489,7 @@ export function showMiltyBuilderUI(container) {
 
                     if (selectedSource && selectedSourceType) {
                         // Move from source to this map slice
-                        const success = moveSlice(selectedSource, selectedSourceType, l, 'map', updateStatusMsg);
+                        const success = moveSlice(editor, selectedSource, selectedSourceType, l, 'map', updateStatusMsg);
                         if (success) {
                             updateSliceButtonColors();
                             clearSelection();
@@ -482,7 +515,7 @@ export function showMiltyBuilderUI(container) {
 
                     if (selectedSource && selectedSourceType) {
                         // Move from source to this slot
-                        const success = moveSlice(selectedSource, selectedSourceType, i, 'slot', updateStatusMsg);
+                        const success = moveSlice(editor, selectedSource, selectedSourceType, i, 'slot', updateStatusMsg);
                         if (success) {
                             updateSliceButtonColors();
                             clearSelection();
@@ -534,8 +567,6 @@ export function showMiltyBuilderUI(container) {
         function clearSelection() {
             selectedSource = null;
             selectedSourceType = null;
-            selectedMapSlice = null;
-            selectedSlot = null;
             clearSliceHighlights();
             updateSliceButtonStyles();
         }
@@ -703,7 +734,7 @@ export function updateSliceImportPreview(textarea, preview) {
 /**
  * Handles the import process for slice data
  */
-export function handleSliceImport(slicesData, clearExisting, onProgress, onComplete) {
+export function handleSliceImport(editor, slicesData, clearExisting, onProgress, onComplete) {
     if (!slicesData) {
         alert('Please enter slice data to import.');
         return false;
@@ -715,8 +746,8 @@ export function handleSliceImport(slicesData, clearExisting, onProgress, onCompl
             const slotHexes = slotPositions[slotNum] || [];
             for (let j = 1; j < slotHexes.length; j++) {
                 const hexId = slotHexes[j];
-                if (window.editor?.clearAll) {
-                    window.editor.clearAll(hexId);
+                if (editor?.clearAll) {
+                    editor.clearAll(hexId);
                 }
             }
         }
@@ -724,21 +755,11 @@ export function handleSliceImport(slicesData, clearExisting, onProgress, onCompl
 
     // Import the slices
     import('./miltyBuilderCore.js').then(({ importSlices }) => {
-        const success = importSlices(slicesData, onProgress);
+        const success = importSlices(editor, slicesData, onProgress);
 
         if (success) {
-            // Close the popup and refresh UI
+            // Close the popup. importSlices recolours the slice buttons itself.
             document.getElementById('milty-import-popup')?.remove();
-
-            // Refresh the MiltyBuilder UI if it's open
-            const miltyUI = document.getElementById('milty-builder-popup');
-            if (miltyUI) {
-                // Trigger a refresh of slice button colors
-                setTimeout(() => {
-                    const refreshBtn = miltyUI.querySelector('#refreshOccupancyBtn');
-                    if (refreshBtn) refreshBtn.click();
-                }, 100);
-            }
 
             if (onComplete) onComplete(true);
         } else {
@@ -758,7 +779,7 @@ export function handleSliceImport(slicesData, clearExisting, onProgress, onCompl
  * Creates an output display container for draft slice data
  */
 export function createOutputDisplayContainer(outputData) {
-    const { outputString, completedSlots, totalSlices } = outputData;
+    const { outputString, sliceDetails, totalSlices } = outputData;
 
     const container = document.createElement('div');
     container.style.padding = '10px';
@@ -785,23 +806,10 @@ export function createOutputDisplayContainer(outputData) {
     detailsDiv.style.fontSize = '0.9em';
     detailsDiv.style.color = '#ccc';
 
-    const sliceDetails = completedSlots.map(slotNum => {
-        const slotHexes = slotPositions[slotNum];
-        const realIds = [];
-
-        // Get realIds from positions 1-5
-        for (let i = 1; i < slotHexes.length; i++) {
-            const hexId = slotHexes[i];
-            const hex = window.editor?.hexes?.[hexId];
-            if (hex && hex.realId) {
-                realIds.push(hex.realId);
-            }
-        }
-
-        return `<strong>Slot ${slotNum}:</strong> ${realIds.join(', ')}`;
-    }).join('<br>');
-
-    detailsDiv.innerHTML = sliceDetails;
+    // generateOutputString already read these off the map to decide the slots were complete.
+    detailsDiv.innerHTML = sliceDetails
+        .map(({ slotNum, realIds }) => `<strong>Slot ${slotNum}:</strong> ${realIds.join(', ')}`)
+        .join('<br>');
     container.appendChild(detailsDiv);
 
     // Output string textarea
@@ -929,7 +937,7 @@ export function createEmptyStateMessage(message) {
 /**
  * Creates the draft values analysis table structure
  */
-export function createDraftValuesAnalysisContainer() {
+export function createDraftValuesAnalysisContainer(editor) {
     const container = document.createElement('div');
 
     let hasData = false;
@@ -940,7 +948,7 @@ export function createDraftValuesAnalysisContainer() {
         // Check positions 1-5 (skip homesystem at position 0)
         for (let i = 1; i < slotHexes.length; i++) {
             const hexId = slotHexes[i];
-            const hex = window.editor?.hexes?.[hexId];
+            const hex = editor?.hexes?.[hexId];
             if (hex && (hex.realId || hex.planets?.length > 0)) {
                 hasData = true;
                 break;

@@ -1,33 +1,91 @@
 // loreOverlay.js - Visual indicators for systems and planets with lore
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
+import { invoke, tryInvoke, hasCommand, COMMANDS } from '../core/registry.js';
 import { planetDisplayName } from '../draw/hexAnchors.js';
 import { markerPosition, drawMarker, drawEffectArc, TRIGGER_LEGEND } from '../draw/loreDraw.js';
 import {
     getDisplayFooter, getEffectLines, getGate,
     retargetFooterReferences, parseEffectLine
 } from '../modules/Lore/loreEffects.js';
-import { normalizeLoreEntries, isNonEmptyLoreEntry, formatRoundWindow, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
+import {
+    normalizeLoreEntries, isNonEmptyLoreEntry, formatRoundWindow, LORE_PHASE_TARGETS,
+    LORE_RECEIVERS, LORE_RECEIVER_LABELS
+} from '../modules/Lore/loreCore.js';
 
 const PHASE_SHORT = { strategy: 'Str', action: 'Act', status: 'Sta', agenda: 'Agn' };
+// popup-pos- prefix: resetAllPopupPositions puts the filter strip back with the windows.
+const FILTER_STRIP_POS_KEY = 'popup-pos-lore-filter-strip';
+const FILTER_STRIP_MARGIN = 12;   // px kept clear of the map area's edges
+
+/**
+ * Where the overlay's floating controls live: #mapArea, so they sit over the map and never
+ * over the tool rail or the inspector, as window-fixed corners did.
+ */
+function mapAreaHost() {
+    return document.getElementById('mapArea') || document.body;
+}
+
+/**
+ * A row along the map's bottom edge for the phase banner (left) and the clipboard badge
+ * (centred in what's left). Positioned separately, the two overlapped on a narrow map;
+ * in one wrapping row the badge moves up a line instead.
+ */
+function mapFooterHost() {
+    let footer = document.getElementById('lore-map-footer');
+    if (!footer) {
+        footer = document.createElement('div');
+        footer.id = 'lore-map-footer';
+        Object.assign(footer.style, {
+            position:      'absolute',
+            left:          '12px',
+            right:         '12px',
+            bottom:        '12px',
+            display:       'flex',
+            flexWrap:      'wrap-reverse',
+            alignItems:    'flex-end',
+            gap:           '8px',
+            zIndex:        'var(--layer-floating)',
+            pointerEvents: 'none',
+        });
+        mapAreaHost().appendChild(footer);
+    }
+    return footer;
+}
 
 /**
  * What one marker stands for. A target can hold several entries, so the marker shows the
  * first entry's trigger and gate (the common case is one entry) plus a count, and flags
- * whether ANY entry is round-restricted or carries effects.
+ * whether ANY entry is round-restricted or carries effects. `facts` keeps each entry's own
+ * values for the filter, which has to match them entry by entry.
  */
 function summarizeEntries(entries) {
-    const first = entries[0] || {};
-    const gate = getGate(first.footerText || '').type;
+    const facts = entries.map(e => ({
+        trigger: e.trigger,
+        receiver: e.receiver,
+        gate: getGate(e.footerText || '').type,
+        hasRounds: e.fromRound > 0 || e.tillRound > 0,
+        hasEffects: getEffectLines(e.footerText || '').length > 0
+    }));
+    const first = facts[0] || {};
     return {
         count: entries.length,
         trigger: first.trigger,
-        gate,
-        triggers: entries.map(e => e.trigger),
-        receivers: entries.map(e => e.receiver),
-        hasRounds: entries.some(e => e.fromRound > 0 || e.tillRound > 0),
-        hasEffects: entries.some(e => getEffectLines(e.footerText || '').length > 0)
+        gate: first.gate,
+        facts,
+        hasRounds: facts.some(f => f.hasRounds),
+        hasEffects: facts.some(f => f.hasEffects)
     };
 }
+
+/** Filter groups, in strip order. `pick` groups hold one value; `toggles` combine freely. */
+const GATE_LEGEND = [
+    ['choice', '⚖', 'Only entries behind an Accept/Reject choice'],
+    ['roll',   '🎲', 'Only entries behind a dice roll']
+];
+const HAS_LEGEND = [
+    ['withEffects', '⚙', 'effects', 'Only entries that carry bot effects'],
+    ['withRounds',  '⏱', 'rounds',  'Only entries restricted to a round window']
+];
 
 /**
  * Tiles the entries act on, derived from their effect lines:
@@ -72,6 +130,8 @@ class LoreOverlay {
         this._focus = null;            // target ref the editor/user is looking at
         this._hover = null;            // target ref under the cursor
         this._filter = null;           // {trigger?, receiver?, gate?, withEffects?, withRounds?}
+        this._stripPos = null;         // filter strip offset in #mapArea once dragged; null = corner
+        this._stripObserver = null;    // keeps the strip inside #mapArea as it resizes
     }
 
     initialize() {
@@ -132,7 +192,7 @@ class LoreOverlay {
             Object.assign(tip.style, {
                 position:     'fixed',
                 display:      'none',
-                zIndex:       '9999',
+                zIndex:       'var(--layer-tooltip)',
                 maxWidth:     '320px',
                 padding:      '10px 12px',
                 background:   '#1c1c2e',
@@ -462,7 +522,7 @@ class LoreOverlay {
             e.preventDefault();
             e.stopPropagation();
             this.setFocus(target.ref);
-            window.openLoreEditor?.(target.ref);
+            tryInvoke(COMMANDS.openLoreEditor, target.ref);
         });
     }
 
@@ -497,19 +557,21 @@ class LoreOverlay {
     }
 
     /**
-     * Show only markers matching the active filter. Filtering dims rather than deletes so the
-     * board's shape stays recognisable — a lore-heavy map is otherwise an undifferentiated
-     * field of icons you can't audit.
+     * Show only markers matching the active filter. A marker passes when ONE of its entries
+     * meets every criterion. Checked per criterion across all entries, "◎ activated + 🎲
+     * roll" matched a hex whose activated entry fired at once and whose roll belonged to a
+     * different, control entry — and the gate was read from the first entry only, so a roll
+     * on any later entry was never found.
      */
     passesFilter(summary) {
         const f = this._filter;
         if (!f) return true;
-        if (f.trigger && !summary.triggers.includes(f.trigger)) return false;
-        if (f.receiver && !summary.receivers.includes(f.receiver)) return false;
-        if (f.gate && summary.gate !== f.gate) return false;
-        if (f.withEffects && !summary.hasEffects) return false;
-        if (f.withRounds && !summary.hasRounds) return false;
-        return true;
+        return summary.facts.some(e =>
+            (!f.trigger || e.trigger === f.trigger) &&
+            (!f.receiver || e.receiver === f.receiver) &&
+            (!f.gate || e.gate === f.gate) &&
+            (!f.withEffects || e.hasEffects) &&
+            (!f.withRounds || e.hasRounds));
     }
 
     setFilter(filter) {
@@ -529,71 +591,203 @@ class LoreOverlay {
      * save file.
      */
     _updateFilterStrip() {
-        let strip = document.getElementById('lore-filter-strip');
-
         if (!this.isActive) {
-            if (strip) strip.remove();
+            this._removeFilterStrip();
             return;
         }
-        if (!strip) {
-            strip = document.createElement('div');
-            strip.id = 'lore-filter-strip';
-            strip.className = 'lore-filter-strip';
-            document.body.appendChild(strip);
-        }
+        const host = this._getOrCreateFilterStrip();
+        const strip = host.querySelector('.lore-filter-body');
         strip.innerHTML = '';
 
+        // Three kinds of control, and each looks like what it does. An entry has exactly one
+        // trigger and at most one gate, so those are joined segments with one always lit
+        // ("Any" included) — picking another moves the light. Effects and a round window are
+        // independent facts, so they are separate checkbox pills that combine. They used to be
+        // one row of identical chips, which hid that ⚑ and ◎ replace each other while ⚙ and ⏱
+        // stack.
         const active = this._filter || {};
-        const chip = (label, title, isOn, onClick) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'lore-filter-chip' + (isOn ? ' is-on' : '');
-            btn.textContent = label;
-            btn.title = title;
-            btn.onclick = onClick;
-            strip.appendChild(btn);
-        };
-
-        const toggle = (key, value) => {
-            const next = { ...(this._filter || {}) };
-            if (next[key] === value) delete next[key];
+        const set = (key, value) => {
+            const next = { ...active };
+            if (value == null) delete next[key];
             else next[key] = value;
             this.setFilter(next);
         };
 
-        const heading = document.createElement('span');
-        heading.className = 'lore-filter-label';
-        heading.textContent = 'Lore:';
-        strip.appendChild(heading);
+        const group = (caption, title, className) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'lore-filter-group';
+            wrap.title = title;
+            const cap = document.createElement('span');
+            cap.className = 'lore-filter-caption';
+            cap.textContent = caption;
+            const controls = document.createElement('div');
+            controls.className = className;
+            wrap.append(cap, controls);
+            strip.appendChild(wrap);
+            return { controls, cap };
+        };
 
-        for (const [trigger, glyph, description] of TRIGGER_LEGEND) {
-            chip(glyph, description, active.trigger === trigger, () => toggle('trigger', trigger));
-        }
-        chip('⚖', 'Only entries behind an Accept/Reject choice',
-            active.gate === 'choice', () => toggle('gate', 'choice'));
-        chip('🎲', 'Only entries behind a dice roll',
-            active.gate === 'roll', () => toggle('gate', 'roll'));
-        chip('!', 'Only entries that carry bot effects',
-            !!active.withEffects, () => toggle('withEffects', true));
-        chip('⏱', 'Only entries restricted to a round window',
-            !!active.withRounds, () => toggle('withRounds', true));
-
-        if (Object.keys(active).length) {
-            const clear = document.createElement('button');
-            clear.type = 'button';
-            clear.className = 'lore-filter-clear';
-            clear.textContent = 'Clear';
-            clear.onclick = () => this.setFilter(null);
-            strip.appendChild(clear);
-
-            const hidden = this._countHiddenByFilter();
-            if (hidden) {
-                const note = document.createElement('span');
-                note.className = 'lore-filter-note';
-                note.textContent = `${hidden} hidden`;
-                strip.appendChild(note);
+        /** One-of-N: "Any" plus each option; exactly one is lit. */
+        const segmented = (caption, title, key, options) => {
+            const { controls } = group(caption, title, 'lore-filter-seg');
+            controls.setAttribute('role', 'radiogroup');
+            controls.setAttribute('aria-label', caption);
+            for (const [value, label, tip] of [[null, 'Any', `Any ${caption.toLowerCase()}`], ...options]) {
+                const on = (active[key] ?? null) === value;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'lore-filter-seg-btn' + (value == null ? ' is-any' : '') + (on ? ' is-on' : '');
+                btn.textContent = label;
+                btn.title = tip;
+                btn.setAttribute('role', 'radio');
+                btn.setAttribute('aria-checked', String(on));
+                btn.onclick = () => set(key, value);
+                controls.appendChild(btn);
             }
+        };
+
+        segmented('Trigger', 'Pick one trigger — every entry has exactly one', 'trigger',
+            TRIGGER_LEGEND);
+        segmented('Gate', 'Pick one gate — an entry is behind a choice, a roll, or neither', 'gate',
+            GATE_LEGEND);
+
+        // Also one per entry, but seven long names have no glyphs: a dropdown keeps it narrow.
+        const { controls: receiverWrap } = group('Receiver', 'Pick one receiver — who each entry is shown to', 'lore-filter-select-wrap');
+        const receiver = document.createElement('select');
+        receiver.className = 'lore-filter-select' + (active.receiver ? ' is-on' : '');
+        receiver.setAttribute('aria-label', 'Receiver');
+        for (const [value, label] of [['', 'Any'], ...LORE_RECEIVERS.map(r => [r, LORE_RECEIVER_LABELS[r] || r])]) {
+            receiver.add(new Option(label, value, false, (active.receiver || '') === value));
         }
+        receiver.onchange = () => set('receiver', receiver.value || null);
+        receiverWrap.appendChild(receiver);
+
+        const { controls: toggles } = group('Has', 'Turn on any mix — each narrows the result further', 'lore-filter-toggles');
+        for (const [key, glyph, label, tip] of HAS_LEGEND) {
+            const on = !!active[key];
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'lore-filter-toggle' + (on ? ' is-on' : '');
+            btn.textContent = `${glyph} ${label}`;
+            btn.title = tip;
+            btn.setAttribute('role', 'checkbox');
+            btn.setAttribute('aria-checked', String(on));
+            btn.onclick = () => set(key, on ? null : true);
+            toggles.appendChild(btn);
+        }
+
+        // Always there, so the strip doesn't jump when the first filter goes on; the hidden
+        // count rides in its caption.
+        const hidden = Object.keys(active).length ? this._countHiddenByFilter() : 0;
+        const { controls: reset, cap } = group('', 'Show every marker again', 'lore-filter-reset');
+        cap.textContent = hidden ? `${hidden} hidden` : ' ';
+        const clear = document.createElement('button');
+        clear.type = 'button';
+        clear.className = 'lore-filter-clear';
+        clear.textContent = 'Clear';
+        clear.disabled = !Object.keys(active).length;
+        clear.onclick = () => this.setFilter(null);
+        reset.appendChild(clear);
+        // The hidden count can widen it; keep the far edge inside the map.
+        this._placeFilterStrip(host);
+    }
+
+    /**
+     * The strip lives inside #mapArea, so it can only ever sit over the map — never over the
+     * tool rail or the inspector, which is where a fixed top-right corner put it. A grip on
+     * its left edge drags it; where it was left is remembered, as an offset from the map's
+     * top-left, and pulled back inside whenever the map shrinks (a panel widened, the
+     * window resized).
+     */
+    _getOrCreateFilterStrip() {
+        let strip = document.getElementById('lore-filter-strip');
+        if (strip) return strip;
+
+        const area = mapAreaHost();
+        strip = document.createElement('div');
+        strip.id = 'lore-filter-strip';
+        strip.className = 'lore-filter-strip';
+
+        const grip = document.createElement('span');
+        grip.className = 'lore-filter-grip';
+        grip.textContent = '⠿';
+        grip.title = 'Drag to move · double-click to put back';
+        strip.appendChild(grip);
+
+        const body = document.createElement('div');
+        body.className = 'lore-filter-body';
+        strip.appendChild(body);
+        area.appendChild(strip);
+
+        try {
+            const saved = JSON.parse(localStorage.getItem(FILTER_STRIP_POS_KEY) || 'null');
+            if (saved) this._stripPos = { left: saved.left, top: saved.top };
+        } catch { /* private mode, or a bad value — fall back to the corner */ }
+
+        grip.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            grip.setPointerCapture(e.pointerId);
+            strip.classList.add('is-dragging');
+            const start = { x: e.clientX, y: e.clientY, left: strip.offsetLeft, top: strip.offsetTop };
+
+            const move = (ev) => {
+                this._stripPos = {
+                    left: start.left + ev.clientX - start.x,
+                    top:  start.top  + ev.clientY - start.y
+                };
+                this._placeFilterStrip(strip);
+            };
+            const end = () => {
+                grip.removeEventListener('pointermove', move);
+                grip.removeEventListener('pointerup', end);
+                grip.removeEventListener('pointercancel', end);
+                strip.classList.remove('is-dragging');
+                // Where it visibly landed, not where the pointer overshot the map's edge.
+                this._stripPos = { left: strip.offsetLeft, top: strip.offsetTop };
+                try {
+                    localStorage.setItem(FILTER_STRIP_POS_KEY, JSON.stringify(this._stripPos));
+                } catch { /* not remembered, still moved */ }
+            };
+            grip.addEventListener('pointermove', move);
+            grip.addEventListener('pointerup', end);
+            grip.addEventListener('pointercancel', end);
+        });
+
+        grip.addEventListener('dblclick', () => {
+            this._stripPos = null;
+            try { localStorage.removeItem(FILTER_STRIP_POS_KEY); } catch { /* ignore */ }
+            this._placeFilterStrip(strip);
+        });
+
+        if (area !== document.body && typeof ResizeObserver !== 'undefined') {
+            this._stripObserver = new ResizeObserver(() => this._placeFilterStrip(strip));
+            this._stripObserver.observe(area);
+        }
+        return strip;
+    }
+
+    /** Apply the remembered offset (or the default corner), clamped inside the map area. */
+    _placeFilterStrip(strip) {
+        const area = strip.parentElement;
+        if (!area) return;
+        const margin = FILTER_STRIP_MARGIN;
+        const pos = this._stripPos || { left: margin, top: margin };
+        // Measure at the corner: near the far edge it would shrink to fit and wrap, rather
+        // than reporting the width it needs to slide back by.
+        strip.style.left = margin + 'px';
+        strip.style.top = margin + 'px';
+        const maxLeft = Math.max(margin, area.clientWidth  - strip.offsetWidth  - margin);
+        const maxTop  = Math.max(margin, area.clientHeight - strip.offsetHeight - margin);
+        strip.style.left = Math.round(Math.min(Math.max(pos.left, margin), maxLeft)) + 'px';
+        strip.style.top  = Math.round(Math.min(Math.max(pos.top,  margin), maxTop))  + 'px';
+    }
+
+    _removeFilterStrip() {
+        this._stripObserver?.disconnect();
+        this._stripObserver = null;
+        document.getElementById('lore-filter-strip')?.remove();
     }
 
     _countHiddenByFilter() {
@@ -655,8 +849,9 @@ class LoreOverlay {
      * target, so this only matters for callers that have a hex label and nothing finer.
      */
     async _openEditorFor(hexLabel, event) {
-        const open = window.openLoreEditor;
-        if (typeof open !== 'function') return;
+        // The Lore module installs the editor; without it there is nothing to open.
+        if (!hasCommand(COMMANDS.openLoreEditor)) return;
+        const open = (/** @type {object} */ ref) => invoke(COMMANDS.openLoreEditor, ref);
 
         const hex = this.editor.hexes[hexLabel];
         if (!hex) return;
@@ -716,13 +911,15 @@ class LoreOverlay {
         document.getElementById('lore-clipboard-badge')?.remove();
         document.getElementById('lore-planet-picker')?.remove();
         document.getElementById('lore-phase-banner')?.remove();
+        document.getElementById('lore-map-footer')?.remove();
+        this._removeFilterStrip();
         this.isActive = false;
     }
 
     // ── Phase lore banner ─────────────────────────────────────────
 
-    /** Phase lore isn't hex-bound, so while the overlay is on it shows as a fixed corner
-     *  chip like "📜 Phase lore: Str(2) Sta(1)" — clicking opens the Lore popup on that list. */
+    /** Phase lore isn't hex-bound, so while the overlay is on it shows in the map's
+     *  bottom-left corner as a chip like "📜 Phase lore: Str(2) Sta(1)" — clicking opens the Lore popup on that list. */
     _updatePhaseBanner() {
         let banner = document.getElementById('lore-phase-banner');
         const counts = [];
@@ -741,29 +938,33 @@ class LoreOverlay {
             banner = document.createElement('div');
             banner.id = 'lore-phase-banner';
             Object.assign(banner.style, {
-                position:      'fixed',
-                bottom:        '24px',
-                left:          '24px',
+                order:         '0',
+                maxWidth:      '100%',
+                pointerEvents: 'auto',
+                overflow:      'hidden',
+                textOverflow:  'ellipsis',
                 padding:       '5px 14px',
                 background:    '#1c1c2e',
                 color:         '#ccc',
                 border:        '1px solid #9b59b6',
                 borderRadius:  '20px',
                 fontSize:      '12px',
-                zIndex:        '8888',
                 cursor:        'pointer',
                 boxShadow:     '0 2px 10px rgba(0,0,0,0.6)',
                 whiteSpace:    'nowrap',
             });
             banner.title = 'Lore attached to game phases (strategy/action/status/agenda). Click to open.';
-            document.body.appendChild(banner);
+            mapFooterHost().appendChild(banner);
         }
         banner.textContent = '📜 Phase lore: ' + counts.map(([p, n]) => `${PHASE_SHORT[p]}(${n})`).join(' ');
         banner.style.display = 'block';
         banner.onclick = () => {
             const firstPhase = counts[0][0];
-            if (typeof window.openLorePopupAtPhase === 'function') window.openLorePopupAtPhase(firstPhase);
-            else if (typeof window.showLorePopup === 'function') window.showLorePopup();
+            if (hasCommand(COMMANDS.openLorePopupAtPhase)) {
+                invoke(COMMANDS.openLorePopupAtPhase, firstPhase);
+            } else {
+                tryInvoke(COMMANDS.showLorePopup);
+            }
         };
     }
 
@@ -819,7 +1020,7 @@ class LoreOverlay {
         picker.id = 'lore-planet-picker';
         Object.assign(picker.style, {
             position:     'fixed',
-            zIndex:       '10000',
+            zIndex:       'var(--layer-picker)',
             background:   '#1c1c2e',
             border:       '1px solid #9b59b6',
             borderRadius: '6px',
@@ -928,22 +1129,22 @@ class LoreOverlay {
             badge = document.createElement('div');
             badge.id = 'lore-clipboard-badge';
             Object.assign(badge.style, {
-                position:      'fixed',
-                bottom:        '24px',
-                left:          '50%',
-                transform:     'translateX(-50%)',
+                order:         '1',
+                margin:        '0 auto',
+                maxWidth:      '100%',
+                overflow:      'hidden',
+                textOverflow:  'ellipsis',
                 padding:       '5px 16px',
                 background:    '#1c1c2e',
                 color:         '#ccc',
                 border:        '1px solid #9b59b6',
                 borderRadius:  '20px',
                 fontSize:      '12px',
-                zIndex:        '8888',
                 pointerEvents: 'none',
                 boxShadow:     '0 2px 10px rgba(0,0,0,0.6)',
                 whiteSpace:    'nowrap',
             });
-            document.body.appendChild(badge);
+            mapFooterHost().appendChild(badge);
         }
         const typeLabel = this._clipboard.type === 'system' ? 'System Lore' : 'Planet Lore';
         badge.textContent = overrideText ||

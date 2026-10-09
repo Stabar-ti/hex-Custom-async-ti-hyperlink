@@ -1,8 +1,95 @@
 // src/ui/specialModePopup.js
 // Popup for special setup modes using PopupUI mechanics
 import { showPopup, hidePopup } from './popupUI.js';
+import { showAnchoredPanel, bindAnchoredPanel } from './dropdownMenu.js';
 
-export function showSpecialModePopup() {
+/**
+ * Open the Milty Slice Designer.
+ *
+ * Exported because there are two ways in now: the Tools menu, and File ▸ New map ▸ New
+ * Milty Map, which loads the draft layout and then opens this onto it.
+ *
+ * @param {any} editor
+ */
+export function openMiltySliceDesigner(editor) {
+    hidePopup('special-mode-popup');
+    hidePopup('milty-slice-designer-popup');
+    const designerContent = document.createElement('div');
+    designerContent.className = 'milty-slice-designer-content';
+    designerContent.style.width = '100%';
+    designerContent.style.height = '100%';
+    designerContent.style.display = 'flex';
+    designerContent.style.flexDirection = 'column';
+    designerContent.style.padding = '16px';
+    designerContent.style.boxSizing = 'border-box';
+    import('../modules/Milty/miltyBuilder.js').then(mod => {
+        console.log('Milty Builder module loaded:', mod); // Debug: See the loaded module
+        const showUI = mod.showMiltyBuilderUI || (mod.default && mod.default.showMiltyBuilderUI);
+
+        if (typeof showUI === 'function') {
+            showUI(designerContent, editor);
+        } else {
+            console.error('showMiltyBuilderUI is not a function in the loaded module.');
+            designerContent.innerHTML = '<p style="color: red;">Error: Could not initialize Milty Slice Designer UI.</p>';
+        }
+
+        showPopup({
+            id: 'milty-slice-designer-popup',
+            title: '🎲 Milty Slice Designer',
+            content: designerContent,
+            draggable: true,
+            dragHandleSelector: '.popup-ui-titlebar',
+            scalable: true,
+            rememberPosition: true,
+            modal: false,
+            showHelp: true,
+            onHelp: () => {
+                // Import and call the help function
+                import('../modules/Milty/miltyBuilder.js').then(helpMod => {
+                    const showHelp = helpMod.showMiltyHelp || (helpMod.default && helpMod.default.showMiltyHelp);
+                    if (typeof showHelp === 'function') {
+                        showHelp();
+                    } else {
+                        console.warn('Could not find showMiltyHelp function.');
+                        alert('Help system temporarily unavailable.');
+                    }
+                }).catch(err => {
+                    console.warn('Could not load help function:', err);
+                    alert('Help system temporarily unavailable.');
+                });
+            },
+            actions: [
+                {
+                    label: 'Close',
+                    onClick: () => hidePopup('milty-slice-designer-popup'),
+                    style: { borderRadius: '0', border: '1px solid #888', padding: '6px 18px', background: '#222', color: '#eee' }
+                }
+            ],
+            style: {
+                minWidth: '340px',
+                maxWidth: '700px',
+                minHeight: '200px',
+                maxHeight: '800px',
+                border: '2px solid var(--popup-border-special)',
+                borderRadius: '10px',
+                boxShadow: '0 8px 40px #000a',
+                padding: '24px'
+            }
+        });
+    }).catch(err => {
+        console.error('Failed to load miltyBuilder.js module:', err);
+        designerContent.innerHTML = `<p style="color: red;">Failed to load module. See console for details.</p>`;
+        showPopup({
+            id: 'milty-slice-designer-popup',
+            title: '🎲 Milty Slice Designer - Error',
+            content: designerContent,
+            actions: [{ label: 'Close', onClick: () => hidePopup('milty-slice-designer-popup') }]
+        });
+    });
+
+}
+
+export function showSpecialModePopup(editor) {
     hidePopup('special-mode-popup');
     const content = document.createElement('div');
     content.className = 'special-mode-content';
@@ -14,184 +101,41 @@ export function showSpecialModePopup() {
     content.style.boxSizing = 'border-box';
 
     // Special setup: Milty Slice Designer button
+    // No heading of its own: showAnchoredPanel puts the menu's name at the top, and this
+    // block used to add a second one under it. The stray full stop the panel showed was
+    // the <hr> between that and a closing sentence that said nothing the buttons did not.
     content.innerHTML = `
-        <h2>Special Setup Modes</h2>
-        <p>Configure advanced or experimental features for map setup.</p>
-        <div style="margin: 18px 0; display: grid; gap: 12px;">
-            <button id="miltySliceDesignerBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">🎲 Milty Slice Designer</button>
-            <button id="miltyRandomGeneratorBtn" class="mode-button" style="font-size:16px;padding:10px 28px;display:none;">🎯 Milty Random Generator</button>
-            <button id="autoMapBuilderBtn" class="mode-button" style="font-size:16px;padding:10px 28px;">🤖 AutoMapper - Fill Remaining Tiles</button>
-            <button id="spinToWinBtn" class="mode-button" style="font-size:16px;padding:10px 28px;border:2px solid var(--popup-border-spin);color:var(--popup-border-spin);">⚙️ Spin-To-Win</button>
+        <p class="tb-menu__note">Bulk tools that take over the map while you use them.</p>
+        <div class="tb-menu__stack">
+            <button id="miltySliceDesignerBtn" class="tb-menu__item">🎲 Milty Slice Designer</button>
+            <button id="spinToWinBtn" class="tb-menu__item">⚙️ Spin-To-Win</button>
         </div>
-        <hr>
-        <p style="font-size: 14px; color: #888; margin-top: 16px;">Advanced tools for competitive and casual play setup.</p>
     `;
 
-    showPopup({
+    showAnchoredPanel({
         id: 'special-mode-popup',
-        title: '🛠️ Special Setup Modes',
+        anchorId: 'specialModesBtn',
+        title: 'Tools',
         content,
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        modal: false,
-        showHelp: true,
-        actions: [
-            {
-                label: 'Close',
-                onClick: () => hidePopup('special-mode-popup'),
-                style: { borderRadius: '0', border: '1px solid #888', padding: '6px 18px', background: '#222', color: '#eee' }
-            }
-        ],
-        style: {
-            minWidth: '340px',
-            maxWidth: '600px',
-            minHeight: '200px',
-            maxHeight: '800px',
-            border: '2px solid var(--popup-border-special)',
-            borderRadius: '10px',
-            boxShadow: '0 8px 40px #000a',
-            padding: '24px',
-            zIndex: 10010
-        }
     });
 
     // Add click handlers for buttons
     setTimeout(() => {
         const miltyBtn = document.getElementById('miltySliceDesignerBtn');
-        const generatorBtn = document.getElementById('miltyRandomGeneratorBtn');
-        const autoMapperBtn = document.getElementById('autoMapBuilderBtn');
         const spinBtn = document.getElementById('spinToWinBtn');
 
         if (miltyBtn) {
-            miltyBtn.onclick = () => {
-                hidePopup('milty-slice-designer-popup');
-                const designerContent = document.createElement('div');
-                designerContent.className = 'milty-slice-designer-content';
-                designerContent.style.width = '100%';
-                designerContent.style.height = '100%';
-                designerContent.style.display = 'flex';
-                designerContent.style.flexDirection = 'column';
-                designerContent.style.padding = '16px';
-                designerContent.style.boxSizing = 'border-box';
-                // Use miltyBuilder.js for the UI — cache buster ensures miltyBuilderUI.js and its deps load fresh
-                import('../modules/Milty/miltyBuilder.js?v=' + Date.now()).then(mod => {
-                    console.log('Milty Builder module loaded:', mod); // Debug: See the loaded module
-                    const showUI = mod.showMiltyBuilderUI || (mod.default && mod.default.showMiltyBuilderUI);
-
-                    if (typeof showUI === 'function') {
-                        showUI(designerContent);
-                    } else {
-                        console.error('showMiltyBuilderUI is not a function in the loaded module.');
-                        designerContent.innerHTML = '<p style="color: red;">Error: Could not initialize Milty Slice Designer UI.</p>';
-                    }
-
-                    showPopup({
-                        id: 'milty-slice-designer-popup',
-                        title: '🎲 Milty Slice Designer',
-                        content: designerContent,
-                        draggable: true,
-                        dragHandleSelector: '.popup-ui-titlebar',
-                        scalable: true,
-                        rememberPosition: true,
-                        modal: false,
-                        showHelp: true,
-                        onHelp: () => {
-                            // Import and call the help function
-                            import('../modules/Milty/miltyBuilder.js').then(helpMod => {
-                                const showHelp = helpMod.showMiltyHelp || (helpMod.default && helpMod.default.showMiltyHelp);
-                                if (typeof showHelp === 'function') {
-                                    showHelp();
-                                } else {
-                                    console.warn('Could not find showMiltyHelp function.');
-                                    alert('Help system temporarily unavailable.');
-                                }
-                            }).catch(err => {
-                                console.warn('Could not load help function:', err);
-                                alert('Help system temporarily unavailable.');
-                            });
-                        },
-                        actions: [
-                            {
-                                label: 'Close',
-                                onClick: () => hidePopup('milty-slice-designer-popup'),
-                                style: { borderRadius: '0', border: '1px solid #888', padding: '6px 18px', background: '#222', color: '#eee' }
-                            }
-                        ],
-                        style: {
-                            minWidth: '340px',
-                            maxWidth: '700px',
-                            minHeight: '200px',
-                            maxHeight: '800px',
-                            border: '2px solid var(--popup-border-special)',
-                            borderRadius: '10px',
-                            boxShadow: '0 8px 40px #000a',
-                            padding: '24px',
-                            zIndex: 10011
-                        }
-                    });
-                }).catch(err => {
-                    console.error('Failed to load miltyBuilder.js module:', err);
-                    designerContent.innerHTML = `<p style="color: red;">Failed to load module. See console for details.</p>`;
-                    showPopup({
-                        id: 'milty-slice-designer-popup',
-                        title: '🎲 Milty Slice Designer - Error',
-                        content: designerContent,
-                        actions: [{ label: 'Close', onClick: () => hidePopup('milty-slice-designer-popup') }]
-                    });
-                });
-            };
-        }
-
-        // Add click handler for Milty Random Generator button
-        if (generatorBtn) {
-            generatorBtn.onclick = () => {
-                import('../modules/Milty/miltyBuilderRandomTool.js').then(mod => {
-                    const showGenerator = mod.initializeGeneratorPopup;
-                    if (typeof showGenerator === 'function') {
-                        showGenerator();
-                    } else {
-                        console.error('initializeGeneratorPopup is not a function in the loaded module.');
-                        console.log('Available exports:', Object.keys(mod));
-                        alert('Error: Could not initialize Milty Draft Generator.');
-                    }
-                }).catch(err => {
-                    console.error('Failed to load miltyBuilderRandomTool.js module:', err);
-                    alert('Failed to load generator. See console for details.');
-                });
-            };
-        }
-
-        // Add click handler for AutoMapper button.
-        // openAutoMapperPopup owns the popup and its help — this used to build its own copy
-        // and point onHelp at a help page describing modes and presets that don't exist.
-        if (autoMapperBtn) {
-            autoMapperBtn.onclick = () => {
-                hidePopup('special-mode-popup');
-                import('../modules/automapper/autoBuilder.js')
-                    .then(mod => mod.openAutoMapperPopup())
-                    .catch(err => {
-                        console.error('Failed to load autoBuilder.js module:', err);
-                        const errContent = document.createElement('div');
-                        errContent.innerHTML = '<p style="color: red;">Failed to load AutoMapper module. See console for details.</p>';
-                        showPopup({
-                            id: 'automapper-popup',
-                            title: '🤖 AutoMapper - Error',
-                            content: errContent,
-                            actions: [{ label: 'Close', onClick: () => hidePopup('automapper-popup') }]
-                        });
-                    });
-            };
+            miltyBtn.onclick = () => openMiltySliceDesigner(editor);
         }
 
         // Spin-To-Win button handler
         if (spinBtn) {
             spinBtn.onclick = () => {
+                hidePopup('special-mode-popup');
                 const spinContent = document.createElement('div');
                 spinContent.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;';
                 import('../modules/SpinToWin/spinToWin.js').then(mod => {
-                    mod.showSpinToWinUI(spinContent);
+                    mod.showSpinToWinUI(spinContent, editor);
                     showPopup({
                         id: 'spin-to-win-popup',
                         title: '⚙️ Spin-To-Win',
@@ -207,8 +151,7 @@ export function showSpecialModePopup() {
                             border: '2px solid var(--popup-border-spin)',
                             borderRadius: '10px',
                             boxShadow: '0 8px 40px #000a',
-                            padding: '16px',
-                            zIndex: 10012
+                            padding: '16px'
                         }
                     });
                 }).catch(err => {
@@ -216,18 +159,19 @@ export function showSpecialModePopup() {
                 });
             };
         }
-
-        // Lore Module button handler
     }, 0);
 }
 
-// Attach to button if loaded directly
-if (typeof window !== 'undefined') {
-    window.showSpecialModePopup = showSpecialModePopup;
-    const _wireBtn = () => {
-        const btn = document.getElementById('specialModesBtn');
-        if (btn) btn.addEventListener('click', showSpecialModePopup);
-    };
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _wireBtn);
-    else _wireBtn();
+/**
+ * Wire the Tools button in the top bar.
+ *
+ * This used to run as a side effect of importing the file, waiting for DOMContentLoaded
+ * on its own, which is why it had no editor to hand the tools it opens. main.js calls it
+ * like the other install functions now.
+ *
+ * @param {any} editor
+ */
+export function installToolsMenu(editor) {
+    // Pressing Tools again puts the panel away, the same as every other menu.
+    bindAnchoredPanel('specialModesBtn', 'special-mode-popup', () => showSpecialModePopup(editor));
 }

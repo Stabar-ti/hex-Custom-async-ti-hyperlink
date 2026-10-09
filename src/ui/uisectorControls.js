@@ -4,211 +4,435 @@
 // Converted to popup-based system that auto-opens and is minimizable only
 // ───────────────────────────────────────────────────────────────
 
-import { sectorModes, wormholeTypes } from '../constants/constants.js';
-import { showModal } from './uiModals.js';
-import { makePopupDraggable } from './uiUtils.js';
-import { showPopup, hidePopup } from './popupUI.js';
+import { wormholeTypes } from '../constants/constants.js';
+import { showPopup, togglePopup } from './popupUI.js';
+import { railButton, railGroupLabel, setRailLabel } from './kit/index.js';
+import { createToolPanel, armExclusively } from './toolPanel.js';
+import { HEX_SELECTED, selectedHexes } from '../features/hexSelection.js';
+import {
+  CLIPBOARD_CHANGED, COPY_OPTIONS_CHANGED, activeClip, copyOptions, setCopyOption,
+} from '../features/tileClipboard.js';
+import { copySelectionToClipboard, beginPaste } from '../features/clipboardShortcuts.js';
+import { swapHexes } from '../features/tileSwap.js';
+import {
+  toggleDistanceTool, isDistanceToolArmed, DISTANCE_TOOL_CHANGED,
+} from '../features/distanceTool.js';
+import {
+  invoke, tryInvoke, hasCommand,
+  registerMode, activateMode, deactivateMode, deactivateModes, COMMANDS
+} from '../core/registry.js';
 
-let sectorControlsPopup = null;
+// Ids for the two map-click modes this file owns. Only one can be armed at a time; the
+// registry is what enforces that, so every button that opens something else disarms them
+// with one deactivateModes() instead of the block that used to be pasted at each site.
+const MODE_LORE = 'lore';
+const MODE_TOKEN = 'token';
+const MODE_WORMHOLES = 'wormholes';
+const MODE_VALUE_HINTS = 'valueHints';
 
-export function populateSectorControls(editor) {
-  // Legacy function - now just opens the popup
-  openSectorControlsPopup(editor);
+/**
+ * Puts down whatever value hint the open Balance panel has armed; null while it is shut.
+ * The registry calls it, so right-click, Escape and arming any other tool reach it.
+ * @type {(() => void) | null}
+ */
+let disarmValueHints = null;
+
+// Where the rail's collapsed state is remembered between sessions.
+const RAIL_COLLAPSED_KEY = 'ti4-tool-rail-collapsed';
+
+/** @returns {boolean} */
+function readRailCollapsed() {
+  try {
+    return localStorage.getItem(RAIL_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;   // private mode / storage disabled — start expanded
+  }
 }
 
-export function openSectorControlsPopup(editor) {
-  // Close existing popup if any
-  if (sectorControlsPopup) {
-    hidePopup('sectorControlsPopupModal');
+/** @param {boolean} collapsed */
+function writeRailCollapsed(collapsed) {
+  try {
+    localStorage.setItem(RAIL_COLLAPSED_KEY, collapsed ? '1' : '0');
+  } catch { /* the rail just forgets between sessions */ }
+}
+
+/**
+ * Collapse or expand the rail. Collapsed, it is a strip of icons — still usable, which is
+ * the point: you can keep working with it shut. The labels are hidden by CSS rather than
+ * removed, so every button keeps its tooltip.
+ *
+ * @param {boolean} collapsed
+ */
+export function setToolRailCollapsed(collapsed) {
+  const rail = document.getElementById('toolRail');
+  if (!rail) return;
+  rail.classList.toggle('is-collapsed', collapsed);
+  // Mirrored onto <body> so floating panels can keep clear of the rail in CSS — they are
+  // position:fixed and cannot see the rail's own class.
+  document.body.classList.toggle('rail-collapsed', collapsed);
+  writeRailCollapsed(collapsed);
+
+  const btn = rail.querySelector('.rail-collapse-btn');
+  if (btn) {
+    btn.textContent = collapsed ? '\u00BB' : '\u00AB';
+    btn.title = collapsed ? 'Expand the tool rail' : 'Collapse the tool rail to icons';
+    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  }
+}
+
+/** Flip the rail between its expanded and icon-only states. */
+export function toggleToolRail() {
+  const rail = document.getElementById('toolRail');
+  if (!rail) return;
+  setToolRailCollapsed(!rail.classList.contains('is-collapsed'));
+}
+
+/**
+ * Build the tool rail into #toolRail.
+ *
+ * This used to be a floating popup that auto-opened on load, could not be closed (its close
+ * button was removed and replaced with a minimize), and sat on top of the map like a small
+ * window. It is a docked region of the app shell now, so it reserves its own space instead
+ * of covering the map, and it collapses to an icon strip rather than to a stub of window
+ * chrome. Everything it contains — the modes, the registry wiring, the arm/disarm rules —
+ * is unchanged.
+ */
+export function mountToolRail(editor) {
+  const rail = document.getElementById('toolRail');
+  if (!rail) {
+    console.warn('[toolRail] #toolRail is missing from the page; tools have nowhere to go');
+    return null;
   }
 
-  // Create the content for the popup
-  const content = createSectorControlsContent(editor);
+  rail.textContent = '';
+  rail.appendChild(createSectorControlsContent(editor));
 
-  // Show the popup
-  sectorControlsPopup = showPopup({
-    id: 'sectorControlsPopupModal',
-    className: 'layout-options-popup sector-controls-popup',
-    title: 'Sector Controls',
-    draggable: true,
-    dragHandleSelector: '.popup-ui-titlebar',
-    scalable: true, // Allow users to resize the popup
-    rememberPosition: true,
-    modal: false, // Allow title bar creation, we'll manually remove close button
-    style: {
-      left: '20px', // Position on the left side like the original container
-      top: '80px',
-      minWidth: '180px',
-      maxWidth: '400px',
-      minHeight: '200px',
-      maxHeight: '800px',
-      color: '#fff',
-      border: '2px solid var(--popup-border-sector)',
-      boxShadow: '0 8px 40px #000a',
-      padding: '0',
-      zIndex: 1200,
-      borderRadius: '8px'
-    },
-    content: content,
-    onClose: () => {
-      sectorControlsPopup = null;
-    }
+  const collapseBtn = document.createElement('button');
+  collapseBtn.type = 'button';
+  collapseBtn.className = 'rail-collapse-btn';
+  rail.appendChild(collapseBtn);
+  collapseBtn.addEventListener('click', () => toggleToolRail());
+
+  setToolRailCollapsed(readRailCollapsed());
+  return rail;
+}
+
+/** The name the rest of the app already calls. The rail replaced the popup. */
+export function openSectorControlsPopup(editor) {
+  return mountToolRail(editor);
+}
+
+/** Older alias still imported in one or two places. */
+export function populateSectorControls(editor) {
+  return mountToolRail(editor);
+}
+
+/** Remembers which paint groups are folded open. */
+const PAINT_GROUP_KEY = 'ti4-rail-paint-groups';
+
+/** @returns {Record<string, boolean>} */
+function readPaintGroups() {
+  try {
+    return JSON.parse(localStorage.getItem(PAINT_GROUP_KEY) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+
+/** @param {string} key @param {boolean} open */
+function writePaintGroup(key, open) {
+  try {
+    const all = readPaintGroups();
+    all[key] = open;
+    localStorage.setItem(PAINT_GROUP_KEY, JSON.stringify(all));
+  } catch { /* private mode — the rail just forgets between sessions */ }
+}
+
+/**
+ * A foldable set of paint modes in the rail.
+ *
+ * Every item is one call to editor.setMode, and only one can be armed, so clicking a
+ * second clears the first. Clicking the armed one turns it off — the same contract every
+ * other tool in this panel uses.
+ *
+ * @param {HTMLElement} container
+ * @param {any} editor
+ * @param {{key: string, icon: string, label: string, title: string, headerClass?: string,
+ *          options?: {label: string, watch?: string[], items: Array<{
+ *            label: string, title?: string, get: () => boolean, set: (on: boolean) => void}>},
+ *          items: Array<{mode: string, label: string, cls: string, icon: string}>}} group
+ */
+function addPaintGroup(container, editor, { key, icon, label, title, headerClass = '', items }) {
+  const header = railButton({
+    icon, text: label, title,
+    className: ('ui-rail-btn--group ' + headerClass).trim(),
+  });
+  const caret = document.createElement('span');
+  caret.className = 'ui-rail-btn__caret';
+  header.appendChild(caret);
+  container.appendChild(header);
+
+  const sub = document.createElement('div');
+  sub.className = 'ui-rail-sub';
+  container.appendChild(sub);
+
+  const setOpen = (open) => {
+    sub.classList.toggle('is-open', open);
+    header.classList.toggle('is-expanded', open);
+    caret.textContent = open ? '▾' : '▸';
+    header.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  setOpen(!!readPaintGroups()[key]);
+
+  header.addEventListener('click', () => {
+    const open = !sub.classList.contains('is-open');
+    setOpen(open);
+    writePaintGroup(key, open);
   });
 
-  // Remove the close button and add custom minimize button
-  customizeTitleBar(sectorControlsPopup);
+  for (const item of items) {
+    const btn = railButton({
+      icon: item.icon,
+      text: item.label,
+      title: item.label,
+      className: 'ui-rail-btn--sub ' + item.cls,
+    });
+    btn.dataset.mode = item.mode;
+    btn.addEventListener('click', () => {
+      const turningOff = btn.classList.contains('active');
 
-  return sectorControlsPopup;
+      // One paint mode at a time, and nothing else armed alongside it.
+      container.querySelectorAll('.mode-button').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = '';
+        b.style.color = '';
+        b.style.fontWeight = '';
+      });
+      deactivateModes();
+
+      if (turningOff) {
+        editor.setMode('none');
+        return;
+      }
+      btn.classList.add('active');
+      editor.setMode(item.mode);
+    });
+    sub.appendChild(btn);
+  }
 }
 
-function customizeTitleBar(popup) {
-  const titleBar = popup.querySelector('.popup-ui-titlebar');
-  if (!titleBar) return;
+/**
+ * A foldable set of one-shot actions in the rail.
+ *
+ * The sibling of addPaintGroup, for things that happen rather than things you arm. Each
+ * item says when it is available and why it is not, because the alternative — a button
+ * that looks the same whether or not it will work — is how the wizard this replaces
+ * managed to need a status line of its own.
+ *
+ * @param {HTMLElement} container
+ * @param {{key: string, icon: string, label: string, title: string, help?: string,
+ *          note?: string,
+ *          items: Array<{
+ *            id?: string, icon: string, label: string, hint?: string,
+ *            onClick: () => void,
+ *            available?: () => {ok: boolean, why?: string},
+ *          }>,
+ *          watch?: string[]}} group
+ * @returns {() => void} a sync function, in case the caller wants to refresh it too
+ */
+function addActionGroup(container, { key, icon, label, title, help, note, items, options, watch = [] }) {
+  const header = railButton({ icon, text: label, title, className: 'ui-rail-btn--group' });
 
-  // Remove the close button
-  const closeBtn = titleBar.querySelector('.popup-ui-close');
-  if (closeBtn) {
-    closeBtn.remove();
+  // The help sits in the header rather than as an item, so the list below is only things
+  // you can do. Its explanation is a title: every other affordance in the rail explains
+  // itself the same way, and a bespoke hover card here would be the only one.
+  if (help) {
+    const q = document.createElement('span');
+    q.className = 'ui-rail-btn__help';
+    q.textContent = '?';
+    q.title = help;
+    // The header is a fold toggle; reading the help should not also open or close it.
+    q.addEventListener('click', (e) => e.stopPropagation());
+    header.appendChild(q);
   }
 
-  // Add custom minimize button
-  addMinimizeButton(popup);
-}
+  const caret = document.createElement('span');
+  caret.className = 'ui-rail-btn__caret';
+  header.appendChild(caret);
+  container.appendChild(header);
 
-function addMinimizeButton(popup) {
-  const titleBar = popup.querySelector('.popup-ui-titlebar');
-  if (!titleBar) return;
+  const sub = document.createElement('div');
+  sub.className = 'ui-rail-sub';
+  container.appendChild(sub);
 
-  // Create minimize button
-  const minimizeBtn = document.createElement('button');
-  minimizeBtn.className = 'popup-ui-minimize wizard-btn';
-  minimizeBtn.innerHTML = '−';
-  minimizeBtn.title = 'Minimize';
-  minimizeBtn.style.fontSize = '1.2rem';
-  minimizeBtn.style.width = '28px';
-  minimizeBtn.style.height = '28px';
-  minimizeBtn.style.lineHeight = '28px';
-  minimizeBtn.style.position = 'relative';
-  minimizeBtn.style.marginLeft = '8px';
-  minimizeBtn.style.display = 'flex';
-  minimizeBtn.style.alignItems = 'center';
-  minimizeBtn.style.justifyContent = 'center';
-  minimizeBtn.style.borderRadius = '0';
-  minimizeBtn.style.border = '1px solid #666';
-  minimizeBtn.style.background = '#333';
-  minimizeBtn.style.color = '#fff';
-  minimizeBtn.style.cursor = 'pointer';
+  const setOpen = (open) => {
+    sub.classList.toggle('is-open', open);
+    header.classList.toggle('is-expanded', open);
+    caret.textContent = open ? '▾' : '▸';
+    header.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  setOpen(!!readPaintGroups()[key]);
 
-  let isMinimized = false;
-  let originalHeight = popup.style.height;
+  header.addEventListener('click', () => {
+    const open = !sub.classList.contains('is-open');
+    setOpen(open);
+    writePaintGroup(key, open);
+  });
 
-  minimizeBtn.onclick = (e) => {
-    e.stopPropagation(); // Prevent popup dragging
-    const content = popup.querySelector('.sector-controls-content');
-    if (!content) return;
+  if (note) {
+    const n = document.createElement('div');
+    n.className = 'ui-rail-note';
+    n.textContent = note;
+    sub.appendChild(n);
+  }
 
-    if (isMinimized) {
-      // Restore
-      content.style.display = 'block';
-      minimizeBtn.innerHTML = '−';
-      minimizeBtn.title = 'Minimize';
-      popup.style.height = originalHeight || 'auto';
-      popup.style.resize = 'both'; // Re-enable resizing
-      isMinimized = false;
-    } else {
-      // Minimize
-      originalHeight = popup.style.height; // Store current height
-      content.style.display = 'none';
-      minimizeBtn.innerHTML = '□';
-      minimizeBtn.title = 'Restore';
-      popup.style.height = '40px';
-      popup.style.resize = 'none'; // Disable resizing when minimized
-      isMinimized = true;
+  /** @type {Array<{btn: HTMLElement, spec: any}>} */
+  const built = [];
+
+  for (const item of items) {
+    const btn = railButton({
+      id: item.id,
+      icon: item.icon,
+      text: item.label,
+      title: item.hint || item.label,
+      className: 'ui-rail-btn--sub',
+    });
+    btn.addEventListener('click', () => {
+      // A disabled item is inert rather than hidden: the list is a description of what
+      // this tool can do, and hiding half of it depending on the selection would make it
+      // a worse description.
+      if (btn.classList.contains('is-unavailable')) return;
+      item.onClick();
+    });
+    sub.appendChild(btn);
+    built.push({ btn, spec: item });
+  }
+
+  // Switches that belong to the group rather than to any one item. They sit under the
+  // actions because they change what those actions do, and reading them first would be
+  // reading the footnote before the sentence.
+  if (options?.items?.length) {
+    const optWrap = document.createElement('div');
+    optWrap.className = 'ui-rail-opts';
+
+    const optLabel = document.createElement('div');
+    optLabel.className = 'ui-rail-note ui-rail-note--opts';
+    optLabel.textContent = options.label;
+    optWrap.appendChild(optLabel);
+
+    for (const opt of options.items) {
+      const row = document.createElement('label');
+      row.className = 'ui-rail-opt';
+      row.title = opt.title || opt.label;
+
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'ui-rail-opt__box';
+      box.checked = !!opt.get();
+      box.addEventListener('change', () => opt.set(box.checked));
+      // The row is inside a fold whose header toggles on click; a click on the checkbox
+      // must not also close the thing it lives in.
+      row.addEventListener('click', (e) => e.stopPropagation());
+
+      const text = document.createElement('span');
+      text.textContent = opt.label;
+
+      row.append(box, text);
+      optWrap.appendChild(row);
+
+      if (options.watch) {
+        for (const ev of options.watch) {
+          document.addEventListener(ev, () => { box.checked = !!opt.get(); });
+        }
+      }
+    }
+    sub.appendChild(optWrap);
+  }
+
+  const sync = () => {
+    for (const { btn, spec } of built) {
+      const state = spec.available ? spec.available() : { ok: true };
+      btn.classList.toggle('is-unavailable', !state.ok);
+      btn.setAttribute('aria-disabled', state.ok ? 'false' : 'true');
+      btn.title = state.ok ? (spec.hint || spec.label) : (state.why || spec.hint || spec.label);
     }
   };
+  sync();
+  for (const ev of watch) document.addEventListener(ev, sync);
 
-  titleBar.appendChild(minimizeBtn);
+  return sync;
 }
 
 function createSectorControlsContent(editor) {
+  // Laid out by #toolRail in shell.css; nothing to set here.
   const container = document.createElement('div');
   container.className = 'sector-controls-content';
-  container.style.padding = '15px';
-  container.style.overflow = 'auto'; // Allow scrolling if content is too long
-  container.style.width = '100%'; // Explicit width constraint
-  container.style.maxWidth = '100%'; // Never exceed parent
-  container.style.boxSizing = 'border-box';
-  container.style.display = 'flex';
-  container.style.flexDirection = 'column';
-  container.style.minWidth = '0'; // Prevent flex items from growing beyond container
 
-  // ───────────── System Tiles Button ─────────────
-  const realIdBtn = document.createElement('button');
-  realIdBtn.id = 'jumpToSystemBtn';
-  realIdBtn.className = 'mode-button btn-lookup-id';
-  realIdBtn.textContent = 'System Tiles';
-  realIdBtn.title = 'Choose Async Tile';
-  realIdBtn.style.width = '100%';
-  realIdBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-  realIdBtn.style.minWidth = '70px'; // Same as wormhole popup buttons
-  realIdBtn.style.height = '38px'; // Same as wormhole popup buttons
-  realIdBtn.style.marginBottom = '6px';
-  realIdBtn.style.fontSize = '0.9em';
-  realIdBtn.style.padding = '8px 12px';
-  realIdBtn.style.boxSizing = 'border-box';
-  realIdBtn.style.textOverflow = 'ellipsis';
-  realIdBtn.style.whiteSpace = 'nowrap';
-  realIdBtn.style.overflow = 'hidden';
-  realIdBtn.style.flex = 'none'; // Prevent flex growth
+  container.appendChild(railGroupLabel('Draw'));
+
+  const realIdBtn = railButton({
+    id: 'jumpToSystemBtn',
+    className: 'btn-lookup-id',
+    icon: '▦',
+    text: 'System Tiles',
+    title: 'Choose a real system tile to place',
+  });
   realIdBtn.addEventListener('click', () => {
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
-    // Deactivate token mode if it was active
-    if (typeof window.deactivateTokenMode === 'function') {
-      window.deactivateTokenMode();
-    }
+    deactivateModes();
 
-    window.showSystemPicker?.();
+    invoke(COMMANDS.toggleSystemPicker);
   });
   container.appendChild(realIdBtn);
 
-  // ── separator + section label ──
-  const sep0 = document.createElement('div');
-  sep0.style.borderTop = '1px solid #555';
-  sep0.style.margin = '10px 0 6px 0';
-  container.appendChild(sep0);
 
-  const drawLabel = document.createElement('div');
-  drawLabel.className = 'popup-section-label';
-  drawLabel.textContent = 'Draw your design';
-  container.appendChild(drawLabel);
+  // ───────────── Paint modes, inline ─────────────
+  // Tile types and effects used to live in a Draw Helpers popup: a draggable window over
+  // the map holding twelve paint modes. They are what you reach for constantly, so they
+  // belong in the rail with everything else you paint with. Each group folds, so the rail
+  // stays scannable rather than becoming a list of twenty-five.
+  addPaintGroup(container, editor, {
+    key: 'planets',
+    icon: '◍',
+    label: 'Planets',
+    title: 'Paint tile types',
+    headerClass: 'is-planets',
+    items: [
+      { mode: '1 planet', label: '1 Planet', cls: 'btn-1', icon: '1' },
+      { mode: '2 planet', label: '2 Planet', cls: 'btn-2', icon: '2' },
+      { mode: '3 planet', label: '3 Planet', cls: 'btn-3', icon: '3' },
+      { mode: 'legendary planet', label: 'Legendary', cls: 'btn-legendary', icon: '★' },
+      { mode: 'empty', label: 'Empty', cls: 'btn-empty', icon: '○' },
+      { mode: 'void', label: 'Void', cls: 'btn-void', icon: '◯' },
+      { mode: 'special', label: 'Special', cls: 'btn-special', icon: '◆' },
+      { mode: 'fracture', label: 'Fracture', cls: 'btn-fracture', icon: '✧' },
+    ],
+  });
 
-  // ───────────── Essential System Types ─────────────
+  addPaintGroup(container, editor, {
+    key: 'anomalies',
+    icon: '✦',
+    label: 'Anomalies',
+    title: 'Paint anomalies',
+    headerClass: 'is-anomalies',
+    items: [
+      { mode: 'nebula', label: 'Nebula', cls: 'btn-nebula', icon: '☁' },
+      { mode: 'rift', label: 'Rift', cls: 'btn-rift', icon: '◉' },
+      { mode: 'asteroid', label: 'Asteroid', cls: 'btn-asteroid', icon: '⁘' },
+      { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova', icon: '✷' },
+      { mode: 'scar', label: 'Scar', cls: 'btn-scar', icon: '☄' },
+    ],
+  });
+
+  // Homesystem is the one tile type that is not really a "type" you paint over a region,
+  // so it stays at the top level. Void joined the Planets group; Hyperlanes moved to
+  // Connect, where a link between two tiles belongs.
   const essentialSystemTypes = [
-    { mode: 'hyperlane', label: 'Hyperlanes', cls: 'btn-empty' },
-    { mode: 'void', label: 'Void', cls: 'btn-void' },
-    { mode: 'homesystem', label: 'Homesystem', cls: 'btn-homesystem' }
+    { mode: 'homesystem', label: 'Homesystem', cls: 'btn-homesystem', icon: '⌂' }
   ];
 
-  essentialSystemTypes.forEach(({ mode, label, cls }) => {
-    const btn = document.createElement('button');
-    btn.textContent = label;
-    btn.className = `mode-button ${cls}`;
+  essentialSystemTypes.forEach(({ mode, label, cls, icon }) => {
+    const btn = railButton({ className: cls, icon, text: label });
     btn.dataset.mode = mode;
-    btn.style.width = '100%';
-    btn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-    btn.style.minWidth = '70px'; // Same as wormhole popup buttons
-    btn.style.height = '38px'; // Same as wormhole popup buttons
-    btn.style.marginBottom = '6px';
-    btn.style.fontSize = '0.9em';
-    btn.style.padding = '8px 12px';
-    btn.style.boxSizing = 'border-box';
-    btn.style.textOverflow = 'ellipsis';
-    btn.style.whiteSpace = 'nowrap';
-    btn.style.overflow = 'hidden';
-    btn.style.flex = 'none'; // Prevent flex growth
     btn.addEventListener('click', (e) => {
       const turningOff = e.currentTarget.classList.contains('active');
 
@@ -220,463 +444,304 @@ function createSectorControlsContent(editor) {
         btn.style.fontWeight = '';
       });
 
-      // Deactivate lore mode if it was active
-      if (typeof window.deactivateLoreMode === 'function') {
-        window.deactivateLoreMode();
-      }
-      // Deactivate token mode if it was active
-      if (typeof window.deactivateTokenMode === 'function') {
-        window.deactivateTokenMode();
-      }
+      deactivateModes();
 
       if (turningOff) {
         editor.setMode('none');
         return;
       }
 
-      // Set active state on clicked button (like wormhole popup)
       e.currentTarget.classList.add('active');
-      e.currentTarget.style.background = '#666';
-      e.currentTarget.style.color = '#fff';
-      e.currentTarget.style.fontWeight = 'bold';
       editor.setMode(mode);
     });
     container.appendChild(btn);
   });
 
-  // ───────────── Draw Helpers Modal Launcher ─────────────
-  const drawHelpersBtn = document.createElement('button');
-  drawHelpersBtn.id = 'launchDrawHelpersPopup';
-  drawHelpersBtn.className = 'mode-button';
-  drawHelpersBtn.textContent = 'Draw Helpers…';
-  drawHelpersBtn.title = 'Quick Drawing Tools';
-  drawHelpersBtn.style.width = '100%';
-  drawHelpersBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-  drawHelpersBtn.style.minWidth = '70px'; // Same as wormhole popup buttons
-  drawHelpersBtn.style.height = '38px'; // Same as wormhole popup buttons
-  drawHelpersBtn.style.marginBottom = '6px';
-  drawHelpersBtn.style.fontSize = '0.9em';
-  drawHelpersBtn.style.padding = '8px 12px';
-  drawHelpersBtn.style.boxSizing = 'border-box';
-  drawHelpersBtn.style.textOverflow = 'ellipsis';
-  drawHelpersBtn.style.whiteSpace = 'nowrap';
-  drawHelpersBtn.style.overflow = 'hidden';
-  drawHelpersBtn.style.flex = 'none'; // Prevent flex growth
-  drawHelpersBtn.onclick = () => openDrawHelpersPopup(editor, { launcher: drawHelpersBtn, ownerPanel: container });
-  container.appendChild(drawHelpersBtn);
-
   return finishSectorControlsContent(editor, container);
 }
 
+// openDrawHelpersPopup lived here. Its twelve paint modes — tile types and effects —
+// are rail groups now (addPaintGroup above), so there is no popup to open.
+
 /**
- * Opens the Draw Helpers popup: tile-type and effect painting, the AutoMapper section
- * with its V1–V5 / R / I / T value hints, and the value overlay controls.
+ * The Balance surface: value hints, the value overlay and the AutoMapper.
  *
- * Extracted from the Sector Controls launcher so every entry point opens the same popup.
- * simplepPopup.js used to carry a second, hand-maintained copy that had fallen ~200 lines
- * behind this one — no value hints at all — and was unreachable anyway.
+ * These three are one workflow — paint V1–V5 and R/I/T targets onto hexes, run the filler
+ * against them, look at what it chose. They used to sit inside the Draw Helpers popup,
+ * behind a collapsed toggle labelled "🤖 AutoMapper", three levels down from the panel:
+ * fourteen of that popup's twenty-seven controls were hidden on first open, and the
+ * painting half was filed under a heading describing the other half.
  *
- * @param {Object} editor
- * @param {{launcher?: HTMLElement, ownerPanel?: HTMLElement}} [opts]
- *        `launcher` is the button that opened it, lit while a paint mode is active;
- *        `ownerPanel` is the panel whose other buttons should be de-activated first.
- *        Both are optional — the popup works standalone.
+ * Mees rated both value hints and the AutoMapper as used *often* — the correction that
+ * made this its own surface rather than a section of someone else's.
+ *
+ * @param {any} editor
  */
-export function openDrawHelpersPopup(editor, { launcher = null, ownerPanel = null } = {}) {
-    // Clear active state from all buttons in the owning panel first
-    ownerPanel?.querySelectorAll('.mode-button').forEach(btn => {
-      btn.classList.remove('active');
-      btn.style.background = '';
-      btn.style.color = '';
-      btn.style.fontWeight = '';
+export function openBalancePopup(editor) {
+  // Lights the Balance button in the rail while a value-paint mode is armed, so it is
+  // obvious the next map click will paint a hint. In Draw Helpers this lit that popup's
+  // launcher; the block has its own home now, so it lights that.
+  const setLauncherActive = (on) => {
+    const launcher = document.getElementById('toolBalance');
+    if (launcher) launcher.classList.toggle('active', !!on);
+  };
+
+  const amSection = document.createElement('div');
+  amSection.style.cssText = 'display:flex;flex-direction:column;min-width:0;';
+
+    // Value hint section — inside the collapsible
+    const vtSep = document.createElement('div');
+    vtSep.style.cssText = 'border-top:1px solid #555;margin:8px 0;';
+    amSection.appendChild(vtSep);
+
+    const vtLabel = document.createElement('div');
+    vtLabel.style.cssText = 'font-size:0.8em;color:#aaa;margin-bottom:5px;';
+    vtLabel.textContent   = 'Value hints — configure then click hexes:';
+    amSection.appendChild(vtLabel);
+
+    // State held in closure — not editor mode toggles
+    let vt_tier = null, vt_R = false, vt_I = false, vt_T = false;
+    let vtPaintActive = false;
+
+    function updateVtPreview() {
+      const parts = [];
+      if (vt_tier) parts.push(`V${vt_tier}`);
+      if (vt_R) parts.push('R');
+      if (vt_I) parts.push('I');
+      if (vt_T) parts.push('T');
+      vtPreview.textContent = parts.length ? `Painting: ${parts.join('+')}` : 'Nothing selected';
+      vtPreview.style.color = parts.length ? '#ffe066' : '#666';
+      // Activate or deactivate painting mode
+      const wasActive = vtPaintActive;
+      vtPaintActive = parts.length > 0;
+      if (vtPaintActive) {
+        if (!wasActive) armExclusively(MODE_VALUE_HINTS);
+        editor._valuePaintConfig = { tier: vt_tier, r: vt_R, i: vt_I, t: vt_T };
+        editor.setMode('value-target-apply');
+        setLauncherActive(true);
+      } else {
+        editor._valuePaintConfig = null;
+        if (editor.mode === 'value-target-apply') editor.setMode('');
+        if (editor.mode !== 'value-target-clear') setLauncherActive(false);
+      }
+    }
+
+    // Tier row V1–V5
+    const tierRow = document.createElement('div');
+    tierRow.style.cssText = 'grid-column:1/-1;display:flex;gap:3px;margin-bottom:4px;';
+    const TIER_COLORS = ['#ff6b6b','#ffa94d','#ffe066','#a9e34b','#40c057'];
+    const tierBtns = [];
+    TIER_COLORS.forEach((color, idx) => {
+      const tier = idx + 1;
+      const btn = document.createElement('button');
+      btn.textContent  = `V${tier}`;
+      btn.className    = 'mode-button';
+      btn.title        = `Tier ${tier} overall value (1=low, 5=high). Click again to deselect.`;
+      btn.style.cssText = `flex:1;padding:5px 2px;font-size:0.85em;font-weight:bold;border:2px solid ${color};border-radius:4px;color:${color};cursor:pointer;`;
+      btn.addEventListener('click', () => {
+        vt_tier = (vt_tier === tier) ? null : tier; // toggle
+        tierBtns.forEach((b, i) => {
+          const c = TIER_COLORS[i];
+          b.style.background = (vt_tier === i + 1) ? c : '';
+          b.style.color      = (vt_tier === i + 1) ? '#111' : c;
+        });
+        updateVtPreview();
+      });
+      tierBtns.push(btn);
+      tierRow.appendChild(btn);
+    });
+    amSection.appendChild(tierRow);
+
+    // Skew checkboxes R / I / T
+    const skewRow = document.createElement('div');
+    skewRow.style.cssText = 'grid-column:1/-1;display:flex;gap:3px;margin-bottom:4px;';
+    const SKEW_CFG = [
+      { label:'R  Res', color:'#f5a623', get: ()=>vt_R, set: v=>{ vt_R=v; } },
+      { label:'I  Inf', color:'#7ecfff', get: ()=>vt_I, set: v=>{ vt_I=v; } },
+      { label:'T  Tech',color:'#b07cff', get: ()=>vt_T, set: v=>{ vt_T=v; } },
+    ];
+    const skewBtns = [];
+    SKEW_CFG.forEach(({ label, color, get, set }) => {
+      const btn = document.createElement('button');
+      skewBtns.push({ btn, color });
+      btn.textContent  = label;
+      btn.className    = 'mode-button';
+      btn.title        = `Toggle preference for ${label.split(' ')[1]} — can combine with tier and other skews`;
+      btn.style.cssText = `flex:1;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid ${color};border-radius:4px;color:${color};cursor:pointer;`;
+      btn.addEventListener('click', () => {
+        set(!get());
+        btn.style.background = get() ? color : '';
+        btn.style.color      = get() ? '#111' : color;
+        updateVtPreview();
+      });
+      skewRow.appendChild(btn);
     });
 
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
-    // Deactivate token mode if it was active
-    if (typeof window.deactivateTokenMode === 'function') {
-      window.deactivateTokenMode();
-    }
+    // Clear button
+    const vtClearBtn = document.createElement('button');
+    vtClearBtn.textContent   = '✕ Clear';
+    vtClearBtn.className     = 'mode-button';
+    vtClearBtn.title         = 'Remove all value hints from a hex (click hex after)';
+    vtClearBtn.style.cssText = 'flex:0 0 54px;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid var(--surface-5);border-radius:4px;color:#aaa;cursor:pointer;';
+    vtClearBtn.addEventListener('click', () => {
+      // A second press puts it down. It used to arm clear mode again, and right-click,
+      // which disarms by pressing what is lit, armed it instead of disarming it.
+      if (vtClearBtn.classList.contains('active')) { disarmValueHints?.(); return; }
+      armExclusively(MODE_VALUE_HINTS);
+      // Activate clear mode regardless of config state
+      amSection.querySelectorAll('.mode-button').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = b._baseColor || '';
+        b.style.color      = b._baseColor ? '#333' : '';
+      });
+      vtClearBtn.classList.add('active');
+      vtClearBtn.style.background = '#555';
+      editor.setMode('value-target-clear');
+      setLauncherActive(true);
+    });
+    skewRow.appendChild(vtClearBtn);
+    amSection.appendChild(skewRow);
 
-    // Lights the launcher while a Draw Helpers paint mode is active, so it is obvious the
-    // next map click will paint. No-ops when the popup was opened without one.
-    const setLauncherActive = (on) => {
-      if (!launcher) return;
-      launcher.classList.toggle('active', on);
-      launcher.style.background = on ? '#666' : '';
-      launcher.style.color = on ? '#fff' : '';
-      if (on) launcher.style.fontWeight = 'bold';
+    // Preview line showing current combination
+    const vtPreview = document.createElement('div');
+    vtPreview.style.cssText = 'font-size:0.8em;font-weight:bold;color:#666;';
+    vtPreview.textContent   = 'Nothing selected';
+    amSection.appendChild(vtPreview);
+
+    // Every way out comes here. The tier and skew buttons show their state in inline
+    // colours rather than .active, so right-click found nothing lit to press, and the rail
+    // button it did find closed the panel and left the paint mode armed behind it.
+    disarmValueHints = () => {
+      vt_tier = null; vt_R = false; vt_I = false; vt_T = false;
+      tierBtns.forEach((b, i) => { b.style.background = ''; b.style.color = TIER_COLORS[i]; });
+      skewBtns.forEach(({ btn, color }) => { btn.style.background = ''; btn.style.color = color; });
+      vtClearBtn.classList.remove('active');
+      vtClearBtn.style.background = '';
+      if (editor.mode === 'value-target-clear') editor.setMode('none');
+      updateVtPreview();
+      setLauncherActive(false);
     };
 
-    return showPopup({
-      id: 'drawHelpersPopupModal',
-      className: 'layout-options-popup',
-      title: 'Draw Helpers',
-      draggable: true,
-      dragHandleSelector: '.popup-ui-titlebar',
-      scalable: true,
-      rememberPosition: true,
-      style: {
-        left: '800px',
-        top: '120px',
-        minWidth: '240px',
-        maxWidth: '600px',
-        minHeight: '120px',
-        maxHeight: '600px',
-        color: '#fff',
-        border: '2px solid var(--popup-border-special)',
-        boxShadow: '0 8px 40px #000a',
-        padding: '0 0 18px 0',
-        zIndex: 1300
-      },
-      content: (() => {
-        const content = document.createElement('div');
-        content.className = 'modal-content popup-btn-grid draw-helpers-btn-grid';
-        content.style.display = 'grid';
-        content.style.gridTemplateColumns = 'repeat(3, 1fr)'; // 3 columns for compact layout
-        content.style.gap = '8px';
-        content.style.padding = '15px';
+    const amBtn = document.createElement('button');
+    amBtn.textContent = '🤖 Open AutoMapper';
+    amBtn.className = 'mode-button';
+    amBtn.style.cssText = 'width:100%;padding:8px 12px;font-size:0.9em;font-weight:bold;border:2px solid var(--popup-border-special);border-radius:4px;cursor:pointer;color:var(--popup-border-special);background:#0a1a0a;';
+    amBtn.onclick = () => {
+      import('../modules/automapper/autoBuilder.js').then(mod => {
+        mod.openAutoMapperPopup(editor);
+      }).catch(err => console.error('Failed to load AutoMapper:', err));
+    };
+    amSection.appendChild(amBtn);
 
-        // Define draw helper tools
-        const drawHelpers = [
-          { mode: '1 planet', label: '1 Planet', cls: 'btn-1' },
-          { mode: '2 planet', label: '2 Planet', cls: 'btn-2' },
-          { mode: '3 planet', label: '3 Planet', cls: 'btn-3' },
-          { mode: 'legendary planet', label: 'Legendary', cls: 'btn-legendary' },
-          { mode: 'empty', label: 'Empty', cls: 'btn-empty' },
-          { mode: 'special', label: 'Special', cls: 'btn-special' },
-          { mode: 'fracture', label: 'Fracture', cls: 'btn-fracture', color: '#ffb3b3' }
-        ];
+    // ── Value Overlay ─────────────────────────────────────────────
+    const voSep = document.createElement('div');
+    voSep.style.cssText = 'border-top:1px solid #444;margin:8px 0;';
+    amSection.appendChild(voSep);
 
-        drawHelpers.forEach(({ mode, label, cls, color }) => {
-          const btn = document.createElement('button');
-          btn.textContent = label;
-          btn.className = `mode-button ${cls}`;
-          btn.style.border = '1px solid #666';
-          btn.style.borderRadius = '4px';
-          btn.style.padding = '8px 12px';
-          btn.style.fontSize = '0.9em';
-          btn.style.fontWeight = 'bold';
-          btn.style.maxWidth = '120px';
-          btn.style.height = '35px';
-          btn.style.overflow = 'hidden';
-          btn.style.textOverflow = 'ellipsis';
-          btn.style.whiteSpace = 'nowrap';
-          if (color) { btn.style.background = color; btn.style.color = '#333'; }
-          btn.addEventListener('click', (e) => {
-            const turningOff = e.currentTarget.classList.contains('active');
-            content.querySelectorAll('.mode-button').forEach(b => {
-              b.classList.remove('active');
-              b.style.background = b._baseColor || '';
-              b.style.color = b._baseColor ? '#333' : '';
-              b.style.fontWeight = 'bold';
-            });
-            if (turningOff) {
-              setLauncherActive(false);
-              editor.setMode('none');
-              return;
-            }
-            e.currentTarget.classList.add('active');
-            e.currentTarget.style.background = '#666';
-            e.currentTarget.style.color = '#fff';
-            e.currentTarget.style.fontWeight = 'bold';
-            setLauncherActive(true);
-            editor.setMode(mode);
-          });
-          btn._baseColor = color || '';
-          content.appendChild(btn);
-        });
+    const voLabel = document.createElement('div');
+    voLabel.style.cssText  = 'font-size:0.8em;color:#aaa;margin-bottom:4px;';
+    voLabel.textContent    = 'Value overlay (1–5 tier, based on ideal R/I + tech)';
+    amSection.appendChild(voLabel);
 
-        // Add separator
-        const separator = document.createElement('div');
-        separator.style.gridColumn = '1 / -1'; // Span all columns
-        separator.style.borderTop = '1px solid #666';
-        separator.style.margin = '10px 0';
-        content.appendChild(separator);
+    // State for the three weighting toggles
+    let vo_R = false, vo_I = false, vo_T = false;
 
-        // Add Effects section
-        const effectsLabel = document.createElement('div');
-        effectsLabel.textContent = 'Effects:';
-        effectsLabel.style.gridColumn = '1 / -1'; // Span all columns
-        effectsLabel.style.fontWeight = 'bold';
-        effectsLabel.style.color = '#ffe066';
-        effectsLabel.style.marginBottom = '8px';
-        content.appendChild(effectsLabel);
-
-        const effects = [
-          { mode: 'nebula',    label: 'Nebula',    cls: 'btn-nebula' },
-          { mode: 'rift',      label: 'Rift',      cls: 'btn-rift' },
-          { mode: 'asteroid',  label: 'Asteroid',  cls: 'btn-asteroid' },
-          { mode: 'supernova', label: 'Supernova', cls: 'btn-supernova' },
-          { mode: 'scar',      label: 'Scar ☄️',   cls: 'btn-scar' }
-        ];
-
-        effects.forEach(({ mode, label, cls }) => {
-          const btn = document.createElement('button');
-          btn.textContent = label;
-          btn.className = `mode-button ${cls}`;
-          btn.style.border = '1px solid #666';
-          btn.style.borderRadius = '4px';
-          btn.style.padding = '8px 12px';
-          btn.style.fontSize = '0.9em';
-          btn.style.fontWeight = 'bold';
-          btn.style.maxWidth = '120px'; // Fixed max size for compact grid
-          btn.style.height = '35px'; // Fixed height
-          btn.style.overflow = 'hidden';
-          btn.style.textOverflow = 'ellipsis';
-          btn.style.whiteSpace = 'nowrap';
-          btn.addEventListener('click', (e) => {
-            const turningOff = e.currentTarget.classList.contains('active');
-            // Clear active from all buttons in the popup
-            content.querySelectorAll('.mode-button').forEach(b => {
-              b.classList.remove('active');
-              b.style.background = '';
-              b.style.color = '';
-              b.style.fontWeight = 'bold';
-            });
-            if (turningOff) {
-              setLauncherActive(false);
-              editor.setMode('none');
-              return;
-            }
-            // Set active state on clicked button
-            e.currentTarget.classList.add('active');
-            e.currentTarget.style.background = '#666';
-            e.currentTarget.style.color = '#fff';
-            e.currentTarget.style.fontWeight = 'bold';
-            // Also show draw helpers button as active in sector controls
-            setLauncherActive(true);
-            editor.setMode(mode);
-          });
-          content.appendChild(btn);
-        });
-
-        // ── Value target drawing ────────────────────────────────────────
-        // Configure tier (V1–V5) + skew (R/I/T) FIRST, then click hexes to paint.
-        // All flags are independent — any combination is valid.
-        // ── AutoMapper collapsible section ───────────────────────────────
-        const amTopSep0 = document.createElement('div');
-        amTopSep0.style.cssText = 'grid-column:1/-1;border-top:1px solid #444;margin:10px 0;';
-        content.appendChild(amTopSep0);
-
-        const amToggle = document.createElement('button');
-        amToggle.className = 'mode-button';
-        amToggle.style.cssText = 'grid-column:1/-1;width:100%;padding:7px 12px;font-size:0.9em;font-weight:bold;border:1px solid #555;border-radius:4px;cursor:pointer;text-align:left;';
-        amToggle.textContent = '🤖 AutoMapper ▾';
-        amToggle._open = false;
-        content.appendChild(amToggle);
-
-        const amSection = document.createElement('div');
-        amSection.style.cssText = 'grid-column:1/-1;display:none;';
-        content.appendChild(amSection);
-
-        amToggle.onclick = () => {
-          amToggle._open = !amToggle._open;
-          amSection.style.display = amToggle._open ? 'block' : 'none';
-          amToggle.textContent = amToggle._open ? '🤖 AutoMapper ▴' : '🤖 AutoMapper ▾';
-        };
-
-        // Value hint section — inside the collapsible
-        const vtSep = document.createElement('div');
-        vtSep.style.cssText = 'border-top:1px solid #555;margin:8px 0;';
-        amSection.appendChild(vtSep);
-
-        const vtLabel = document.createElement('div');
-        vtLabel.style.cssText = 'font-size:0.8em;color:#aaa;margin-bottom:5px;';
-        vtLabel.textContent   = 'Value hints — configure then click hexes:';
-        amSection.appendChild(vtLabel);
-
-        // State held in closure — not editor mode toggles
-        let vt_tier = null, vt_R = false, vt_I = false, vt_T = false;
-        let vtPaintActive = false;
-
-        function updateVtPreview() {
-          const parts = [];
-          if (vt_tier) parts.push(`V${vt_tier}`);
-          if (vt_R) parts.push('R');
-          if (vt_I) parts.push('I');
-          if (vt_T) parts.push('T');
-          vtPreview.textContent = parts.length ? `Painting: ${parts.join('+')}` : 'Nothing selected';
-          vtPreview.style.color = parts.length ? '#ffe066' : '#666';
-          // Activate or deactivate painting mode
-          vtPaintActive = parts.length > 0;
-          if (vtPaintActive) {
-            editor._valuePaintConfig = { tier: vt_tier, r: vt_R, i: vt_I, t: vt_T };
-            editor.setMode('value-target-apply');
-            setLauncherActive(true);
-          } else {
-            editor._valuePaintConfig = null;
-            if (editor.mode === 'value-target-apply') editor.setMode('');
-          }
+    function refreshValueOverlay() {
+      import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
+        // The drawn layer is the state. Redrawing only makes sense while it is shown —
+        // changing a weight with the overlay off must not switch it on.
+        if (isValueOverlayActive(editor)) {
+          drawValueOverlay(editor, vo_R, vo_I, vo_T);
+        } else {
+          clearValueOverlay(editor);
         }
+      });
+    }
 
-        // Tier row V1–V5
-        const tierRow = document.createElement('div');
-        tierRow.style.cssText = 'grid-column:1/-1;display:flex;gap:3px;margin-bottom:4px;';
-        const TIER_COLORS = ['#ff6b6b','#ffa94d','#ffe066','#a9e34b','#40c057'];
-        const tierBtns = [];
-        TIER_COLORS.forEach((color, idx) => {
-          const tier = idx + 1;
-          const btn = document.createElement('button');
-          btn.textContent  = `V${tier}`;
-          btn.className    = 'mode-button';
-          btn.title        = `Tier ${tier} overall value (1=low, 5=high). Click again to deselect.`;
-          btn.style.cssText = `flex:1;padding:5px 2px;font-size:0.85em;font-weight:bold;border:2px solid ${color};border-radius:4px;color:${color};cursor:pointer;`;
-          btn.addEventListener('click', () => {
-            vt_tier = (vt_tier === tier) ? null : tier; // toggle
-            tierBtns.forEach((b, i) => {
-              const c = TIER_COLORS[i];
-              b.style.background = (vt_tier === i + 1) ? c : '';
-              b.style.color      = (vt_tier === i + 1) ? '#111' : c;
-            });
-            updateVtPreview();
-          });
-          tierBtns.push(btn);
-          tierRow.appendChild(btn);
-        });
-        amSection.appendChild(tierRow);
+    // Expose refresh on editor so assignSystem and other callers can trigger it
+    editor._refreshValueOverlay = refreshValueOverlay;
 
-        // Skew checkboxes R / I / T
-        const skewRow = document.createElement('div');
-        skewRow.style.cssText = 'grid-column:1/-1;display:flex;gap:3px;margin-bottom:4px;';
-        const SKEW_CFG = [
-          { label:'R  Res', color:'#f5a623', get: ()=>vt_R, set: v=>{ vt_R=v; } },
-          { label:'I  Inf', color:'#7ecfff', get: ()=>vt_I, set: v=>{ vt_I=v; } },
-          { label:'T  Tech',color:'#b07cff', get: ()=>vt_T, set: v=>{ vt_T=v; } },
-        ];
-        SKEW_CFG.forEach(({ label, color, get, set }) => {
-          const btn = document.createElement('button');
-          btn.textContent  = label;
-          btn.className    = 'mode-button';
-          btn.title        = `Toggle preference for ${label.split(' ')[1]} — can combine with tier and other skews`;
-          btn.style.cssText = `flex:1;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid ${color};border-radius:4px;color:${color};cursor:pointer;`;
-          btn.addEventListener('click', () => {
-            set(!get());
-            btn.style.background = get() ? color : '';
-            btn.style.color      = get() ? '#111' : color;
-            updateVtPreview();
-          });
-          skewRow.appendChild(btn);
-        });
+    // Main on/off toggle. The same overlay has a second switch in Toggle Overlays, so
+    // this button holds no state of its own: it reads the drawn layer, and re-syncs
+    // whenever anything changes it.
+    const voToggleBtn = document.createElement('button');
+    voToggleBtn.className     = 'mode-button';
+    voToggleBtn.textContent   = '📊 Show Value Overlay';
+    voToggleBtn.style.cssText = 'width:100%;padding:6px 10px;font-size:0.85em;font-weight:bold;border:1px solid #888;border-radius:4px;cursor:pointer;';
 
-        // Clear button
-        const vtClearBtn = document.createElement('button');
-        vtClearBtn.textContent   = '✕ Clear';
-        vtClearBtn.className     = 'mode-button';
-        vtClearBtn.title         = 'Remove all value hints from a hex (click hex after)';
-        vtClearBtn.style.cssText = 'flex:0 0 54px;padding:5px 4px;font-size:0.82em;font-weight:bold;border:2px solid var(--surface-5);border-radius:4px;color:#aaa;cursor:pointer;';
-        vtClearBtn.addEventListener('click', () => {
-          // Activate clear mode regardless of config state
-          content.querySelectorAll('.mode-button').forEach(b => {
-            b.classList.remove('active');
-            b.style.background = b._baseColor || '';
-            b.style.color      = b._baseColor ? '#333' : '';
-          });
-          vtClearBtn.classList.add('active');
-          vtClearBtn.style.background = '#555';
-          editor.setMode('value-target-clear');
-          setLauncherActive(true);
-        });
-        skewRow.appendChild(vtClearBtn);
-        amSection.appendChild(skewRow);
+    function syncVoButton(on) {
+      voToggleBtn.textContent  = on ? '📊 Hide Value Overlay' : '📊 Show Value Overlay';
+      voToggleBtn.style.border = on ? '1px solid #ffe066' : '1px solid #888';
+    }
 
-        // Preview line showing current combination
-        const vtPreview = document.createElement('div');
-        vtPreview.style.cssText = 'font-size:0.8em;font-weight:bold;color:#666;';
-        vtPreview.textContent   = 'Nothing selected';
-        amSection.appendChild(vtPreview);
+    voToggleBtn.onclick = () => {
+      import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
+        if (isValueOverlayActive(editor)) clearValueOverlay(editor);
+        else drawValueOverlay(editor, vo_R, vo_I, vo_T);
+      }).catch(console.error);
+    };
+    amSection.appendChild(voToggleBtn);
 
-        const amBtn = document.createElement('button');
-        amBtn.textContent = '🤖 Open AutoMapper';
-        amBtn.className = 'mode-button';
-        amBtn.style.cssText = 'width:100%;padding:8px 12px;font-size:0.9em;font-weight:bold;border:2px solid var(--popup-border-special);border-radius:4px;cursor:pointer;color:var(--popup-border-special);background:#0a1a0a;';
-        amBtn.onclick = () => {
-          import('../modules/automapper/autoBuilder.js').then(mod => {
-            mod.openAutoMapperPopup();
-          }).catch(err => console.error('Failed to load AutoMapper:', err));
-        };
-        amSection.appendChild(amBtn);
-
-        // ── Value Overlay ─────────────────────────────────────────────
-        const voSep = document.createElement('div');
-        voSep.style.cssText = 'border-top:1px solid #444;margin:8px 0;';
-        amSection.appendChild(voSep);
-
-        const voLabel = document.createElement('div');
-        voLabel.style.cssText  = 'font-size:0.8em;color:#aaa;margin-bottom:4px;';
-        voLabel.textContent    = 'Value overlay (1–5 tier, based on ideal R/I + tech)';
-        amSection.appendChild(voLabel);
-
-        // State for the three weighting toggles
-        let vo_R = false, vo_I = false, vo_T = false;
-
-        function refreshValueOverlay() {
-          import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay }) => {
-            if (voToggleBtn._voActive) {
-              drawValueOverlay(editor, vo_R, vo_I, vo_T);
-            } else {
-              clearValueOverlay(editor);
-            }
-          });
+    import('../features/valueOverlay.js').then(({ VALUE_OVERLAY_CHANGED, isValueOverlayActive }) => {
+      syncVoButton(isValueOverlayActive(editor));
+      // Self-removing: the popup is rebuilt on every open, so without this each reopen
+      // would leave another listener behind holding a detached button.
+      const onChange = () => {
+        if (!voToggleBtn.isConnected) {
+          document.removeEventListener(VALUE_OVERLAY_CHANGED, onChange);
+          return;
         }
+        syncVoButton(isValueOverlayActive(editor));
+      };
+      document.addEventListener(VALUE_OVERLAY_CHANGED, onChange);
+    }).catch(console.error);
 
-        // Expose refresh on editor so assignSystem and other callers can trigger it
-        editor._refreshValueOverlay = refreshValueOverlay;
+    // Weight toggle row
+    const voWeightRow = document.createElement('div');
+    voWeightRow.style.cssText = 'display:flex;gap:6px;margin-top:5px;';
 
-        // Main on/off toggle
-        const voToggleBtn = document.createElement('button');
-        voToggleBtn.textContent      = '📊 Show Value Overlay';
-        voToggleBtn.className        = 'mode-button';
-        voToggleBtn._voActive        = false;
-        voToggleBtn.style.cssText    = 'width:100%;padding:6px 10px;font-size:0.85em;font-weight:bold;border:1px solid #888;border-radius:4px;cursor:pointer;';
-        voToggleBtn.onclick = () => {
-          voToggleBtn._voActive = !voToggleBtn._voActive;
-          voToggleBtn.textContent  = voToggleBtn._voActive ? '📊 Hide Value Overlay' : '📊 Show Value Overlay';
-          voToggleBtn.style.border = voToggleBtn._voActive ? '1px solid #ffe066' : '1px solid #888';
-          refreshValueOverlay();
-        };
-        amSection.appendChild(voToggleBtn);
+    function makeWeightBtn(label, color, getVal, setVal, title) {
+      const b = document.createElement('button');
+      b.textContent   = label;
+      b.className     = 'mode-button';
+      b.title         = title;
+      b.style.cssText = `flex:1;padding:5px;font-size:0.8em;font-weight:bold;border:1px solid #555;border-radius:4px;cursor:pointer;`;
+      b.onclick = () => {
+        setVal(!getVal());
+        b.style.background = getVal() ? color : '';
+        b.style.color      = getVal() ? '#111' : '';
+        b.style.border     = getVal() ? `1px solid ${color}` : '1px solid #555';
+        if (voToggleBtn._voActive) refreshValueOverlay();
+      };
+      return b;
+    }
 
-        // Weight toggle row
-        const voWeightRow = document.createElement('div');
-        voWeightRow.style.cssText = 'display:flex;gap:6px;margin-top:5px;';
+    voWeightRow.appendChild(makeWeightBtn(
+      'R  Res', '#f5a623', () => vo_R, v => { vo_R = v; },
+      'Boost resource weight (reduces influence weight)'
+    ));
+    voWeightRow.appendChild(makeWeightBtn(
+      'I  Inf', '#7ecfff', () => vo_I, v => { vo_I = v; },
+      'Boost influence weight (reduces resource weight)'
+    ));
+    voWeightRow.appendChild(makeWeightBtn(
+      'T  Tech', '#b07cff', () => vo_T, v => { vo_T = v; },
+      'Boost tech-skip weight'
+    ));
 
-        function makeWeightBtn(label, color, getVal, setVal, title) {
-          const b = document.createElement('button');
-          b.textContent   = label;
-          b.className     = 'mode-button';
-          b.title         = title;
-          b.style.cssText = `flex:1;padding:5px;font-size:0.8em;font-weight:bold;border:1px solid #555;border-radius:4px;cursor:pointer;`;
-          b.onclick = () => {
-            setVal(!getVal());
-            b.style.background = getVal() ? color : '';
-            b.style.color      = getVal() ? '#111' : '';
-            b.style.border     = getVal() ? `1px solid ${color}` : '1px solid #555';
-            if (voToggleBtn._voActive) refreshValueOverlay();
-          };
-          return b;
-        }
+    amSection.appendChild(voWeightRow);
 
-        voWeightRow.appendChild(makeWeightBtn(
-          'R  Res', '#f5a623', () => vo_R, v => { vo_R = v; },
-          'Boost resource weight (reduces influence weight)'
-        ));
-        voWeightRow.appendChild(makeWeightBtn(
-          'I  Inf', '#7ecfff', () => vo_I, v => { vo_I = v; },
-          'Boost influence weight (reduces resource weight)'
-        ));
-        voWeightRow.appendChild(makeWeightBtn(
-          'T  Tech', '#b07cff', () => vo_T, v => { vo_T = v; },
-          'Boost tech-skip weight'
-        ));
-
-        amSection.appendChild(voWeightRow);
-
-        return content;
-      })()
-    });
+  return showPopup({
+    id: 'balancePopupModal',
+    onClose: () => { disarmValueHints?.(); disarmValueHints = null; },
+    className: 'layout-options-popup',
+    title: 'Balance',
+    draggable: true,
+    dragHandleSelector: '.popup-ui-titlebar',
+    scalable: true,
+    rememberPosition: true,
+    content: amSection,
+  });
 }
 
 /**
@@ -684,236 +749,313 @@ export function openDrawHelpersPopup(editor, { launcher = null, ownerPanel = nul
  * Split out only so openDrawHelpersPopup could be lifted to module scope.
  */
 function finishSectorControlsContent(editor, container) {
-  // ── separator + section label ──
-  const separator1 = document.createElement('div');
-  separator1.style.borderTop = '1px solid #555';
-  separator1.style.margin = '10px 0 6px 0';
-  container.appendChild(separator1);
+  container.appendChild(railGroupLabel('Connect'));
 
-  const advLabel = document.createElement('div');
-  advLabel.className = 'popup-section-label';
-  advLabel.textContent = 'Advanced map tools';
-  container.appendChild(advLabel);
+  const hyperlanesBtn = railButton({
+    id: 'toolHyperlanes',
+    className: 'btn-hyperlane',
+    icon: '∿',
+    text: 'Hyperlanes',
+    title: 'Draw hyperlane arcs between tiles',
+  });
+  hyperlanesBtn.addEventListener('click', () => {
+    const turningOff = hyperlanesBtn.classList.contains('active');
+    container.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));
+    deactivateModes();
+    if (turningOff) { editor.setMode('none'); return; }
+    hyperlanesBtn.classList.add('active');
+    editor.setMode('hyperlane');
+  });
+  // The editor boots in 'hyperlane' mode, so on a fresh load the status bar and the
+  // inspector both say hyperlane while nothing in the rail is lit — and a click on the map
+  // really does start drawing one. Light the button that owns the mode instead.
+  hyperlanesBtn.classList.toggle('active', editor.mode === 'hyperlane');
+  container.appendChild(hyperlanesBtn);
 
   // ───────────── Wormholes Modal Launcher ─────────────
-  const wormholesBtn = document.createElement('button');
-  wormholesBtn.id = 'launchWormholesPopup';
-  wormholesBtn.className = 'mode-button';
-  wormholesBtn.textContent = 'Wormholes…';
-  wormholesBtn.title = 'Pick Wormhole';
-  wormholesBtn.style.width = '100%';
-  wormholesBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-  wormholesBtn.style.minWidth = '70px'; // Same as wormhole popup buttons
-  wormholesBtn.style.height = '38px'; // Same as wormhole popup buttons
-  wormholesBtn.style.marginBottom = '6px';
-  wormholesBtn.style.fontSize = '0.9em';
-  wormholesBtn.style.padding = '8px 12px';
-  wormholesBtn.style.boxSizing = 'border-box';
-  wormholesBtn.style.textOverflow = 'ellipsis';
-  wormholesBtn.style.whiteSpace = 'nowrap';
-  wormholesBtn.style.overflow = 'hidden';
-  wormholesBtn.style.flex = 'none'; // Prevent flex growth
-  wormholesBtn.onclick = (e) => {
-    // Clear active state from all buttons in the sector controls first
-    container.querySelectorAll('.mode-button').forEach(btn => {
-      btn.classList.remove('active');
-      btn.style.background = '';
-      btn.style.color = '';
-      btn.style.fontWeight = '';
-    });
+  const wormholesBtn = railButton({
+    id: 'launchWormholesPopup',
+    className: 'btn-wormhole-all',
+    icon: '◎',
+    text: 'Wormholes…',
+    title: 'Place a wormhole',
+  });
+  wormholesBtn.dataset.launcher = '';
 
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
-    // Deactivate token mode if it was active
-    if (typeof window.deactivateTokenMode === 'function') {
-      window.deactivateTokenMode();
-    }
+  // Fourteen wormhole types: pick one, then click hexes.
+  const wormholesPanel = createToolPanel({
+    id: 'wormholesPopup',
+    title: '◎ Wormholes',
+    mode: MODE_WORMHOLES,
+    launcherId: 'launchWormholesPopup',
+    width: '280px',
+    build: () => {
+      const grid = document.createElement('div');
+      grid.className = 'tool-panel__grid';
 
-    showPopup({
-      id: 'wormholesPopupModal',
-      className: 'layout-options-popup',
-      title: 'Wormholes',
-      draggable: true,
-      dragHandleSelector: '.popup-ui-titlebar',
-      scalable: true,
-      rememberPosition: true,
-      style: {
-        left: '600px',
-        top: '160px',
-        minWidth: '220px',
-        maxWidth: '600px',
-        minHeight: '120px',
-        maxHeight: '600px',
-        color: '#fff',
-        border: '2px solid var(--popup-border-layout)',
-        boxShadow: '0 8px 40px #000a',
-        padding: '0 0 18px 0',
-        zIndex: 1300
-      },
-      content: (() => {
-        const content = document.createElement('div');
-        content.className = 'modal-content popup-btn-grid wormhole-btn-grid';
-        Object.entries(wormholeTypes).forEach(([type, { label, color }]) => {
-          const btn = document.createElement('button');
-          btn.textContent = label;
-          btn.className = 'mode-button btn-wormhole';
-          btn.style.backgroundColor = color;
-          btn.addEventListener('click', (e) => {
-            const turningOff = e.currentTarget.classList.contains('active');
-            // Clear active from wormhole popup buttons
-            content.querySelectorAll('.mode-button').forEach(b => {
-              b.classList.remove('active');
-              b.style.background = b.style.backgroundColor; // Restore original color
-              b.style.color = '';
-              b.style.fontWeight = '';
-            });
-            if (turningOff) {
-              wormholesBtn.classList.remove('active');
-              wormholesBtn.style.background = '';
-              wormholesBtn.style.color = '';
-              editor.setMode('none');
-              return;
-            }
-            // Set active state on clicked button (like original wormhole popup)
-            e.currentTarget.classList.add('active');
-            e.currentTarget.style.background = '#666';
-            e.currentTarget.style.color = '#fff';
-            e.currentTarget.style.fontWeight = 'bold';
-            // Also show wormholes button as active in sector controls
-            wormholesBtn.classList.add('active');
-            wormholesBtn.style.background = '#666';
-            wormholesBtn.style.color = '#fff';
-            wormholesBtn.style.fontWeight = 'bold';
-            editor.setMode(type);
-          });
-          content.appendChild(btn);
+      Object.entries(wormholeTypes).forEach(([type, { label, color }]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.className = 'mode-button btn-wormhole';
+        btn.dataset.tool = '';
+        btn.style.backgroundColor = color;
+        btn.addEventListener('click', () => {
+          const turningOff = btn.classList.contains('active');
+          grid.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));
+          if (turningOff) {
+            editor.setMode('none');
+            return;
+          }
+          btn.classList.add('active');
+          editor.setMode(type);
         });
-        return content;
-      })()
-    });
-  };
+        grid.appendChild(btn);
+      });
+      return grid;
+    },
+  });
+  wormholesBtn.onclick = () => wormholesPanel.toggle();
   container.appendChild(wormholesBtn);
 
   // ───────────── Custom Links Modal Launcher ─────────────
-  const customLinksBtn = document.createElement('button');
-  customLinksBtn.id = 'launchCustomLinksPopup';
-  customLinksBtn.className = 'mode-button';
-  customLinksBtn.textContent = 'Custom Links…';
-  customLinksBtn.title = 'Manage Custom Links';
-  customLinksBtn.style.width = '100%';
-  customLinksBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-  customLinksBtn.style.minWidth = '70px'; // Same as wormhole popup buttons
-  customLinksBtn.style.height = '38px'; // Same as wormhole popup buttons
-  customLinksBtn.style.marginBottom = '6px';
-  customLinksBtn.style.fontSize = '0.9em';
-  customLinksBtn.style.padding = '8px 12px';
-  customLinksBtn.style.boxSizing = 'border-box';
-  customLinksBtn.style.textOverflow = 'ellipsis';
-  customLinksBtn.style.whiteSpace = 'nowrap';
-  customLinksBtn.style.overflow = 'hidden';
-  customLinksBtn.style.flex = 'none'; // Prevent flex growth
-  customLinksBtn.onclick = (e) => {
-    // Clear active state from all buttons in the sector controls first
-    container.querySelectorAll('.mode-button').forEach(btn => {
-      btn.classList.remove('active');
-      btn.style.background = '';
-      btn.style.color = '';
-      btn.style.fontWeight = '';
-    });
-
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
-    // Deactivate token mode if it was active
-    if (typeof window.deactivateTokenMode === 'function') {
-      window.deactivateTokenMode();
-    }
-
-    // Open the custom links popup
-    if (typeof window.showCustomLinksPopup === 'function') {
-      window.showCustomLinksPopup();
-    } else {
-      // Fallback: import and call the function
-      import('./customLinksUI.js').then(module => {
-        if (module && typeof module.showCustomLinksPopup === 'function') {
-          module.showCustomLinksPopup();
-        }
-      });
-    }
-  };
+  const customLinksBtn = railButton({
+    id: 'launchCustomLinksPopup',
+    icon: '⇄',
+    text: 'Custom Links…',
+    title: 'Manage custom adjacency links',
+  });
+  customLinksBtn.dataset.launcher = '';
+  // Opens and closes the panel. It used to disarm every mode first, which took the panel
+  // down before the command could see it was showing — so pressing it again rebuilt it.
+  customLinksBtn.onclick = () => invoke(COMMANDS.showCustomLinks);
   container.appendChild(customLinksBtn);
 
   // ───────────── Border Anomalies Modal Launcher ─────────────
-  const borderAnomaliesBtn = document.createElement('button');
-  borderAnomaliesBtn.id = 'launchBorderAnomaliesPopup';
-  borderAnomaliesBtn.className = 'mode-button';
-  borderAnomaliesBtn.textContent = 'Border Anomalies…';
-  borderAnomaliesBtn.title = 'Manage Border Anomalies';
-  borderAnomaliesBtn.style.width = '100%';
-  borderAnomaliesBtn.style.maxWidth = '200px'; // Hard limit to prevent infinite growth
-  borderAnomaliesBtn.style.minWidth = '70px'; // Same as wormhole popup buttons
-  borderAnomaliesBtn.style.height = '38px'; // Same as wormhole popup buttons
-  borderAnomaliesBtn.style.marginBottom = '6px';
-  borderAnomaliesBtn.style.fontSize = '0.9em';
-  borderAnomaliesBtn.style.padding = '8px 12px';
-  borderAnomaliesBtn.style.boxSizing = 'border-box';
-  borderAnomaliesBtn.style.textOverflow = 'ellipsis';
-  borderAnomaliesBtn.style.whiteSpace = 'nowrap';
-  borderAnomaliesBtn.style.overflow = 'hidden';
-  borderAnomaliesBtn.style.flex = 'none'; // Prevent flex growth
-  borderAnomaliesBtn.onclick = (e) => {
-    // Clear active state from all buttons in the sector controls first
-    container.querySelectorAll('.mode-button').forEach(btn => {
-      btn.classList.remove('active');
-      btn.style.background = '';
-      btn.style.color = '';
-      btn.style.fontWeight = '';
-    });
-
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
-    // Deactivate token mode if it was active
-    if (typeof window.deactivateTokenMode === 'function') {
-      window.deactivateTokenMode();
-    }
-
-    // Open the border anomalies popup
-    if (typeof window.showBorderAnomaliesPopup === 'function') {
-      window.showBorderAnomaliesPopup();
-    } else {
-      // Fallback: import and call the function
-      import('./borderAnomaliesUI.js').then(module => {
-        if (module && typeof module.showBorderAnomaliesPopup === 'function') {
-          module.showBorderAnomaliesPopup();
-        }
-      });
-    }
-  };
+  const borderAnomaliesBtn = railButton({
+    id: 'launchBorderAnomaliesPopup',
+    icon: '⌗',
+    text: 'Border Anomalies…',
+    title: 'Manage border anomalies',
+  });
+  borderAnomaliesBtn.dataset.launcher = '';
+  // Opens and closes the panel. It used to disarm every mode first, which took the panel
+  // down before the command could see it was showing — so pressing it again rebuilt it.
+  borderAnomaliesBtn.onclick = () => invoke(COMMANDS.showBorderAnomalies);
   container.appendChild(borderAnomaliesBtn);
 
+  // ───────────── Balance ─────────────
+  // Value hints and the AutoMapper are one workflow and both are used often: paint
+  // targets, run the filler against them, review. They were three levels down, behind a
+  // collapsed toggle inside Draw Helpers. AutoMapper also gets its own entry — it had
+  // three front doors, the nearest of which was three clicks away.
+  container.appendChild(railGroupLabel('Balance'));
+
+  const balanceBtn = railButton({
+    id: 'toolBalance',
+    icon: '◈',
+    text: 'Value hints…',
+    title: 'Paint V1–V5 and R/I/T targets, and weight the value overlay',
+  });
+  // Lit while a value hint is armed, like the tool-panel launchers, and skipped by
+  // right-click for the same reason: pressing it closes the panel.
+  balanceBtn.dataset.launcher = '';
+  balanceBtn.onclick = () => togglePopup('balancePopupModal', () => {
+    deactivateModes();
+    openBalancePopup(editor);
+  });
+  container.appendChild(balanceBtn);
+
+  // A "Value tiers" button lived here: a third switch for the one value overlay, beside
+  // the one in Toggle Overlays and the one inside the Balance panel. Three controls for
+  // one piece of state is two too many, and the overlay belongs with the other overlays.
+
+  const autoMapperBtn = railButton({
+    id: 'toolAutoMapper',
+    icon: '⚙',
+    text: 'AutoMapper…',
+    title: 'Fill the painted tiles with real systems',
+  });
+  autoMapperBtn.onclick = () => togglePopup('automapper-popup', () => {
+    deactivateModes();
+    import('../modules/automapper/autoBuilder.js')
+      .then(mod => mod.openAutoMapperPopup(editor))
+      .catch(err => console.error('Failed to load AutoMapper:', err));
+  });
+  container.appendChild(autoMapperBtn);
+
+  // ───────────── Distance ─────────────
+  // The calculation had no button at all: Shift+D held, then a *right*-click, documented
+  // only inside the help popup — while its settings had one of the widest buttons in the
+  // top bar. Armed, a left-click on any hex paints the distances from it.
+  container.appendChild(railGroupLabel('Edit'));
+
+  // ───────────── Clipboard ─────────────
+  //
+  // The long way round to Ctrl+C, Ctrl+X and Ctrl+V, for the times you would rather read
+  // than remember. It replaces a floating wizard that took the map away from you: a popup
+  // with Copy/Cut/Swap buttons, which then opened a second popup telling you what to click
+  // next, over the tiles you were choosing between.
+  //
+  // Every item here says when it applies and why it does not, so the list is a description
+  // of the tool rather than four buttons that may or may not do something.
+  addActionGroup(container, {
+    key: 'clipboard',
+    icon: '⧉',
+    label: 'Clipboard',
+    title: 'Copy, cut, paste and swap tiles',
+    note: 'Click a hex to select it, shift-click for more.',
+    help: [
+      'Copy / cut',
+      '  Select one or more hexes, then Copy (Ctrl+C) or Cut (Ctrl+X).',
+      '  Cut removes them straight away — they are on the clipboard, and it is one undo.',
+      '',
+      'Paste',
+      '  A ghost of the block follows the cursor. Click a hex to place it there.',
+      '  Press R to turn the block 60°. Escape or right-click puts the ghost away;',
+      '  Ctrl+V brings it back. Pasting does not use the clip up, so you can place it',
+      '  as many times as you like.',
+      '',
+      'Swap',
+      '  Select exactly two hexes and press Swap, or use the ⇄ button that appears',
+      '  between them on the map. The two tiles trade places.',
+    ].join('\n'),
+    watch: [HEX_SELECTED, CLIPBOARD_CHANGED],
+    // What a copy carries. These were four checkboxes in the wizard's popup and went with
+    // it; they are a preference about how you work rather than about one copy, so they
+    // persist. The tile itself and its planets are never optional — these are the things
+    // that sit on top of it.
+    options: {
+      label: 'Copies include:',
+      watch: [COPY_OPTIONS_CHANGED],
+      items: [
+        {
+          label: 'Wormholes',
+          title: 'Carry wormholes placed on the tile. Wormholes the system has by nature always come with it.',
+          get: () => copyOptions().wormholes,
+          set: (on) => setCopyOption('wormholes', on),
+        },
+        {
+          label: 'Custom links',
+          title: 'Carry custom adjacency links drawn from these hexes',
+          get: () => copyOptions().customAdjacents,
+          set: (on) => setCopyOption('customAdjacents', on),
+        },
+        {
+          label: 'Border anomalies',
+          title: 'Carry border anomalies drawn on these hexes, and their mirrored halves',
+          get: () => copyOptions().borderAnomalies,
+          set: (on) => setCopyOption('borderAnomalies', on),
+        },
+        {
+          label: 'Tokens',
+          title: 'Carry tokens placed on the system and on its planets',
+          get: () => copyOptions().tokens,
+          set: (on) => setCopyOption('tokens', on),
+        },
+      ],
+    },
+    items: [
+      {
+        id: 'clipCopyBtn',
+        icon: '⧉',
+        label: 'Copy',
+        hint: 'Copy the selected hexes (Ctrl+C)',
+        available: () => selectedHexes(editor).length
+          ? { ok: true }
+          : { ok: false, why: 'Select one or more hexes first, then Copy.' },
+        onClick: () => copySelectionToClipboard(editor, { cut: false }),
+      },
+      {
+        id: 'clipCutBtn',
+        icon: '✂',
+        label: 'Cut',
+        hint: 'Cut the selected hexes (Ctrl+X) — they are cleared straight away',
+        available: () => selectedHexes(editor).length
+          ? { ok: true }
+          : { ok: false, why: 'Select one or more hexes first, then Cut.' },
+        onClick: () => copySelectionToClipboard(editor, { cut: true }),
+      },
+      {
+        id: 'clipPasteBtn',
+        icon: '⎘',
+        label: 'Paste',
+        hint: 'Show the ghost again (Ctrl+V), then click a hex to place it',
+        available: () => {
+          const clip = activeClip();
+          return clip
+            ? { ok: true, why: '' }
+            : { ok: false, why: 'Nothing copied yet. Select some hexes and Copy or Cut first.' };
+        },
+        onClick: () => beginPaste(editor),
+      },
+      {
+        id: 'clipSwapBtn',
+        icon: '⇄',
+        label: 'Swap',
+        hint: 'Swap the two selected tiles',
+        available: () => {
+          const n = selectedHexes(editor).length;
+          if (n === 2) return { ok: true };
+          return {
+            ok: false,
+            why: n === 0
+              ? 'Swap needs exactly two hexes selected. Click one, then shift-click another.'
+              : `Swap needs exactly two hexes selected — ${n} ${n === 1 ? 'is' : 'are'} selected.`,
+          };
+        },
+        onClick: () => {
+          const [a, b] = selectedHexes(editor);
+          if (a && b) swapHexes(editor, a, b);
+        },
+      },
+    ],
+  });
+
+  const distanceBtn = railButton({
+    id: 'toolDistance',
+    icon: '↔',
+    text: 'Distance',
+    title: 'Click a hex to show how far everything is from it',
+  });
+  distanceBtn.onclick = () => toggleDistanceTool(editor);
+  container.appendChild(distanceBtn);
+
+  // Follow the tool however it was changed — arming another tool disarms this one through
+  // the registry, and the button has to show that.
+  const applyDistanceState = () => {
+    distanceBtn.classList.toggle('active', isDistanceToolArmed(editor));
+  };
+
+  // The isConnected check belongs only in the listener. Calling it on the initial sync
+  // unregistered the listener immediately: this content is built into a detached container
+  // and only appended to the rail afterwards, so at this point the button is not in the
+  // document yet and never would be by that test.
+  const onDistanceChange = () => {
+    if (!distanceBtn.isConnected) {
+      document.removeEventListener(DISTANCE_TOOL_CHANGED, onDistanceChange);
+      return;
+    }
+    applyDistanceState();
+  };
+  document.addEventListener(DISTANCE_TOOL_CHANGED, onDistanceChange);
+  applyDistanceState();
+
   // ───────────── Token Placement Button ─────────────
-  const tokenPlacementBtn = document.createElement('button');
-  tokenPlacementBtn.id = 'launchTokenPlacementPopup';
-  tokenPlacementBtn.className = 'mode-button';
-  tokenPlacementBtn.textContent = 'Token Placement…';
-  tokenPlacementBtn.title = 'Place tokens on systems and planets';
-  tokenPlacementBtn.style.width = '100%';
-  tokenPlacementBtn.style.maxWidth = '200px';
-  tokenPlacementBtn.style.minWidth = '70px';
-  tokenPlacementBtn.style.height = '38px';
-  tokenPlacementBtn.style.marginBottom = '6px';
-  tokenPlacementBtn.style.fontSize = '0.9em';
-  tokenPlacementBtn.style.padding = '8px 12px';
-  tokenPlacementBtn.style.boxSizing = 'border-box';
-  tokenPlacementBtn.style.textOverflow = 'ellipsis';
-  tokenPlacementBtn.style.whiteSpace = 'nowrap';
-  tokenPlacementBtn.style.overflow = 'hidden';
-  tokenPlacementBtn.style.flex = 'none';
+  container.appendChild(railGroupLabel('Annotate'));
+
+  // Registered here rather than at module load, so that disarming either one can hand
+  // the editor over the way every other tool in this panel does.
+  registerMode(MODE_VALUE_HINTS, { deactivate: () => disarmValueHints?.() });
+  registerMode(MODE_LORE, { deactivate: () => deactivateLoreMode(editor) });
+  registerMode(MODE_TOKEN, { deactivate: () => deactivateTokenMode(editor) });
+
+  const tokenPlacementBtn = railButton({
+    id: 'launchTokenPlacementPopup',
+    icon: '⬢',
+    text: 'Token Placement…',
+    title: 'Place tokens on hexes',
+  });
   tokenPlacementBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -928,47 +1070,31 @@ function finishSectorControlsContent(editor, container) {
       }
     });
 
-    // Deactivate lore mode if it was active
-    if (typeof window.deactivateLoreMode === 'function') {
-      window.deactivateLoreMode();
-    }
+    deactivateModes({ except: MODE_TOKEN });
 
     // Toggle token hex selector mode
     tokenHexSelectorActive = !tokenHexSelectorActive;
 
     if (tokenHexSelectorActive) {
+      activateMode(MODE_TOKEN);
       tokenPlacementBtn.classList.add('active');
       tokenPlacementBtn.style.background = '#2980b9';
       tokenPlacementBtn.style.color = '#fff';
-      tokenPlacementBtn.style.fontWeight = 'bold';
-      tokenPlacementBtn.textContent = 'Click a Hex...';
-      enableTokenHexSelection();
+      setRailLabel(tokenPlacementBtn, 'Click a Hex…');
+      enableTokenHexSelection(editor);
     } else {
-      deactivateTokenMode();
+      deactivateMode(MODE_TOKEN);
     }
   };
   container.appendChild(tokenPlacementBtn);
 
   // ───────────── Select Hex for Lore Button ─────────────
-  const selectHexForLoreBtn = document.createElement('button');
-  selectHexForLoreBtn.id = 'selectHexForLoreBtn';
-  selectHexForLoreBtn.className = 'mode-button';
-  selectHexForLoreBtn.textContent = 'Add Lore...';
-  selectHexForLoreBtn.title = 'Click to activate hex selection mode for lore editing';
-  selectHexForLoreBtn.style.width = '100%';
-  selectHexForLoreBtn.style.maxWidth = '200px';
-  selectHexForLoreBtn.style.minWidth = '70px';
-  selectHexForLoreBtn.style.height = '38px';
-  selectHexForLoreBtn.style.marginBottom = '6px';
-  selectHexForLoreBtn.style.fontSize = '0.9em';
-  selectHexForLoreBtn.style.padding = '8px 12px';
-  selectHexForLoreBtn.style.boxSizing = 'border-box';
-  selectHexForLoreBtn.style.textOverflow = 'ellipsis';
-  selectHexForLoreBtn.style.whiteSpace = 'nowrap';
-  selectHexForLoreBtn.style.overflow = 'hidden';
-  selectHexForLoreBtn.style.flex = 'none';
-
-  let loreHexSelectorActive = false;
+  const selectHexForLoreBtn = railButton({
+    id: 'selectHexForLoreBtn',
+    icon: '✒',
+    text: 'Add Lore…',
+    title: 'Select a hex to add lore to',
+  });
 
   selectHexForLoreBtn.onclick = (e) => {
     e.preventDefault();
@@ -985,54 +1111,33 @@ function finishSectorControlsContent(editor, container) {
     });
 
     loreHexSelectorActive = !loreHexSelectorActive;
-    if (!loreHexSelectorActive) { deactivateLoreMode(); return; }
+    if (!loreHexSelectorActive) { deactivateMode(MODE_LORE); return; }
+    activateMode(MODE_LORE);
 
     selectHexForLoreBtn.classList.add('active');
     selectHexForLoreBtn.style.background = '#27ae60';
     selectHexForLoreBtn.style.color = '#fff';
-    selectHexForLoreBtn.style.fontWeight = 'bold';
-    selectHexForLoreBtn.textContent = 'Click a Hex...';
+    setRailLabel(selectHexForLoreBtn, 'Click a Hex…');
 
     // The lore module owns the picking mode and the editor entry point; this button only
     // turns it on. Previously this file drove the popup by filling #hexLabelInput and
     // clicking #selectHexBtn behind a setTimeout, which coupled it to the editor's DOM.
     import('../modules/Lore/loreMapPick.js').then(({ armLoreMapPick }) => {
-      armLoreMapPick(window.editor, {
-        onPick: (ref) => window.openLoreEditor?.(ref)
+      armLoreMapPick(editor, {
+        onPick: (ref) => tryInvoke(COMMANDS.openLoreEditor, ref)
       });
     });
   };
   container.appendChild(selectHexForLoreBtn);
 
-  // ── separator + section label ──
-  const separator2 = document.createElement('div');
-  separator2.style.borderTop = '1px solid #555';
-  separator2.style.margin = '10px 0 6px 0';
-  container.appendChild(separator2);
+  container.appendChild(railGroupLabel('External'));
 
-  const externalLabel = document.createElement('div');
-  externalLabel.className = 'popup-section-label';
-  externalLabel.textContent = 'External setup links';
-  container.appendChild(externalLabel);
-
-  // ───────────── Deck Modification (external tool) ─────────────
-  const deckModBtn = document.createElement('button');
-  deckModBtn.id = 'openDeckModificationTool';
-  deckModBtn.className = 'mode-button';
-  deckModBtn.textContent = 'Deck modification...';
-  deckModBtn.title = 'Open the AsyncTI4 deck card tool in a new tab';
-  deckModBtn.style.width = '100%';
-  deckModBtn.style.maxWidth = '200px';
-  deckModBtn.style.minWidth = '70px';
-  deckModBtn.style.height = '38px';
-  deckModBtn.style.marginBottom = '6px';
-  deckModBtn.style.fontSize = '0.9em';
-  deckModBtn.style.padding = '8px 12px';
-  deckModBtn.style.boxSizing = 'border-box';
-  deckModBtn.style.textOverflow = 'ellipsis';
-  deckModBtn.style.whiteSpace = 'nowrap';
-  deckModBtn.style.overflow = 'hidden';
-  deckModBtn.style.flex = 'none';
+  const deckModBtn = railButton({
+    id: 'openDeckModificationTool',
+    icon: '↗',
+    text: 'Deck modification…',
+    title: 'Open the AsyncTI deck card tool in a new tab',
+  });
   deckModBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1044,32 +1149,31 @@ function finishSectorControlsContent(editor, container) {
 }
 
 // ───────────── Lore Hex Selection ─────────────
-// The picking mode itself lives in src/modules/Lore/loreMapPick.js. This shim only exists
-// so the seven sibling toolbar buttons that call window.deactivateLoreMode() keep working.
+// The picking mode itself lives in src/modules/Lore/loreMapPick.js. What stays here is the
+// button's own state: whether it is lit, and whether the map click is armed.
 
-function deactivateLoreMode() {
+let loreHexSelectorActive = false;
+
+function deactivateLoreMode(editor) {
+  loreHexSelectorActive = false;
   const btn = document.getElementById('selectHexForLoreBtn');
   if (btn) {
     btn.classList.remove('active');
     btn.style.background = '';
     btn.style.color = '';
     btn.style.fontWeight = '';
-    btn.textContent = 'Add Lore...';
+    setRailLabel(btn, 'Add Lore…');
   }
   import('../modules/Lore/loreMapPick.js')
-    .then(({ disarmLoreMapPick }) => disarmLoreMapPick(window.editor))
+    .then(({ disarmLoreMapPick }) => disarmLoreMapPick(editor))
     .catch(() => { /* module never loaded, so nothing is armed */ });
 }
-
-// Make deactivateLoreMode globally available so other buttons can call it
-window.deactivateLoreMode = deactivateLoreMode;
 
 // ───────────── Token Hex Selection Helper Functions ─────────────
 let tokenHexSelectorActive = false;
 let tokenHexClickHandler = null;
-let previousTokenMode = null;
 
-function deactivateTokenMode() {
+function deactivateTokenMode(editor) {
   tokenHexSelectorActive = false;
   const btn = document.getElementById('launchTokenPlacementPopup');
   if (btn) {
@@ -1077,23 +1181,19 @@ function deactivateTokenMode() {
     btn.style.background = '';
     btn.style.color = '';
     btn.style.fontWeight = '';
-    btn.textContent = 'Token Placement…';
+    setRailLabel(btn, 'Token Placement…');
   }
-  disableTokenHexSelection();
+  disableTokenHexSelection(editor);
 }
 
-// Make deactivateTokenMode globally available so other buttons can call it
-window.deactivateTokenMode = deactivateTokenMode;
-
-function enableTokenHexSelection() {
+function enableTokenHexSelection(editor) {
   console.log('enableTokenHexSelection called');
   // Remove any existing handler first
-  disableTokenHexSelection();
+  disableTokenHexSelection(editor);
 
-  // Store the current editor mode and switch to a special token mode
-  const editor = window.editor;
+  // Take over map clicks. Whatever was armed before is deliberately dropped rather than
+  // remembered — see disableTokenHexSelection.
   if (editor) {
-    previousTokenMode = editor.mode;
     editor.mode = 'token-selection'; // Special mode to prevent other click handlers
   }
 
@@ -1127,12 +1227,17 @@ function enableTokenHexSelection() {
   }
 }
 
-function disableTokenHexSelection() {
-  // Restore the previous editor mode
-  const editor = window.editor;
-  if (editor && previousTokenMode !== null) {
-    editor.mode = previousTokenMode;
-    previousTokenMode = null;
+function disableTokenHexSelection(editor) {
+  // Leaving token mode disarms the map, it does not restore whatever was armed before.
+  //
+  // This used to stash editor.mode on the way in and put it back on the way out. Arming
+  // Token Placement while a paint mode was active therefore re-armed that paint mode when
+  // you switched tokens off, and the next map click painted a nebula the user had selected
+  // several minutes earlier. Every other tool in this panel ends on setMode('none'); so
+  // does this one now.
+  if (editor && editor.mode === 'token-selection') {
+    if (typeof editor.setMode === 'function') editor.setMode('none');
+    else editor.mode = 'none';
   }
 
   // Remove event listener
@@ -1149,10 +1254,10 @@ function disableTokenHexSelection() {
 function openTokenPopupForHex(hexLabel) {
   console.log('openTokenPopupForHex called with:', hexLabel);
 
-  // Check if token system is initialized
-  if (typeof window.showTokenPopup === 'function') {
+  // The Token module provides this once TokenManager has initialised, which is async.
+  if (hasCommand(COMMANDS.showTokenPopup)) {
     console.log('Opening token popup for hex:', hexLabel);
-    window.showTokenPopup(hexLabel);
+    invoke(COMMANDS.showTokenPopup, hexLabel);
   } else {
     console.warn('Token system not initialized yet. Please wait...');
     alert('Token system is loading. Please try again in a moment.');

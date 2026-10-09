@@ -15,8 +15,6 @@ import globals from 'globals';
 export default [
     {
         ignores: [
-            'src/Depricated/**',          // dead code, imported by nothing
-            'src/features/history_original.js', // pre-refactor copy, kept for reference
             'node_modules/**',
             'public/**',
             'html test/**',
@@ -34,11 +32,6 @@ export default [
             sourceType: 'module',
             globals: {
                 ...globals.browser,
-                // Cross-module escape hatches this codebase deliberately hangs off window.
-                editor: 'writable',
-                loreManager: 'writable',
-                tokenManager: 'writable',
-                tokenOverlay: 'writable',
                 // Loaded by a script tag from challenges.cloudflare.com (see the CSP in
                 // index.html); used by src/data/cloudflare.js for the upload CAPTCHA.
                 turnstile: 'readonly'

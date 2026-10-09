@@ -1,4 +1,7 @@
+// @ts-check
 // Border anomalies configuration
+import { borderAnomalySettings } from '../config/toggleSettings.js';
+
 let borderAnomalyTypes = null;
 
 /**
@@ -37,18 +40,6 @@ export async function loadBorderAnomalyTypes() {
         const data = await response.json();
         console.log('Loaded border anomaly data:', data);
 
-        // Import settings dynamically to ensure they're loaded (with cache bust)
-        const settingsModule = await import(`../config/toggleSettings.js?v=${Date.now()}`);
-        const { borderAnomalySettings, configVersion } = settingsModule;
-        console.log('Loaded config version:', configVersion);
-        console.log('Imported border anomaly settings module:', settingsModule);
-        console.log('Imported border anomaly settings:', borderAnomalySettings);
-
-        // Debug: check specific values that should be false
-        console.log('ARROW should be false:', borderAnomalySettings.ARROW);
-        console.log('VOIDTETHER should be false:', borderAnomalySettings.VOIDTETHER);
-        console.log('COREBORDER should be false:', borderAnomalySettings.COREBORDER);
-        console.log('RIMBORDER should be false:', borderAnomalySettings.RIMBORDER);
 
         borderAnomalyTypes = data.reduce((acc, anomaly) => {
             // Get enabled state from settings, default to true if undefined
@@ -301,10 +292,6 @@ function loadBorderAnomalySettings() {
  * Apply saved settings to loaded border anomaly types
  */
 async function applySavedSettings(types) {
-    // Import toggle settings (with cache bust)
-    const { borderAnomalySettings } = await import(`../config/toggleSettings.js?v=${Date.now()}`);
-    console.log('applySavedSettings - imported toggle settings:', borderAnomalySettings);
-
     const savedSettings = loadBorderAnomalySettings();
 
     Object.entries(types).forEach(([id, type]) => {

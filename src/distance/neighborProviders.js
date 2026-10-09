@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Neighbour providers — every way one hex can be adjacent to another.
  *

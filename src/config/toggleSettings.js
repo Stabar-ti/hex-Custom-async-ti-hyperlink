@@ -1,3 +1,4 @@
+// @ts-check
 // also double check realIDsOverlay
 export const overlayDefaults = {
     showPlanetTypes: true,
@@ -12,7 +13,6 @@ export const overlayDefaults = {
 // Set to false to disable specific border anomaly types
 // To add new types: 1) Add to /public/data/border.json, 2) Add entry here (optional, defaults to true)
 // All types are bidirectional by default except GRAVITYWAVE
-// Version: 1.1 - Updated with false values for testing
 export const borderAnomalySettings = {
     'ASTEROID': true,
     'GRAVITYWAVE': true,
@@ -28,6 +28,3 @@ export const borderAnomalySettings = {
     // New types will default to true if not specified here
     // Example for disabling a type: 'TYPENAME': false,
 };
-
-// Version for debugging cache issues
-export const configVersion = "1.1-with-false-values";

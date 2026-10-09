@@ -8,6 +8,7 @@
 // ───────────────────────────────────────────────────────────────
 
 import { ringDirections, sectorColors } from '../constants/constants.js';
+import { hexPoints } from '../utils/hexGeometry.js';
 
 
 /**
@@ -55,15 +56,9 @@ export function drawHex(editor, q, r, label) {
   const svg = document.getElementById('hexMap');
   const center = hexToPixel(editor, q, r);
 
-  // Calculate the six corner points of the hex
-  const pts = Array.from({ length: 6 }, (_, i) => {
-    const ang = Math.PI / 180 * 60 * i;
-    return `${center.x + editor.hexRadius * Math.cos(ang)},${center.y + editor.hexRadius * Math.sin(ang)}`;
-  });
-
   // SVG polygon for the hex outline
   const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-  poly.setAttribute('points', pts.join(' '));
+  poly.setAttribute('points', hexPoints(center, editor.hexRadius));
   poly.setAttribute('fill', sectorColors['']);
   poly.setAttribute('data-label', label);
   poly.classList.add('hex');
@@ -187,13 +182,8 @@ export function drawSpecialHexes(editor) {
  */
 export function drawCornerHex(editor, x, y, label) {
   const svg = document.getElementById('hexMap');
-  const pts = Array.from({ length: 6 }, (_, i) => {
-    const ang = Math.PI / 180 * 60 * i;
-    return `${x + editor.hexRadius * Math.cos(ang)},${y + editor.hexRadius * Math.sin(ang)}`;
-  });
-
   const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-  poly.setAttribute('points', pts.join(' '));
+  poly.setAttribute('points', hexPoints({ x, y }, editor.hexRadius));
   poly.setAttribute('fill', sectorColors['']);
   poly.setAttribute('data-label', label);
   poly.classList.add('hex');
@@ -240,7 +230,15 @@ export function autoscaleView(editor) {
   const minY = Math.min(...ys) - margin;
   const maxY = Math.max(...ys) + margin;
 
-  svg.setAttribute('viewBox', `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
+  const box = [minX, minY, maxX - minX, maxY - minY];
+  svg.setAttribute('viewBox', box.join(' '));
+
+  // Keep the editor's copy in step. svgBindings drives wheel-zoom and panning from
+  // editor._currentViewBox rather than from the attribute, and this function only wrote
+  // the attribute — so after an autoscale the two disagreed (the attribute held the
+  // fitted box, the copy still held its [0,0,1000,1000] initial value) and the first
+  // scroll of the wheel jumped the view instead of zooming it.
+  editor._currentViewBox = box;
 }
 
 export function clearSpecialCorners(editor) {

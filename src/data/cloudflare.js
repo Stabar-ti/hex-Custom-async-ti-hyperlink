@@ -3,7 +3,9 @@
  * Provides functionality to get Turnstile tokens and upload maps to Cloudflare Workers
  */
 
-const API_ORIGIN = "https://gateway.stabarrabats.workers.dev"; 
+// Fork-specific: replaces upstream "https://gateway.stabarrabats.workers.dev", whose
+// allowlist does not include this fork's GitHub Pages origin.
+const API_ORIGIN = "https://ti4-map-share.lezduit.workers.dev";
 
 // Optimized Turnstile readiness check
 let turnstileReady = false;
@@ -193,7 +195,7 @@ function showDownloadLink(url, type = 'map') {
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 10000;
+        z-index: var(--layer-modal);
     `;
 
     // Create modal content
@@ -378,7 +380,7 @@ async function saveMapInfo(editor) {
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 10000;
+        z-index: var(--layer-modal);
     `;
 
     // Create modal content with improved GUI

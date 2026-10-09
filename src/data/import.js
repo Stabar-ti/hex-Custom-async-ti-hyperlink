@@ -7,16 +7,14 @@
 // Also loads system info (names, planet//s, IDs) for the sector lookup.
 // ───────────────────────────────────────────────────────────────
 
-import { hexToMatrix } from '../utils/matrix.js';
+import { hexToMatrix, isMatrixEmpty } from '../utils/matrix.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { updateHexWormholes } from '../features/wormholes.js';
 import { markRealIDUsed, beginBatch, endBatch, clearRealIDUsage } from '../ui/uiFilters.js';
 import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
-import { updateEffectsVisibility, updateWormholeVisibility } from '../features/baseOverlays.js';
-import { isMatrixEmpty } from '../utils/matrix.js';
+import { updateEffectsVisibility, updateWormholeVisibility, createWormholeOverlay } from '../features/baseOverlays.js';
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
-import { createWormholeOverlay } from '../features/baseOverlays.js';
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { normalizeLoreEntries, shortToLoreEntries, LORE_PHASE_TARGETS, LORE_GAME_TYPES } from '../modules/Lore/loreCore.js';
 import { showToast } from '../ui/uiToast.js';
@@ -190,13 +188,17 @@ export function importSectorTypes(editor, tokenString) {
     tokens.length = labelList.length;
   }
 
+  // Asked before anything changes. The question used to come from generateMap below, and
+  // a Cancel there left the import running into the old grid.
+  if (editor.confirmReset?.() === false) return;
+
   // Set the ring count and rectangular mode (even for n <= 9, this is fine)
   const ringInput = document.getElementById('ringCount');
   if (ringInput) ringInput.value = n;
   editor.fillCorners = true;
   const cornerToggle = document.getElementById('cornerToggle');
   if (cornerToggle) cornerToggle.checked = true;
-  editor.generateMap();
+  editor.generateMap({ confirm: false });
 
   // 6. Apply the types to each hex in order
   beginBatch?.();
@@ -346,8 +348,19 @@ export function importSectorTypes(editor, tokenString) {
  * Imports a full map state from a saved JSON export.
  * Re-creates all hexes, overlays, links, types, effects, and overlays.
  * Handles new grid/ring count, clears overlays, and redraws everything.
+ *
+ * Asks before replacing the map, unless `confirm` is false — the startup restore, which
+ * replaces nothing. Asked up front: the question used to come from generateMap halfway
+ * through, and a Cancel there skipped the new grid while the import carried on into the
+ * old one.
+ *
+ * @param {any} editor
+ * @param {string} jsonText
+ * @param {{ confirm?: boolean }} [opts]
+ * @returns {boolean} false when the replace was declined
  */
-export function importFullState(editor, jsonText) {
+export function importFullState(editor, jsonText, { confirm = true } = {}) {
+  if (confirm && editor.confirmReset?.() === false) return false;
   beginBatch?.();
   try {
     const obj = JSON.parse(jsonText);
@@ -387,7 +400,7 @@ export function importFullState(editor, jsonText) {
     editor.fillCorners = true;
     const cornerToggle = document.getElementById('cornerToggle');
     if (cornerToggle) cornerToggle.checked = true;
-    editor.generateMap();
+    editor.generateMap({ confirm: false });
 
     // ---- 5. Assign all hexes by label order (EXACT classification order)
     const unresolvedTileIds = new Set();
@@ -396,7 +409,15 @@ export function importFullState(editor, jsonText) {
       let hex = editor.hexes[id];
       if (!hex) return;
 
-      // Skip if really empty/no content
+      // Skip if really empty/no content.
+      //
+      // The last line is the fix for a silent data loss. This test knew about tiles,
+      // types, planets, effects, wormholes, links and adjacency, but not about the four
+      // things a hex can carry on its own: a value hint, system tokens, planet tokens and
+      // lore. exportFullState writes all four, so a hex holding only one of them was
+      // written to the file and then dropped on the way back in — Save map locally
+      // followed by Load lost every value hint painted on an unpainted hex, and every
+      // token or lore entry on one.
       const noContent =
         (!h.rid && !h.realId && !h.realID) &&
         (!h.bt && !h.baseType) &&
@@ -404,7 +425,8 @@ export function importFullState(editor, jsonText) {
         (!h.fx && !h.effects) &&
         (!h.wh && !h.wormholes) &&
         (!h.ln && !h.links) &&
-        !h.ca && !h.customAdjacents && !h.ao && !h.adjacencyOverrides && !h.ba && !h.borderAnomalies;
+        !h.ca && !h.customAdjacents && !h.ao && !h.adjacencyOverrides && !h.ba && !h.borderAnomalies &&
+        !h.vt && !h.st && !h.pt && !h.sl && !h.prl;
       if (noContent) return;
 
       // Clean overlays/effects/wormholes
@@ -523,7 +545,7 @@ export function importFullState(editor, jsonText) {
         hex.systemTokens = [];
       }
 
-      // ---- Import value target (Draw Helpers V1–V5)
+      // ---- Import value target (the V1–V5 hints painted from the Balance panel)
       hex.valueTarget = h.vt || null;
 
       // ---- Import planet tokens
@@ -689,6 +711,7 @@ export function importFullState(editor, jsonText) {
   } finally {
     endBatch?.();
   }
+  return true;
 }
 
 /**
@@ -860,6 +883,9 @@ async function getBorderAnomalyAliasMap() {
  * @param {string|Object} jsonData - Either a JSON string or parsed object with mapInfo array
  */
 export async function importMapInfo(editor, jsonData) {
+  // Asked up front, as in importFullState: a Cancel from generateMap used to leave the
+  // import running into the old grid.
+  if (editor.confirmReset?.() === false) return;
   beginBatch?.();
   try {
     // Parse JSON if it's a string
@@ -912,7 +938,7 @@ export async function importMapInfo(editor, jsonData) {
     editor.fillCorners = true;
     const cornerToggle = document.getElementById('cornerToggle');
     if (cornerToggle) cornerToggle.checked = true;
-    editor.generateMap();
+    editor.generateMap({ confirm: false });
 
     // Process each hex in the mapInfo
     const unresolvedTileIds = new Set();

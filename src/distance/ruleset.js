@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The set of rules one distance query runs under.
  *

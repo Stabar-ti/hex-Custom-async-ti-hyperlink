@@ -5,17 +5,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tools/test-lore-footer.js && node tools/test-system-picker.js && node tools/test-automapper.js && node tools/test-import-warning.js && node tools/test-hyperlanes.js && node tools/test-distances.js",
-    "check": "npm run lint && npm test",
+    "test": "node tools/test-registry.js && node tools/test-hex-modes.js && node tools/test-clipboard-engine.js && node tools/test-ui-kit.js && node tools/test-lore-footer.js && node tools/test-system-picker.js && node tools/test-automapper.js && node tools/test-import-warning.js && node tools/test-hyperlanes.js && node tools/test-distances.js && node tools/test-shortcuts.js && node tools/test-milty-score.js",
+    "check": "npm run lint && npm run typecheck && npm test",
     "lint": "eslint src tools",
     "lint:fix": "eslint src tools --fix",
     "lint:lore": "eslint src/modules/Lore src/features/loreOverlay.js src/draw/hexAnchors.js",
-    "serve": "python server.py"
+    "typecheck": "tsc -p tsconfig.json",
+    "serve": "py server.py || python3 server.py",
+    "serve:stdlib": "py -m http.server 5173 -p HTTP/1.1 || python3 -m http.server 5173 -p HTTP/1.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "eslint": "^9.17.0",
     "eslint-plugin-import": "^2.31.0",
-    "globals": "^15.14.0"
+    "globals": "^15.14.0",
+    "typescript": "^5.9.3"
   }
 }

@@ -3,110 +3,59 @@
 // Wires up all UI controls, buttons, and interactive elements
 // ───────────────────────────────────────────────────────────────
 
-import { toggleTheme } from './uiTheme.js';
-import { populateSectorControls, openSectorControlsPopup } from './uisectorControls.js';
+import { openSectorControlsPopup } from './uisectorControls.js';
 import { showModal, closeModal } from './uiModals.js';
-import { updateLayerVisibility } from '../features/realIDsOverlays.js';
-import { generateRings } from '../draw/drawHexes.js';
-import { makePopupDraggable, syncToggleButtons } from './uiUtils.js';
-import { toggleBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay.js';
-import { toggleCustomLinksOverlay } from '../features/customLinksOverlay.js';
-import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
+import { isEmptyHex } from '../features/tileClipboardEngine.js';
+import { MAX_MAP_RINGS } from '../constants/constants.js';
 
 import { exportAdjacencyOverrides, exportCustomAdjacents, exportBorderAnomaliesGrouped } from '../data/export.js'; // use your actual path
 
+// A key whose list has been emptied is not content: removing a planet's last lore entry
+// or token can leave the key behind.
+const nonEmpty = (/** @type {any} */ o) => !!o && Object.values(o)
+  .some(v => (Array.isArray(v) ? v.length > 0 : v != null));
+
+/**
+ * Whether cutting a hex would lose anything. Everything a resize removes counts: on top of
+ * what isEmptyHex looks at, the lore, the tokens and the custom links, which the old
+ * check here missed — a hex holding only lore was cut without a word.
+ *
+ * @param {any} h
+ */
+function hasContent(h) {
+  return !isEmptyHex(h)
+    || h.systemLore?.length > 0 || nonEmpty(h.planetLore)
+    || h.systemTokens?.length > 0 || nonEmpty(h.planetTokens)
+    || nonEmpty(h.customAdjacents) || nonEmpty(h.adjacencyOverrides) || nonEmpty(h.borderAnomalies);
+}
+
 export function bindUI(editor) {
-  // Theme switcher
-  document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
-
-  // Modal openers
-  document.getElementById('helpToggle')?.addEventListener('click', () => showModal('controlsModal'));
-  document.getElementById('infoToggle')?.addEventListener('click', () => showModal('infoModal'));
-  document.getElementById('featuresToggle')?.addEventListener('click', () => showModal('featuresModal'));
-
-  // Overlay toggles (Planet Types, R/I, IdealRI, RealID)
-  const btnPlanetTypes = document.getElementById('togglePlanetTypes');
-  btnPlanetTypes?.addEventListener('click', () => {
-    editor.showPlanetTypes = !editor.showPlanetTypes;
-    updateLayerVisibility(editor, 'planetTypeLayer', editor.showPlanetTypes);
-    btnPlanetTypes.classList.toggle('active', editor.showPlanetTypes);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  });
-
-  const btnResInf = document.getElementById('toggleResInf');
-  btnResInf?.addEventListener('click', () => {
-    editor.showResInf = !editor.showResInf;
-    updateLayerVisibility(editor, 'resInfLayer', editor.showResInf);
-    btnResInf.classList.toggle('active', editor.showResInf);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  });
-
-  const btnIdealRI = document.getElementById('toggleIdealRI');
-  btnIdealRI?.addEventListener('click', () => {
-    editor.showIdealRI = !editor.showIdealRI;
-    updateLayerVisibility(editor, 'idealRILayer', editor.showIdealRI);
-    btnIdealRI.classList.toggle('active', editor.showIdealRI);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  });
-
-  const btnRealID = document.getElementById('toggleRealID');
-  btnRealID?.addEventListener('click', () => {
-    editor.showRealID = !editor.showRealID;
-    updateLayerVisibility(editor, 'realIDLabelLayer', editor.showRealID);
-    btnRealID.classList.toggle('active', editor.showRealID);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  });
-
-  // IDs for all toggles of each overlay
-  const borderAnomalyBtnIds = ['toggleBorderAnomaliesOverlay', 'toggleBorderAnomalies'];
-  const customLinksBtnIds = ['toggleCustomLinksOverlay', 'toggleCustomLinks'];
-
-  // Generalized handlers
-  function toggleBorderAnomaliesAll() {
-    toggleBorderAnomaliesOverlay(editor);  // This toggles editor.showBorderAnomalies and SVG
-    syncToggleButtons(borderAnomalyBtnIds, editor.showBorderAnomalies);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  }
-  function toggleCustomLinksAll() {
-    editor.showCustomLinks = !editor.showCustomLinks;
-    toggleCustomLinksOverlay(editor);
-    syncToggleButtons(customLinksBtnIds, editor.showCustomLinks);
-    // Ensure correct SVG layering after toggling
-    enforceSvgLayerOrder(editor.svg);
-  }
-
-  // Attach all buttons (repeat if you add more UI for these overlays)
-  borderAnomalyBtnIds.forEach(id => {
-    document.getElementById(id)?.addEventListener('click', toggleBorderAnomaliesAll);
-  });
-  customLinksBtnIds.forEach(id => {
-    document.getElementById(id)?.addEventListener('click', toggleCustomLinksAll);
-  });
-
-  // Set initial state on page load/UI refresh (after all DOM exists)
-  syncToggleButtons(borderAnomalyBtnIds, editor.showBorderAnomalies); // On load
-  syncToggleButtons(customLinksBtnIds, editor.showCustomLinks);
+  // Nothing to do here for the theme switcher, the three help buttons or any of the
+  // overlay toggles. Those controls all live inside popups that simplepPopup.js builds on
+  // demand, so none of them exists when bindUI runs — binding them here attached to
+  // nothing. (The help buttons pointed at #controlsModal, #infoModal and #featuresModal,
+  // which were removed from index.html; showModal on a missing id is a silent no-op, which
+  // is why it never surfaced.) setupToggle in simplepPopup.js is the live wiring, and
+  // main.js binds the help buttons to the real popups.
 
   // Rearrange control panel (left/top/right)
   document.getElementById('arrangeBtn')?.addEventListener('click', () => editor.cycleControlPanelPosition());
 
-  // Map generation controls
+  // Map generation controls. cornerToggle is bound further down, in the handler that
+  // also resets the ring count; binding it here as well fired toggleCorners twice per change.
   document.getElementById('genMapBtn')?.addEventListener('click', () => editor.generateMap());
-  document.getElementById('cornerToggle')?.addEventListener('change', e => editor.toggleCorners(e.target.checked));
 
-  // Advanced Export Toggle
+  // Advanced Export Toggle. This used to set the button's textContent, which meant the
+  // label and the caret were one string — and would now wipe out the caret element.
   document.getElementById('advancedExportToggle')?.addEventListener('click', () => {
     const container = document.getElementById('advancedExportContainer');
     const button = document.getElementById('advancedExportToggle');
     if (container && button) {
-      const isHidden = container.style.display === 'none';
-      container.style.display = isHidden ? 'block' : 'none';
-      button.textContent = isHidden ? 'Advanced Fragmented Export ▴' : 'Advanced Fragmented Export ▾';
+      const open = container.style.display === 'none';
+      container.style.display = open ? 'block' : 'none';
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      const caret = button.querySelector('.fm-caret');
+      if (caret) caret.textContent = open ? '▴' : '▾';
     }
   });
 
@@ -164,25 +113,34 @@ export function bindUI(editor) {
     editor.wormholeLinksShown = !editor.wormholeLinksShown;
   });
 
-  // Ring add/remove controls
+  // Ring controls. All three resize the map in place.
+  //
+  // Which hexes would lose content is measured from the map rather than the Rings box, and
+  // through the same list the resize cuts, which leaves the corners alone: this used to
+  // count TL/TR/BL/BR, so anything on a corner warned on every shrink though nothing there
+  // was ever removed.
+  const confirmShrinkTo = (/** @type {number} */ rings) => {
+    const lostHexes = editor.hexesCutBy(rings).filter(hasContent);
+    if (!lostHexes.length) return true;
+    return window.confirm(`Warning: ${lostHexes.length} tile(s) with data will be removed if you shrink the map. Proceed?`);
+  };
+
   document.getElementById('addRingBtn')?.addEventListener('click', () => editor.addRing());
   document.getElementById('removeRingBtn')?.addEventListener('click', () => {
-    const ringsInput = document.getElementById('ringCount');
-    const rings = ringsInput ? parseInt(ringsInput.value, 10) : 1;
-    if (rings <= 1) return; // Don't go below 1
+    if (editor.currentRings <= 1) return; // Don't go below 1
+    if (confirmShrinkTo(editor.currentRings - 1)) editor.removeRing();
+  });
 
-    // Gather which labels/hexes would be lost
-    const layout = editor.ringDirections ? generateRings(rings, editor.fillCorners) : [];
-    const nextLayout = editor.ringDirections ? generateRings(rings - 1, editor.fillCorners) : [];
-    const nextLabels = new Set(nextLayout.map(h => h.label));
-    const lostHexes = Object.values(editor.hexes).filter(h => !nextLabels.has(h.label) && (
-      h.baseType || h.realId || (h.planets && h.planets.length) || (h.wormholes && h.wormholes.size)
-    ));
-    if (lostHexes.length) {
-      const confirmMsg = `Warning: ${lostHexes.length} tile(s) with data will be removed if you shrink the map. Proceed?`;
-      if (!window.confirm(confirmMsg)) return;
+  // Typing a count resizes too. It used to do nothing until Generate Empty Map, so the box
+  // could say one size while the map was another.
+  document.getElementById('ringCount')?.addEventListener('change', (e) => {
+    const rings = parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10);
+    const valid = rings >= 1 && rings <= MAX_MAP_RINGS && rings !== editor.currentRings;
+    if (valid && (rings > editor.currentRings || confirmShrinkTo(rings))) {
+      editor._setRingCount(rings);
+    } else {
+      editor._syncRingControls();
     }
-    editor.removeRing();
   });
 
   // Corner toggle: When enabled, set ring count and redraw map with corners
@@ -194,96 +152,18 @@ export function bindUI(editor) {
     editor.toggleCorners(e.target.checked);
   });
 
-  // Distance overlay maximum distance
+  // Default BFS radius. The control that sets it is #maxDistanceInput in the Distance
+  // Options popup, read by that popup's Save button; a handler here bound #distanceCalcLimit,
+  // an id that does not exist anywhere in the project.
   editor.maxDistance = 3;
-  document.getElementById('distanceCalcLimit')?.addEventListener('change', (e) => {
-    editor.maxDistance = parseInt(e.target.value, 10);
-  });
 
-  // Dropdown open/close logic for .popup-group .dropdown-toggle (effects/wormholes)
-  document.querySelectorAll('.popup-group .dropdown-toggle').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const group = btn.closest('.popup-group');
-      if (!group) return;
-      group.classList.toggle('open');
-      // Hide other open dropdowns
-      document.querySelectorAll('.popup-group').forEach(g => {
-        if (g !== group) g.classList.remove('open');
-      });
-    });
-  });
+  // layoutToggleBtn and overlayToggleBtn are bound in main.js, which opens the popups
+  // simplepPopup.js builds. A second binding used to live here that toggled the *static*
+  // markup's display and injected its own ✕; it ran first on every click and was then
+  // undone by the rebuild, which is why neither button ever closed its own popup.
 
-  // (Any popups you want to initialize for draggable, etc, can go here)
-
-
-  // Close all dropdowns if click anywhere else
-  document.getElementById('layoutToggleBtn')?.addEventListener('click', () => {
-    const popup = document.getElementById('layoutOptionsPopup');
-    if (!popup) return;
-
-    // Toggle display
-    const isVisible = popup.style.display === 'block';
-    popup.style.display = isVisible ? 'none' : 'block';
-
-    // Only make draggable once
-    if (!popup.dataset.draggableInitialized) {
-      makePopupDraggable('layoutOptionsPopup');
-      popup.dataset.draggableInitialized = 'true';
-    }
-
-    // Only add close button if not present
-    if (!popup.querySelector('.popup-close-btn')) {
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'popup-close-btn';
-      closeBtn.title = 'Close';
-      closeBtn.innerHTML = '✕';
-      // If you have a .draggable-handle div, append to it, else append to popup
-      const handle = popup.querySelector('.draggable-handle');
-      (handle || popup).appendChild(closeBtn);
-
-      closeBtn.onclick = () => {
-        popup.style.display = 'none';
-      };
-    }
-  });
-
-
-  // Open popup below the button, clamped to viewport
-  document.getElementById('overlayToggleBtn')?.addEventListener('click', () => {
-    const popup = document.getElementById('overlayOptionsPopup');
-    if (!popup) return;
-
-    // Toggle display
-    const isVisible = popup.style.display === 'block';
-    popup.style.display = isVisible ? 'none' : 'block';
-
-    // Make draggable ONCE
-    if (!popup.dataset.draggableInitialized) {
-      makePopupDraggable('overlayOptionsPopup');
-      popup.dataset.draggableInitialized = 'true';
-    }
-
-    // Add close button if not present
-    if (!popup.querySelector('.popup-close-btn')) {
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'popup-close-btn';
-      closeBtn.title = 'Close';
-      closeBtn.innerHTML = '✕';
-      const handle = popup.querySelector('.draggable-handle');
-      (handle || popup).appendChild(closeBtn);
-      closeBtn.onclick = () => { popup.style.display = 'none'; };
-    }
-  });
-
-  // Close button logic
-  document.querySelector('#overlayOptionsPopup .popup-close-btn')?.addEventListener('click', () => {
-    document.getElementById('overlayOptionsPopup').style.display = 'none';
-  });
-
-
-  // Make popup draggable if you want (optional)
-  // makePopupDraggable('exportLinksModal');
+  // A dropdown handler for '.popup-group .dropdown-toggle' also lived here. No markup in
+  // the project uses either class.
 
   // Show popup for Adjacency Overrides
   document.getElementById('exportAdjOverridesBtn')?.addEventListener('click', () => {

@@ -25,10 +25,14 @@ A guide to building and evaluating Twilight Imperium async maps at
 
 Open the tool in your browser. You'll see a hex grid representing your map. The interface is divided into:
 
-- **Top bar** — quick-access buttons: Calculate Slice, Copy/Cut Wizard, Sanity Check, Special Modes, and overlay/layout options
-- **Controls panel** (left) — import/export, map generation, and advanced tools
+- **Top bar** — File (new, save, load, import, export), undo/redo and zoom, Toggle Overlays, Tools (Milty designer, Spin-To-Win), Analyse (Slice Analysis, Sanity Check, Distance Options) and Help. The **⌨** button opens the list of keyboard and mouse shortcuts
+- **Tool rail** (left) — the drawing, connecting, balance, clipboard and annotation tools
 - **Hex grid** — the map itself; click any tile to interact with it
+- **Inspector** (right) — what is on the hex under the pointer, or the one you selected
+- **Status bar** (bottom) — the armed tool, the hex under the pointer, the zoom, and a few shortcuts
 - **Corner tiles** (TL / TR / BL / BR) — special reference tiles outside the main grid
+
+Press **?** at any time for the full list of shortcuts.
 
 Green **?** question mark buttons appear throughout the interface — click them for contextual hints about that panel.
 
@@ -92,12 +96,23 @@ Hyperlane connections are custom paths that pass *through* a tile rather than st
 3. Click the via tile (B) — it is highlighted.
 4. Click the tile *after* the via tile (C). A curved arc is drawn through B connecting A to C.
 
-Repeat steps 2–4 to chain multiple segments through the same or different via tiles.
+Each click after that carries the lane on by one tile. The tile the lane has reached has a gold ring, a dot on the side the lane came in by, and two small buttons on its rim:
+
+- **✓ Finish** — ends the lane there. Clicking that tile itself, or pressing **Enter**, does the same. The tool stays armed, so you can start the next lane straight away. (Right-click and Esc also end the lane, but they disarm the tool.)
+- **○ Roundabout** — puts a roundabout on that tile, with the lane joined to it. The lane stays live: click a neighbour to run a lane out of the roundabout, and repeat for as many lanes as you like.
+
+### Roundabouts
+
+A roundabout joins every lane that reaches its tile: a ship coming in by any of them can leave by any other. It is drawn as a circle in the middle of the tile with a stub out to each side on it.
+
+- Click A → B → A (go back to the tile you came from) to put a roundabout on B, joined to A's side. This ends the lane.
+- Or use the **○** button, which keeps the lane going (see above).
+- A lane drawn across a roundabout tile joins the roundabout at both ends instead of being drawn through it. Starting a roundabout on a tile that already has lanes joins those lanes to it as well: a tile holds either a roundabout or ordinary lanes, never both.
+- In the exported matrix, a side on the roundabout sets its diagonal cell, and every pair of roundabout sides is linked as well, so the lanes join however the bot reads the matrix.
 
 ### Special hyperlane actions
 
-- **Self-loop** — click A → B → A (start and end on the same tile) to draw a loopback arc on B. This means a ship can enter B from the A direction and be considered adjacent to A again.
-- **Unlink** — hold **Alt** and click A → B → C to *remove* an existing connection.
+- **Unlink** — hold **Alt** and click A → B → C to *remove* an existing connection. On a roundabout this takes both of those sides off it; Alt with A → B → A takes just A's side off.
 - **Delete all segments on a tile** — hover over a via tile and press **Shift+R** to clear all hyperlane arcs on it.
 
 ### Hyperlane shortcuts
@@ -107,6 +122,7 @@ Repeat steps 2–4 to chain multiple segments through the same or different via 
 | `Alt+click` A→B→C | Remove a single hyperlane connection |
 | `Shift+click` (on a via tile) | Delete *all* hyperlane segments on that tile |
 | `Shift+R` *(hover via tile)* | Same as Shift+click — clear all arcs on the tile |
+| Click the tile the lane has reached, or `Enter` | Finish the lane; the tool stays armed |
 | `Esc` | Cancel mid-path selection and start over |
 
 > Hyperlane data is saved in the map JSON and restored on import.
@@ -181,18 +197,22 @@ The **Calculate Slice** button (top bar) evaluates the value of each player's sl
 ## 7. Distance calculation
 
 ![Distance calculation](images/07-distance-rings.png)
-*Colour rings radiating from a selected tile, with an anomaly visually blocking one direction*
+*Distances radiating from a selected tile, with an anomaly visually blocking one direction*
 
 ### Distance shortcuts
 
 | Shortcut | Action |
 |---|---|
-| `Shift+D` | Toggle distance mode on/off |
-| `Right-click` *(while Shift+D active)* | Calculate and display distance rings from that tile |
+| `D` | Arm or disarm the Distance tool (also **Distance** in the tool rail) |
+| `Click` *(tool armed)* | Show distances from that tile; click the same tile again to hide them |
+| `Shift+D` held + `Right-click` | The same, without arming the tool |
+| `Esc` | Clear the distances |
 
-**Shift+D** activates distance mode. While active, **right-click any tile** to calculate distances from that tile as the source.
+With the tool armed, **click any tile** to see how far everything is from it. Each reachable tile gets a badge with its distance, and the source tile is ringed. The reading stays on screen when you disarm the tool, so you can go on working with it visible.
 
-Coloured rings show how far each tile is. The calculation accounts for:
+Unpainted hexes are not tiles, so movement cannot pass through them. If nothing is in reach, the tool says so.
+
+The calculation accounts for:
 
 - **Anomalies** — supernovas and asteroid fields block outward movement. Nebulae block ships from leaving.
 - **Gravity rifts** — ships can enter but rift clusters allow spreading with modified costs.
@@ -200,7 +220,7 @@ Coloured rings show how far each tile is. The calculation accounts for:
 - **Custom adjacency links** — manually connected tiles are treated as neighbours.
 - **Border anomalies** — Spatial Tears block both ways; Gravity Waves allow one-way passage only.
 
-Press **Shift+D** again to exit distance mode.
+The range and the rules are set in **Analyse ▸ Distance Options**. The full list of shortcuts is under **Help ▸ Keyboard & mouse shortcuts**, or press **?**.
 
 > Distance calculation is correct in virtually all cases. Certain unusual multi-hop hyperlane combinations near border anomalies may still produce edge-case results.
 
@@ -321,28 +341,30 @@ Open **Sector Controls → Token Placement** and select a token from the categor
 
 ---
 
-## 13. Copy/Cut Wizard
+## 13. Selecting, copying and pasting
 
-![Copy/Cut Wizard](images/13-copy-cut-wizard.png)
-*Source selection step with highlighted hexes, and the target destination step*
+With no tool armed, a click on the map selects. The selection is outlined, and the Inspector shows the most recent hex in it.
 
-The **Copy/Cut Wizard** (top bar) lets you copy or move a region of tiles to another part of the map.
+1. **Select** the hexes you want: click one, then **Shift+click** to add more, or hold **Shift** and **drag** across the map to paint a selection. The hexes do not need to touch.
+2. **Copy** with **Ctrl+C**, or **cut** with **Ctrl+X**. Cutting clears the originals straight away, in one undo step.
+3. A ghost of the clipboard follows the pointer. **Click** to place it; it stays up, so you can place it again. **R** turns it 60°.
+4. **Esc** or **right-click** puts the ghost away. Nothing is lost: **Ctrl+V** brings it back, and the last 12 copies are listed in the Inspector.
 
-1. Click **Copy/Cut Wizard** to open the tool.
-2. Click the hexes you want to include (they are highlighted).
-3. Confirm your selection, then click the destination hex to place the copied/cut tiles.
+To **swap** two tiles, select exactly two and press the **⇄** button that appears on them, or hold **Shift+S**, click the first tile, and click the second.
 
-Cutting removes the tiles from their original positions. Copying leaves the originals intact.
-
-### Copy/Cut shortcuts
+### Selection and clipboard shortcuts
 
 | Shortcut | Action |
 |---|---|
-| `Shift+click` | Add a connected hex to the selection |
-| Release `Shift` | Finish selection, enter paste preview mode |
-| `Left-click` | Paste the selection at the previewed position |
-| `Alt+scroll` *(in paste mode)* | Rotate the selection |
-| `Esc` | Cancel the operation |
+| `Click` | Select a hex; click it again to deselect |
+| `Shift+click` | Add a hex to the selection, or take it back out |
+| `Shift+drag` | Paint a selection: every hex you pass over is added |
+| `Ctrl+C` / `Ctrl+X` | Copy / cut the selection |
+| `Ctrl+V` | Bring the clipboard back as a ghost |
+| `R` | Turn the ghost 60° |
+| `Click` *(ghost up)* | Place the ghost |
+| `Esc` or `Right-click` | Put the ghost away |
+| `Shift+S` held + `Click` | Pick the first tile of a swap; the next click picks the second |
 
 ---
 

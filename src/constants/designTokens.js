@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Design tokens — single source of truth for colours used in JavaScript.
  *
@@ -57,11 +58,19 @@ export const COLORS = {
   autoRowOffBg:         '#1a1a1a',
   autoRowOffText:       '#777777',
 
-  // Value-bias toggles. Same three hues as the Draw Helpers R/I/T buttons
+  // Value-bias toggles. Same three hues as the R/I/T buttons in the Balance panel
   // (uisectorControls.js) — the panel is reading back what was painted there.
   autoValueR:           '#f5a623',
   autoValueI:           '#7ecfff',
   autoValueT:           '#b07cff',
+
+  // Value tiers 1-5, red to green, in the AutoMapper's pool view. The value overlay's own
+  // badge colours are tuned for light tiles and go muddy on the dark panel.
+  autoTier1:            '#ff5c5c',
+  autoTier2:            '#ff9f40',
+  autoTier3:            '#e6d34a',
+  autoTier4:            '#8fd14f',
+  autoTier5:            '#2ecc71',
 
   // SVG overlays — used with setAttribute, must be plain hex/named values
   linkLine:             '#1fa3ff',

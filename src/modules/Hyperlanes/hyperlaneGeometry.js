@@ -19,6 +19,8 @@
  * that equality in place.
  */
 
+import { edgeMidpoint, hexPoints } from '../../utils/hexGeometry.js';
+
 /** 14 / 40 — see the note above about preserving default-scale appearance. */
 export const LOOP_SCALE = 0.35;
 
@@ -34,13 +36,7 @@ export const DEFAULT_CURVE_PULL = 0.25;
  * @returns {{x: number, y: number}}
  */
 export function edgeMid(center, side, radius) {
-    const a1 = (Math.PI / 180) * (60 * side - 120);
-    const a2 = (Math.PI / 180) * (60 * (side + 1) - 120);
-    const x1 = center.x + radius * Math.cos(a1);
-    const y1 = center.y + radius * Math.sin(a1);
-    const x2 = center.x + radius * Math.cos(a2);
-    const y2 = center.y + radius * Math.sin(a2);
-    return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+    return edgeMidpoint(center, radius, side);
 }
 
 /**
@@ -53,10 +49,7 @@ export function edgeMid(center, side, radius) {
  * @returns {string} e.g. '40,0 20,34.6 -20,34.6 …'
  */
 export function hexCorners(center, radius) {
-    return Array.from({ length: 6 }, (_, i) => {
-        const ang = (Math.PI / 180) * 60 * i;
-        return `${center.x + radius * Math.cos(ang)},${center.y + radius * Math.sin(ang)}`;
-    }).join(' ');
+    return hexPoints(center, radius);
 }
 
 /**

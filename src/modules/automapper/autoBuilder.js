@@ -2,7 +2,7 @@
  * AutoMapper UI — fill Draw-Helper-painted tiles with real TI4 systems.
  */
 
-import { fillRemaining, analyzeMap, SCORING_WEIGHTS } from './autoBuilderCore.js';
+import { fillRemaining, analyzeMap } from './autoBuilderCore.js';
 import { assignSystem } from '../../features/assignSystem.js';
 import { updateTileImageLayer } from '../../features/imageSystemsOverlay.js';
 import { enforceSvgLayerOrder } from '../../draw/enforceSvgLayerOrder.js';
@@ -12,6 +12,9 @@ import { updateWormholeVisibility } from '../../features/baseOverlays.js';
 import { toggleWormhole } from '../../features/wormholes.js';
 import { VISIBLE_SOURCE_GROUPS } from '../SystemPicker/pickerModel.js';
 import { COLORS } from '../../constants/designTokens.js';
+import { drawAutoMapperMarks, clearAutoMapperMarks, marksFromResult } from '../../features/automapperMarks.js';
+import { showPoolValues, refreshPoolValues, POOL_VALUES_POPUP_ID, GROUP_LABEL } from './poolValuesUI.js';
+import { subscribeWeights } from '../Milty/miltyScore.js';
 
 // ---- Styles ----
 const S = {
@@ -72,9 +75,8 @@ function section(title, isOpen, onToggle) {
 
 // ---- Main UI ----
 
-export function showAutoBuilderUI(container) {
+export function showAutoBuilderUI(container, editor) {
     if (!container) return;
-    const editor = window.editor;
     if (!editor) {
         container.innerHTML = '<p style="color:#f66;padding:12px">No editor instance found.</p>';
         return;
@@ -94,12 +96,28 @@ export function showAutoBuilderUI(container) {
         includeHomeSystems:     false,
         includeWormholes:       false,
         allowDuplicatesNoPlanet:false,
+        // Only offered while Thunder's Edge is a chosen source; see fractureAllowed.
+        allowFracture:          false,
         sources:                null, // null = use DOM source filters from search panel
         valueROn:               false,
         valueIOn:               false,
         valueTOn:               false,
+        // Which way to lean when a tier runs out, and whether to give up rather than
+        // miss by a lot. Both end up as prices in the solver's cost function.
+        tierPolicy:             'down',
+        strictTiers:            false,
     };
+
+    /**
+     * Whether fracture tiles may join the pool. The toggle is only shown while Thunder's
+     * Edge is ticked as a source, so it only counts then: untick TE and a toggle left on
+     * out of sight does not quietly go on letting fracture tiles in.
+     */
+    const fractureAllowed = () => !!(opts.allowFracture && opts.sources?.te);
+
     let lastResult  = null;
+    // The latest analyzeMap result, which the pool view reads on every paint.
+    let currentAnalysis = null;
     let justApplied = false; // true after a successful apply → shows Undo button
     let excludedLabels = new Set(); // hexes the user unchecked — left unfilled on Apply
 
@@ -130,20 +148,29 @@ export function showAutoBuilderUI(container) {
             includeHomeSystems: opts.includeHomeSystems,
             includeWormholes: opts.includeWormholes,
             allowDuplicatesNoPlanet: opts.allowDuplicatesNoPlanet,
+            allowFracture: fractureAllowed(),
             sources: opts.sources,
+            valueROn: opts.valueROn,
+            valueIOn: opts.valueIOn,
+            valueTOn: opts.valueTOn,
+            tierPolicy: opts.tierPolicy,
+            strictTiers: opts.strictTiers,
         });
+        currentAnalysis = analysis;
 
         renderStatus(analysis);
-        if (analysis.totalUnfilled) {
-            renderOptions(analysis);
-            renderBreakdown(analysis);
-        }
+        // The options show with nothing painted too: the pool, and the values in it, are
+        // worth looking at before deciding what to paint.
+        renderOptions(analysis);
+        if (analysis.totalUnfilled) renderBreakdown(analysis);
         scrollArea.appendChild(previewHost);
         renderPreview();
         // Also render the bar when there is nothing left to fill but an apply just landed —
         // a fill that consumed every painted hex is exactly when Undo is most wanted, and
         // bailing out on totalUnfilled === 0 was hiding the button in that case.
         if (analysis.totalUnfilled || justApplied) renderActions(analysis.totalUnfilled > 0);
+        // An open pool view follows the sources and bias chosen here.
+        refreshPoolValues();
     }
 
     // --- Status header ---
@@ -151,10 +178,15 @@ export function showAutoBuilderUI(container) {
         const status = el('div', S.panel);
         if (analysis.totalUnfilled === 0) {
             status.innerHTML = `<span style="${S.ok}">✔ All painted tiles are filled.</span><br>` +
-                `<span style="${S.muted}">Use Draw Helpers to paint tile types, then come back here.</span>`;
+                `<span style="${S.muted}">Paint some tile types from the Draw section of the tool rail, then come back here.</span>`;
         } else {
             status.innerHTML = `<b style="color:${COLORS.popupAutomapper}">${analysis.totalUnfilled} unfilled tile${analysis.totalUnfilled !== 1 ? 's' : ''}</b>` +
                 ` &nbsp;<span style="${S.muted}">${analysis.totalAvailable} systems in pool</span>`;
+        }
+        if (analysis.fractureHexes) {
+            const n = analysis.fractureHexes;
+            status.appendChild(el('div', S.muted + 'margin-top:3px;',
+                `${n} Fracture hex${n !== 1 ? 'es are' : ' is'} left for you to place by hand — the AutoMapper never fills them.`));
         }
         scrollArea.appendChild(status);
     }
@@ -202,7 +234,24 @@ export function showAutoBuilderUI(container) {
             togglesRow.appendChild(toggle('Duplicate empty/anomaly', opts.allowDuplicatesNoPlanet,
                 v => { opts.allowDuplicatesNoPlanet = v; render(); },
                 'Let the same no-planet system (empty, anomaly) be placed on several hexes. Planet systems are never repeated.').wrap);
+            if (opts.sources?.te) {
+                togglesRow.appendChild(toggle('Allow fracture tiles', opts.allowFracture,
+                    v => { opts.allowFracture = v; render(); },
+                    'Let Thunder\'s Edge fracture tiles with planets onto the regular map, as the ordinary tiles '
+                    + 'their planets make them — Styx as a legendary, Cocytus as a 1-planet system. They are not '
+                    + 'normally on the map. The planet-free fracture pieces are never placed.').wrap);
+            }
             body.appendChild(togglesRow);
+
+            // The ranking the value hints are matched against, tile by tile, before any
+            // fill runs — so a tier can be understood before it is asked for.
+            const viewBtn = el('button', S.btnLink + 'padding-left:0;align-self:flex-start;',
+                `📋 View pool values (${analysis.totalAvailable} tiles)`);
+            viewBtn.title = 'Every tile in this pool with the value it scored, what the value is '
+                + 'made of, and the tier (T1–T5) it lands in. Value hints are matched against these tiers.';
+            viewBtn.disabled = !analysis.totalAvailable;
+            viewBtn.onclick = () => showPoolValues(() => currentAnalysis);
+            body.appendChild(viewBtn);
 
             panel.appendChild(details);
         }
@@ -247,12 +296,107 @@ export function showAutoBuilderUI(container) {
             panel.appendChild(details);
         }
 
-        // Value bias — mirrors the Draw Helpers V1–V5 / R / I / T hints
+        // Value hints — the tiers, what the pool holds of each, and what to do when it runs out
         {
-            const { details, body } = section('Value bias', open.value, v => { open.value = v; });
+            const { details, body } = section('Value hints', open.value, v => { open.value = v; });
             body.appendChild(el('div', S.muted,
-                'Applies to hexes painted with a V1–V5 value hint in Draw Helpers.'));
+                'Applies to hexes painted with a V1–V5 value hint. Tiers are ranked live from '
+                + 'the systems currently in the pool, so loading more tile sets re-ranks them.'));
 
+            // ── Supply and demand, per tier ──
+            //
+            // The table that was missing. Tiers are value bands, so a tier holds however many
+            // tiles score in its band — six 2-planet systems at T5 on the default sources.
+            // Painting twelve hexes at tier 5 asks for something that does not exist, and
+            // nothing anywhere in the UI used to say so: the fill just quietly handed out
+            // whatever was left.
+            if (analysis.tierSupply?.length) {
+                const demandBy = new Map((analysis.tierDemand || []).map(d => [d.group, d]));
+
+                const table = el('table', `width:100%;border-collapse:collapse;font-size:11px;
+                    margin-top:6px;table-layout:fixed;`);
+                table.innerHTML =
+                    `<thead><tr>
+                        <th style="text-align:left;color:${COLORS.textMuted};font-weight:600;padding:2px 4px;">Tier supply</th>
+                        ${[1, 2, 3, 4, 5].map(t => `<th style="color:${COLORS.textMuted};font-weight:600;padding:2px 4px;">T${t}</th>`).join('')}
+                    </tr></thead>`;
+                const tbody = el('tbody');
+
+                for (const row of analysis.tierSupply) {
+                    if (row.group === 'empty') continue;   // no planets, so no meaningful value
+                    const want = demandBy.get(row.group);
+                    const tr = el('tr');
+                    tr.appendChild(el('td',
+                        `padding:2px 4px;color:#ddd;`, GROUP_LABEL[row.group] || row.group));
+
+                    row.tiers.forEach((have, i) => {
+                        const need = want ? want.tiers[i] : 0;
+                        const short = need > have;
+                        const td = el('td', `padding:2px 4px;text-align:center;
+                            color:${short ? COLORS.autoWarnText : need ? COLORS.popupSpecial : COLORS.textMuted};
+                            ${short ? 'font-weight:700;' : ''}`);
+                        td.textContent = need ? `${need}/${have}` : String(have);
+                        td.title = need
+                            ? `${need} hex${need !== 1 ? 'es' : ''} painted at tier ${i + 1}, ${have} system${have !== 1 ? 's' : ''} in the pool`
+                                + (short ? ` — ${need - have} of them cannot get the tier they asked for.` : '')
+                            : `${have} system${have !== 1 ? 's' : ''} in the pool at tier ${i + 1}`;
+                        td.title += ' — click to see them.';
+                        td.style.cursor = 'pointer';
+                        td.onclick = () => showPoolValues(() => currentAnalysis, { group: row.group, tier: i + 1 });
+                        tr.appendChild(td);
+                    });
+                    tbody.appendChild(tr);
+                }
+
+                table.appendChild(tbody);
+                body.appendChild(table);
+                body.appendChild(el('div', S.muted + 'margin-top:3px;',
+                    'painted / available. Amber means more hexes want that tier than exist. Click a number to see those tiles.'));
+            }
+
+            // ── What to do when a tier cannot be met ──
+            const fbRow = el('div', S.row + 'margin-top:8px;');
+            fbRow.appendChild(el('span', S.muted, 'When a tier runs out:'));
+            const POLICY_LABELS = {
+                down: ['Take lower', 'Fill from tiers below the one asked for'],
+                nearest: ['Nearest', 'Take whichever neighbouring tier is available, above or below'],
+                up: ['Take higher', 'Fill from tiers above the one asked for'],
+            };
+            for (const [key, [label, title]] of Object.entries(POLICY_LABELS)) {
+                const b = el('button', '', label);
+                b.title = title;
+                const paint = () => {
+                    b.style.cssText = `padding:3px 10px;border-radius:3px;font-size:11px;cursor:pointer;`
+                        + `border:1px solid ${opts.tierPolicy === key ? COLORS.popupAutomapper : COLORS.surface5};`
+                        + `background:${opts.tierPolicy === key ? COLORS.popupAutomapper : 'transparent'};`
+                        + `color:${opts.tierPolicy === key ? '#111' : '#ccc'};`;
+                };
+                paint();
+                b.onclick = () => { opts.tierPolicy = key; render(); };
+                fbRow.appendChild(b);
+            }
+            body.appendChild(fbRow);
+
+            // How hard to try before giving up. This is one number in the cost function —
+            // the price of leaving a hex alone — so "strict" is not a separate code path,
+            // it is the same solver told that a bad match is worth less than an empty hex.
+            const strictRow = el('div', S.row + 'margin-top:6px;');
+            const strict = document.createElement('input');
+            strict.type = 'checkbox';
+            strict.checked = opts.strictTiers;
+            strict.onchange = () => { opts.strictTiers = strict.checked; render(); };
+            const strictLabel = el('label', 'font-size:11px;color:#ccc;cursor:pointer;display:flex;gap:5px;align-items:center;');
+            strictLabel.title = 'Leave a hex unfilled rather than give it a tile more than one '
+                + 'tier away from what it asked for, or one that misses on two counts at once '
+                + '(wrong type and an anomaly drawn on). Unfilled hexes are marked on the map.';
+            strictLabel.appendChild(strict);
+            strictLabel.appendChild(document.createTextNode('Leave it empty rather than miss by more than one tier'));
+            strictRow.appendChild(strictLabel);
+            body.appendChild(strictRow);
+
+            // ── R / I / T bias ──
+            body.appendChild(el('div', S.muted + 'margin-top:8px;',
+                'Bias — re-ranks the pool before tiers are cut, and breaks ties inside a tier:'));
             const row = el('div', S.row);
             // The button's look is derived from state on every build. It used to be created
             // un-highlighted regardless, so any re-render made an active bias look inactive
@@ -267,12 +411,12 @@ export function showAutoBuilderUI(container) {
                         `color:${opts[key] ? '#111' : color};`;
                 };
                 paint();
-                b.onclick = () => { opts[key] = !opts[key]; paint(); };
+                b.onclick = () => { opts[key] = !opts[key]; render(); };
                 return b;
             }
-            row.appendChild(makeVtToggle('R', COLORS.autoValueR, 'valueROn', 'Prefer high-resource systems for value-targeted hexes'));
-            row.appendChild(makeVtToggle('I', COLORS.autoValueI, 'valueIOn', 'Prefer high-influence systems for value-targeted hexes'));
-            row.appendChild(makeVtToggle('T', COLORS.autoValueT, 'valueTOn', 'Prefer tech-skip systems for value-targeted hexes'));
+            row.appendChild(makeVtToggle('R', COLORS.autoValueR, 'valueROn', 'Rank the pool by resources before cutting it into tiers'));
+            row.appendChild(makeVtToggle('I', COLORS.autoValueI, 'valueIOn', 'Rank the pool by influence before cutting it into tiers'));
+            row.appendChild(makeVtToggle('T', COLORS.autoValueT, 'valueTOn', 'Rank the pool by tech skips before cutting it into tiers'));
             body.appendChild(row);
 
             panel.appendChild(details);
@@ -384,7 +528,7 @@ export function showAutoBuilderUI(container) {
         const scBtn = el('button', S.btnLink, '🔍 Sanity Check');
         scBtn.title = 'Check for duplicate system IDs on the map';
         scBtn.onclick = () => {
-            import('../../ui/simplepPopup.js').then(m => m.showSanityCheckPopup?.()).catch(console.warn);
+            import('../../ui/simplepPopup.js').then(m => m.showSanityCheckPopup?.(editor)).catch(console.warn);
         };
         btnRow.appendChild(scBtn);
 
@@ -393,17 +537,17 @@ export function showAutoBuilderUI(container) {
 
     // ---- Fill ----
     async function runFill() {
-        let weights = { ...SCORING_WEIGHTS };
+        // Weights come from miltyScore, the one table the Milty generator reads too. The
+        // settings — Milty's optimal R/I limits for a slice — still live with the generator.
         let settings = null;
         if (opts.balanced) {
             try {
                 const m = await import('../Milty/miltyBuilderRandomTool.js');
-                weights  = m.getCurrentWeights?.()  ?? weights;  // live milty weights (req 8)
-                settings = m.getCurrentSettings?.() ?? null;     // R/I min/max constraints (req 8)
-            } catch { /* fall back to defaults */ }
+                settings = m.getCurrentSettings?.() ?? null;
+            } catch { /* no limits */ }
         }
 
-        const result = fillRemaining(editor, { ...opts, weights, settings });
+        const result = fillRemaining(editor, { ...opts, allowFracture: fractureAllowed(), settings });
         if (result.info) { alert(result.info); return; }
         if (result.notice) {
             // An option was ignored but the fill succeeded — say so in the panel rather
@@ -418,6 +562,11 @@ export function showAutoBuilderUI(container) {
     // ---- Preview ----
     function renderPreview() {
         previewHost.innerHTML = '';
+        // The map carries the same answer as the list: a ring and a badge on every hex that
+        // did not get what it asked for, with the reason on hover. Reading a hex label out
+        // of a paragraph and then hunting for it on the board is not a way to review twenty
+        // of them.
+        drawAutoMapperMarks(editor, lastResult ? marksFromResult(lastResult) : []);
         if (!lastResult) return;
 
         const { assignments, tokenPlacements, downgrades, unmatched, score, notice } = lastResult;
@@ -591,10 +740,21 @@ export function showAutoBuilderUI(container) {
         lastResult   = null;
         excludedLabels = new Set();
         justApplied  = true;  // show Undo button (fix 1)
+        // Everything that was placed is now visible on the map itself; what is still worth
+        // pointing at is what never got filled.
+        drawAutoMapperMarks(editor, marksFromResult({ unmatched: lastResult?.unmatched || [] }));
         render();
     }
 
     render();
+
+    // Tiers are made of the Milty weights: an edit in the Weighting Settings re-ranks the pool,
+    // so the panel — and the pool view it feeds — follow it. A panel that has since been
+    // closed drops its listener the next time the weights change.
+    const unsubscribe = subscribeWeights(() => {
+        if (container.isConnected) render();
+        else unsubscribe();
+    });
 }
 
 /**
@@ -604,11 +764,11 @@ export function showAutoBuilderUI(container) {
  * each carried their own copy of this block, and they had already drifted — one of them
  * pointed `onHelp` at a help page describing a feature set that does not exist.
  */
-export function openAutoMapperPopup() {
+export function openAutoMapperPopup(editor) {
     return import('../../ui/popupUI.js').then(({ showPopup }) => {
         const content = document.createElement('div');
         content.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;';
-        showAutoBuilderUI(content);
+        showAutoBuilderUI(content, editor);
 
         showPopup({
             id: 'automapper-popup',
@@ -620,44 +780,50 @@ export function openAutoMapperPopup() {
             rememberPosition: true,
             showHelp: true,
             onHelp: () => showAutoMapperHelp(),
+            // The marks describe a preview, so they go when the panel does. hidePopup fires
+            // this however the popup is closed, not only from its ×.
+            // The pool view reads this panel's analysis, so it closes with it.
+            onClose: () => {
+                clearAutoMapperMarks(editor);
+                import('../../ui/popupUI.js').then(({ hidePopup }) => hidePopup(POOL_VALUES_POPUP_ID));
+            },
             style: {
                 minWidth: '380px', maxWidth: '700px',
                 border: '2px solid var(--popup-border-special)',
                 borderRadius: '10px',
                 boxShadow: '0 8px 40px #000a',
                 padding: '16px',
-                zIndex: 10012,
             },
         });
     });
 }
 
 export function showAutoMapperHelp() {
-    import('../../ui/popupUI.js').then(({ showPopup }) => {
-        showPopup({
+    return import('../../ui/popupUI.js').then(({ showPopup }) => {
+        return showPopup({
             id: 'automapper-help-popup',
-            title: '🤖 AutoMapper & Draw Helpers — Help',
+            title: '🤖 AutoMapper — Help',
             content: `<div style="line-height:1.6;font-size:13px;max-height:70vh;overflow-y:auto;padding-right:8px;">
 
-<h3 style="color:#2ecc40;margin:0 0 8px 0;">Draw Helpers</h3>
-<p>Open from <b>Sector Controls → Draw Helpers…</b> (also under <b>Layout Options → Draw Helpers</b>). Paint tile properties directly onto hexes without searching for specific systems.</p>
+<h3 style="color:#2ecc40;margin:0 0 8px 0;">Painting what you want</h3>
+<p>In the tool rail, under <b>Draw</b>. Paint tile properties directly onto hexes without searching for specific systems, then let AutoMapper find systems that match.</p>
 
-<h4 style="color:#ffe066;margin:8px 0 4px 0;">Tile types</h4>
-<p>Click a type button, then click hexes: <b>1/2/3 Planet</b>, <b>Legendary</b>, <b>Empty</b>, <b>Special</b> (anomaly), <b>Fracture</b> (Thunders Edge).</p>
-<p>A <b>Special</b> tile with no effects painted acts the same as <b>Empty</b>.</p>
+<h4 style="color:#ffe066;margin:8px 0 4px 0;">Planets</h4>
+<p>Click a type, then click hexes: <b>1/2/3 Planet</b>, <b>Legendary</b>, <b>Empty</b>, <b>Void</b>, <b>Special</b> (anomaly), <b>Fracture</b> (Thunders Edge).</p>
+<p>A <b>Special</b> tile with no anomaly painted acts the same as <b>Empty</b>. A <b>Void</b> hex is deliberately blank and is never filled.</p>
 
-<h4 style="color:#ffe066;margin:8px 0 4px 0;">Effects</h4>
-<p>Paint an anomaly overlay on top of a hex: <b>Nebula ☁️</b>, <b>Rift 🕳️</b>, <b>Asteroid 🪨</b>, <b>Supernova ☀️</b>, <b>Scar ☄️</b>.</p>
+<h4 style="color:#ffe066;margin:8px 0 4px 0;">Anomalies</h4>
+<p>Paint an anomaly on top of a hex: <b>Nebula ☁️</b>, <b>Rift 🕳️</b>, <b>Asteroid 🪨</b>, <b>Supernova ☀️</b>, <b>Scar ☄️</b>.</p>
 <p><b>Empty + an effect</b> and <b>Special + an effect</b> are the same request — a tile with no planets carrying that anomaly — and are filled identically. Use whichever you prefer.</p>
 <p>If no tile with that exact effect is available, a plain tile is used and an <b>anomaly token</b> is drawn on it. A hex painted for one anomaly is never given a different one — a token is the better answer. Turn on <b>Duplicate empty/anomaly</b> to reuse the real anomaly tiles instead, which is usually what you want when a map needs more asteroid fields than the base game has.</p>
 
 <hr style="border-color:#333;margin:10px 0;">
 <h3 style="color:#2ecc40;margin:0 0 8px 0;">🤖 AutoMapper</h3>
-<p>After painting tile types with Draw Helpers, AutoMapper fills those hexes with real systems.</p>
+<p>Once hexes are painted, AutoMapper fills them with real systems. It solves the whole map at once rather than walking the hexes one at a time, so the answer does not depend on the order they happen to be in.</p>
 
 <h4 style="color:#ffe066;margin:8px 0 4px 0;">Workflow</h4>
 <ol style="margin:0 0 8px 16px;padding:0;">
-  <li>Paint tile types on hexes using Draw Helpers.</li>
+  <li>Paint tile types on hexes from the <b>Draw</b> section of the tool rail.</li>
   <li>Open AutoMapper — the <b>Type breakdown</b> shows one row per thing your map asks for, and what each will actually get.</li>
   <li>Choose options and click <b>Fill Remaining</b>.</li>
   <li>Review the preview — click <b>Reshuffle</b> for a different arrangement, or untick individual hexes to leave them unfilled.</li>
@@ -670,6 +836,7 @@ export function showAutoMapperHelp() {
   <li><b>Sources</b> — restrict the pool to specific expansions. These <i>override</i> the System Picker's source filter rather than narrowing it, so a picker you left set to one expansion can't empty the pool here. Leave all unchecked to follow the picker instead.</li>
   <li><b>Include HS tiles</b> — fills painted home-system hexes, and admits faction homeworld tiles to the pool so there is something to fill them with. Those tiles can never land on any other kind of hex.</li>
   <li><b>Wormhole systems</b> — adds wormhole tiles to the pool.</li>
+  <li><b>Allow fracture tiles</b> — shown while <b>Thunder's Edge</b> is ticked. Fracture tiles are not normally on the map, so they are left out of the pool. This lets the ones with planets on as ordinary tiles — Styx competes as a legendary, Cocytus as a 1-planet system. The planet-free fracture pieces (voids, egress) are never placed.</li>
   <li><b>Duplicate empty/anomaly</b> — lets a planet-free tile (blank or anomaly) be placed on several hexes. Every distinct tile is used before any is reused, so variety is kept where the pool allows it. Essential for anomalies: the base game has only two asteroid fields and one of each other kind, so without this a map wanting eight asteroid hexes gets two real tiles and six tokens.</li>
 </ul>
 <p>FOW, blank draft and placeholder tiles are never placed, whatever the source settings say.</p>
@@ -687,11 +854,17 @@ export function showAutoMapperHelp() {
 <p>A row can read <i>"stock taken by other hexes"</i> when it had enough tiles on paper but another request reached them first. Anomaly hexes with no matching tile borrow ordinary tiles as a base for their token, which is usually the cause.</p>
 
 <h4 style="color:#ffe066;margin:8px 0 4px 0;">Restricted hex types</h4>
-<p><b>Fracture</b> and <b>Home system</b> hexes only ever accept a tile of that same type. If the pool runs out, the hex is left unfilled and listed under the preview rather than being quietly given an ordinary tile.</p>
+<p><b>Home system</b> hexes only ever accept a home system tile. If the pool runs out, the hex is left unfilled and listed under the preview rather than being quietly given an ordinary tile.</p>
+<p><b>Fracture</b> hexes are never filled. There are only a handful, and they belong to the fracture rather than to the map's balance, so place those tiles by hand. The panel says how many are waiting.</p>
 
 <h4 style="color:#ffe066;margin:8px 0 4px 0;">Value hints</h4>
-<p>Use <b>V1–V5</b> to paint a target value tier on a hex. Use <b>R / I / T</b> to request high resources, influence, or tech skips. These are preferences — AutoMapper picks the best available match, falling back gracefully if unavailable.</p>
-<p>Tiers are relative within each planet-count group: V5 on a 2-planet hex means "best 2-planet system available", not "best overall".</p>
+<p>Use <b>V1–V5</b> to paint a target value tier on a hex, and <b>R / I / T</b> to ask for high resources, influence or tech skips within that tier.</p>
+<p>Tiers are relative within each planet-count group: V5 on a 2-planet hex means "best 2-planet system currently in the pool", not "best overall". Each group's value range, from its lowest-scoring tile to its highest, is cut into five equal bands, and a tile's tier is the band its value falls in. So tiles that score the same are always the same tier, and a tier holds however many tiles score in its band — six 2-planet systems at T5 on the default sources, where T2 holds eleven. Asking for more hexes at one tier than it holds is asking for something that does not exist, and the <b>Tier supply</b> table under Value hints says so before you fill: it shows how many you have painted against how many exist, in amber where you have asked for too many.</p>
+<p><b>📋 View pool values</b> (under Pool), or a click on any number in the Tier supply table, lists every tile in the pool with its value and the tier it landed in. It works before anything is painted.</p>
+<p>A tile's value is its <b>Milty value</b>: what it adds to the score of any Milty slice it is in, using the weights from <b>Milty Slice Designer ▸ Weighting Settings</b> (the <b>⚖ Edit the Milty weights</b> link in the pool view opens them). Resources and influence count at their optimal use: each planet is spent on whichever of the two is higher, and a planet with the two equal counts as <b>F</b>, flex — so a 2/1, a 1/2 and a 1/1 make R/I/F 2/2/1, and a flex point is worth the average of the R and I weights. Tech skips, legendary planets, wormholes, trade stations, planet traits and anomalies each add their weight — a scar adds, a supernova takes away. The slice score's R/I imbalance and planet-count terms belong to a whole slice, so they are never charged to a single tile.</p>
+<p>The <b>R / I / T</b> bias scales the resource, influence and tech weights, and the list follows as you toggle it — and as you edit the weights. Tiles without planets are not ranked, so a value hint on an empty hex has nothing to choose between.</p>
+<p><b>When a tier runs out</b> decides which way to lean — take a lower tier, the nearest either way, or a higher one. <b>Leave it empty rather than miss by more than one tier</b> makes the fill give up on a hex instead of settling; those hexes are marked on the map.</p>
+<p>The whole map is solved at once, so a hex that cannot have the tier it asked for gives way to one that can, rather than taking the tile from it by being earlier in the list.</p>
 
 <h4 style="color:#ffe066;margin:8px 0 4px 0;">Value overlay</h4>
 <p>After filling, click <b>📊 Show Value Overlay</b> to see T1–T5 tier badges on placed systems (relative to their type group). Toggle R/I/T to see how different weightings would rank the systems.</p>

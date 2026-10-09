@@ -8,7 +8,7 @@ const EXCLUDED_TILE_IDS = [
     '84a', '84a60', '84a120', '84a180', '84a240', '84a300',
     '84b', '84b60', '84b120', '84b180', '84b240', '84b300',
     '85a', '85a60', '85a120', '85a180', '85a240', '85a300',
-    '85b', '82', '82b', '82a', '18', '82ah', '82h', 'c41', '81', 'rexmex',
+    '85b', '82', '82b', '82a', '18', '82ah', '82h', 'c41', '81', 'rexmec',
     'd35a', 'd35b', 'd36', 'm28', "s11", "s12", "s13", "silver_flame",
     '94', '112'  // TE faction-specific tile — not suitable for general slice use
 ];
@@ -17,8 +17,9 @@ const EXCLUDED_TILE_IDS = [
 // UI functions have been moved to miltyRandomToolUI.js for better separation of concerns
 
 import { assignSystem } from '../../features/assignSystem.js';
-import { markRealIDUsed, unmarkRealIDUsed } from '../../ui/uiFilters.js';
+import { markRealIDUsed, refreshSystemList } from '../../ui/uiFilters.js';
 import { slotPositions } from './miltyBuilderCore.js';
+import { getWeights, setWeights, resetWeights, sliceScore } from './miltyScore.js';
 
 // Default generation settings
 const DEFAULT_SETTINGS = {
@@ -58,114 +59,72 @@ const DEFAULT_SETTINGS = {
     }
 };
 
-// Default feature weights for slice evaluation
-const DEFAULT_WEIGHTS = {
-    // Anomalies
-    supernova: -3,
-    asteroidField: -1,
-    nebula: 0,
-    gravityRift: -1,
-    entropicScar: 1,
-
-    // Resources/Influence
-    resourceValue: 0.9,
-    influenceValue: 1,
-
-    // Special features
-    techSpecialty: 2,
-    legendaryPlanet: 1.5,     // base legendary value
-    legendaryIndustrex: 2.5,  // Industrex (TE)
-    legendaryEmelpar: 3,      // Emelpar (TE)
-    wormhole: 0.5,            // non-gamma wormholes
-    gammaWormhole: 1.5,       // gamma wormhole
-    tradeStation: 0.5,        // trade station bonus
-
-    // Planet types
-    industrial: 0.5,
-    cultural: 0.5,
-    hazardous: 0.5,
-
-    // Balance penalties
-    resourceInfluenceImbalance: -0.5,
-    lowPlanetCount: -3,
-    highPlanetCount: -1
-};
+// The slice weights live in miltyScore.js — one table for the generator, the home overlay,
+// the AutoMapper and Slice Analysis, saved across reloads. There used to be one here, a
+// drifted copy in the AutoMapper and the overlay, and a fourth, unused, in the UI module.
 
 let currentSettings = { ...DEFAULT_SETTINGS };
 
-// Weights persist across cache-busted module reloads via window global (same pattern as miltyDebugState)
-if (!window._miltyCurrentWeights) {
-    window._miltyCurrentWeights = { ...DEFAULT_WEIGHTS };
-}
-let currentWeights = window._miltyCurrentWeights;
 
-// Debug settings - store in global scope to persist across module reloads
+// Whether a generation run records why each attempt failed. Off by default: the tracking
+// below is cheap but the logging it drives is not.
 let debugMode = false;
 
-// Store debug details in global scope so they persist across module instances
-if (!window.miltyDebugState) {
-    window.miltyDebugState = {
-        debugDetails: {
-            swapAttempts: 0,
-            successfulSwaps: 0,
-            swapTypes: { direct: 0, broader: 0, unused: 0, random: 0 },
-            constraintFailures: 0,
-            scoreImprovements: [],
-            // Generation failure tracking
-            generationFailures: {
-                totalAttempts: 0,
-                sliceSetFailures: 0,
-                sliceSetValidationFailures: 0,
-                individualSliceFailures: 0,
-                constraintFailureBreakdown: {
-                    planetSystemCount: 0,
-                    optimalResources: 0,
-                    optimalInfluence: 0,
-                    optimalTotal: 0,
-                    wormholeConstraints: 0,
-                    legendaryConstraints: 0,
-                    duplicateWormholes: 0
-                },
-                sliceGenerationPhases: {
-                    insufficientCandidates: 0,
-                    wormholeAssignmentFailed: 0,
-                    planetSystemSelectionFailed: 0,
-                    emptySystemFillingFailed: 0,
-                    finalSystemFillingFailed: 0,
-                    constraintValidationFailed: 0
-                }
-            }
+/**
+ * Why the last generation run went the way it did.
+ *
+ * This and the weights above were kept on window, because the popups loaded this module
+ * through `import('./miltyBuilderRandomTool.js?v=' + Date.now())` and each of those
+ * evaluations produced a separate module with its own copy of every top-level binding.
+ * The globals were the only thing the copies shared.
+ *
+ * The cache busting is gone, so there is one instance again — miltyHomeOverlay had in
+ * fact always imported this module the ordinary way, so a canonical instance existed the
+ * whole time and the extra copies were talking to it exclusively through those globals.
+ * Ordinary module state says the same thing without the bus.
+ */
+let debugDetails = {
+    swapAttempts: 0,
+    successfulSwaps: 0,
+    swapTypes: { direct: 0, broader: 0, unused: 0, random: 0 },
+    constraintFailures: 0,
+    scoreImprovements: [],
+    // Generation failure tracking
+    generationFailures: {
+        totalAttempts: 0,
+        sliceSetFailures: 0,
+        sliceSetValidationFailures: 0,
+        individualSliceFailures: 0,
+        constraintFailureBreakdown: {
+            planetSystemCount: 0,
+            optimalResources: 0,
+            optimalInfluence: 0,
+            optimalTotal: 0,
+            wormholeConstraints: 0,
+            legendaryConstraints: 0,
+            duplicateWormholes: 0
         },
-        debugMode: false
-    };
-}
-
-// Use global debug state
-let debugDetails = window.miltyDebugState.debugDetails;
-
-// Helper function to keep global debug state in sync
-function syncDebugState() {
-    if (debugMode) {
-        window.miltyDebugState.debugDetails = debugDetails;
-        window.miltyDebugState.debugMode = debugMode;
+        sliceGenerationPhases: {
+            insufficientCandidates: 0,
+            wormholeAssignmentFailed: 0,
+            planetSystemSelectionFailed: 0,
+            emptySystemFillingFailed: 0,
+            finalSystemFillingFailed: 0,
+            constraintValidationFailed: 0
+        }
     }
-}
+};
 
 // Export accessor functions for UI module
 export function getCurrentWeights() {
-    // Always read from the global so any module instance sees weights set by others
-    return { ...(window._miltyCurrentWeights || DEFAULT_WEIGHTS) };
+    return getWeights();
 }
 
 export function setCurrentSettings(settings) {
     currentSettings = { ...settings };
     debugMode = settings.debugMode;
-    // Also store in global state to persist across module reloads
-    window.miltyDebugState.debugMode = settings.debugMode;
     console.log('🔧 Settings updated:', currentSettings);
     console.log('🔧 Debug mode specifically set to:', debugMode);
-    console.log('🔧 Global debug mode set to:', window.miltyDebugState.debugMode);
-    console.log('🔧 Settings.debugMode was:', settings.debugMode);
 }
 
 export function getCurrentSettings() {
@@ -173,24 +132,16 @@ export function getCurrentSettings() {
 }
 
 export function setCurrentWeights(weights) {
-    currentWeights = { ...weights };
-    window._miltyCurrentWeights = currentWeights;
+    setWeights(weights);
 }
 
 export function resetWeightsToDefault() {
-    currentWeights = { ...DEFAULT_WEIGHTS };
-    window._miltyCurrentWeights = currentWeights;
+    resetWeights();
 }
 
 export function getDebugDetails() {
     console.log('🔍 getDebugDetails called');
-
-    // Sync debug mode from global state
-    debugMode = window.miltyDebugState.debugMode;
-    debugDetails = window.miltyDebugState.debugDetails;
-
     console.log('🔍 Current debugMode variable:', debugMode);
-    console.log('🔍 Global debugMode state:', window.miltyDebugState.debugMode);
     console.log('🔍 Current debugDetails:', debugDetails);
     console.log('🔍 debugDetails.swapAttempts:', debugDetails.swapAttempts);
 
@@ -210,6 +161,7 @@ export const moduleTest = 'Module loaded successfully!';
  * Creates the weighting settings popup content
  */
 export function createWeightingPopupContent() {
+    const currentWeights = getWeights();
     return `
         <div style="padding: 20px; line-height: 1.5; max-height: 60vh; overflow-y: auto;">
             <p style="color: #ccc; margin-bottom: 20px;">
@@ -333,12 +285,12 @@ export function createWeightingPopupContent() {
  * Generate Milty slices based on current settings
  * This is the core generation function without UI calls
  */
-export async function generateMiltySlices() {
+export async function generateMiltySlices(editor) {
     console.log('🔥 generateMiltySlices function called!');
     // Settings should be updated by UI before calling this function
 
     // Get available systems
-    const availableSystems = getAvailableSystems();
+    const availableSystems = getAvailableSystems(editor);
     console.log('Available systems:', availableSystems.length);
     console.log('First 10 systems:', availableSystems.slice(0, 10).map(s => `${s.id}:${s.name || 'Unknown'}`));
 
@@ -353,7 +305,7 @@ export async function generateMiltySlices() {
 
     // Apply score balancing if enabled
     if (currentSettings.scoreBalancing.enabled) {
-        await balanceSliceScores(slices);
+        await balanceSliceScores(editor, slices);
     }
 
     // Log detailed slice information
@@ -366,7 +318,7 @@ export async function generateMiltySlices() {
     });
 
     // Place slices on the map
-    await placeSlicesOnMap(slices);
+    await placeSlicesOnMap(editor, slices);
 
     return slices; // Return the slices for UI to handle
 }
@@ -374,20 +326,19 @@ export async function generateMiltySlices() {
 /**
  * Get available systems based on source settings
  */
-function getAvailableSystems() {
-    const editor = window.editor;
+function getAvailableSystems(editor) {
     if (!editor) {
         console.warn('Editor not available');
         return [];
     }
 
-    // Use allSystems if available, otherwise fallback to sectorIDLookup values
+    // Use allSystems if available, otherwise fallback to sectorIDLookup values.
+    //
+    // A window.SystemInfo branch used to come first. Nothing has ever assigned that
+    // global — loadSystemInfo puts the corpus on editor.allSystems — so the branch was
+    // unreachable and this has always started here.
     let systems = [];
-    // Try to use SystemInfo.systems if available (from SystemInfo.json)
-    if (window.SystemInfo && Array.isArray(window.SystemInfo.systems)) {
-        systems = window.SystemInfo.systems;
-        console.log('Using SystemInfo.systems:', systems.length, 'systems');
-    } else if (editor.allSystems && Array.isArray(editor.allSystems)) {
+    if (editor.allSystems && Array.isArray(editor.allSystems)) {
         systems = editor.allSystems;
         console.log('Using editor.allSystems:', systems.length, 'systems');
     } else if (editor.sectorIDLookup) {
@@ -688,7 +639,6 @@ async function generateSlicesWithConstraints(availableSystems) {
                 constraintValidationFailed: 0
             }
         };
-        window.miltyDebugState.debugDetails = debugDetails;
     }
 
     // --- Smart wormhole pre-selection to improve success rates ---
@@ -828,7 +778,7 @@ function generateSliceSet(availableSystems) {
         slice.systems.forEach(sys => {
             if (sys.wormholes) {
                 sys.wormholes.forEach(wh => {
-                    if (wh && wormholeTracker.hasOwnProperty(wh.toLowerCase())) {
+                    if (wh && Object.prototype.hasOwnProperty.call(wormholeTracker, wh.toLowerCase())) {
                         wormholeTracker[wh.toLowerCase()]++;
                     } else if (wh) {
                         // Initialize unknown wormhole types dynamically
@@ -1136,9 +1086,8 @@ function calculateSystemOptimalValue(system) {
 function selectConstraintAwareSystems(highValue, mediumValue, lowValue, targetCount, settings) {
     const selected = [];
 
-    // Calculate how much optimal value we need
-    const minOptimalTotal = settings.sliceGeneration.minOptimalTotal;
-    let currentOptimal = 0;
+    // Note: settings.sliceGeneration.minOptimalTotal is *not* enforced here. Systems are
+    // picked by value band and count; the caller checks the total afterwards.
 
     // First, try to get some high-value systems
     const highValueNeeded = Math.min(2, Math.floor(targetCount * 0.4), highValue.length);
@@ -1146,7 +1095,6 @@ function selectConstraintAwareSystems(highValue, mediumValue, lowValue, targetCo
         const system = highValue[Math.floor(Math.random() * highValue.length)];
         if (!selected.includes(system)) {
             selected.push(system);
-            currentOptimal += calculateSystemOptimalValue(system);
             // Remove from array to avoid duplicates
             highValue.splice(highValue.indexOf(system), 1);
         }
@@ -1157,7 +1105,6 @@ function selectConstraintAwareSystems(highValue, mediumValue, lowValue, targetCo
         const system = mediumValue[Math.floor(Math.random() * mediumValue.length)];
         if (!selected.includes(system)) {
             selected.push(system);
-            currentOptimal += calculateSystemOptimalValue(system);
             mediumValue.splice(mediumValue.indexOf(system), 1);
         }
     }
@@ -1167,7 +1114,6 @@ function selectConstraintAwareSystems(highValue, mediumValue, lowValue, targetCo
         const system = lowValue[Math.floor(Math.random() * lowValue.length)];
         if (!selected.includes(system)) {
             selected.push(system);
-            currentOptimal += calculateSystemOptimalValue(system);
             lowValue.splice(lowValue.indexOf(system), 1);
         }
     }
@@ -1341,82 +1287,21 @@ function validateSliceSet(slices) {
 }
 
 /**
- * Calculate slice score based on weights
+ * A slice's score: miltyScore.sliceScore of its systems, under the current weights.
+ *
+ * The formula used to be written out here, and copied into the home overlay and the
+ * AutoMapper. It now scores resources and influence at their optimal use (R, I and flex)
+ * rather than as raw totals, which counted a 2/2 planet as 2 resources and 2 influence at
+ * once; and it measures R/I imbalance after flex has been spent to close the gap.
  */
 function calculateSliceScore(slice) {
-    let score = 0;
-
-    // Resource/influence values
-    score += slice.totalResources * currentWeights.resourceValue;
-    score += slice.totalInfluence * currentWeights.influenceValue;
-
-    // Resource/influence imbalance penalty
-    const imbalance = Math.abs(slice.totalResources - slice.totalInfluence);
-    score += imbalance * currentWeights.resourceInfluenceImbalance;
-
-    // Legendaries — specific TE planets score differently
-    if (slice.legendaryNames && slice.legendaryNames.length > 0) {
-        slice.legendaryNames.forEach(name => {
-            if (name.includes('industrex')) score += currentWeights.legendaryIndustrex ?? 2.5;
-            else if (name.includes('emelpar')) score += currentWeights.legendaryEmelpar ?? 3;
-            else score += currentWeights.legendaryPlanet;
-        });
-    } else {
-        score += slice.legendaries * currentWeights.legendaryPlanet;
-    }
-
-    score += slice.techSpecialties.length * currentWeights.techSpecialty;
-
-    // Wormholes — gamma scores higher than alpha/beta/other
-    const gammaCount = slice.wormholes.filter(w => (w || '').toLowerCase() === 'gamma').length;
-    const nonGammaCount = slice.wormholes.length - gammaCount;
-    score += nonGammaCount * currentWeights.wormhole;
-    score += gammaCount * (currentWeights.gammaWormhole ?? 1.5);
-
-    // Trade station bonus
-    score += (slice.tradeStations || 0) * (currentWeights.tradeStation ?? 0.5);
-
-    // Planet type bonuses — data uses planetType (string) or planetTypes (array)
-    let industrialCount = 0;
-    let culturalCount = 0;
-    let hazardousCount = 0;
-
-    slice.systems.forEach(system => {
-        if (system.planets && Array.isArray(system.planets)) {
-            system.planets.forEach(planet => {
-                const types = [];
-                if (typeof planet.planetType === 'string' && planet.planetType) types.push(planet.planetType.toUpperCase());
-                if (Array.isArray(planet.planetTypes)) planet.planetTypes.forEach(t => { if (t) types.push(t.toUpperCase()); });
-                if (types.includes('INDUSTRIAL')) industrialCount++;
-                if (types.includes('CULTURAL'))   culturalCount++;
-                if (types.includes('HAZARDOUS'))   hazardousCount++;
-            });
-        }
-    });
-
-    score += industrialCount * currentWeights.industrial;
-    score += culturalCount * currentWeights.cultural;
-    score += hazardousCount * currentWeights.hazardous;
-
-    // Anomalies
-    slice.anomalies.forEach(anomaly => {
-        score += currentWeights[anomaly] || 0;
-    });
-
-    // Planet count penalties
-    const planetCount = slice.systems.reduce((sum, sys) => {
-        return sum + (sys.planets && Array.isArray(sys.planets) ? sys.planets.length : 0);
-    }, 0);
-    if (planetCount < 3) score += currentWeights.lowPlanetCount;
-    if (planetCount > 5) score += currentWeights.highPlanetCount;
-
-    return score;
+    return sliceScore(slice.systems || [], getWeights()).score;
 }
 
 /**
  * Balance slice scores by swapping systems between slices
  */
-async function balanceSliceScores(slices) {
+async function balanceSliceScores(editor, slices) {
     if (slices.length < 2) return; // Can't balance with less than 2 slices
 
     const maxBalancingAttempts = 500; // Reduced for better performance
@@ -1431,8 +1316,6 @@ async function balanceSliceScores(slices) {
             constraintFailures: 0,
             scoreImprovements: []
         };
-        // Store in global state
-        window.miltyDebugState.debugDetails = debugDetails;
     }
 
     console.log('Starting score balancing...');
@@ -1523,7 +1406,6 @@ async function balanceSliceScores(slices) {
             if (debugMode) {
                 debugDetails.successfulSwaps++;
                 debugDetails.swapTypes.direct++;
-                syncDebugState();
             }
 
             const newWeakScore   = calculateSliceScore(weakestSlice);
@@ -1538,7 +1420,6 @@ async function balanceSliceScores(slices) {
                     improvement: (newWeakScore - minScore) + (newStrongScore - maxScore),
                     systems: [weakSystem.id, strongSystem.id]
                 });
-                syncDebugState();
             }
         }
 
@@ -1562,7 +1443,7 @@ async function balanceSliceScores(slices) {
             // Try using unused tiles for better balancing
             if (consecutiveFailures > 30) {
                 if (debugMode) console.log('🎲 Trying unused tile swaps...');
-                swapMade = await tryUnusedTileSwaps(slices, scores);
+                swapMade = await tryUnusedTileSwaps(editor, slices, scores);
                 if (swapMade) {
                     improvementsMade++;
                     consecutiveFailures = 0;
@@ -1631,7 +1512,7 @@ async function balanceSliceScores(slices) {
     if (constraintViolations > 0) {
         console.log(`🔧 Attempting to repair ${constraintViolations} slices with constraint violations...`);
 
-        const availableSystems = getAvailableSystems();
+        const availableSystems = getAvailableSystems(editor);
         const usedSystemIds = new Set();
         slices.forEach(slice => {
             slice.systems.forEach(sys => usedSystemIds.add(sys.id));
@@ -1714,7 +1595,6 @@ function testSystemSwap(slice1, slice2, sys1Index, sys2Index, allScores, s1Globa
 
     if (debugMode) {
         debugDetails.swapAttempts++;
-        window.miltyDebugState.debugDetails = debugDetails;
     }
 
     // Create test copies
@@ -1731,7 +1611,6 @@ function testSystemSwap(slice1, slice2, sys1Index, sys2Index, allScores, s1Globa
     if (!validateSliceConstraintsRelaxed(slice1Copy) || !validateSliceConstraintsRelaxed(slice2Copy)) {
         if (debugMode) {
             debugDetails.constraintFailures++;
-            syncDebugState();
         }
         return null;
     }
@@ -2061,14 +1940,13 @@ function validateSliceConstraintsRelaxed(slice) {
 /**
  * Try swapping systems in slices with unused tiles for better balance
  */
-async function tryUnusedTileSwaps(slices, scores) {
+async function tryUnusedTileSwaps(editor, slices, scores) {
     console.log('Trying unused tile swaps for better balance...');
 
     // Get available unused systems
-    const editor = window.editor;
     if (!editor) return false;
 
-    const availableSystems = getAvailableSystems();
+    const availableSystems = getAvailableSystems(editor);
     const usedSystemIds = new Set();
 
     // Collect all currently used system IDs
@@ -2215,8 +2093,7 @@ async function tryUnusedTileSwaps(slices, scores) {
 /**
  * Place generated slices on the map
  */
-async function placeSlicesOnMap(slices) {
-    const editor = window.editor;
+async function placeSlicesOnMap(editor, slices) {
     if (!editor) throw new Error('Editor not available');
 
     console.log('Placing slices on map:', slices.length, 'slices');
@@ -2297,18 +2174,18 @@ async function placeSlicesOnMap(slices) {
     console.log('Updating overlays after slice placement');
 
     // Set overlay visibility flags properly for generated data
-    if (window.editor.showPlanetTypes === undefined) window.editor.showPlanetTypes = true;
-    if (window.editor.showResInf === undefined) window.editor.showResInf = false;
-    if (window.editor.showIdealRI === undefined) window.editor.showIdealRI = true;
-    if (window.editor.showRealID === undefined) window.editor.showRealID = true;
+    if (editor.showPlanetTypes === undefined) editor.showPlanetTypes = true;
+    if (editor.showResInf === undefined) editor.showResInf = false;
+    if (editor.showIdealRI === undefined) editor.showIdealRI = true;
+    if (editor.showRealID === undefined) editor.showRealID = true;
 
     // Update visual elements first (same as MiltyBuilderCore updateVisualElements)
-    if (typeof window.editor?.redrawAllRealIDOverlays === 'function') {
-        window.editor.redrawAllRealIDOverlays(window.editor);
+    if (typeof editor?.redrawAllRealIDOverlays === 'function') {
+        editor.redrawAllRealIDOverlays(editor);
     }
-    if (typeof window.renderSystemList === 'function') {
-        window.renderSystemList();
-    }
+    // See miltyBuilderCore: window.renderSystemList has had no assignment since the
+    // picker moved to a subscription, so this guard was never true.
+    refreshSystemList();
 
     // Import all the required modules first, then execute in sequence (same as importSlices)
     Promise.all([
@@ -2333,37 +2210,37 @@ async function placeSlicesOnMap(slices) {
         console.log('Executing comprehensive overlay redraw sequence');
 
         // Execute in the exact same order as importFullState/importSlices
-        redrawAllRealIDOverlays(window.editor);
-        drawCustomAdjacencyLayer(window.editor);
-        drawBorderAnomaliesLayer(window.editor);
-        updateEffectsVisibility(window.editor);
-        updateWormholeVisibility(window.editor);
-        updateTileImageLayer(window.editor);
+        redrawAllRealIDOverlays(editor);
+        drawCustomAdjacencyLayer(editor);
+        drawBorderAnomaliesLayer(editor);
+        updateEffectsVisibility(editor);
+        updateWormholeVisibility(editor);
+        updateTileImageLayer(editor);
 
         // Refresh system list to update filter states
         refreshSystemList();
 
         // Enforce SVG layer order to ensure planets and overlays appear correctly
-        if (window.editor?.svg) {
-            enforceSvgLayerOrder(window.editor.svg);
+        if (editor?.svg) {
+            enforceSvgLayerOrder(editor.svg);
         }
 
         // Redraw the home info overlay LAST so it sits on top of all tiles/overlays.
         // (Previously this only happened via a flaky 3s setTimeout in the UI.)
-        drawMiltyHomeOverlay(window.editor);
+        drawMiltyHomeOverlay(editor);
 
         console.log('Overlay redraw sequence complete');
     }).catch(err => {
         console.error('Could not load overlay modules:', err);
         // Fallback: try direct calls
-        if (typeof window.editor?.redrawAllRealIDOverlays === 'function') {
-            window.editor.redrawAllRealIDOverlays(window.editor);
+        if (typeof editor?.redrawAllRealIDOverlays === 'function') {
+            editor.redrawAllRealIDOverlays(editor);
         }
     });
 
     // Update border anomalies overlay if active
-    if (typeof window.editor?.redrawBorderAnomaliesOverlay === 'function') {
-        window.editor.redrawBorderAnomaliesOverlay();
+    if (typeof editor?.redrawBorderAnomaliesOverlay === 'function') {
+        editor.redrawBorderAnomaliesOverlay();
     }
 
     console.log('Slice placement complete');

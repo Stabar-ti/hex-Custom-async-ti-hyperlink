@@ -1,8 +1,8 @@
-import { showPopup, hidePopup, resetAllPopupPositions } from './popupUI.js';
+import { showPopup, hidePopup } from './popupUI.js';
 import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
-import { toggleTheme } from './uiTheme.js';
 import { checkRealIdUniqueness, generateSanityCheckSummary } from '../features/sanityCheck.js';
 import { setupHexHoverInfo } from './HexHoverInfo2.js';
+import { showAnchoredPanel } from './dropdownMenu.js';
 
 export function showOptionsPopup(editor) {
     // Build content dynamically, reflecting current editor options
@@ -27,7 +27,7 @@ export function showOptionsPopup(editor) {
           Enable Rift chaining
         </label><br>
         <label>
-          <input type="checkbox" id="toggleCustomLinks" ${editor.options.useCustomLinks ? 'checked' : ''}>
+          <input type="checkbox" id="distUseCustomLinks" ${editor.options.useCustomLinks ? 'checked' : ''}>
           Use Custom Links
         </label><br>
         <label>
@@ -39,7 +39,7 @@ export function showOptionsPopup(editor) {
           Use Adjacency Overrides
         </label><br>
         <label>
-          <input type="checkbox" id="toggleBorderAnomalies" ${editor.options.useBorderAnomalies ? 'checked' : ''}>
+          <input type="checkbox" id="distUseBorderAnomalies" ${editor.options.useBorderAnomalies ? 'checked' : ''}>
           Use Border Anomalies
         </label><br>
         <br>
@@ -50,66 +50,66 @@ export function showOptionsPopup(editor) {
       </div>
     `;
 
-    showPopup({
+    // Save/Close were popup actions in a titlebar footer. As an anchored panel the
+    // buttons belong in the content.
+    const actions = document.createElement('div');
+    actions.className = 'tb-menu__actions';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'mode-button ui-btn';
+    saveBtn.textContent = 'Save';
+    saveBtn.onclick = () => {
+        const read = (sel) => wrapper.querySelector(sel);
+        editor.options.useSupernova = !!read('#toggleSupernova').checked;
+        editor.options.useAsteroid = !!read('#toggleAsteroid').checked;
+        editor.options.useNebula = !!read('#toggleNebula').checked;
+        editor.options.useRift = !!read('#toggleRift').checked;
+        editor.options.useCustomLinks = !!read('#distUseCustomLinks').checked;
+        editor.options.useWormholes = !!read('#toggleUseWormholes').checked;
+        editor.options.useAdjacencyOverrides = !!read('#toggleAdjacencyOverrides').checked;
+        editor.options.useBorderAnomalies = !!read('#distUseBorderAnomalies').checked;
+
+        // Clamp max distance between 1 and 10
+        const maxDistInp = read('#maxDistanceInput');
+        let md = parseInt(maxDistInp.value, 10);
+        if (isNaN(md) || md < 1) md = 1;
+        if (md > 10) md = 10;
+        editor.maxDistance = md;
+        maxDistInp.value = md;
+
+        hidePopup('options-popup');
+    };
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'mode-button ui-btn';
+    closeBtn.textContent = 'Close';
+    closeBtn.onclick = () => hidePopup('options-popup');
+
+    actions.append(saveBtn, closeBtn);
+    wrapper.appendChild(actions);
+
+    // Hangs off whichever button is actually on screen: Distance Options lives inside the
+    // Analyse menu, and that menu closes as you choose an item — so anchoring to the item
+    // itself would anchor to something no longer visible.
+    const anchorId = document.getElementById('analyseMenuBtn') ? 'analyseMenuBtn' : 'optionsBtn';
+
+    showAnchoredPanel({
         id: 'options-popup',
+        anchorId,
+        title: 'Distance Options',
         className: 'options-popup',
         content: wrapper,
-        actions: [
-            {
-                label: 'Save',
-                action: () => {
-                    // Save logic
-                    const supernovaCB = wrapper.querySelector('#toggleSupernova');
-                    const asteroidCB = wrapper.querySelector('#toggleAsteroid');
-                    const nebulaCB = wrapper.querySelector('#toggleNebula');
-                    const riftCB = wrapper.querySelector('#toggleRift');
-                    const customLinksCB = wrapper.querySelector('#toggleCustomLinks');
-                    const wormholesCB = wrapper.querySelector('#toggleUseWormholes');
-                    const adjOverridesCB = wrapper.querySelector('#toggleAdjacencyOverrides');
-                    const borderAnomaliesCB = wrapper.querySelector('#toggleBorderAnomalies');
-                    const maxDistInp = wrapper.querySelector('#maxDistanceInput');
-
-                    editor.options.useSupernova = !!supernovaCB.checked;
-                    editor.options.useAsteroid = !!asteroidCB.checked;
-                    editor.options.useNebula = !!nebulaCB.checked;
-                    editor.options.useRift = !!riftCB.checked;
-                    editor.options.useCustomLinks = !!customLinksCB.checked;
-                    editor.options.useWormholes = !!wormholesCB.checked;
-                    editor.options.useAdjacencyOverrides = !!adjOverridesCB.checked;
-                    editor.options.useBorderAnomalies = !!borderAnomaliesCB.checked;
-
-                    // Clamp max distance between 1 and 10
-                    let md = parseInt(maxDistInp.value, 10);
-                    if (isNaN(md) || md < 1) md = 1;
-                    if (md > 10) md = 10;
-                    editor.maxDistance = md;
-                    maxDistInp.value = md;
-
-                    hidePopup('options-popup');
-                }
-            },
-            { label: 'Close', action: () => hidePopup('options-popup') }
-        ],
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        modal: false,
-        title: 'Distance Calculator Options',
-        style: {
-            minWidth: '340px',
-            borderRadius: '12px',
-            zIndex: 10010
-        },
-        showHelp: false
     });
 }
 
-export function showOverlayOptionsPopup() {
+export function showOverlayOptionsPopup(editor) {
     // Build content for overlay options
     const wrapper = document.createElement('div');
     wrapper.innerHTML = `
-      <li><strong>IMPORTANT </strong> In rare occasions the visual ques on the buttons get flipped </li>
+      <div class="overlay-note">If a button ever looks like the opposite of what the map is
+      showing, press it twice — a couple of overlays could get out of step with their button.</div>
       <div class="popup-section-label">System Wide</div>
       <div class="popup-btn-grid">
         <button id="toggleTileImagesBtn" class="mode-button">Show Tile Images</button>
@@ -126,16 +126,19 @@ export function showOverlayOptionsPopup() {
         <button id="toggleLore" class="mode-button">Lore Indicators</button>
         <button id="toggleTokens" class="mode-button">Token Indicators</button>
       </div>
-      <div class="popup-section-label">Tile Information</div>
+      <div class="popup-section-label">Connections</div>
       <div class="popup-btn-grid">
         <button id="toggleBorderAnomalies" class="mode-button">Border Anomalies Overlay</button>
         <button id="toggleCustomLinks" class="mode-button">Custom Links Overlay</button>
-        <button id="linkWormholesBtn" class="mode-button">Link Wormholes</button>
       </div>
       <div class="popup-section-label">Value Overlays</div>
       <div class="popup-btn-grid">
         <button id="toggleValueTargetLayer" class="mode-button">Value Hints (V·R·I·T)</button>
         <button id="toggleValueOverlay" class="mode-button">Value Tiers (T1–T5)</button>
+      </div>
+      <div class="popup-section-label">Actions</div>
+      <div class="popup-btn-grid">
+        <button id="linkWormholesBtn" class="mode-button">Link Wormholes</button>
       </div>
     `;
 
@@ -145,28 +148,16 @@ export function showOverlayOptionsPopup() {
     // Remove any existing popup with the same id before showing a new one
     hidePopup('overlayOptionsPopup');
 
-    showPopup({
+    // A ▾ promises a menu. This was a draggable popup that reopened wherever it had last
+    // been dragged to — frequently nowhere near the button that opened it.
+    showAnchoredPanel({
         id: 'overlayOptionsPopup',
-        className: 'layout-options-popup',
+        anchorId: 'overlayToggleBtn',
         title: 'Toggle Overlays',
         content: wrapper,
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        style: {
-            left: '360px',
-            top: '86px',
-            minWidth: '240px',
-            // background and color intentionally omitted to allow CSS to apply
-            border: '2px solid var(--popup-border-layout)',
-            boxShadow: '0 8px 40px #000a',
-            zIndex: 1200
-        }
     });
 
     setTimeout(() => {
-        const editor = window.editor;
         if (!editor) return;
 
         // Helper to toggle and update .active
@@ -186,10 +177,9 @@ export function showOverlayOptionsPopup() {
                 }
                 // Special handling for custom links: call redraw after toggle
                 if (btnId === 'toggleCustomLinks') {
-                    editor.showCustomAdjacency = !editor.showCustomAdjacency;
-                    btn.classList.toggle('active', editor.showCustomAdjacency);
                     import('../features/customLinksOverlay.js').then(({ toggleCustomLinksOverlay }) => {
-                        toggleCustomLinksOverlay(editor);
+                        toggleCustomLinksOverlay(editor);   // owns showCustomAdjacency
+                        btn.classList.toggle('active', !!editor.showCustomAdjacency);
                     });
                     return;
                 }
@@ -300,15 +290,26 @@ export function showOverlayOptionsPopup() {
         if (voBtn) {
             const active = () => !!editor.svg?.querySelector('#valueOverlayLayer');
             voBtn.classList.toggle('active', active());
+
+            // The twin switch is in the Balance panel; follow it rather than keeping our own idea
+            // of the state. Self-removing for the same reason as there.
+            import('../features/valueOverlay.js').then(({ VALUE_OVERLAY_CHANGED }) => {
+                const onChange = () => {
+                    if (!voBtn.isConnected) {
+                        document.removeEventListener(VALUE_OVERLAY_CHANGED, onChange);
+                        return;
+                    }
+                    voBtn.classList.toggle('active', active());
+                };
+                document.addEventListener(VALUE_OVERLAY_CHANGED, onChange);
+            }).catch(console.error);
             voBtn.onclick = () => {
                 import('../features/valueOverlay.js').then(({ drawValueOverlay, clearValueOverlay, isValueOverlayActive }) => {
-                    if (isValueOverlayActive(editor)) {
-                        clearValueOverlay(editor);
-                        voBtn.classList.remove('active');
-                    } else {
-                        drawValueOverlay(editor, false, false, false);
-                        voBtn.classList.add('active');
-                    }
+                    if (isValueOverlayActive(editor)) clearValueOverlay(editor);
+                    else drawValueOverlay(editor, false, false, false);
+                    // Read the layer back rather than assuming: with nothing on the map to
+                    // tier, drawValueOverlay draws nothing and the overlay is still off.
+                    voBtn.classList.toggle('active', active());
                 }).catch(console.error);
             };
         }
@@ -337,109 +338,14 @@ export function showOverlayOptionsPopup() {
     }, 0);
 }
 
-export function showLayoutOptionsPopup() {
-    // Sector Controls and Draw Helpers exist only in index.html's static #layoutOptionsPopup
-    // markup, which showPopup() removes before the handler-binding setTimeout below runs —
-    // so both buttons vanished from this menu and their handlers never bound. They live in
-    // the wrapper now, where they are actually part of the popup being shown.
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = `
-      <div class="popup-section-label">General</div>
-      <div class="popup-btn-grid">
-        <button id="toggleControlsBtn" class="mode-button">Im/Export & map generation</button>
-        <button id="arrangeBtn" class="mode-button">Arrange Controls</button>
-        <button id="sectorControlsBtn" class="mode-button">Sector Controls</button>
-        <button id="drawHelpersBtn" class="mode-button">Draw Helpers</button>
-      </div>
-      <div class="popup-section-label">Theme</div>
-      <div class="popup-btn-grid">
-        <button id="themeToggle" class="mode-button">Toggle Dark Mode</button>
-        <button id="resetPopupPositionsBtn" class="mode-button">Reset Popup Positions</button>
-      </div>
-    `;
+// Layout Options lived here. Every entry in it turned out to be a second way to do
+// something that already had a first: "Im/Export & map generation" opened the File menu
+// that the File button opens, "Sector Controls" collapsed the rail that has its own
+// collapse button, "Arrange Controls" cycled CSS classes on an empty div and had done
+// nothing for a long time, and the theme toggle and the popup-position reset are both
+// moot now that the app is dark-only and popups are anchored rather than remembered.
 
-    showPopup({
-        id: 'layoutOptionsPopup',
-        className: 'layout-options-popup',
-        title: 'Layout Options',
-        content: wrapper,
-        draggable: true,
-        dragHandleSelector: '.popup-ui-titlebar',
-        scalable: true,
-        rememberPosition: true,
-        style: {
-            left: '200px',
-            top: '80px',
-            minWidth: '240px',
-            // background and color intentionally omitted to allow CSS to apply
-            border: '2px solid var(--popup-border-layout)',
-            boxShadow: '0 8px 40px #000a',
-            zIndex: 1200
-        }
-    });
-
-    setTimeout(() => {
-        // Im/Export & map generation panel toggle
-        const controlsBtn = document.getElementById('toggleControlsBtn');
-        if (controlsBtn) {
-            controlsBtn.onclick = () => {
-                const controlsPanel = document.getElementById('controlsPanel');
-                if (controlsPanel) {
-                    controlsPanel.classList.toggle('collapsed');
-                }
-            };
-        }
-        // Arrange Controls
-        const arrangeBtn = document.getElementById('arrangeBtn');
-        if (arrangeBtn) {
-            arrangeBtn.onclick = () => {
-                const editor = window.editor;
-                if (editor && typeof editor.cycleControlPanelPosition === 'function') {
-                    editor.cycleControlPanelPosition();
-                }
-            };
-        }
-        // Theme toggle
-        const themeBtn = document.getElementById('themeToggle');
-        if (themeBtn) {
-            themeBtn.onclick = () => toggleTheme();
-        }
-        // Sector Controls
-        const sectorControlsBtn = document.getElementById('sectorControlsBtn');
-        if (sectorControlsBtn) {
-            sectorControlsBtn.onclick = () => {
-                // Import the sector controls function and open the popup
-                import('./uisectorControls.js').then(module => {
-                    if (window.editor && typeof module.openSectorControlsPopup === 'function') {
-                        module.openSectorControlsPopup(window.editor);
-                    }
-                });
-            };
-        }
-        // Draw Helpers — opens the one real implementation. This used to inline its own
-        // ~160-line copy of the popup that had drifted well behind uisectorControls.js
-        // (no value hints at all), and which never ran because the button it bound to was
-        // removed from the DOM by showPopup before this handler could find it.
-        const drawHelpersBtn = document.getElementById('drawHelpersBtn');
-        if (drawHelpersBtn) {
-            drawHelpersBtn.onclick = () => {
-                import('./uisectorControls.js').then(module => {
-                    if (window.editor) module.openDrawHelpersPopup(window.editor, { launcher: drawHelpersBtn });
-                }).catch(err => console.error('Failed to load Draw Helpers:', err));
-            };
-        }
-        // Reset popup positions
-        const resetBtn = document.getElementById('resetPopupPositionsBtn');
-        if (resetBtn) {
-            resetBtn.onclick = () => {
-                resetAllPopupPositions();
-                alert('All popup positions have been reset. Please reopen your popups.');
-            };
-        }
-    }, 0);
-}
-
-export function showSanityCheckPopup() {
+export function showSanityCheckPopup(editor) {
     // Build content for sanity check
     const wrapper = document.createElement('div');
     wrapper.innerHTML = `
@@ -485,8 +391,7 @@ export function showSanityCheckPopup() {
         style: {
             minWidth: '500px',
             maxWidth: '700px',
-            borderRadius: '12px',
-            zIndex: 10010
+            borderRadius: '12px'
         },
         showHelp: false
     });
@@ -529,7 +434,7 @@ export function showSanityCheckPopup() {
                 resultsDiv.innerHTML = '<p style="color: #fff;">Running check...</p>';
 
                 try {
-                    const results = checkRealIdUniqueness(planetsOnly, checkAll);
+                    const results = checkRealIdUniqueness(editor, planetsOnly, checkAll);
                     const summary = generateSanityCheckSummary(results, planetsOnly, checkAll);
                     resultsDiv.innerHTML = summary;
                 } catch (error) {

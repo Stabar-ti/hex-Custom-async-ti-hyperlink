@@ -5,22 +5,19 @@
 // for better separation of concerns. This module now focuses on popup content
 // and business logic while delegating UI element creation to the UI module.
 
-import { showPopup } from '../../ui/popupUI.js';
-import { wormholeTypes, planetTypeColors, techSpecialtyColors } from '../../constants/constants.js';
+import { showPopup, raisePopup } from '../../ui/popupUI.js';
 import { slotPositions, capitalizeTech, generateOutputString } from './miltyBuilderCore.js';
 
 // Show output copy popup with generated string and analysis
-export function showOutputCopyPopup() {
-    window.showOutputCopyPopup = showOutputCopyPopup;
-
-    const { outputString, completedSlots, totalSlices } = generateOutputString();
+export function showOutputCopyPopup(editor) {
+    const { outputString, sliceDetails, totalSlices } = generateOutputString(editor);
 
     // Import UI helpers from the UI module
     import('./miltyBuilderUI.js').then(uiModule => {
         const { createOutputDisplayContainer, createCopyToClipboardAction } = uiModule;
 
         // Create container for the popup content using UI helper
-        const container = createOutputDisplayContainer({ outputString, completedSlots, totalSlices });
+        const container = createOutputDisplayContainer({ outputString, sliceDetails, totalSlices });
 
         // Help function for the popup
         function outputHelpFunction() {
@@ -31,7 +28,7 @@ export function showOutputCopyPopup() {
         const copyAction = createCopyToClipboardAction(outputString);
 
         // Show the popup using PopupUI
-        const popup = showPopup({
+        showPopup({
             content: container,
             actions: totalSlices > 0 ? [copyAction] : [],
             title: 'Draft Output Copy',
@@ -55,13 +52,12 @@ export function showOutputCopyPopup() {
 }
 
 // Show draft values analysis popup
-export function showDraftValuesPopup(forceRefresh = false) {
-    window.showDraftValuesPopup = showDraftValuesPopup;
-
+export function showDraftValuesPopup(editor, forceRefresh = false) {
     // If popup already exists and not forceRefresh, just bring to front
     let popup = document.getElementById('milty-draft-values-popup');
     if (popup && !forceRefresh) {
-        popup.style.zIndex = 10001;
+        // A fixed 10001 put it beneath every other popup, which sit above that.
+        raisePopup(popup);
         return popup;
     }
     // Remove old popup if forceRefresh
@@ -71,7 +67,7 @@ export function showDraftValuesPopup(forceRefresh = false) {
 
     // Create a container for the analysis
     const container = document.createElement('div');
-    renderDraftValuesAnalysis(container);
+    renderDraftValuesAnalysis(editor, container);
 
     // Help function for the popup
     function draftValuesHelpFunction() {
@@ -100,7 +96,7 @@ export function showDraftValuesPopup(forceRefresh = false) {
 }
 
 // Function to render draft values analysis
-function renderDraftValuesAnalysis(container) {
+function renderDraftValuesAnalysis(editor, container) {
     // Import UI helpers and render using them
     import('./miltyBuilderUI.js').then(uiModule => {
         const {
@@ -110,7 +106,7 @@ function renderDraftValuesAnalysis(container) {
         } = uiModule;
 
         // Create the analysis container and table structure
-        const analysisData = createDraftValuesAnalysisContainer();
+        const analysisData = createDraftValuesAnalysisContainer(editor);
 
         // Clear and replace container content
         container.innerHTML = '';
@@ -135,7 +131,7 @@ function renderDraftValuesAnalysis(container) {
                 const sliceHexes = [];
                 for (let i = 1; i < slotHexes.length; i++) {
                     const hexId = slotHexes[i];
-                    const hex = window.editor?.hexes?.[hexId];
+                    const hex = editor?.hexes?.[hexId];
                     if (hex) {
                         sliceHexes.push({ ...hex, label: hexId });
                     }
@@ -258,9 +254,7 @@ function renderDraftValuesAnalysis(container) {
 }
 
 // Show import slices popup
-export function showImportSlicesPopup() {
-    window.showImportSlicesPopup = showImportSlicesPopup;
-
+export function showImportSlicesPopup(editor) {
     // Import UI helpers from the UI module
     import('./miltyBuilderUI.js').then(uiModule => {
         const {
@@ -353,7 +347,7 @@ Example:
             importButton.style.background = '#6c757d';
 
             // Handle the import process
-            handleSliceImport(slicesData, clearExisting,
+            handleSliceImport(editor, slicesData, clearExisting,
                 (msg) => console.log('Import status:', msg),
                 (success) => {
                     if (!success) {

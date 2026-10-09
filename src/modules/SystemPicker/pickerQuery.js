@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The picker's search language: parsing, matching, ranking, highlighting, sorting.
  *
@@ -258,6 +259,12 @@ export const SORTABLE_COLUMNS = COLUMNS.filter(c => c.key !== 'tile').map(c => c
  * Sorts by column. Unknown columns return the list unchanged rather than throwing, and
  * ties fall back to the original index so the order never depends on object identity —
  * a re-render of the same result set must not shuffle rows under the user's cursor.
+ *
+ * @param {Array} list
+ * @param {string} column
+ * @param {string} [direction] - 'desc' reverses; anything else sorts ascending
+ * @param {object} [opts]
+ * @param {Function} [opts.isUsed] - tells the `used` column which tiles are already placed
  */
 export function sortSystems(list, column, direction, { isUsed } = {}) {
     if (!column) return list.slice();

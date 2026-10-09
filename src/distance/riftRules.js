@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Gravity rift movement rules.
  *
@@ -132,8 +133,12 @@ export function riftOneStepOut(ctx, state, effectiveMaxDist) {
 /**
  * When the source is itself a rift the search runs one layer deeper; pull every
  * non-zero answer back down by one to compensate.
+ *
+ * @param {Map<string, number>} visited
+ * @returns {Record<string, number>}
  */
 export function applyRiftSourceShift(visited) {
+  /** @type {Record<string, number>} */
   const shifted = {};
   for (const [label, d] of visited) {
     shifted[label] = d === 0 ? 0 : Math.max(1, d - 1);

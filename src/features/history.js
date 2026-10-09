@@ -19,19 +19,42 @@
 //   editor.undo() / editor.redo()  — restore previous/next state
 //   editor._historyLocked          — set externally (import, automapper) to suppress saves
 //
-// Original file preserved at: src/features/history_original.js
+// The pre-refactor full-map-snapshot version is in git history (see: git log -- src/features/history_original.js).
 // ───────────────────────────────────────────────────────────────
 
 import { clearAllEffects, applyEffectToHex } from './effects.js';
-import { toggleWormhole, updateHexWormholes } from './wormholes.js';
+import { updateHexWormholes, redrawWormholeOverlays, removeWormholeOverlay } from './wormholes.js';
 import { drawMatrixLinks } from './hyperlanes.js';
 import { redrawAllRealIDOverlays } from './realIDsOverlays.js';
+import { updateTileImageLayer } from './imageSystemsOverlay.js';
+import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 import { markRealIDUsed, unmarkRealIDUsed, refreshSystemList } from '../ui/uiFilters.js';
 
 const HISTORY_LIMIT = 20;
 const verbose = false;
+
+/**
+ * Fired whenever the undo or redo stack changes, carrying whether each is now possible.
+ *
+ * Undo and redo had no buttons at all — Ctrl+Z and Ctrl+Shift+Z were the only way to reach
+ * them, and Ctrl+Y was never bound despite being what half of Windows expects. Buttons need
+ * to know when they are live, and polling two array lengths on a timer to find out would be
+ * worse than saying so here.
+ */
+export const HISTORY_CHANGED = 'ti4:history-changed';
+
+/** @param {any} editor */
+function announceHistoryChange(editor) {
+    if (typeof document === 'undefined') return;   // imported under node by the tests
+    document.dispatchEvent(new CustomEvent(HISTORY_CHANGED, {
+        detail: {
+            canUndo: (editor.undoStack?.length || 0) > 0,
+            canRedo: (editor.redoStack?.length || 0) > 0,
+        },
+    }));
+}
 
 /**
  * Attaches undo/redo history to the editor instance.
@@ -67,6 +90,7 @@ export function initHistory(editor) {
             if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
             this.redoStack = [];
             if (verbose) console.log('[history] snap:', label);
+            announceHistoryChange(this);
         }
     };
 
@@ -98,6 +122,7 @@ export function initHistory(editor) {
             if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
             this.redoStack = [];
             if (verbose) console.log('[history] commitUndoGroup, hexes:', currentGroup.length);
+            announceHistoryChange(this);
         }
         currentGroup = null;
     };
@@ -139,6 +164,9 @@ export function initHistory(editor) {
             }
         } finally {
             this._historyLocked = false;
+            // The stacks have already moved, so say so even if a restore threw — otherwise
+            // the buttons and the session autosave keep the state from before the press.
+            announceHistoryChange(this);
         }
 
         _rebuildOverlays(this);
@@ -169,6 +197,7 @@ export function initHistory(editor) {
             }
         } finally {
             this._historyLocked = false;
+            announceHistoryChange(this);
         }
 
         _rebuildOverlays(this);
@@ -221,8 +250,10 @@ export function initHistory(editor) {
         // 1. Tear down existing visual state
         this.deleteAllSegments(snap.id);
         clearAllEffects(this, snap.id);
-        hex.wormholeOverlays?.forEach(o => this.svg?.removeChild(o));
-        hex.wormholeOverlays = [];
+        // Not svg.removeChild: icons live in #wormholeIconLayer whenever the map was built by
+        // generateMap, and removing them from the svg threw NotFoundError. That aborted the
+        // undo halfway — hex unrestored, icon left on screen, buttons never resynced.
+        removeWormholeOverlay(this, snap.id);
 
         // 2. Update realID filter tags before changing realId
         if (hex.realId && hex.realId !== snap.realId) unmarkRealIDUsed(hex.realId);
@@ -251,9 +282,10 @@ export function initHistory(editor) {
         hex.inherentWormholes = new Set(snap.inherentWormholes || []);
         hex.customWormholes   = new Set(snap.customWormholes   || []);
         updateHexWormholes(hex);
-        for (const w of hex.customWormholes) {
-            toggleWormhole(this, snap.id, w);
-        }
+        // Draw rather than toggleWormhole: toggling a wormhole the snapshot already holds
+        // removes it, so restoring a hex with a custom wormhole used to drop it — and inherent
+        // wormholes were never redrawn at all.
+        redrawWormholeOverlays(this, snap.id);
 
         // 5. Restore token state
         hex.systemTokens = snap.systemTokens ? [...snap.systemTokens] : [];
@@ -281,10 +313,15 @@ export function initHistory(editor) {
 // ── Rebuild all visual overlays after undo/redo ───────────────────
 function _rebuildOverlays(editor) {
     redrawAllRealIDOverlays(editor);
+    // A restored system needs its tile image back, and an undone clear needs its image
+    // gone. The redraw above also appends the planet-type and R/I layers at the top of the
+    // svg, over the images, so the order is put back after it.
+    updateTileImageLayer(editor);
     drawCustomAdjacencyLayer(editor);
     drawBorderAnomaliesLayer(editor);
     editor.tokenOverlay?.refresh();
     editor.loreOverlay?.refresh();
+    enforceSvgLayerOrder(editor.svg);
     refreshSystemList();
     // Refresh value-target badges and value overlay if active
     import('./valueOverlay.js').then(({ drawValueTargetLayer, drawValueOverlay, getFactors, isValueOverlayActive }) => {

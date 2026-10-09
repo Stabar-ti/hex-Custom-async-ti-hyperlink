@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Option resolution for the distance engine.
  *

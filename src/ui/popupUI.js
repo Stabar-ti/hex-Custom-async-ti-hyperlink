@@ -2,6 +2,62 @@
 // General-purpose popup UI module for consistent popups across the site
 
 /**
+ * A popup's onClose, keyed by its element.
+ *
+ * onClose used to be wired to the × button alone, so every other way a popup goes away
+ * skipped it: hidePopup, the system picker's own Escape key, and showPopup rebuilding a
+ * popup under an id that is already on screen. Only two popups pass one, and both do real
+ * work in it — the Lore editor commits unsaved edits, so closing it any other way lost
+ * them, and the picker unsubscribes from two stores and destroys three views, so every
+ * reopen leaked a set.
+ */
+const closeHandlers = new WeakMap();
+
+/**
+ * A layer token from shell.css, as a number.
+ *
+ * @param {string} name      e.g. '--layer-popup'
+ * @param {number} fallback  its value there, for a document without the stylesheet
+ */
+function layer(name, fallback) {
+    const value = parseInt(getComputedStyle(document.documentElement).getPropertyValue(name), 10);
+    return Number.isFinite(value) ? value : fallback;
+}
+
+/** @param {Element} el */
+function zOf(el) {
+    return parseInt(window.getComputedStyle(el).zIndex, 10) || 0;
+}
+
+/**
+ * Put a popup on top of the others on screen.
+ *
+ * Popups are the band from --layer-popup up to just under --layer-menu. The whole stack
+ * is renumbered from the bottom of the band, in its current order with this one moved to
+ * the end, so z-indexes stay inside the band, one step per popup open.
+ *
+ * Raising used to set the highest value plus one on every press inside any popup, the top
+ * one included, so the numbers only ever went up while a popup stayed open. A few dozen
+ * clicks took popups past the lore effect picker that opens over them, and nothing
+ * stopped them short of the ceiling browsers clamp to (2^31 − 1). The band has a hundred
+ * steps; the stack would have to hold a hundred popups at once to reach its top, and past
+ * that the highest ones share it rather than climbing into the menus.
+ *
+ * @param {HTMLElement} popup
+ */
+export function raisePopup(popup) {
+    const base = layer('--layer-popup', 200);
+    const top = layer('--layer-menu', 300) - 1;
+    const stack = [...document.querySelectorAll('.popup-ui')]
+        .filter(p => p !== popup)
+        .sort((a, b) => zOf(a) - zOf(b));   // stable, so ties keep document order
+    stack.push(popup);
+    stack.forEach((p, i) => {
+        /** @type {HTMLElement} */ (p).style.zIndex = String(Math.min(base + i, top));
+    });
+}
+
+/**
  * Show a popup with flexible content and options.
  * @param {Object} config - Popup configuration object.
  * @param {string|HTMLElement} config.content - HTML string or DOM node for the popup body.
@@ -15,6 +71,11 @@
  * @param {function} [config.onClose] - Called when popup is closed.
  * @param {HTMLElement} [config.parent] - Parent element to attach popup to.
  * @param {Object} [config.style] - Inline style overrides.
+ * @param {boolean} [config.rememberPosition] - Reopen where it was last dragged to (needs an id).
+ * @param {boolean} [config.showHelp] - Show a ? button in the title bar.
+ * @param {function} [config.onHelp] - What the ? button opens.
+ * @param {string} [config.title] - Title bar text.
+ * @param {HTMLElement|null} [config.confineTo] - Keep the popup inside this element while dragging.
  * @returns {HTMLElement} The popup element.
  */
 export function showPopup({
@@ -35,18 +96,17 @@ export function showPopup({
     title = '',
     confineTo = null
 }) {
-    // Remove any existing popup with the same id
-    if (id) {
-        const old = document.getElementById(id);
-        if (old) old.remove();
-    }
+    // Remove any existing popup with the same id — through hidePopup, so the one being
+    // replaced gets to tear itself down.
+    if (id) hidePopup(id);
     // Create popup container
     const popup = document.createElement('div');
     popup.className = 'popup-ui' + (className ? ' ' + className : '');
     if (id) popup.id = id;
+    if (typeof onClose === 'function') closeHandlers.set(popup, onClose);
 
-    // Set initial z-index and make focusable
-    popup.style.zIndex = '1000';
+    // Make focusable. Its z-index is the stack's: raisePopup numbers it once it is in the
+    // document, and a zIndex in `style` is overwritten there.
     popup.tabIndex = -1; // Make focusable but not in tab order
     popup.style.outline = 'none'; // Remove focus outline for cleaner appearance
 
@@ -59,17 +119,28 @@ export function showPopup({
     popup.style.maxWidth = '';
     popup.style.minHeight = '';
     popup.style.maxHeight = '';
-    // Do NOT set min/max width/height from style object at all
-    // Only apply style properties that are not background or color
+    // Do NOT set min/max width/height from style object at all.
+    //
+    // border and borderRadius are filtered out for a reason of their own. Every caller
+    // wrote its own chrome inline — "2px solid var(--popup-border-lore)", a 16px radius —
+    // so the popups were a set of thick coloured rings with nothing in common, next to a
+    // tool rail of 1px edges and 4px corners. The colour was carrying something real
+    // (which tool a window belongs to), so it is kept, as a custom property the stylesheet
+    // draws as a thin top edge rather than a ring. Everything else about the frame now
+    // lives in one CSS rule instead of forty call sites.
+    const FRAME_KEYS = new Set(['border', 'borderRadius', 'boxShadow']);
+    const SKIP_KEYS = new Set([
+        'background', 'backgroundColor', 'color',
+        'minWidth', 'maxWidth', 'minHeight', 'maxHeight', 'padding',
+    ]);
     if (style) {
         for (const [key, value] of Object.entries(style)) {
-            if (key !== 'background' && key !== 'backgroundColor' && key !== 'color' && key !== 'minWidth' && key !== 'maxWidth' && key !== 'minHeight' && key !== 'maxHeight' && key !== 'padding') {
-                popup.style[key] = value;
-            }
+            if (SKIP_KEYS.has(key) || FRAME_KEYS.has(key)) continue;
+            popup.style[key] = value;
         }
+        const accent = extractBorderColour(style.border);
+        if (accent) popup.style.setProperty('--popup-accent', accent);
     }
-    // Always apply rounded corners to all popups
-    popup.style.borderRadius = style.borderRadius || '16px';
     // Debug: log popup style before DOM append
     //console.log('Popup style before append:', popup.style.cssText);
 
@@ -189,10 +260,7 @@ export function showPopup({
         closeBtn.style.justifyContent = 'center';
         closeBtn.style.borderRadius = '0'; // Force square appearance
         closeBtn.style.border = '1px solid #666'; // Consistent border
-        closeBtn.onclick = () => {
-            hidePopup(popup);
-            if (typeof onClose === 'function') onClose();
-        };
+        closeBtn.onclick = () => hidePopup(popup);
         // --- NEW: Help button ---
         if (showHelp) {
             const helpBtn = document.createElement('button');
@@ -213,12 +281,29 @@ export function showPopup({
             helpBtn.style.justifyContent = 'center';
             helpBtn.style.borderRadius = '0'; // Force square appearance
             helpBtn.style.border = '1px solid var(--popup-border-special)'; // Consistent border
-            helpBtn.onclick = () => {
-                if (typeof onHelp === 'function') {
-                    onHelp();
-                } else {
+            // The ? stays on screen while the help it opened is up, so a second press has to
+            // put it away. There is no single help id to watch — every popup's onHelp opens
+            // its own — so the button holds on to whichever popup that call produced: the one
+            // it returned, or failing that the one that appeared while it ran. Handlers that
+            // do neither simply reopen, which is what all of them did before.
+            /** @type {HTMLElement|null} */
+            let helpShown = null;
+            helpBtn.onclick = async () => {
+                if (typeof onHelp !== 'function') {
                     console.warn('Help button clicked but onHelp is not a function:', typeof onHelp, onHelp);
+                    return;
                 }
+                if (helpShown && helpShown.isConnected) {
+                    hidePopup(helpShown);
+                    helpShown = null;
+                    return;
+                }
+                const before = new Set(document.querySelectorAll('.popup-ui'));
+                // Awaited because one of them loads its module first.
+                const returned = await onHelp();
+                helpShown = returned instanceof HTMLElement
+                    ? returned
+                    : [...document.querySelectorAll('.popup-ui')].find(p => !before.has(p)) || null;
             };
             titleBar.appendChild(helpBtn);
         }
@@ -346,39 +431,88 @@ export function showPopup({
     // Add to DOM
     (parent || document.body).appendChild(popup);
 
-    /** Raise this popup above every other .popup-ui currently on screen. */
-    function bringToFront() {
-        let maxZ = 1000;
-        document.querySelectorAll('.popup-ui').forEach(p => {
-            const z = parseInt(window.getComputedStyle(p).zIndex) || 1000;
-            if (z > maxZ) maxZ = z;
-        });
-        popup.style.zIndex = maxZ + 1;
-    }
-
     // A popup that just opened belongs on top. Without this it keeps whatever z-index
     // its config asked for, while any popup the user has clicked has already been raised
     // above that by the handler below — so opening a second popup could put it behind the
     // first, with its close button unreachable.
-    bringToFront();
+    raisePopup(popup);
 
     // Click to focus - bring popup to front when clicked
     popup.addEventListener('mousedown', function (e) {
-        bringToFront();
+        raisePopup(popup);
         // Focus the popup for keyboard accessibility
         popup.focus();
     });
 
-    // Debug: log popup bounding rect and child count after append
-    setTimeout(() => {
-        const rect = popup.getBoundingClientRect();
-        //   console.log('Popup bounding rect after append:', rect);
-        //   console.log('Popup child node count:', popup.childNodes.length);
-    }, 0);
-
     // Focus for accessibility
     setTimeout(() => popup.focus?.(), 0);
     return popup;
+}
+
+/**
+ * Run `fn` when this element is taken down through hidePopup.
+ *
+ * showAnchoredPanel builds its element directly rather than through showPopup, so it had
+ * no way into the teardown that hidePopup fires — and togglePopup, which closes a menu on
+ * a second press, goes through hidePopup. The result was a menu that closed while its
+ * button stayed lit.
+ *
+ * @param {HTMLElement} el
+ * @param {() => void} fn
+ */
+export function onPopupClose(el, fn) {
+    if (el && typeof fn === 'function') closeHandlers.set(el, fn);
+}
+
+/**
+ * Pull the colour out of a CSS border shorthand.
+ *
+ * Callers write "2px solid var(--popup-border-lore)" or "2px solid #e32b2b". Only the
+ * colour is kept — the width and style are the stylesheet's business now.
+ *
+ * @param {string|undefined} border
+ * @returns {string|null}
+ */
+function extractBorderColour(border) {
+    if (typeof border !== 'string') return null;
+    const varMatch = border.match(/var\(\s*(--[\w-]+)\s*\)/);
+    if (varMatch) return `var(${varMatch[1]})`;
+    const hexMatch = border.match(/#[0-9a-fA-F]{3,8}/);
+    if (hexMatch) return hexMatch[0];
+    const fnMatch = border.match(/rgba?\([^)]*\)/i);
+    if (fnMatch) return fnMatch[0];
+    return null;
+}
+
+/**
+ * Is a popup with this id on screen?
+ *
+ * @param {string} id
+ * @returns {boolean}
+ */
+export function isPopupOpen(id) {
+    return !!document.getElementById(id);
+}
+
+/**
+ * Open a popup, or close it if that same popup is already open.
+ *
+ * showPopup removes any popup with the id it is given and builds a fresh one, so a button
+ * that calls it twice re-opens rather than closes. Every launcher that opens a window and
+ * stays on screen — a rail tool, a bar menu — needs the second press to put it away, and
+ * this is that behaviour in one place rather than at each of them.
+ *
+ * @param {string} id     the popup's id
+ * @param {() => void} open  what to call when it is not already open
+ * @returns {boolean} true if it opened, false if it closed
+ */
+export function togglePopup(id, open) {
+    if (isPopupOpen(id)) {
+        hidePopup(id);
+        return false;
+    }
+    open();
+    return true;
 }
 
 /**
@@ -387,7 +521,15 @@ export function showPopup({
  */
 export function hidePopup(popup) {
     if (typeof popup === 'string') popup = document.getElementById(popup);
-    if (popup && popup.parentNode) popup.parentNode.removeChild(popup);
+    if (!popup) return;
+
+    // Taken before the node goes, and cleared before it runs: a handler that closes its own
+    // popup would otherwise come back round here forever.
+    const onClose = closeHandlers.get(popup);
+    closeHandlers.delete(popup);
+
+    if (popup.parentNode) popup.parentNode.removeChild(popup);
+    if (typeof onClose === 'function') onClose();
 }
 
 /**

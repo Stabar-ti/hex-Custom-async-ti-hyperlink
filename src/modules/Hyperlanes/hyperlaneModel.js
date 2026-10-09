@@ -190,6 +190,161 @@ export function segments(matrix) {
     return out;
 }
 
+// ── Roundabouts ───────────────────────────────────────────────────────────────
+//
+// A roundabout is a tile where every lane that reaches it connects to every other: a
+// ship coming in through any of its sides can leave through any other. The diagonal is
+// what marks it — `m[d][d] === 1` puts side d on the roundabout, and hyperlaneTraversal
+// chains those sides to one another.
+//
+// A roundabout is also written out as the full set of links between its members, not
+// just the diagonal. Export hands the matrix to AsyncTI4 as it is, and a diagonal-only
+// roundabout depends on the bot chaining diagonals the way traversal does. With every
+// pair written out, the lanes join whichever way the matrix is read.
+//
+// A roundabout does not share its tile with ordinary lanes. A lane between two of its
+// sides would only say again what the roundabout already says, and a lane drawn past a
+// roundabout was drawn straight through the circle. So a lane drawn onto a roundabout
+// tile joins the roundabout with both of its ends, and a roundabout started on a tile
+// that already has lanes takes those lanes' ends in as well.
+
+/** The sides on the tile's roundabout, ascending. Empty when there is none. */
+export function roundaboutSides(m) {
+    const out = [];
+    if (!Array.isArray(m)) return out;
+    for (let d = 0; d < SIDES; d++) if (m[d]?.[d] === 1) out.push(d);
+    return out;
+}
+
+export function hasRoundabout(m) {
+    return roundaboutSides(m).length > 0;
+}
+
+/** Every side any link on the tile touches. */
+function linkedSides(m) {
+    const out = new Set();
+    for (let i = 0; i < SIDES; i++) {
+        for (let j = 0; j < SIDES; j++) {
+            if (m[i][j] === 1) { out.add(i); out.add(j); }
+        }
+    }
+    return out;
+}
+
+/** Whether any link on the tile — lane or roundabout — uses `side`. */
+export function touchesSide(m, side) {
+    if (!Array.isArray(m) || !isSide(side)) return false;
+    for (let j = 0; j < SIDES; j++) {
+        if (m[side]?.[j] === 1 || m[j]?.[side] === 1) return true;
+    }
+    return false;
+}
+
+/**
+ * The sides of a tile that a lane on a neighbouring tile runs into.
+ *
+ * `neighbours[s]` is the matrix of the tile across side `s` (or null). Its lane reaches
+ * this tile when it uses the far side of that shared edge — `oppositeSide(s)`.
+ *
+ * @param {Array<number[][]|null|undefined>} neighbours  indexed by this tile's side
+ * @returns {number[]} ascending
+ */
+export function sidesReachedFrom(neighbours) {
+    const out = [];
+    for (let s = 0; s < SIDES; s++) {
+        if (touchesSide(neighbours?.[s], oppositeSide(s))) out.push(s);
+    }
+    return out;
+}
+
+/** Every member linked to every member, itself included. */
+function roundaboutOver(sides) {
+    const out = emptyMatrix();
+    for (const i of sides) for (const j of sides) out[i][j] = 1;
+    return out;
+}
+
+/**
+ * A copy in which the tile is one roundabout: `sides`, plus every side the tile's
+ * links already reach.
+ */
+export function withRoundabout(m, sides) {
+    const members = linkedSides(cloneMatrix(m));
+    for (const s of sides || []) if (isSide(s)) members.add(s);
+    return roundaboutOver(members);
+}
+
+/**
+ * A copy with `sides` taken off the roundabout: their diagonal cell and their links to
+ * the other members are cleared, and any other lane on those sides is left as it is. A
+ * roundabout with no members left is simply gone.
+ */
+export function withoutRoundaboutSides(m, sides) {
+    const out = cloneMatrix(m);
+    const members = roundaboutSides(out);
+    for (const r of sides || []) {
+        if (!members.includes(r)) continue;
+        for (const s of members) { out[r][s] = 0; out[s][r] = 0; }
+    }
+    return out;
+}
+
+/**
+ * What drawing a lane from `entry` to `exit` across this tile does to its matrix.
+ *
+ * A lane that goes back out the side it came in by (`entry === exit`) puts that side on
+ * a roundabout. Any lane drawn onto a roundabout tile joins it at both ends. Otherwise
+ * it is an ordinary link, written in both directions.
+ */
+export function withLaneDrawn(m, entry, exit) {
+    if (!isSide(entry) || !isSide(exit)) return cloneMatrix(m);
+    if (entry === exit || hasRoundabout(m)) return withRoundabout(m, [entry, exit]);
+    return withLink(withLink(m, entry, exit), exit, entry);
+}
+
+/**
+ * What erasing the lane from `entry` to `exit` does — the inverse of withLaneDrawn.
+ *
+ * On a roundabout the lane is its two ends being members, so erasing it takes both ends
+ * off. A lane that was drawn as its own link on top of a roundabout (only an import can
+ * produce one) is removed as that link, and the roundabout is left alone.
+ */
+export function withLaneErased(m, entry, exit) {
+    if (!isSide(entry) || !isSide(exit)) return cloneMatrix(m);
+    if (entry === exit) return withoutRoundaboutSides(m, [entry]);
+    const members = roundaboutSides(m);
+    if (members.includes(entry) && members.includes(exit)) {
+        return withoutRoundaboutSides(m, [entry, exit]);
+    }
+    return withoutLink(withoutLink(m, entry, exit), exit, entry);
+}
+
+/** Whether two matrices set the same cells. */
+export function sameMatrix(a, b) {
+    const x = cloneMatrix(a);
+    const y = cloneMatrix(b);
+    return x.every((row, i) => row.every((cell, j) => cell === y[i][j]));
+}
+
+/**
+ * What to draw for a tile: the roundabout's sides, and the lanes that are not already
+ * the roundabout.
+ *
+ * `segments` lists every link in the matrix. A lane between two roundabout sides is one
+ * of them, and drawing it put a line through the middle of the circle to say something
+ * the circle already said. It is left out here. A lane with an end off the roundabout
+ * means something the roundabout does not, so it stays.
+ *
+ * @returns {{roundabout: number[], curves: Array<{kind: 'curve', entry: number, exit: number, key: string}>}}
+ */
+export function drawPlan(m) {
+    const roundabout = roundaboutSides(m);
+    const on = new Set(roundabout);
+    const curves = segments(m).filter(s =>
+        s.kind === 'curve' && !(on.has(s.entry) && on.has(s.exit)));
+    return { roundabout, curves };
+}
+
 // ── Direction and path resolution ─────────────────────────────────────────────
 
 /**

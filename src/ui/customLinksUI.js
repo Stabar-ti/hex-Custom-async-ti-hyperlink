@@ -1,15 +1,15 @@
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
-import { toggleCustomLinksOverlay } from '../features/customLinksOverlay.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
-import { showPopup, hidePopup } from './popupUI.js'; // <-- Add hidePopup import
+import { showPopup, hidePopup } from './popupUI.js';
+import { provide, COMMANDS } from '../core/registry.js';
+import { createToolPanel } from './toolPanel.js';
 import { oppositeSide } from '../utils/hexGrid.js';
 
-export function installCustomLinksUI(editor) {
-    // --- Main Custom Links popup using PopupUI ---
-    function showCustomLinksPopup() {
-        // Only one instance
-        if (document.getElementById('customLinksPopup')) return;
+const MODE_CUSTOM_LINKS = 'customLinks';
 
+export function installCustomLinksUI(editor) {
+    // The panel's controls: four tools that each arm a map mode.
+    function buildCustomLinksPanel() {
         // Build content
         const content = document.createElement('div');
         // Tool label
@@ -42,6 +42,7 @@ export function installCustomLinksUI(editor) {
             const btn = document.createElement('button');
             btn.textContent = text;
             btn.className = 'mode-button';
+            btn.dataset.tool = '';
             btn.title = title;
             btn.style.margin = '2px 4px 2px 0';
             btn.onclick = () => {
@@ -78,59 +79,48 @@ export function installCustomLinksUI(editor) {
         btnRow.appendChild(toolBtn('Adj Override', 'custom-adj-override', '3 clicks: PRIMARY, DIRECTION, SECONDARY'));
         btnRow.appendChild(toolBtn('Remove Links', 'custom-adj-remove', 'Click hex to remove its custom links'));
         content.appendChild(btnRow);
+        return content;
+    }
 
+    // Reference text, so it stays a window you can leave open beside the map.
+    const showHelp = () => {
         showPopup({
-            id: 'customLinksPopup',
-            className: 'border-anomalies-popup',
-            title: 'Custom Links',
-            content,
+            id: 'customLinksHelpPopup',
+            title: 'Custom Link Tools Help',
+            content:
+                "Single Link: Click two hexes to create a dark yellow one-way link. (No labels)<br>" +
+                "Double Link: Click two hexes for a blue bidirectional link. (No labels)<br>" +
+                "Adj Override: Click PRIMARY hex, then a DIRECTION hex (neighbor), then SECONDARY hex. This draws a magenta label on the PRIMARY hex (edge facing DIRECTION, showing SECONDARY label) and on the SECONDARY hex (opposite edge, showing PRIMARY label). No lines.<br>" +
+                "Remove: Click a hex to remove ALL its custom links and overrides.",
             draggable: true,
             dragHandleSelector: '.popup-ui-titlebar',
             scalable: true,
             rememberPosition: true,
             style: {
-                left: '520px',
-                top: '80px',
+                //       background: '#222',
+                color: '#fff',
+                border: '2px solid var(--popup-border-special)',
+                borderRadius: '10px',
+                boxShadow: '0 8px 40px #000a',
                 minWidth: '340px',
                 maxWidth: '800px',
                 minHeight: '200px',
                 maxHeight: '800px',
-                //background: '#222',
-                color: '#fff',
-                border: '2px solid var(--popup-border-layout)',
-                boxShadow: '0 8px 40px #000a',
-                padding: '18px 0 18px 0'
-            },
-            showHelp: true,
-            onHelp: () => {
-                showPopup({
-                    id: 'customLinksHelpPopup',
-                    title: 'Custom Link Tools Help',
-                    content:
-                        "Single Link: Click two hexes to create a dark yellow one-way link. (No labels)<br>" +
-                        "Double Link: Click two hexes for a blue bidirectional link. (No labels)<br>" +
-                        "Adj Override: Click PRIMARY hex, then a DIRECTION hex (neighbor), then SECONDARY hex. This draws a magenta label on the PRIMARY hex (edge facing DIRECTION, showing SECONDARY label) and on the SECONDARY hex (opposite edge, showing PRIMARY label). No lines.<br>" +
-                        "Remove: Click a hex to remove ALL its custom links and overrides.",
-                    draggable: true,
-                    dragHandleSelector: '.popup-ui-titlebar',
-                    scalable: true,
-                    rememberPosition: true,
-                    style: {
-                        //       background: '#222',
-                        color: '#fff',
-                        border: '2px solid var(--popup-border-special)',
-                        borderRadius: '10px',
-                        boxShadow: '0 8px 40px #000a',
-                        minWidth: '340px',
-                        maxWidth: '800px',
-                        minHeight: '200px',
-                        maxHeight: '800px',
-                        padding: '24px'
-                    }
-                });
+                padding: '24px'
             }
         });
-    }
+    };
+
+    const customLinksPanel = createToolPanel({
+        id: 'customLinksPopup',
+        title: '⇄ Custom Links',
+        mode: MODE_CUSTOM_LINKS,
+        launcherId: 'launchCustomLinksPopup',
+        accent: 'var(--popup-border-special)',
+        width: '320px',
+        build: buildCustomLinksPanel,
+        onHelp: showHelp,
+    });
 
     // --- Custom link warning popup utility ---
     function showCustomLinkWarning(confirmCallback, cancelCallback) {
@@ -381,7 +371,7 @@ export function installCustomLinksUI(editor) {
             }
 
             if (hex.adjacencyOverrides) {
-                for (const [side, neighbor] of Object.entries(hex.adjacencyOverrides)) {
+                for (const neighbor of Object.values(hex.adjacencyOverrides)) {
                     const nhex = this.hexes[neighbor];
                     if (nhex && nhex.adjacencyOverrides) {
                         for (const [s2, n2] of Object.entries(nhex.adjacencyOverrides)) {
@@ -413,17 +403,18 @@ export function installCustomLinksUI(editor) {
         return undefined;
     }
 
-    // Redraw after map (re)generation
+    // Redraw after map (re)generation. Arguments and result pass through, as in
+    // borderAnomaliesUI.js.
     const oldGenerateMap = editor.generateMap;
-    editor.generateMap = function () {
-        oldGenerateMap.call(this);
+    editor.generateMap = function (...args) {
+        const generated = oldGenerateMap.apply(this, args);
         drawCustomAdjacencyLayer(this);
         enforceSvgLayerOrder(editor.svg);
+        return generated;
     };
 
     // Expose redraw method
     editor.redrawCustomAdjacencyOverlay = () => drawCustomAdjacencyLayer(editor);
 
-    // Expose popup function globally for sector controls
-    window.showCustomLinksPopup = showCustomLinksPopup;
+    provide(COMMANDS.showCustomLinks, customLinksPanel.toggle);
 }

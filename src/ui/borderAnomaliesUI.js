@@ -1,14 +1,15 @@
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
-import { toggleBorderAnomaliesOverlay } from '../features/borderAnomaliesOverlay.js';
-import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { showPopup, hidePopup } from './popupUI.js';
+import { provide, COMMANDS } from '../core/registry.js';
+import { createToolPanel } from './toolPanel.js';
 import { loadBorderAnomalyTypes, getEnabledBorderAnomalyTypes, updateBorderAnomalyStyle, updateBorderAnomalyBidirectional } from '../constants/borderAnomalies.js';
-import { buildCoordIndex, neighborHex, sideBetween, oppositeSide } from '../utils/hexGrid.js';
+import { placeBorderAnomaly, removeBorderAnomalies } from '../features/borderAnomalyPlacement.js';
+
+const MODE_BORDER_ANOMALIES = 'borderAnomalies';
 
 export function installBorderAnomaliesUI(editor) {
-    async function showBorderAnomaliesPopup() {
-        if (document.getElementById('borderAnomaliesPopup')) return;
-
+    // The panel's controls: a tool per enabled anomaly type, and Remove.
+    async function buildBorderAnomaliesPanel() {
         // Load border anomaly types
         await loadBorderAnomalyTypes();
         const allBorderTypes = await import('../constants/borderAnomalies.js').then(m => m.getBorderAnomalyTypes());
@@ -47,6 +48,7 @@ export function installBorderAnomaliesUI(editor) {
             const btn = document.createElement('button');
             btn.textContent = text;
             btn.className = 'mode-button border-anomaly-tool-btn';
+            btn.dataset.tool = '';
             btn.title = title;
             btn.style.margin = '0';
             btn.style.minWidth = '90px';
@@ -180,6 +182,7 @@ export function installBorderAnomaliesUI(editor) {
         const removeBtn = document.createElement('button');
         removeBtn.textContent = '🗑️ Remove All';
         removeBtn.className = 'mode-button border-anomaly-tool-btn remove-btn';
+        removeBtn.dataset.tool = '';
         removeBtn.title = 'Remove all border anomalies from selected hex';
         removeBtn.style.margin = '0';
         removeBtn.style.minWidth = '110px';
@@ -255,9 +258,10 @@ export function installBorderAnomaliesUI(editor) {
         content.appendChild(scriptedLabel);
 
         const scriptedRow = document.createElement('div');
-        // Use a two-part flex row: left = scripted buttons (wrap), right = remove button
+        // Wraps: the panel is a column now, not a window, and Remove All drops onto its own
+        // line rather than off the right-hand edge.
         scriptedRow.style.display = 'flex';
-        scriptedRow.style.flexWrap = 'nowrap';
+        scriptedRow.style.flexWrap = 'wrap';
         scriptedRow.style.gap = '8px';
         scriptedRow.style.marginBottom = '12px';
         scriptedRow.style.alignItems = 'center';
@@ -285,10 +289,9 @@ export function installBorderAnomaliesUI(editor) {
             }
         });
 
-        // Ensure remove button sits on the right side of the scripted row
-        removeBtn.style.marginLeft = '12px';
-        removeBtn.style.marginRight = '0';
-        removeBtn.style.flex = '0 0 auto';
+        // Beside the scripted buttons when there is room, under them when there is not.
+        removeBtn.style.margin = '0';
+        removeBtn.style.flex = '1 1 110px';
 
         scriptedRow.appendChild(scriptedBtnContainer);
         scriptedRow.appendChild(removeBtn);
@@ -356,84 +359,58 @@ export function installBorderAnomaliesUI(editor) {
             settingsBtn.style.boxShadow = 'none';
         });
 
-        settingsBtn.onclick = () => {
-            // Open the border anomaly settings popup
-            if (typeof window.showBorderAnomalySettings === 'function') {
-                window.showBorderAnomalySettings();
-            } else {
-                // Fallback: import and call the function
-                import('./borderAnomaliesUI.js').then(module => {
-                    if (module && typeof window.showBorderAnomalySettings === 'function') {
-                        window.showBorderAnomalySettings();
-                    }
-                }).catch(err => {
-                    console.warn('Could not load border anomaly settings:', err);
-                    alert('Border anomaly settings are not available yet. Feature coming soon!');
-                });
-            }
-        };
+        settingsBtn.onclick = () => showBorderAnomalySettings();
 
         settingsSection.appendChild(settingsBtn);
         content.appendChild(settingsSection);
+        return content;
+    }
 
-
-
+    // Reference text, so it stays a window you can leave open beside the map.
+    const showHelp = () => {
         showPopup({
-            id: 'borderAnomaliesPopup',
-            className: 'popup-ui border-anomalies-popup', // Add popup-ui for transparency
-            title: 'Border Anomalies',
-            content,
+            id: 'borderAnomaliesHelpPopup',
+            className: 'popup-ui popup-ui-info',
+            title: 'Border Anomaly Tools Help',
+            content:
+                "<b>How to place border anomalies</b>:<br>" +
+                "1. Click a primary hex, then click a neighboring hex to select the edge.<br>" +
+                "2. Choose a type from the lists below. Icons indicate direction: ↔ Bidirectional (both sides), → Unidirectional (one side).<br>" +
+                "3. <b>Scripted</b> types (Gravity Wave, Spatial Tear) apply game mechanics; <b>Not Scripted</b> types are visual only.<br>" +
+                "4. To remove anomalies: click the <b>🗑️ Remove All</b> button (beside the Scripted types) then click the hex to clear anomalies.<br>" +
+                "5. Use <b>⚙️ Border Settings</b> (at bottom) to enable/disable anomaly types and customize their appearance.<br>" +
+                "<i>Tip:</i> The active type is highlighted. Switch modes using the buttons; cancel selection by choosing Remove All or another tool.",
             draggable: true,
             dragHandleSelector: '.popup-ui-titlebar',
             scalable: true,
             rememberPosition: true,
             style: {
-                left: '520px',
-                top: '80px',
+                // background intentionally omitted
+                // color intentionally omitted
+                border: '2px solid var(--popup-border-special)',
+                borderRadius: '10px',
+                boxShadow: '0 8px 40px #000a',
                 minWidth: '340px',
                 maxWidth: '800px',
                 minHeight: '200px',
                 maxHeight: '800px',
-                // background intentionally omitted to allow .popup-ui CSS to apply transparency
-                // color intentionally omitted to allow .popup-ui CSS to apply
-                border: '2px solid var(--popup-border-layout)',
-                boxShadow: '0 8px 40px #000a',
-                padding: '18px 0 18px 0'
-            },
-            showHelp: true,
-            onHelp: () => {
-                showPopup({
-                    id: 'borderAnomaliesHelpPopup',
-                    className: 'popup-ui popup-ui-info',
-                    title: 'Border Anomaly Tools Help',
-                    content:
-                        "<b>How to place border anomalies</b>:<br>" +
-                        "1. Click a primary hex, then click a neighboring hex to select the edge.<br>" +
-                        "2. Choose a type from the lists below. Icons indicate direction: ↔ Bidirectional (both sides), → Unidirectional (one side).<br>" +
-                        "3. <b>Scripted</b> types (Gravity Wave, Spatial Tear) apply game mechanics; <b>Not Scripted</b> types are visual only.<br>" +
-                        "4. To remove anomalies: click the <b>🗑️ Remove All</b> button (to the right of Scripted) then click the hex to clear anomalies.<br>" +
-                        "5. Use <b>⚙️ Border Settings</b> (at bottom) to enable/disable anomaly types and customize their appearance.<br>" +
-                        "<i>Tip:</i> The active type is highlighted. Switch modes using the buttons; cancel selection by choosing Remove All or another tool.",
-                    draggable: true,
-                    dragHandleSelector: '.popup-ui-titlebar',
-                    scalable: true,
-                    rememberPosition: true,
-                    style: {
-                        // background intentionally omitted
-                        // color intentionally omitted
-                        border: '2px solid var(--popup-border-special)',
-                        borderRadius: '10px',
-                        boxShadow: '0 8px 40px #000a',
-                        minWidth: '340px',
-                        maxWidth: '800px',
-                        minHeight: '200px',
-                        maxHeight: '800px',
-                        padding: '24px'
-                    }
-                });
+                padding: '24px'
             }
         });
-    }
+    };
+
+    // Placing one means clicking two neighbouring hexes to pick an edge, so the panel opens
+    // beside the rail rather than over those hexes.
+    const borderAnomaliesPanel = createToolPanel({
+        id: 'borderAnomaliesPopup',
+        title: '⌗ Border Anomalies',
+        mode: MODE_BORDER_ANOMALIES,
+        launcherId: 'launchBorderAnomaliesPopup',
+        accent: 'var(--popup-border-special)',
+        width: '340px',
+        build: buildBorderAnomaliesPanel,
+        onHelp: showHelp,
+    });
 
     // --- Error popup utility using popupUI ---
     function showErrorPopup(message) {
@@ -473,93 +450,32 @@ export function installBorderAnomaliesUI(editor) {
     const oldClickHandler = editor._onHexClick;
 
     editor._onHexClick = function (e, label) {
-        // Add border anomaly (bidirectional)
-        if (this.mode === 'border-anomaly-double') {
-            if (!this._pendingBorderAnomaly) {
+        // Add a border anomaly: the first click picks the tile it belongs to, the second a
+        // neighbour across the edge. The writing itself is shared with the tile context menu
+        // (features/borderAnomalyPlacement.js).
+        if (this.mode === 'border-anomaly-double' || this.mode === 'border-anomaly-single') {
+            const pending = this._pendingBorderAnomaly;
+            if (!pending) {
                 this._pendingBorderAnomaly = label;
                 this.hexes[label].polygon.classList.add('selected');
-            } else if (this._pendingBorderAnomaly && this._pendingBorderAnomaly !== label) {
-                const primary = this._pendingBorderAnomaly, secondary = label;
-                const anomalyTypeId = this._selectedAnomalyType || 'SPATIALTEAR';
-
-                editor.beginUndoGroup();
-                editor.saveState(primary);
-                editor.saveState(secondary);
-                const side = getSideBetween(this.hexes, primary, secondary);
-                if (side === undefined) {
-                    hidePopup('borderAnomaliesErrorPopup');
-                    showErrorPopup('Tiles are not neighbors!');
-                    this.hexes[primary].polygon.classList.remove('selected');
-                    this._pendingBorderAnomaly = null;
-                    return;
-                }
-
-                if (!this.hexes[primary].borderAnomalies) this.hexes[primary].borderAnomalies = {};
-                if (!this.hexes[secondary].borderAnomalies) this.hexes[secondary].borderAnomalies = {};
-                this.hexes[primary].borderAnomalies[side] = { type: anomalyTypeId };
-                this.hexes[secondary].borderAnomalies[getOppositeSide(side)] = { type: anomalyTypeId };
-                editor.commitUndoGroup();
-                this.hexes[primary].polygon.classList.remove('selected');
-                this._pendingBorderAnomaly = null;
-                drawBorderAnomaliesLayer(this);
-                enforceSvgLayerOrder(editor.svg);
+                return;
             }
-            return;
-        }
+            if (pending === label) return;
 
-        // Add border anomaly (unidirectional)
-        if (this.mode === 'border-anomaly-single') {
-            if (!this._pendingBorderAnomaly) {
-                this._pendingBorderAnomaly = label;
-                this.hexes[label].polygon.classList.add('selected');
-            } else if (this._pendingBorderAnomaly && this._pendingBorderAnomaly !== label) {
-                const primary = this._pendingBorderAnomaly, secondary = label;
-                const anomalyTypeId = this._selectedAnomalyType || 'GRAVITYWAVE';
-
-                editor.saveState(primary);
-                const side = getSideBetween(this.hexes, primary, secondary);
-                if (side === undefined) {
-                    hidePopup('borderAnomaliesErrorPopup');
-                    showErrorPopup('Tiles are not neighbors!');
-                    this.hexes[primary].polygon.classList.remove('selected');
-                    this._pendingBorderAnomaly = null;
-                    return;
-                }
-
-                if (!this.hexes[primary].borderAnomalies) this.hexes[primary].borderAnomalies = {};
-                this.hexes[primary].borderAnomalies[side] = { type: anomalyTypeId };
-                this.hexes[primary].polygon.classList.remove('selected');
-                this._pendingBorderAnomaly = null;
-                drawBorderAnomaliesLayer(this);
-                enforceSvgLayerOrder(editor.svg);
+            const bidirectional = this.mode === 'border-anomaly-double';
+            const anomalyTypeId = this._selectedAnomalyType || (bidirectional ? 'SPATIALTEAR' : 'GRAVITYWAVE');
+            this.hexes[pending].polygon.classList.remove('selected');
+            this._pendingBorderAnomaly = null;
+            if (!placeBorderAnomaly(this, pending, label, anomalyTypeId, { bidirectional })) {
+                hidePopup('borderAnomaliesErrorPopup');
+                showErrorPopup('Tiles are not neighbors!');
             }
             return;
         }
 
         // Remove all border anomalies from a tile
         if (this.mode === 'border-anomaly-remove') {
-            const hex = this.hexes[label];
-            if (hex.borderAnomalies) {
-                editor.saveState(label);
-                for (const [side, anomaly] of Object.entries(hex.borderAnomalies)) {
-                    // Check if this anomaly type is bidirectional
-                    const borderTypes = getEnabledBorderAnomalyTypes();
-                    const anomalyTypeId = anomaly.type.toUpperCase().replace(/\s+/g, '');
-                    const anomalyConfig = borderTypes[anomalyTypeId];
-
-                    if (anomalyConfig && anomalyConfig.bidirectional) {
-                        const neighbor = getNeighborHex(this.hexes, label, side);
-                        if (neighbor && neighbor.borderAnomalies) {
-                            delete neighbor.borderAnomalies[getOppositeSide(side)];
-                            if (Object.keys(neighbor.borderAnomalies).length === 0)
-                                delete neighbor.borderAnomalies;
-                        }
-                    }
-                }
-                delete hex.borderAnomalies;
-                drawBorderAnomaliesLayer(this);
-                enforceSvgLayerOrder(editor.svg);
-            }
+            removeBorderAnomalies(this, label);
             return;
         }
 
@@ -567,30 +483,18 @@ export function installBorderAnomaliesUI(editor) {
         if (typeof oldClickHandler === "function") oldClickHandler.call(this, e, label);
     };
 
-    function getSideBetween(hexes, a, b) {
-        return sideBetween(hexes[a], hexes[b]);
-    }
-    function getNeighborHex(hexes, label, side) {
-        const hex = hexes[label];
-        if (!hex) return null;
-        return neighborHex(hexes, buildCoordIndex(hexes), hex, side);
-    }
-    // A function declaration, not `const getOppositeSide = oppositeSide` — this
-    // sits below its call sites (500, 553), and a const would be in the temporal
-    // dead zone for any handler that fired before this line was reached.
-    function getOppositeSide(side) {
-        return oppositeSide(side);
-    }
-
-    // Redraw after map (re)generation
+    // Redraw after map (re)generation. Arguments and result pass through: generateMap
+    // takes { confirm } and says whether it generated, and a wrapper that dropped them
+    // made every caller ask, the startup restore included.
     const oldGenerateMap = editor.generateMap;
-    editor.generateMap = function () {
-        oldGenerateMap.call(this);
+    editor.generateMap = function (...args) {
+        const generated = oldGenerateMap.apply(this, args);
         drawBorderAnomaliesLayer(this);
         let layer = this.svg.querySelector('#borderAnomalyLayer');
         if (layer) layer.setAttribute('visibility', this.showBorderAnomalies ? 'visible' : 'hidden');
         const btn = document.getElementById('toggleBorderAnomalies');
         if (btn) btn.classList.toggle('active', this.showBorderAnomalies);
+        return generated;
     };
 
     editor.redrawBorderAnomaliesOverlay = () => {
@@ -763,7 +667,6 @@ export function installBorderAnomaliesUI(editor) {
         });
     }
 
-    // Expose popup functions globally for sector controls
-    window.showBorderAnomaliesPopup = showBorderAnomaliesPopup;
-    window.showBorderAnomalySettings = showBorderAnomalySettings;
+    provide(COMMANDS.showBorderAnomalies, borderAnomaliesPanel.toggle);
+    provide(COMMANDS.showBorderAnomalySettings, showBorderAnomalySettings);
 }

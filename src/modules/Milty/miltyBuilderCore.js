@@ -2,6 +2,8 @@
 // Core logic and data management for Milty Slice Designer
 
 import { removeWormholeOverlay } from '../../features/wormholes.js';
+import { refreshSystemList } from '../../ui/uiFilters.js';
+import { tryInvoke, COMMANDS } from '../../core/registry.js';
 
 // Default slice and slot position definitions
 export const defaultSlices = {
@@ -29,7 +31,7 @@ export const slotPositions = {
 };
 
 // Move slice between any positions (A-F, 1-12, intermixed)
-export function moveSlice(sourceId, sourceType, targetId, targetType, updateStatusMsg) {
+export function moveSlice(editor, sourceId, sourceType, targetId, targetType, updateStatusMsg) {
     // Get source hex positions first
     let sourceHexes = [];
     if (sourceType === 'map') {
@@ -51,8 +53,8 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
     let sourceData = [];
     for (let i = 0; i < sourceHexes.length; i++) {
         const hexId = sourceHexes[i];
-        if (hexId && window.editor?.hexes?.[hexId]) {
-            const hex = window.editor.hexes[hexId];
+        if (hexId && editor?.hexes?.[hexId]) {
+            const hex = editor.hexes[hexId];
             sourceData.push({
                 hexId: hexId,
                 realId: hex.realId,
@@ -97,9 +99,9 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
         const srcData = sourceData[j];
         const tgtHexId = targetHexes[j];
         if (srcData && tgtHexId && (srcData.realId || srcData.baseType || srcData.isHyperlane || srcData.isNebula || srcData.isGravityRift || srcData.isSupernova || srcData.isAsteroidField || srcData.isScar)) {
-            const tgtHex = window.editor?.hexes?.[tgtHexId];
+            const tgtHex = editor?.hexes?.[tgtHexId];
             if (tgtHex) {
-                applyHexData(srcData, tgtHex, tgtHexId);
+                applyHexData(editor, srcData, tgtHex, tgtHexId);
             }
         }
     }
@@ -107,9 +109,9 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
     // Clear source hexes (only positions 1-5, not homesystem at 0)
     for (let j = 1; j < sourceData.length; ++j) {
         const srcData = sourceData[j];
-        if (srcData && srcData.hexId && window.editor) {
+        if (srcData && srcData.hexId && editor) {
             // Clear wormholes and effects specifically first
-            const srcHex = window.editor.hexes?.[srcData.hexId];
+            const srcHex = editor.hexes?.[srcData.hexId];
             if (srcHex) {
                 // Clear all wormhole data before general clearing
                 if (srcHex.customWormholes) srcHex.customWormholes.clear();
@@ -134,7 +136,7 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
                 srcHex.isHyperlane = false;
 
                 // Remove wormhole overlays
-                removeWormholeOverlay(window.editor, srcData.hexId);
+                removeWormholeOverlay(editor, srcData.hexId);
                 if (srcHex.wormholeOverlays) {
                     srcHex.wormholeOverlays.forEach(overlay => {
                         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
@@ -144,19 +146,19 @@ export function moveSlice(sourceId, sourceType, targetId, targetType, updateStat
             }
 
             // Now clear the hex completely
-            clearHex(srcData.hexId);
+            clearHex(editor, srcData.hexId);
         }
     }
 
     // Update UI components
-    updateVisualElements();
+    updateVisualElements(editor);
 
     updateStatusMsg(`Moved slice from ${sourceType} ${sourceId} to ${targetType} ${targetId}. Selection cleared.`);
     return true;
 }
 
 // Apply hex data to target hex
-function applyHexData(srcData, tgtHex, tgtHexId) {
+function applyHexData(editor, srcData, tgtHex, tgtHexId) {
     console.log('applyHexData:', tgtHexId, 'srcData:', {
         realId: srcData.realId,
         planets: srcData.planets?.length || 0,
@@ -180,7 +182,7 @@ function applyHexData(srcData, tgtHex, tgtHexId) {
 
         // Handle wormholes properly
         const realIdKey = srcData.realId.toString().toUpperCase();
-        const info = window.editor?.sectorIDLookup?.[realIdKey] || {};
+        const info = editor?.sectorIDLookup?.[realIdKey] || {};
 
         tgtHex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
         tgtHex.customWormholes = new Set(Array.from(srcData.customWormholes || []).filter(Boolean).map(w => w.toLowerCase()));
@@ -196,24 +198,24 @@ function applyHexData(srcData, tgtHex, tgtHexId) {
         // Apply effects
         if (srcData.effects && srcData.effects.length > 0) {
             srcData.effects.forEach(eff => {
-                if (eff && typeof window.editor.applyEffect === 'function') {
-                    window.editor.applyEffect(tgtHexId, eff);
+                if (eff && typeof editor.applyEffect === 'function') {
+                    editor.applyEffect(tgtHexId, eff);
                 }
             });
         }
 
         // Set sector type
-        setSectorType(srcData, tgtHexId);
+        setSectorType(editor, srcData, tgtHexId);
 
         // Apply effects from SystemInfo
-        if (info.isNebula)        window.editor.applyEffect(tgtHexId, 'nebula');
-        if (info.isGravityRift)   window.editor.applyEffect(tgtHexId, 'rift');
-        if (info.isSupernova)     window.editor.applyEffect(tgtHexId, 'supernova');
-        if (info.isAsteroidField) window.editor.applyEffect(tgtHexId, 'asteroid');
-        if (info.isScar)          window.editor.applyEffect(tgtHexId, 'scar');
+        if (info.isNebula)        editor.applyEffect(tgtHexId, 'nebula');
+        if (info.isGravityRift)   editor.applyEffect(tgtHexId, 'rift');
+        if (info.isSupernova)     editor.applyEffect(tgtHexId, 'supernova');
+        if (info.isAsteroidField) editor.applyEffect(tgtHexId, 'asteroid');
+        if (info.isScar)          editor.applyEffect(tgtHexId, 'scar');
 
         // Create wormhole overlays
-        createWormholeOverlays(tgtHex);
+        createWormholeOverlays(editor, tgtHex);
 
     } else if (srcData.baseType || srcData.isHyperlane || srcData.isNebula || srcData.isGravityRift || srcData.isSupernova || srcData.isAsteroidField || srcData.isScar) {
         // For special hexes without realId
@@ -234,20 +236,20 @@ function applyHexData(srcData, tgtHex, tgtHexId) {
         // Apply effects
         if (srcData.effects && srcData.effects.length > 0) {
             srcData.effects.forEach(eff => {
-                if (eff && typeof window.editor.applyEffect === 'function') {
-                    window.editor.applyEffect(tgtHexId, eff);
+                if (eff && typeof editor.applyEffect === 'function') {
+                    editor.applyEffect(tgtHexId, eff);
                 }
             });
         }
 
         // Update visual appearance
-        if (srcData.baseType && typeof window.editor.setSectorType === 'function') {
-            window.editor.setSectorType(tgtHexId, srcData.baseType, { skipSave: true });
+        if (srcData.baseType && typeof editor.setSectorType === 'function') {
+            editor.setSectorType(tgtHexId, srcData.baseType, { skipSave: true });
         }
 
         // Create wormhole overlays
         if (tgtHex.wormholes && tgtHex.wormholes.size > 0) {
-            createWormholeOverlays(tgtHex);
+            createWormholeOverlays(editor, tgtHex);
         }
     }
 
@@ -271,46 +273,46 @@ function applyHexData(srcData, tgtHex, tgtHexId) {
 }
 
 // Set sector type based on source data
-function setSectorType(srcData, tgtHexId) {
+function setSectorType(editor, srcData, tgtHexId) {
     if (srcData.baseType === "void") {
-        window.editor.setSectorType(tgtHexId, 'void', { skipSave: true });
+        editor.setSectorType(tgtHexId, 'void', { skipSave: true });
     } else if (srcData.baseType === "homesystem" || (srcData.planets && srcData.planets.some(p => p.planetType === 'FACTION'))) {
-        window.editor.setSectorType(tgtHexId, 'homesystem', { skipSave: true });
+        editor.setSectorType(tgtHexId, 'homesystem', { skipSave: true });
     } else if (srcData.baseType === "special" || (!srcData.planets?.length && (srcData.isAsteroidField || srcData.isSupernova || srcData.isNebula || srcData.isGravityRift))) {
-        window.editor.setSectorType(tgtHexId, 'special', { skipSave: true });
+        editor.setSectorType(tgtHexId, 'special', { skipSave: true });
     } else if (srcData.baseType === "legendary planet" || (srcData.planets && srcData.planets.some(p => p.legendaryAbilityName?.trim()))) {
-        window.editor.setSectorType(tgtHexId, 'legendary planet', { skipSave: true });
+        editor.setSectorType(tgtHexId, 'legendary planet', { skipSave: true });
     } else {
         const planetCount = (srcData.planets || []).length;
         if (planetCount >= 3 || srcData.baseType === "3 planet") {
-            window.editor.setSectorType(tgtHexId, '3 planet', { skipSave: true });
+            editor.setSectorType(tgtHexId, '3 planet', { skipSave: true });
         } else if (planetCount >= 2 || srcData.baseType === "2 planet") {
-            window.editor.setSectorType(tgtHexId, '2 planet', { skipSave: true });
+            editor.setSectorType(tgtHexId, '2 planet', { skipSave: true });
         } else if (planetCount >= 1 || srcData.baseType === "1 planet") {
-            window.editor.setSectorType(tgtHexId, '1 planet', { skipSave: true });
+            editor.setSectorType(tgtHexId, '1 planet', { skipSave: true });
         } else {
-            window.editor.setSectorType(tgtHexId, 'empty', { skipSave: true });
+            editor.setSectorType(tgtHexId, 'empty', { skipSave: true });
         }
     }
 }
 
 // Create wormhole overlays for a hex
-function createWormholeOverlays(tgtHex) {
+function createWormholeOverlays(editor, tgtHex) {
     tgtHex.wormholeOverlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
     tgtHex.wormholeOverlays = [];
     Array.from(tgtHex.wormholes).forEach((w, i) => {
-        const positions = window.editor.effectIconPositions;
+        const positions = editor.effectIconPositions;
         const len = positions.length;
         const reversedIndex = len - 1 - (i % len);
         const pos = positions[reversedIndex] || { dx: 0, dy: 0 };
         import('../../features/baseOverlays.js').then(({ createWormholeOverlay }) => {
             const overlay = createWormholeOverlay(tgtHex.center.x + pos.dx, tgtHex.center.y + pos.dy, w.toLowerCase());
             if (overlay) {
-                const wormholeIconLayer = window.editor.svg.querySelector('#wormholeIconLayer');
+                const wormholeIconLayer = editor.svg.querySelector('#wormholeIconLayer');
                 if (wormholeIconLayer) {
                     wormholeIconLayer.appendChild(overlay);
                 } else {
-                    window.editor.svg.appendChild(overlay);
+                    editor.svg.appendChild(overlay);
                 }
                 tgtHex.wormholeOverlays.push(overlay);
             }
@@ -321,12 +323,12 @@ function createWormholeOverlays(tgtHex) {
 }
 
 // Clear a hex of all content
-function clearHex(hexId) {
-    const srcHex = window.editor.hexes?.[hexId];
+function clearHex(editor, hexId) {
+    const srcHex = editor.hexes?.[hexId];
     if (!srcHex) return;
 
     // Clear wormhole overlays first
-    removeWormholeOverlay(window.editor, hexId);
+    removeWormholeOverlay(editor, hexId);
 
     // Clear all wormhole data thoroughly
     if (srcHex.customWormholes) {
@@ -373,21 +375,20 @@ function clearHex(hexId) {
     });
 
     // Clear all other hex data (this should handle most remaining properties)
-    if (typeof window.editor.clearAll === 'function') {
-        window.editor.clearAll(hexId);
+    if (typeof editor.clearAll === 'function') {
+        editor.clearAll(hexId);
     }
 
     // Update effects visibility to remove any lingering effect overlays
     import('../../features/baseOverlays.js').then(({ updateEffectsVisibility }) => {
-        updateEffectsVisibility(window.editor);
+        updateEffectsVisibility(editor);
     }).catch(err => {
         console.warn('Could not update effects visibility:', err);
     });
 }
 
 // Update visual elements after slice operations
-export function applyMiltyDisplay() {
-    const editor = window.editor;
+export function applyMiltyDisplay(editor) {
     if (!editor) { console.warn('[MiltyDisplay] No editor'); return; }
 
     // Set synchronously so assignSystem / updateTileImageLayer called by any
@@ -443,17 +444,20 @@ export function applyMiltyDisplay() {
     }).catch(() => {});
 }
 
-function updateVisualElements() {
-    if (typeof window.editor?.redrawAllRealIDOverlays === 'function') window.editor.redrawAllRealIDOverlays(window.editor);
-    if (typeof window.renderSystemList === 'function') window.renderSystemList();
+function updateVisualElements(editor) {
+    if (typeof editor?.redrawAllRealIDOverlays === 'function') editor.redrawAllRealIDOverlays(editor);
+    // Was `if (typeof window.renderSystemList === 'function')`, a global the old picker
+    // installed from inside its own closure and which nothing has assigned since it was
+    // replaced by a subscription — so this had quietly stopped refreshing anything.
+    refreshSystemList();
     // Dynamic import breaks circular dependency (miltyHomeOverlay imports slotPositions from here)
     import('./miltyHomeOverlay.js').then(({ drawMiltyHomeOverlay }) => {
-        drawMiltyHomeOverlay(window.editor);
+        drawMiltyHomeOverlay(editor);
     }).catch(() => {});
 
     // Update visual overlays for effects and wormholes
     import('../../features/baseOverlays.js').then(({ updateWormholeVisibility }) => {
-        updateWormholeVisibility(window.editor);
+        updateWormholeVisibility(editor);
     }).catch(err => {
         console.warn('Could not update wormhole visibility:', err);
     });
@@ -461,17 +465,17 @@ function updateVisualElements() {
     // Update tile image layer for visual consistency, then apply milty display
     // IMPORTANT: applyMiltyDisplay must run AFTER all async visual updates to avoid being overridden
     import('../../features/imageSystemsOverlay.js').then(({ updateTileImageLayer }) => {
-        updateTileImageLayer(window.editor);
+        updateTileImageLayer(editor);
         // Delay slightly so any remaining async overlays also finish before we hide
-        setTimeout(applyMiltyDisplay, 150);
+        setTimeout(() => applyMiltyDisplay(editor), 150);
     }).catch(err => {
         console.warn('Could not update tile image layer:', err);
-        setTimeout(applyMiltyDisplay, 150);
+        setTimeout(() => applyMiltyDisplay(editor), 150);
     });
 
     // Update border anomalies overlay if active
-    if (typeof window.editor?.redrawBorderAnomaliesOverlay === 'function') {
-        window.editor.redrawBorderAnomaliesOverlay();
+    if (typeof editor?.redrawBorderAnomaliesOverlay === 'function') {
+        editor.redrawBorderAnomaliesOverlay();
     }
 
     // Import and call the refreshSystemList function to update filter states
@@ -483,7 +487,7 @@ function updateVisualElements() {
 }
 
 // Analyze slice occupancy and return color scheme
-export function analyzeSliceOccupancy(sliceHexes, sliceName) {
+export function analyzeSliceOccupancy(editor, sliceHexes, sliceName) {
     // Analyze slice contents (skip position 0 - homesystem)
     let totalSlots = sliceHexes.length - 1; // 5 slots (positions 1-5)
     let filledWithRealId = 0;
@@ -491,7 +495,7 @@ export function analyzeSliceOccupancy(sliceHexes, sliceName) {
 
     for (let i = 1; i < sliceHexes.length; i++) {
         const hexId = sliceHexes[i];
-        const hex = window.editor?.hexes?.[hexId];
+        const hex = editor?.hexes?.[hexId];
         if (hex) {
             if (hex.realId) {
                 filledWithRealId++;
@@ -533,7 +537,7 @@ export function analyzeSliceOccupancy(sliceHexes, sliceName) {
 }
 
 // Generate output string for fully occupied draft slices
-export function generateOutputString() {
+export function generateOutputString(editor) {
     const fullyOccupiedSlices = [];
     const sliceDetails = [];
     for (let slotNum = 1; slotNum <= 12; slotNum++) {
@@ -543,7 +547,7 @@ export function generateOutputString() {
         let isFullyOccupied = true;
         for (let i = 1; i < slotHexes.length; i++) {
             const hexId = slotHexes[i];
-            const hex = window.editor?.hexes?.[hexId];
+            const hex = editor?.hexes?.[hexId];
             if (hex && hex.realId) {
                 realIds.push(hex.realId);
             } else {
@@ -565,7 +569,7 @@ export function generateOutputString() {
 }
 
 // Import slices from external source string
-export function importSlices(slicesString, updateStatusMsg) {
+export function importSlices(editor, slicesString, updateStatusMsg) {
     if (!slicesString || typeof slicesString !== 'string') {
         updateStatusMsg('Invalid input: Please provide a valid slices string.');
         return false;
@@ -624,15 +628,15 @@ export function importSlices(slicesString, updateStatusMsg) {
                 const hexId = slotHexes[j];
                 const realId = realIds[j - 1];
 
-                if (window.editor?.hexes?.[hexId]) {
+                if (editor?.hexes?.[hexId]) {
                     // Clear the hex first
-                    if (typeof window.editor.clearAll === 'function') {
-                        window.editor.clearAll(hexId);
+                    if (typeof editor.clearAll === 'function') {
+                        editor.clearAll(hexId);
                     }
 
                     // Get system info first
                     const realIdKey = realId.toString().toUpperCase();
-                    const info = window.editor?.sectorIDLookup?.[realIdKey] || {};
+                    const info = editor?.sectorIDLookup?.[realIdKey] || {};
 
                     // Build complete source data structure like moveSlice does
                     const srcData = {
@@ -653,8 +657,8 @@ export function importSlices(slicesString, updateStatusMsg) {
                     };
 
                     // Apply the hex data using the same function as moveSlice
-                    const hex = window.editor.hexes[hexId];
-                    applyHexData(srcData, hex, hexId);
+                    const hex = editor.hexes[hexId];
+                    applyHexData(editor, srcData, hex, hexId);
                     applied++;
                 }
             }
@@ -667,14 +671,14 @@ export function importSlices(slicesString, updateStatusMsg) {
         }
 
         // Update visual elements (same as moveSlice)
-        updateVisualElements();
+        updateVisualElements(editor);
 
         // Force redraw all overlays using same pattern as import.js (without setTimeout)
         // Ensure overlay visibility flags are set properly for imported data
-        if (window.editor.showPlanetTypes === undefined) window.editor.showPlanetTypes = true;
-        if (window.editor.showResInf === undefined) window.editor.showResInf = false;
-        if (window.editor.showIdealRI === undefined) window.editor.showIdealRI = true;
-        if (window.editor.showRealID === undefined) window.editor.showRealID = true;
+        if (editor.showPlanetTypes === undefined) editor.showPlanetTypes = true;
+        if (editor.showResInf === undefined) editor.showResInf = false;
+        if (editor.showIdealRI === undefined) editor.showIdealRI = true;
+        if (editor.showRealID === undefined) editor.showRealID = true;
 
         console.log('Import: Redrawing overlays following import.js pattern');
 
@@ -693,17 +697,17 @@ export function importSlices(slicesString, updateStatusMsg) {
             { updateTileImageLayer }
         ]) => {
             // Execute in the exact same order as importFullState
-            redrawAllRealIDOverlays(window.editor);
-            drawCustomAdjacencyLayer(window.editor);
-            drawBorderAnomaliesLayer(window.editor);
-            updateEffectsVisibility(window.editor);
-            updateWormholeVisibility(window.editor);
-            updateTileImageLayer(window.editor);
+            redrawAllRealIDOverlays(editor);
+            drawCustomAdjacencyLayer(editor);
+            drawBorderAnomaliesLayer(editor);
+            updateEffectsVisibility(editor);
+            updateWormholeVisibility(editor);
+            updateTileImageLayer(editor);
         }).catch(err => {
             console.error('Could not load overlay modules:', err);
             // Fallback: try direct calls
-            if (typeof window.editor?.redrawAllRealIDOverlays === 'function') {
-                window.editor.redrawAllRealIDOverlays(window.editor);
+            if (typeof editor?.redrawAllRealIDOverlays === 'function') {
+                editor.redrawAllRealIDOverlays(editor);
             }
         });
 
@@ -715,21 +719,16 @@ export function importSlices(slicesString, updateStatusMsg) {
         }
         updateStatusMsg(statusMessage);
 
-        // Update slice button colors after import
-        setTimeout(() => {
-            // Try to call the slice button color update function if it exists
-            if (typeof window.updateSliceButtonColors === 'function') {
-                window.updateSliceButtonColors();
-            }
-            // Also try to trigger refresh from MiltyBuilder UI if available
-            const miltyUI = document.getElementById('milty-builder-popup');
-            if (miltyUI) {
-                const refreshBtn = miltyUI.querySelector('#refreshOccupancyBtn');
-                if (refreshBtn) {
-                    refreshBtn.click();
-                }
-            }
-        }, 300); // Delay to ensure all overlays are rendered first
+        // Recolour the slice buttons for what was just imported.
+        //
+        // This used to try window.updateSliceButtonColors first, which nothing has ever
+        // assigned — the function is a closure inside showMiltyBuilderUI — and then fall
+        // back to finding #refreshOccupancyBtn and clicking it. Only the fallback ever
+        // ran, and clicking that button also flashes it green and overwrites the import
+        // summary below with "Slice occupancy refreshed!". The command does the one thing
+        // that was wanted, and does nothing when the designer is closed.
+        setTimeout(() => tryInvoke(COMMANDS.refreshMiltySliceColors),
+                   300); // Delay to ensure all overlays are rendered first
 
         return importedCount > 0;
 

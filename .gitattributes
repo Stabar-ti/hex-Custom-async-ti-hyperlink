@@ -1,0 +1,10 @@
+# Every text file is stored and checked out with LF, whatever core.autocrlf says on the
+# machine. Without this the repo held both: twelve files had been committed with CRLF and
+# the rest with LF, so a tool that wrote a file back with the other ending made every
+# line of it show as changed.
+* text=auto eol=lf
+
+# Binary: never converted, never diffed as text.
+*.png binary
+*.webp binary
+*.xcf binary

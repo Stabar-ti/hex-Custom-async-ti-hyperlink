@@ -12,27 +12,34 @@ applySavedTheme();
 // Import main components and features required for the app
 import HexEditor from './core/HexEditor.js';
 import { exportFullState, exportMapInfo } from './data/export.js';
-import { importFullState } from './data/import.js';
+import { importFullState, loadSystemInfo, loadLoreData } from './data/import.js';
 import { initHistory } from './features/history.js';
 import { showModal, closeModal } from './ui/uiModals.js';
-import { loadSystemInfo, loadLoreData } from './data/import.js';
-import { assignSystem } from './features/assignSystem.js';
 import { installSystemPickerUI } from './modules/SystemPicker/pickerUI.js';
 //import { initHexHoverInfo } from './ui/hexHoverInfo.js';
 import { openCalcSlicePopup } from './features/calcSlice.js';
 import { installCustomLinksUI } from './ui/customLinksUI.js';
 import { installBorderAnomaliesUI } from './ui/borderAnomaliesUI.js';
-import { loadBorderAnomalyTypes } from './constants/borderAnomalies.js';
+import { loadBorderAnomalyTypes, clearCache } from './constants/borderAnomalies.js';
 import { overlayDefaults } from './config/toggleSettings.js';
-import { updateTileImageLayer } from './features/imageSystemsOverlay.js';
-import { enforceSvgLayerOrder } from './draw/enforceSvgLayerOrder.js';
-import { startCopyPasteWizard } from './features/tileCopyPasteWizard.js';
-import { setupTileCopySingleButtonAndPopup } from './ui/tileCopyPasteWizardUI.js';
-import { showOptionsPopup, showOverlayOptionsPopup, showLayoutOptionsPopup, showSanityCheckPopup } from './ui/simplepPopup.js';
-import { showHelpPopup, showInfoPopup, showFeaturesPopup } from './ui/staticPopups.js';
-import { resetAllPopupPositions } from './ui/popupUI.js';
-import { checkRealIdUniqueness } from './features/sanityCheck.js';
-import './ui/specialModePopup.js';
+import { showOptionsPopup, showOverlayOptionsPopup, showSanityCheckPopup } from './ui/simplepPopup.js';
+import { showInfoPopup, showFeaturesPopup, openUserManual } from './ui/staticPopups.js';
+import { installShortcuts, showShortcutsPopup, SHORTCUTS_POPUP_ID } from './ui/shortcuts.js';
+import { togglePopup } from './ui/popupUI.js';
+import { bindAnchoredPanel } from './ui/dropdownMenu.js';
+import { installFileMenu } from './ui/fileMenu.js';
+import { installTopBarMenus } from './ui/topBarMenus.js';
+import { installInspector } from './ui/inspector.js';
+import { installClipboardPanel } from './ui/clipboardPanel.js';
+import { installPanelResizers } from './ui/panelResize.js';
+import { installSessionAutosave } from './features/session.js';
+import { installStatusBar } from './ui/statusBar.js';
+import { installTopBarControls } from './ui/topBarControls.js';
+import { installSwapButton } from './features/hexSwapButton.js';
+import { installPasteGhost } from './features/pasteGhost.js';
+import { installClipboardShortcuts } from './features/clipboardShortcuts.js';
+import { installDistanceTool } from './features/distanceTool.js';
+import { installToolsMenu } from './ui/specialModePopup.js';
 import { installLoreUI } from './modules/Lore/loreUI.js';
 import LoreOverlay from './features/loreOverlay.js';
 import { TokenManager } from './modules/Token/tokenCore.js';
@@ -61,15 +68,35 @@ editor.options = {
 };
 editor.maxDistance = 3; // Used for BFS calculations
 
-// Expose modal control functions and editor globally
-window.showModal = showModal;
-window.closeModal = closeModal;
-window.editor = editor;
-window.assignSystem = assignSystem;
-window.checkRealIdUniqueness = checkRealIdUniqueness;
-
 // Enable undo/redo history tracking
 initHistory(editor);
+
+// The shell's status line: armed tool, hovered hex, zoom.
+installStatusBar(editor);
+
+// The inspector column: what is on the hex under the pointer.
+installInspector(editor);
+// After installInspector, which empties the column before building it.
+installClipboardPanel(editor);
+
+// Drag the inner edge of either side column to resize it; the width is remembered.
+installPanelResizers();
+
+// Undo/redo, zoom, pan mode and reset view — the verbs that had no buttons.
+installTopBarControls(editor);
+
+// Offers a swap between exactly two selected hexes, where the swap would happen.
+installSwapButton(editor);
+
+// Ctrl+C / Ctrl+X / Ctrl+V, R to turn the block, Escape or right-click to put the ghost
+// away. The clipboard itself keeps a history, so none of this consumes what you copied.
+installPasteGhost(editor);
+installClipboardShortcuts(editor);
+installDistanceTool(editor);
+
+// Tell the boot guard in index.html that the module graph resolved and the editor is
+// alive. Without this it shows a "failed to load" notice ten seconds in.
+window.dispatchEvent(new CustomEvent('ti4:booted'));
 //initHexHoverInfo(editor); // <- Add this line
 
 installCustomLinksUI(editor);
@@ -83,7 +110,6 @@ editor.loreOverlay = new LoreOverlay(editor);
 // Initialize token system
 console.log('Initializing Token System...');
 const tokenManager = new TokenManager(editor);
-window.tokenManager = tokenManager;
 editor.tokenManager = tokenManager;
 
 // Initialize token manager asynchronously
@@ -97,7 +123,6 @@ tokenManager.initialize().then(success => {
     // Initialize token overlay
     editor.tokenOverlay = new TokenOverlay(editor);
     editor.tokenOverlay.initialize();
-    window.tokenOverlay = editor.tokenOverlay;
 
     console.log('Token system ready');
   } else {
@@ -107,78 +132,18 @@ tokenManager.initialize().then(success => {
   console.error('Error initializing token system:', error);
 });
 
-// Initialize border anomaly types (force reload)
-import { clearCache } from './constants/borderAnomalies.js';
-clearCache(); // Clear any cached types
+// Border anomaly types, reloaded rather than taken from cache.
+clearCache();
 loadBorderAnomalyTypes().catch(console.error);
 
-/*// Add Copy/Move and Cut buttons to top bar
-const leftControls = document.getElementById('leftControls');
-if (leftControls && !document.getElementById('tileCopyBtn')) {
-  const copyBtn = document.createElement('button');
-  copyBtn.id = 'tileCopyBtn';
-  copyBtn.className = 'mode-button';
-  copyBtn.textContent = 'Copy Tiles';
-  leftControls.appendChild(copyBtn);
-  copyBtn.onclick = () => startCopyPasteWizard(editor, false);
-  const cutBtn = document.createElement('button');
-  cutBtn.id = 'tileCutBtn';
-  cutBtn.className = 'mode-button';
-  cutBtn.textContent = 'Cut Tiles';
-  leftControls.appendChild(cutBtn);
-  cutBtn.onclick = () => startCopyPasteWizard(editor, true);
-}*/
+// Distance Options is an anchored panel under the Analyse menu. Its button is an item in
+// that menu, which closes as the panel opens, so a press here only ever opens it.
+document.getElementById('optionsBtn')?.addEventListener('click', () => showOptionsPopup(editor));
 
-// ───── Options Modal: Save settings and update map behavior ─────
-/*
-document.getElementById('saveOptionsBtn').addEventListener('click', () => {
-  const supernovaCB = document.getElementById('toggleSupernova');
-  const asteroidCB = document.getElementById('toggleAsteroid');
-  const nebulaCB = document.getElementById('toggleNebula');
-  const riftCB = document.getElementById('toggleRift');
-  const customLinksCB = document.getElementById('toggleCustomLinks');
-  const borderAnomaliesCB = document.getElementById('toggleBorderAnomalies');
-  const maxDistInp = document.getElementById('maxDistanceInput');
-
-  editor.options.useSupernova = !!supernovaCB.checked;
-  editor.options.useAsteroid = !!asteroidCB.checked;
-  editor.options.useNebula = !!nebulaCB.checked;
-  editor.options.useRift = !!riftCB.checked;
-  editor.options.useCustomLinks = !!customLinksCB.checked;
-  editor.options.useBorderAnomalies = !!borderAnomaliesCB.checked;
-
-  // Clamp max distance between 1 and 10
-  let md = parseInt(maxDistInp.value, 10);
-  if (isNaN(md) || md < 1) md = 1;
-  if (md > 10) md = 10;
-  editor.maxDistance = md;
-  maxDistInp.value = md;
-
-  closeModal('optionsModal');
-});*/
-document.getElementById('optionsBtn').onclick = () => showOptionsPopup(editor);
-
-const btnPlanetTypes = document.getElementById('togglePlanetTypes');
-if (btnPlanetTypes) btnPlanetTypes.classList.toggle('active', editor.showPlanetTypes);
-
-const btnResInf = document.getElementById('toggleResInf');
-if (btnResInf) btnResInf.classList.toggle('active', editor.showResInf);
-
-const btnIdealRI = document.getElementById('toggleIdealRI');
-if (btnIdealRI) btnIdealRI.classList.toggle('active', editor.showIdealRI);
-
-const btnRealID = document.getElementById('toggleRealID');
-if (btnRealID) btnRealID.classList.toggle('active', editor.showRealID);
-
-
-
-// ───── Event handler to render wormhole connections ─────
-const linkWormholesBtn = document.getElementById('linkWormholesBtn');
-if (linkWormholesBtn) {
-  linkWormholesBtn.addEventListener('click', () => {
-    editor.drawWormholeLinks();
-  });
-}
+// The overlay toggles (planet types, R/I, ideal R/I, RealID, tile images, wormholes,
+// effects, link wormholes) all live in the Toggle Overlays popup and are wired by
+// setupToggle in ui/simplepPopup.js as that popup is built. Blocks that bound them here
+// at startup found nothing and never ran.
 
 // ───── Export full map state to JSON string ─────
 const exportBtn = document.getElementById('exportFullBtn');
@@ -238,15 +203,7 @@ document.getElementById('downloadExportMapInfo')?.addEventListener('click', asyn
 
 // ───── Cloudflare upload handlers ─────
 // Import Cloudflare functions
-import { saveMap, saveMapInfo } from './data/cloudflare.js';
-
-// Save map to Cloudflare with 48h link
-const saveMapCloudflareBtn = document.getElementById('saveMapCloudflareBtn');
-if (saveMapCloudflareBtn) {
-  saveMapCloudflareBtn.addEventListener('click', () => {
-    saveMap(editor);
-  });
-}
+import { saveMapInfo } from './data/cloudflare.js';
 
 // Save map info to Cloudflare with 48h link
 const saveMapInfoCloudflareBtn = document.getElementById('saveMapInfoCloudflareBtn');
@@ -271,9 +228,6 @@ if (importBtn) {
     showModal('importFullModal');
   });
 }
-
-// ---- Slice Calculation -----
-document.getElementById('calcSliceBtn')?.addEventListener('click', openCalcSlicePopup);
 
 // Parse and apply imported map JSON from text input
 document.getElementById('doImportFull')?.addEventListener('click', () => {
@@ -326,48 +280,6 @@ document.getElementById('importMapInfoFile')?.addEventListener('change', (e) => 
   reader.readAsText(file);
 });
 
-// ───── Toggle visibility of wormhole or effect icons ─────
-const btnToggleWormholes = document.getElementById('toggleWormholes');
-if (btnToggleWormholes) {
-  btnToggleWormholes.classList.toggle('active', !!editor.showWormholes);
-
-  btnToggleWormholes.addEventListener('click', () => {
-    editor.showWormholes = !editor.showWormholes;
-    import('./features/baseOverlays.js').then(({ updateWormholeVisibility }) => {
-      updateWormholeVisibility(editor);
-      enforceSvgLayerOrder(editor.svg); // <--- ENSURE PROPER LAYER ORDER
-    });
-    btnToggleWormholes.classList.toggle('active', editor.showWormholes);
-  });
-}
-
-const btnToggleEffects = document.getElementById('toggleEffects');
-if (btnToggleEffects) {
-  // Set initial .active state (on page load)
-  btnToggleEffects.classList.toggle('active', !!editor.showEffects);
-
-  btnToggleEffects.addEventListener('click', () => {
-    editor.showEffects = !editor.showEffects;
-    import('./features/baseOverlays.js').then(({ updateEffectsVisibility }) => {
-      updateEffectsVisibility(editor);
-      enforceSvgLayerOrder(editor.svg); // <--- ENSURE PROPER LAYER ORDER
-    });
-    btnToggleEffects.classList.toggle('active', editor.showEffects);
-  });
-}
-
-const btnTileImages = document.getElementById('toggleTileImagesBtn');
-if (btnTileImages) {
-  editor.showTileImages = !!editor.showTileImages; // default (or from localStorage)
-  btnTileImages.classList.toggle('active', editor.showTileImages);
-  btnTileImages.addEventListener('click', () => {
-    editor.showTileImages = !editor.showTileImages;
-    btnTileImages.classList.toggle('active', editor.showTileImages);
-    updateTileImageLayer(editor);
-    enforceSvgLayerOrder(editor.svg); // <--- ENSURE PROPER LAYER ORDER
-  });
-}
-
 // Enable keyboard focus for global hotkeys
 document.body.tabIndex = -1;
 document.body.focus();
@@ -389,13 +301,6 @@ document.body.focus();
 
 
 
-const resetPopupBtn = document.getElementById('resetPopupPositionsBtn');
-if (resetPopupBtn) {
-  resetPopupBtn.onclick = () => {
-    resetAllPopupPositions();
-    alert('All popup positions have been reset. Please reopen your popups.');
-  };
-}
 
 
 
@@ -410,72 +315,45 @@ function _onDOMReady(fn) {
 }
 
 _onDOMReady(() => {
-  setupTileCopySingleButtonAndPopup();
+  // Import, export and map generation now live behind the File button rather than in a
+  // panel permanently covering the map.
+  installFileMenu(editor);
 
-  // Controls Panel Hide/Show Arrow Buttons
-  const controlsPanel = document.getElementById('controlsPanel');
-  controlsPanel.classList.add('size-xlarge'); // Set initial size
-  const controlsPanelCloseBtn = document.getElementById('controlsPanelCloseBtn');
-  const controlsPanelOpenBtn = document.getElementById('controlsPanelOpenBtn');
-  if (controlsPanel && controlsPanelCloseBtn && controlsPanelOpenBtn) {
-    controlsPanelCloseBtn.addEventListener('click', () => {
-      controlsPanel.classList.add('collapsed');
-      controlsPanelOpenBtn.style.display = 'block';
-      controlsPanelOpenBtn.setAttribute('aria-hidden', 'false');
-      controlsPanelOpenBtn.tabIndex = 0;
-    });
-    controlsPanelOpenBtn.addEventListener('click', () => {
-      controlsPanel.classList.remove('collapsed');
-      controlsPanelOpenBtn.style.display = 'none';
-      controlsPanelOpenBtn.setAttribute('aria-hidden', 'true');
-      controlsPanelOpenBtn.tabIndex = -1;
-    });
-    // Hide open button if panel is visible on load
-    if (!controlsPanel.classList.contains('collapsed')) {
-      controlsPanelOpenBtn.style.display = 'none';
-      controlsPanelOpenBtn.setAttribute('aria-hidden', 'true');
-      controlsPanelOpenBtn.tabIndex = -1;
-    }
-  }
+  // The restore itself happens in the editor's own startup, where the system data it
+  // needs has just finished loading. This only has to start watching for changes.
+  installSessionAutosave(editor);
 
-  // Also handle toggleControlsBtn from Layout Options popup
-  const toggleControlsBtn = document.getElementById('toggleControlsBtn');
-  if (toggleControlsBtn && controlsPanel && controlsPanelOpenBtn) {
-    toggleControlsBtn.addEventListener('click', () => {
-      controlsPanel.classList.toggle('collapsed');
-      const isCollapsed = controlsPanel.classList.contains('collapsed');
-      toggleControlsBtn.textContent = isCollapsed
-        ? 'Show Im/Export & mapGen'
-        : 'hide Im/Export & mapGen';
-      controlsPanelOpenBtn.style.display = isCollapsed ? 'block' : 'none';
-      controlsPanelOpenBtn.setAttribute('aria-hidden', isCollapsed ? 'false' : 'true');
-      controlsPanelOpenBtn.tabIndex = isCollapsed ? 0 : -1;
-    });
-  }
+  // Group the rest of the bar by purpose. After installFileMenu and installTopBarControls,
+  // since it moves buttons those two have already placed.
+  installTopBarMenus();
 });
 
-document.getElementById('helpToggle').onclick = showHelpPopup;
-document.getElementById('infoToggle').onclick = showInfoPopup;
-document.getElementById('featuresToggle').onclick = showFeaturesPopup;
-
-const overlayToggleBtn = document.getElementById('overlayToggleBtn');
-if (overlayToggleBtn) {
-  overlayToggleBtn.onclick = () => {
-    console.log('Overlay toggle button clicked'); // Debug: log on click
-    showOverlayOptionsPopup();
+// Any button that stays on screen while the thing it opened is open has to close it
+// again. togglePopup is the rule; this adds the aria the bar's menu buttons need.
+function bindMenuToggle(buttonId, popupId, open) {
+  const btn = document.getElementById(buttonId);
+  if (!btn) return;
+  btn.setAttribute('aria-haspopup', 'true');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.onclick = () => {
+    const opened = togglePopup(popupId, open);
+    btn.setAttribute('aria-expanded', opened ? 'true' : 'false');
   };
-  console.log('Overlay toggle button initialized'); // Debug: log on page load
 }
 
-const layoutToggleBtn = document.getElementById('layoutToggleBtn');
-if (layoutToggleBtn) {
-  layoutToggleBtn.onclick = () => showLayoutOptionsPopup();
-}
+// A menu, not a window: it goes with the other menus, so opening it closes whichever
+// of them was open.
+bindAnchoredPanel('overlayToggleBtn', 'overlayOptionsPopup', () => showOverlayOptionsPopup(editor));
 
-const sanityCheckBtn = document.getElementById('sanityCheckBtn');
-if (sanityCheckBtn) {
-  sanityCheckBtn.onclick = () => showSanityCheckPopup();
-}
+// The three Analyse items and the three Help items opened a window each and left the
+// button that opened it sitting there doing nothing on a second press.
+bindMenuToggle('sanityCheckBtn', 'sanity-check-popup', () => showSanityCheckPopup(editor));
+bindMenuToggle('calcSliceBtn', 'calcSlicePopup', () => openCalcSlicePopup(editor));
+bindMenuToggle('helpToggle', SHORTCUTS_POPUP_ID, showShortcutsPopup);
+document.getElementById('manualBtn')?.addEventListener('click', openUserManual);
+bindMenuToggle('infoToggle', 'info-popup', showInfoPopup);
+bindMenuToggle('featuresToggle', 'features-popup', showFeaturesPopup);
 
-window.editor = editor;
+installToolsMenu(editor);
+installShortcuts();
 

@@ -1,5 +1,6 @@
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import { buildCoordIndex, neighborHex, oppositeSide } from '../utils/hexGrid.js';
+import { hexVertices } from '../utils/hexGeometry.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -55,7 +56,7 @@ export function drawBorderAnomaliesLayer(editor) {
             drawnEdges.add(edgeKey);
 
             // Get the hex vertices
-            const verts = getHexVertices(hex.center, editor.hexRadius);
+            const verts = hexVertices(hex.center, editor.hexRadius);
             const p1 = insetPoint(verts[side], hex.center, INSET);
             const p2 = insetPoint(verts[(side + 1) % 6], hex.center, INSET);
 
@@ -97,7 +98,7 @@ export function drawBorderAnomaliesLayer(editor) {
                 // Draw on neighbor side if bidirectional
                 if (anomalyConfig.bidirectional && neighbor) {
                     const oppSide = getOppositeSide(side);
-                    const nVerts = getHexVertices(neighbor.center, editor.hexRadius);
+                    const nVerts = hexVertices(neighbor.center, editor.hexRadius);
                     const np1 = insetPoint(nVerts[oppSide], neighbor.center, INSET);
                     const np2 = insetPoint(nVerts[(oppSide + 1) % 6], neighbor.center, INSET);
                     drawStyledEdgeLine(layer, np1, np2, style);
@@ -138,22 +139,6 @@ function drawStyledEdgeLine(layer, p1, p2, style) {
     });
 }
 
-// Backward compatibility function
-function drawEdgeLine(layer, p1, p2, color, width) {
-    drawStyledEdgeLine(layer, p1, p2, { color, width, pattern: 'solid' });
-}
-
-function getHexVertices(center, radius) {
-    let pts = [];
-    for (let i = 0; i < 6; ++i) {
-        let angle = Math.PI / 180 * (60 * i - 120);
-        pts.push({
-            x: center.x + radius * Math.cos(angle),
-            y: center.y + radius * Math.sin(angle)
-        });
-    }
-    return pts;
-}
 
 function getNeighborHex(editor, label, side) {
     const hex = editor.hexes[label];

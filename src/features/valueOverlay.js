@@ -1,9 +1,12 @@
 // src/features/valueOverlay.js
-// Milty-style value tier overlay (1–5) for assigned system hexes.
-// Each hex gets a coloured semi-transparent fill and a tier badge based on
-// how its ideal R/I + tech score ranks among all currently placed systems.
+// Value tier overlay (1–5) for assigned system hexes.
+// Each hex gets a coloured semi-transparent fill and a tier badge for where its Milty value
+// falls among the placed systems of its planet-count group.
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+
+import { hexPoints } from '../utils/hexGeometry.js';
+import { biasedWeights, flexWeightOf, getWeights, subscribeWeights, tileScore } from '../modules/Milty/miltyScore.js';
 
 /** Semi-transparent fill per tier (red → green) */
 const TIER_FILL = {
@@ -40,31 +43,50 @@ export function getFactors(rOn, iOn, tOn) {
 }
 
 /**
- * Compute the milty optimal value of one system.
- * Uses the flex calculation: planets where res=inf contribute 50/50.
+ * The weights a tile's value is computed with: the Milty weights, with the R / I / T bias
+ * of `factors` applied (see getFactors). Unbiased, these are exactly the Weighting Settings.
  */
-export function calculateSystemValue(sys, { f_R = 1.0, f_I = 1.0, f_T = 2.0 } = {}) {
-    const planets = Array.isArray(sys?.planets) ? sys.planets : [];
-    if (!planets.length) return 0;
+export function valueWeights(factors = {}) {
+    return biasedWeights(getWeights(), factors);
+}
 
-    let idealR = 0, idealI = 0, techCount = 0;
-    for (const p of planets) {
-        const r = p.resources || 0;
-        const i = p.influence || 0;
-        if (r > i) idealR += r;
-        else if (i > r) idealI += i;
-        else { idealR += r / 2; idealI += i / 2; }
+/** The weight a flex point carries under `factors`: the average of the R and I weights. */
+export function flexWeight(factors = {}) {
+    return flexWeightOf(valueWeights(factors));
+}
 
-        if (p.techSpecialty) techCount++;
-        if (Array.isArray(p.techSpecialties)) techCount += p.techSpecialties.length;
-    }
+/**
+ * The pieces a system's value is made of, as well as the value itself.
+ *
+ * The value is the tile's Milty value (miltyScore.tileScore): its share of the score of
+ * any Milty slice it sits in. Resources and influence count at their optimal use — R, I
+ * and F (flex) — and tech skips, legendary planets, wormholes, trade stations, planet
+ * traits and anomalies each carry their Milty weight. `terms` are what each is worth and
+ * add up to `value`. The two slice-only terms, R/I imbalance and planet count, are not in
+ * a tile's value; see miltyScore.
+ *
+ * The AutoMapper's pool view shows these parts next to each tile, so a tier can be traced
+ * back to what earned it. calculateSystemValue is this function's `value`, so the parts
+ * shown are always the ones the ranking used.
+ */
+export function systemValueParts(sys, factors = {}) {
+    const s = tileScore(sys, valueWeights(factors));
+    return {
+        ...s.parts,
+        legendary: s.parts.legendaries.length > 0,
+        terms: s.terms,
+        value: s.value,
+    };
+}
 
-    return f_R * idealR + f_I * idealI + f_T * techCount;
+/** A system's Milty value under the R / I / T bias of `factors`. */
+export function calculateSystemValue(sys, factors = {}) {
+    return systemValueParts(sys, factors).value;
 }
 
 /**
  * Classify a system into a type group for per-group scaling.
- * 1p / 2p / 3p+ / legendary / empty each get their own percentile band
+ * 1p / 2p / 3p+ / legendary / empty each get their own set of value bands
  * so "tier 5" always means "best of that planet count", not "best overall".
  */
 export function getTypeGroup(sys) {
@@ -77,22 +99,49 @@ export function getTypeGroup(sys) {
     return 'empty';
 }
 
-/** Assign percentile tiers within one sorted group of {key, value} entries. */
-function percentileTiers(sorted) {
-    const n = sorted.length;
-    const result = new Map();
-    sorted.forEach(({ key, value }, idx) => {
-        const pct = idx / n;
-        const tier = pct < 0.2 ? 1 : pct < 0.4 ? 2 : pct < 0.6 ? 3 : pct < 0.8 ? 4 : 5;
-        result.set(key, { tier, value });
-    });
-    return result;
+/**
+ * The tier a value falls in, when the range `lo`…`hi` is cut into five equal bands.
+ *
+ * Tiers are fifths of the VALUE range, not fifths of the tiles. A group running from 3 to
+ * 8 has bands one point wide — T1 is 3 up to 4, T5 is 7 to 8 — and however many tiles
+ * score in a band, that is how many the tier holds. So two tiles with the same value are
+ * always the same tier, and the tiers take the shape of the pool rather than forcing an
+ * even count onto it.
+ *
+ * They used to be fifths of the tiles, cut by position after sorting, which split runs of
+ * equal values across a tier line by nothing but their order in the tile list: of the ten
+ * 2-planet tiles on the default pool scoring 6, eight were T4 and two T5.
+ *
+ * Each band includes its lower edge; the top band includes `hi` as well. With nothing to
+ * compare against (`lo === hi`) every value is the middle tier. The small epsilon keeps a
+ * value that sits on an edge from dropping a band through floating-point noise — biased
+ * factors give values like 3.3000000000000003.
+ *
+ * @returns {1|2|3|4|5}
+ */
+export function valueBandTier(value, lo, hi) {
+    if (!(hi > lo)) return 3;
+    const t = Math.floor(((value - lo) * 5) / (hi - lo) + 1e-9) + 1;
+    return /** @type {1|2|3|4|5} */ (Math.max(1, Math.min(5, t)));
+}
+
+/** The six edges of the five bands over `lo`…`hi`: band k runs from edges[k-1] to edges[k]. */
+export function valueBandEdges(lo, hi) {
+    return Array.from({ length: 6 }, (_, k) => lo + ((hi - lo) * k) / 5);
 }
 
 /**
  * Score every placed system and return Map<hexLabel, {tier, value}>.
  * Tiers are computed SEPARATELY per type group (1-planet, 2-planet, 3+-planet, etc.)
  * so tier 5 always means "best available of that planet count", not "best overall".
+ * They are the same value bands the AutoMapper ranks its pool with (valueBandTier).
+ *
+ * A tile without planets is ranked only if the Milty weights give it a value — a scar, a
+ * wormhole, a supernova — and then only against the other planet-free tiles. A plain empty
+ * system and a hyperlane are worth nothing, so they get no tier and no badge. They used to
+ * be cut into T1–T5 like any other group: every one scored 0, so their tiers came from
+ * nothing but the order the hexes happened to be listed in, and identical empty tiles
+ * showed different tiers.
  */
 export function buildValueTiers(editor, factors) {
     const lookup = editor.sectorIDLookup || {};
@@ -102,35 +151,46 @@ export function buildValueTiers(editor, factors) {
         if (!hex.realId) continue;
         const sys = lookup[hex.realId.toString().toUpperCase()];
         if (!sys) continue;
+        if (sys.isHyperlane) continue;
         const group = getTypeGroup(sys);
+        const value = calculateSystemValue(sys, factors);
+        if (group === 'empty' && value === 0) continue;
         if (!groups[group]) groups[group] = [];
-        groups[group].push({ key: label, value: calculateSystemValue(sys, factors) });
+        groups[group].push({ key: label, value });
     }
-
-    if (!Object.keys(groups).length) return new Map();
 
     const tierMap = new Map();
     for (const entries of Object.values(groups)) {
-        entries.sort((a, b) => a.value - b.value);
-        for (const [k, v] of percentileTiers(entries)) tierMap.set(k, v);
+        const values = entries.map(e => e.value);
+        const lo = Math.min(...values), hi = Math.max(...values);
+        for (const { key, value } of entries) {
+            tierMap.set(key, { tier: valueBandTier(value, lo, hi), value });
+        }
     }
     return tierMap;
-}
-
-/** Compute the six corner points of a flat-top hexagon centred at (cx, cy). */
-function hexPoints(cx, cy, r) {
-    return Array.from({ length: 6 }, (_, i) => {
-        const a = Math.PI / 180 * (60 * i);
-        return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
-    }).join(' ');
 }
 
 /**
  * Draw (or refresh) the value overlay on the map SVG.
  * Safe to call repeatedly — always removes the previous layer first.
  */
+/** The last overlay drawn, so a change to the Milty weights can redraw it as it was. */
+let lastDraw = null;
+let followingWeights = false;
+
 export function drawValueOverlay(editor, rOn = false, iOn = false, tOn = false) {
     clearValueOverlay(editor);
+    lastDraw = { editor, rOn, iOn, tOn };
+    // The tiers are made of the Milty weights, so an edit in the Weighting Settings redraws
+    // an overlay that is on screen rather than leaving it showing the old ranking.
+    if (!followingWeights) {
+        followingWeights = true;
+        subscribeWeights(() => {
+            if (lastDraw && isValueOverlayActive(lastDraw.editor)) {
+                drawValueOverlay(lastDraw.editor, lastDraw.rOn, lastDraw.iOn, lastDraw.tOn);
+            }
+        });
+    }
 
     const factors = getFactors(rOn, iOn, tOn);
     const tierMap = buildValueTiers(editor, factors);
@@ -143,14 +203,14 @@ export function drawValueOverlay(editor, rOn = false, iOn = false, tOn = false) 
 
     const r = (editor.hexRadius || 40) * 0.90;
 
-    for (const [label, { tier, value }] of tierMap) {
+    for (const [label, { tier }] of tierMap) {
         const hex = editor.hexes[label];
         if (!hex?.center) continue;
         const { x, y } = hex.center;
 
         // Coloured fill
         const poly = document.createElementNS(SVG_NS, 'polygon');
-        poly.setAttribute('points', hexPoints(x, y, r));
+        poly.setAttribute('points', hexPoints({ x, y }, r));
         poly.setAttribute('fill', TIER_FILL[tier]);
         poly.setAttribute('stroke', 'none');
         layer.appendChild(poly);
@@ -178,15 +238,35 @@ export function drawValueOverlay(editor, rOn = false, iOn = false, tOn = false) 
         txt.textContent = `T${tier}`;
         layer.appendChild(txt);
     }
+
+    announceValueOverlayChange();
 }
 
 export function clearValueOverlay(editor) {
     editor?.svg?.querySelector('#valueOverlayLayer')?.remove();
+    announceValueOverlayChange();
 }
 
 /** True if the overlay is currently shown. */
 export function isValueOverlayActive(editor) {
     return !!editor?.svg?.querySelector('#valueOverlayLayer');
+}
+
+/**
+ * Fired whenever the value overlay is drawn or cleared.
+ *
+ * This overlay has two switches, in different popups: "Value Tiers (T1-T5)" in Toggle
+ * Overlays, and "Show Value Overlay" in the Balance panel. They used to keep separate state —
+ * one probed the DOM, the other held a flag on its own button — so using one left the
+ * other showing the opposite. The drawn layer is the only truth; this event is how a
+ * button that did not cause the change hears about it.
+ */
+export const VALUE_OVERLAY_CHANGED = 'ti4:value-overlay-changed';
+
+function announceValueOverlayChange() {
+    // The pure helpers in this file are imported under node, where there is no document.
+    if (typeof document === 'undefined') return;
+    document.dispatchEvent(new CustomEvent(VALUE_OVERLAY_CHANGED));
 }
 
 // ── Value TARGET layer ─────────────────────────────────────────────────────

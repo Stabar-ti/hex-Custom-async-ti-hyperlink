@@ -4,6 +4,7 @@
 import { COLORS } from '../../constants/designTokens.js';
 import { defaultSlices, applyMiltyDisplay } from './miltyBuilderCore.js';
 import { buildCoordIndex, neighborLabel } from '../../utils/hexGrid.js';
+import { hexVertices } from '../../utils/hexGeometry.js';
 
 // Draws red number overlays (1-12) in specified sectors
 export function drawSlicePositionOverlays(editor, show = true) {
@@ -77,7 +78,7 @@ export function drawSlicePositionOverlays(editor, show = true) {
     }
     console.log(`Added ${sectors.length} slice position overlays and ${sliceLetters.length} slice letter overlays to layer`);
 
-    setTimeout(() => applyMiltyDisplay(), 200);
+    setTimeout(() => applyMiltyDisplay(editor), 200);
 }
 
 // Draws black borders around each slice (A-F) to show slice boundaries
@@ -118,7 +119,7 @@ export function drawSliceBordersOverlay(editor, show = true) {
             if (!hex || !hex.center) return;
 
             // Create a hexagon polygon for the overlay
-            const verts = getHexVertices(hex.center, editor.hexRadius);
+            const verts = hexVertices(hex.center, editor.hexRadius);
             const points = verts.map(v => `${v.x},${v.y}`).join(' ');
 
             const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
@@ -155,7 +156,7 @@ export function drawSliceBordersOverlay(editor, show = true) {
                     drawnEdges.add(edgeKey);
 
                     // Get the hex vertices and draw the edge
-                    const verts = getHexVertices(hex.center, editor.hexRadius);
+                    const verts = hexVertices(hex.center, editor.hexRadius);
                     const p1 = insetPoint(verts[side], hex.center, INSET);
                     const p2 = insetPoint(verts[(side + 1) % 6], hex.center, INSET);
 
@@ -183,17 +184,6 @@ function drawSliceEdgeLine(layer, p1, p2, color, width) {
     layer.appendChild(line);
 }
 
-function getHexVertices(center, radius) {
-    let pts = [];
-    for (let i = 0; i < 6; ++i) {
-        let angle = Math.PI / 180 * (60 * i - 120);
-        pts.push({
-            x: center.x + radius * Math.cos(angle),
-            y: center.y + radius * Math.sin(angle)
-        });
-    }
-    return pts;
-}
 
 function getNeighborHex(editor, label, side) {
     const hex = editor.hexes[label];
@@ -236,7 +226,7 @@ export function ensureHighlightStyles() {
     if (!document.getElementById('miltySliceHighlightStyle')) {
         const style = document.createElement('style');
         style.id = 'miltySliceHighlightStyle';
-        style.textContent = `.milty-slice-highlight { outline: 3px solid red !important; z-index: 10002 !important; }`;
+        style.textContent = `.milty-slice-highlight { outline: 3px solid red !important; }`;
         document.head.appendChild(style);
     }
 }
