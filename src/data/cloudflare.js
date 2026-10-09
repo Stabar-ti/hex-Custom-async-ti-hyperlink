@@ -3,9 +3,7 @@
  * Provides functionality to get Turnstile tokens and upload maps to Cloudflare Workers
  */
 
-// Fork-specific: replaces upstream "https://gateway.stabarrabats.workers.dev", whose
-// allowlist does not include this fork's GitHub Pages origin.
-const API_ORIGIN = "https://ti4-map-share.lezduit.workers.dev";
+const API_ORIGIN = "https://gateway.stabarrabats.workers.dev";
 
 // Optimized Turnstile readiness check
 let turnstileReady = false;
