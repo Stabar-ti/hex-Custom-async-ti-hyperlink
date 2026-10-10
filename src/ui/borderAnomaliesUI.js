@@ -4,6 +4,21 @@ import { provide, COMMANDS } from '../core/registry.js';
 import { createToolPanel } from './toolPanel.js';
 import { loadBorderAnomalyTypes, getEnabledBorderAnomalyTypes, updateBorderAnomalyStyle, updateBorderAnomalyBidirectional } from '../constants/borderAnomalies.js';
 import { placeBorderAnomaly, removeBorderAnomalies } from '../features/borderAnomalyPlacement.js';
+import { isScriptedAnomaly } from '../distance/borderAnomalyRules.js';
+
+/** Button tooltip: draw style, scripting status, and what the AsyncTI4 bot enforces. */
+function anomalyTooltip(type, scripted) {
+    const lines = [
+        `${type.name} ${type.bidirectional ? '(both ways)' : '(one way)'}`,
+        `Color: ${type.drawStyle.color} | Width: ${type.drawStyle.width}px | Pattern: ${type.drawStyle.pattern}`,
+        scripted ? '[SCRIPTED - Has game mechanics]' : '[NOT SCRIPTED - Visual only]'
+    ];
+    if (type.automation) {
+        const label = type.automation.replace(/_/g, ' ').toLowerCase();
+        lines.push(`Bot automation: ${label}${type.automationNotes ? ` - ${type.automationNotes}` : ''}`);
+    }
+    return lines.join('\n');
+}
 
 const MODE_BORDER_ANOMALIES = 'borderAnomalies';
 
@@ -273,15 +288,14 @@ export function installBorderAnomaliesUI(editor) {
         scriptedBtnContainer.style.gap = '4px';
         scriptedBtnContainer.style.flex = '1 1 auto';
 
-        // Add scripted border anomaly types (Gravity Wave and Spatial Tear)
-        const scriptedTypes = ['GRAVITYWAVE', 'SPATIALTEAR'];
+        // Add scripted border anomaly types (the ones borderAnomalyRules implements)
         Object.values(borderTypes).forEach(type => {
-            if (scriptedTypes.includes(type.id)) {
+            if (isScriptedAnomaly(type.id)) {
                 console.log(`Creating scripted button for ${type.name} (enabled: ${type.enabled})`);
                 scriptedBtnContainer.appendChild(toolBtn(
                     type.name,
                     type.id,
-                    `${type.name} ${type.bidirectional ? '(both ways)' : '(one way)'}\nColor: ${type.drawStyle.color} | Width: ${type.drawStyle.width}px | Pattern: ${type.drawStyle.pattern}\n[SCRIPTED - Has game mechanics]`,
+                    anomalyTooltip(type, true),
                     type.bidirectional,
                     type.drawStyle,
                     true
@@ -309,12 +323,12 @@ export function installBorderAnomaliesUI(editor) {
 
         // Add buttons for non-scripted border anomaly types
         Object.values(borderTypes).forEach(type => {
-            if (!scriptedTypes.includes(type.id)) {
+            if (!isScriptedAnomaly(type.id)) {
                 console.log(`Creating non-scripted button for ${type.name} (enabled: ${type.enabled})`);
                 btnRow.appendChild(toolBtn(
                     type.name,
                     type.id,
-                    `${type.name} ${type.bidirectional ? '(both ways)' : '(one way)'}\nColor: ${type.drawStyle.color} | Width: ${type.drawStyle.width}px | Pattern: ${type.drawStyle.pattern}\n[NOT SCRIPTED - Visual only]`,
+                    anomalyTooltip(type, false),
                     type.bidirectional,
                     type.drawStyle,
                     false

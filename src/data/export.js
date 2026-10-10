@@ -17,7 +17,7 @@ import { matrixToHex, hasLinks } from '../utils/matrix.js';
 import { symmetrised } from '../modules/Hyperlanes/hyperlaneModel.js';
 import { typeCodeMap } from '../constants/constants.js';
 import { showModal } from '../ui/uiModals.js';
-import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
+import { getBorderAnomalyTypes, normalizeAnomalyId } from '../constants/borderAnomalies.js';
 import { normalizeLoreEntries, isNonEmptyLoreEntry, loreEntryToShort, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
 // Aliased: a local `neighborLabel` string variable is destructured in
 // exportAdjacencyOverrides below, and shadowing the helper there would be a trap.
@@ -727,7 +727,9 @@ export function exportBorderAnomaliesGrouped(editor, doubleSided = true) {
     Object.entries(hex.borderAnomalies).forEach(([sideStr, anomaly]) => {
       const side = parseInt(sideStr, 10);
       const dir = dirMap[side];
-      let type = (anomaly.type || '').replace(/\s+/g, '');
+      // Normalised ID ("SPATIALTEAR"): the bot accepts it, and it has no "_",
+      // which the group key below is split on.
+      const type = normalizeAnomalyId(anomaly.type);
       if (!dir || !type) return;
 
       const neighborLabel = getNeighborHexLabel(editor.hexes, label, side);
@@ -735,8 +737,7 @@ export function exportBorderAnomaliesGrouped(editor, doubleSided = true) {
 
       // Get border anomaly configuration
       const borderTypes = getBorderAnomalyTypes();
-      const typeId = type.toUpperCase().replace(/\s+/g, '');
-      const anomalyConfig = borderTypes[typeId];
+      const anomalyConfig = borderTypes[type];
 
       const key = `${dir}_${type}`;
       if (!groups[key]) groups[key] = new Set();
