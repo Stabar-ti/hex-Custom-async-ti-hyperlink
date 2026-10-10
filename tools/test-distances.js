@@ -177,6 +177,14 @@ function tearBetween(hexes, aIdx, bIdx) {
         { A: 0, B: 1 });
 }
 {
+    // Bot saves and mapInfo imports use the AsyncTI4 snake_case id; it must block too.
+    const hexes = line(4);
+    hexes[1].borderAnomalies = { 2: ba('spatial_tear') };
+    hexes[2].borderAnomalies = { 5: ba('spatial_tear') };
+    expectDistances('§2 bot snake_case id form still blocks', makeEditor(hexes), 'A', 3,
+        { A: 0, B: 1 });
+}
+{
     // Decorative border types must not affect pathing.
     const hexes = line(4);
     hexes[1].borderAnomalies = { 2: ba('ARROW') };
@@ -201,6 +209,14 @@ function tearBetween(hexes, aIdx, bIdx) {
     hexes[1].borderAnomalies = { 2: ba('GRAVITYWAVE') };
     expectDistances('§3 gravity wave blocks entry through the wave edge',
         makeEditor(hexes), 'D', 3, { D: 0, C: 1 });
+}
+{
+    const hexes = line(4);
+    hexes[1].borderAnomalies = { 2: ba('gravity_wave') };
+    expectDistances('§3 bot snake_case gravity_wave blocks entry',
+        makeEditor(hexes), 'D', 3, { D: 0, C: 1 });
+    expectDistances('§3 bot snake_case gravity_wave still lets you out',
+        makeEditor(hexes), 'A', 3, { A: 0, B: 1, C: 2, D: 3 });
 }
 {
     // The border-anomaly registry lets a user make Gravity Wave bidirectional

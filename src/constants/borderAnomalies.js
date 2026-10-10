@@ -4,16 +4,17 @@ let borderAnomalyTypes = null;
 /**
  * Normalise a stored border-anomaly type to its registry ID.
  *
- * Maps in the wild hold either the ID ("SPATIALTEAR") or the legacy display
- * name ("Spatial Tear"), depending on when and how they were authored. Every
- * comparison against a type must go through here — comparing against one form
- * only silently misses half the data.
+ * Maps in the wild hold the ID ("SPATIALTEAR"), the legacy display name
+ * ("Spatial Tear"), or the AsyncTI4 bot's snake_case id ("spatial_tear"),
+ * depending on when and how they were authored. Every comparison against a
+ * type must go through here — comparing against one form only silently misses
+ * the rest of the data.
  *
  * @param {string|undefined|null} type - the raw `borderAnomalies[side].type`
  * @returns {string} the normalised ID, or '' when there is no anomaly
  */
 export function normalizeAnomalyId(type) {
-    return (type ?? '').replace(/\s+/g, '').toUpperCase();
+    return (type ?? '').replace(/[\s_]+/g, '').toUpperCase();
 }
 
 /**
@@ -44,12 +45,6 @@ export async function loadBorderAnomalyTypes() {
         console.log('Imported border anomaly settings module:', settingsModule);
         console.log('Imported border anomaly settings:', borderAnomalySettings);
 
-        // Debug: check specific values that should be false
-        console.log('ARROW should be false:', borderAnomalySettings.ARROW);
-        console.log('VOIDTETHER should be false:', borderAnomalySettings.VOIDTETHER);
-        console.log('COREBORDER should be false:', borderAnomalySettings.COREBORDER);
-        console.log('RIMBORDER should be false:', borderAnomalySettings.RIMBORDER);
-
         borderAnomalyTypes = data.reduce((acc, anomaly) => {
             // Get enabled state from settings, default to true if undefined
             const enabledSetting = borderAnomalySettings[anomaly.id];
@@ -62,9 +57,15 @@ export async function loadBorderAnomalyTypes() {
                 name: anomaly.name,
                 alias: anomaly.alias,
                 image: anomaly.image,
+                upstreamId: anomaly.upstreamId,
+                source: anomaly.source,
+                automation: anomaly.automation,
+                automationNotes: anomaly.automationNotes,
+                blocksIn: !!anomaly.blocksIn,
+                blocksOut: !!anomaly.blocksOut,
                 enabled: isEnabled,
                 drawStyle: getDefaultDrawStyle(anomaly.id),
-                bidirectional: getBidirectionalDefault(anomaly.id)
+                bidirectional: getBidirectionalDefault(anomaly)
             };
             return acc;
         }, {});
@@ -135,7 +136,6 @@ function getDefaultDrawStyle(id) {
         'ASTEROID': { color: '#8b4513', width: 3, pattern: 'dashed' },
         'NEBULA': { color: '#9370db', width: 4, pattern: 'solid' },
         'MINEFIELD': { color: '#ff4500', width: 2, pattern: 'dotted' },
-        'ARROW': { color: '#ffd700', width: 2, pattern: 'solid' },
         'VOIDTETHER': { color: '#4b0082', width: 3, pattern: 'solid' },
         'COREBORDER': { color: '#000000', width: 5, pattern: 'solid' },
         'RIMBORDER': { color: '#696969', width: 4, pattern: 'solid' },
@@ -178,16 +178,18 @@ function generateStyleFromId(id) {
 }
 
 /**
- * Get bidirectional default for anomaly type
+ * Get bidirectional default for an anomaly entry from border.json.
+ *
+ * Types with upstream adjacency rules say it directly: blocking only inbound
+ * (Gravity Wave) is one-way, blocking both ways (Spatial Tear) is two-way.
+ * Decorative types carry no rules and are drawn on both hexes.
  */
-function getBidirectionalDefault(id) {
-    // Gravity Wave is the only unidirectional type by default
-    if (id === 'GRAVITYWAVE') {
-        return false;
+function getBidirectionalDefault(anomaly) {
+    if (anomaly.blocksIn || anomaly.blocksOut) {
+        return !!(anomaly.blocksIn && anomaly.blocksOut);
     }
-
-    // All other types are bidirectional by default
-    return true;
+    // Older border.json without rule fields: Gravity Wave is the only one-way type
+    return anomaly.id !== 'GRAVITYWAVE';
 }
 
 /**
@@ -223,9 +225,10 @@ export function findBorderAnomalyType(searchTerm) {
     const types = getBorderAnomalyTypes();
     const term = searchTerm.toLowerCase();
 
-    // Direct ID match
-    if (types[term.toUpperCase()]) {
-        return types[term.toUpperCase()];
+    // Direct ID match (any stored form)
+    const id = normalizeAnomalyId(searchTerm);
+    if (types[id]) {
+        return types[id];
     }
 
     // Name or alias match

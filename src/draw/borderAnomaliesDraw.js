@@ -1,4 +1,4 @@
-import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
+import { getBorderAnomalyTypes, normalizeAnomalyId } from '../constants/borderAnomalies.js';
 import { buildCoordIndex, neighborHex, oppositeSide } from '../utils/hexGrid.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -62,15 +62,9 @@ export function drawBorderAnomaliesLayer(editor) {
             // Get anomaly type configuration
             const borderTypes = getBorderAnomalyTypes();
 
-            // Since anomaly.type is now always the ID (e.g., "ASTEROID"), try direct match first
-            let anomalyTypeId = anomaly.type.toUpperCase();
+            // Accepts every stored form: "ASTEROID", "Asteroid Field", "spatial_tear"
+            let anomalyTypeId = normalizeAnomalyId(anomaly.type);
             let anomalyConfig = borderTypes[anomalyTypeId];
-
-            // Fallback: try with spaces removed (for backward compatibility with old data)
-            if (!anomalyConfig) {
-                anomalyTypeId = anomaly.type.toUpperCase().replace(/\s+/g, '');
-                anomalyConfig = borderTypes[anomalyTypeId];
-            }
 
             // Fallback: try without the word "FIELD" suffix
             if (!anomalyConfig && anomalyTypeId.endsWith('FIELD')) {
