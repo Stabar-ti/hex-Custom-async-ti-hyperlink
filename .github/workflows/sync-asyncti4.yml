@@ -246,66 +246,83 @@ jobs:
             
           EOF
 
-      - name: Generate border.json from BorderAnomalyModel.java
+      # Upstream moved border types out of the BorderAnomalyType enum into
+      # data/border_anomalies/*.json (AsyncTI4 #5859). Upstream ids are snake_case
+      # ("spatial_tear"); the app keys everything on the underscore-free uppercase
+      # form ("SPATIALTEAR") — saved maps, toggleSettings.js, borderAnomalyRules.js,
+      # and the export command grouping (which splits on "_") all depend on it.
+      - name: Build border.json from data/border_anomalies
         run: |
           python3 - << 'EOF'
-          import json, os, re
+          import glob, json, os, sys
 
-          # Read and parse BorderAnomalyModel.java
-          border_anomalies = []
-          
-          with open('temp-bot-repo/src/main/java/ti4/model/BorderAnomalyModel.java', 'r', encoding='utf-8') as f:
-              content = f.read()
-          
-          # Find the enum section
-          enum_pattern = r'public enum BorderAnomalyType\s*\{(.*?)\}'
-          enum_match = re.search(enum_pattern, content, re.DOTALL)
-          
-          if enum_match:
-              enum_content = enum_match.group(1)
-              
-              # Parse each enum entry - pattern: ENUM_NAME("Display Name", "image.png")
-              entry_pattern = r'(\w+)\("([^"]+)",\s*"([^"]+)"\)'
-              entries = re.findall(entry_pattern, enum_content)
-              
-              for enum_name, display_name, image_file in entries:
-                  # Generate ID from first word of enum name (remove underscores)
-                  id_parts = enum_name.split('_')
-                  if len(id_parts) > 1:
-                      # For multi-word enums like GRAVITY_WAVE, use both words
-                      border_id = ''.join(id_parts)
-                  else:
-                      border_id = enum_name
-                  
-                  # Generate aliases
-                  aliases = [enum_name.lower()]
-                  if '_' in enum_name:
-                      aliases.append(enum_name.lower().replace('_', ''))
-                      aliases.extend(part.lower() for part in enum_name.split('_'))
-                  
-                  # Add display name variations as aliases
-                  display_lower = display_name.lower()
-                  if display_lower not in aliases:
-                      aliases.append(display_lower)
-                  
-                  # Add space-separated words from display name
-                  display_words = display_lower.replace(' ', '_').split('_')
-                  for word in display_words:
-                      if word and word not in aliases:
-                          aliases.append(word)
-                  
-                  border_anomalies.append({
-                      "id": border_id,
-                      "name": display_name,
-                      "alias": list(set(aliases)),  # Remove duplicates
-                      "image": image_file
-                  })
-          
-          # Write the border anomalies data
-          os.makedirs('public/data', exist_ok=True)
-          with open('public/data/border.json', 'w') as out:
-              json.dump(border_anomalies, out, separators=(',',':'))
-              
+          BOT = os.environ.get('BOT_REPO', 'temp-bot-repo')
+          OUT = os.environ.get('OUT_DIR', 'public/data')
+          SRC = os.path.join(BOT, 'src/main/resources/data/border_anomalies')
+
+          # Must match DEFAULT_ANOMALY_TABLE in src/distance/borderAnomalyRules.js.
+          # Pathfinding only implements these; a new rule-bearing border has to fail
+          # the sync rather than silently ship as decoration.
+          EXPECTED_RULES = {
+              'SPATIALTEAR': (True, True),
+              'GRAVITYWAVE': (True, False),
+          }
+
+          def app_id(upstream_id):
+              return upstream_id.replace('_', '').upper()
+
+          entries = []
+          for path in sorted(glob.glob(os.path.join(SRC, '*.json'))):
+              with open(path, encoding='utf-8') as f:
+                  data = json.load(f)
+              entries.extend(data if isinstance(data, list) else [data])
+
+          if not entries:
+              print(f'::error::No border anomalies found under {SRC}; refusing to write an empty border.json')
+              sys.exit(1)
+
+          borders, errors = {}, []
+          for e in entries:
+              uid = e.get('id')
+              if not uid or not e.get('name'):
+                  errors.append(f'entry without id/name: {e}')
+                  continue
+              bid = app_id(uid)
+              if bid in borders:
+                  errors.append(f'{uid} and {borders[bid]["upstreamId"]} both normalise to {bid}')
+                  continue
+              adjacency = (e.get('rules') or {}).get('adjacency') or {}
+              aliases = {uid.lower(), uid.lower().replace('_', ''), e['name'].lower()}
+              aliases.update(a.lower() for a in e.get('aliasList') or [] if a)
+              borders[bid] = {
+                  'id': bid,
+                  'upstreamId': uid,
+                  'name': e['name'],
+                  'alias': sorted(aliases),
+                  'image': e.get('imagePath'),
+                  'source': e.get('source', ''),
+                  'automation': e.get('automation', ''),
+                  'automationNotes': e.get('automationNotes', ''),
+                  'blocksIn': bool(adjacency.get('blocksIn')),
+                  'blocksOut': bool(adjacency.get('blocksOut')),
+              }
+
+          actual_rules = {b['id']: (b['blocksIn'], b['blocksOut'])
+                          for b in borders.values() if b['blocksIn'] or b['blocksOut']}
+          if actual_rules != EXPECTED_RULES:
+              errors.append(f'adjacency rules drifted: upstream {actual_rules}, app implements {EXPECTED_RULES}. '
+                            'Update DEFAULT_ANOMALY_TABLE in src/distance/borderAnomalyRules.js and EXPECTED_RULES here.')
+
+          if errors:
+              for err in errors:
+                  print(f'::error::{err}')
+              sys.exit(1)
+
+          os.makedirs(OUT, exist_ok=True)
+          with open(os.path.join(OUT, 'border.json'), 'w', encoding='utf-8') as out:
+              json.dump([borders[k] for k in sorted(borders)], out,
+                        separators=(',', ':'), sort_keys=True, ensure_ascii=False)
+          print(f'border.json: {len(borders)} border anomalies: {", ".join(sorted(borders))}')
           EOF
 
       - name: Convert hyperlanes.properties to compact hyperlanes.json

@@ -24,6 +24,11 @@ export { normalizeAnomalyId };
  * mechanics]". Everything else in border.json is decoration and must stay
  * inert no matter what the registry says about it.
  *
+ * This table mirrors the AsyncTI4 bot's `rules.adjacency` (blocksIn/blocksOut)
+ * in data/border_anomalies. The sync workflow fails if upstream's set of
+ * rule-bearing types or their directions stop matching it (EXPECTED_RULES in
+ * .github/workflows/sync-asyncti4.yml) — update both together.
+ *
  * WHETHER a type blocks both ways is a user setting, overridable per type from
  * the border anomaly panel — see `makeAnomalyRules`.
  */
