@@ -153,3 +153,64 @@ export function axialDistance(a, b) {
     Math.abs(a.r - b.r)
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Galaxies: the extra boards a–g beside the main map.
+//
+// The bot calls them boards, and its players call them galaxies. A board hex is labelled
+// with its board letter in front of an ordinary position — `a000`, `b401` — and that is
+// exactly the position the bot's map JSON uses (BoardPosition in the bot).
+//
+// Every board has its own copy of the main grid's local coordinates, so if they shared
+// axial space, `a101` and `101` would be the same q,r and every neighbour, distance and
+// coordinate index in the editor would mix the two up. Instead each board is shifted far
+// along q, by a stride larger than any two boards plus a sector radius could ever span.
+// Nothing on one board is then a neighbour of, or within reach of, anything on another —
+// as in the bot, where hex adjacency never crosses boards — and code that works on q,r
+// works on every board unchanged. Where a board is DRAWN is separate: see galaxies.js.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The bot's extra boards, in its order. The main board is ''. */
+export const GALAXY_BOARDS = Object.freeze(['a', 'b', 'c', 'd', 'e', 'f', 'g']);
+
+/**
+ * The most rings an extra board can have. The bot's BoardPosition only parses a letter
+ * plus three digits with a ring digit of 0–8, in its game logic as well as its renderer,
+ * so a board hex further out would be rejected on import. Raise this if the bot does.
+ */
+export const MAX_BOARD_RINGS = 8;
+
+/** How far apart the boards sit along q. Far more than 15 + 8 + 9 (main, board, sector). */
+export const BOARD_Q_STRIDE = 100;
+
+/**
+ * The board a label is on: 'a'–'g', or '' for the main board and the corners.
+ * @param {string} label
+ */
+export function boardOf(label) {
+  return /^[a-g]\d{3}$/.test(String(label)) ? String(label)[0] : '';
+}
+
+/** The position within its board: `a401` → `401`. @param {string} label */
+export function localLabel(label) {
+  return boardOf(label) ? String(label).slice(1) : String(label);
+}
+
+/** How far a board is shifted along q. @param {string} board */
+export function boardQOffset(board) {
+  const i = GALAXY_BOARDS.indexOf(board);
+  return i < 0 ? 0 : (i + 1) * BOARD_Q_STRIDE;
+}
+
+/**
+ * The ring a position is in, read from its label: `000` → 0, `401` → 4, `a1203` → 12.
+ * Null for anything that is not a ring position (the corners).
+ * @param {string} label
+ * @returns {number|null}
+ */
+export function ringOfLabel(label) {
+  const local = localLabel(label);
+  if (local === '000') return 0;
+  const m = /^(\d+)\d{2}$/.exec(local);
+  return m ? parseInt(m[1], 10) : null;
+}

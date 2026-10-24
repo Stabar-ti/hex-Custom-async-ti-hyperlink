@@ -18,6 +18,10 @@ import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 import { updateTileImageLayer } from '../features/imageSystemsOverlay.js';
 import { normalizeLoreEntries, shortToLoreEntries, LORE_PHASE_TARGETS, LORE_GAME_TYPES } from '../modules/Lore/loreCore.js';
 import { showToast } from '../ui/uiToast.js';
+import { applySectorImport, maxSectorRing, clampGap } from '../features/mapSectors.js';
+import { announceMapSectorsChanged, forgetUnpaintedMapSectors } from '../features/mapSectorEditing.js';
+import { createGalaxies, drawGalaxyTitles } from '../features/galaxies.js';
+import { boardRingsFrom, cleanGalaxyNames } from '../features/galaxyModel.js';
 
 // Most ids to name in the warning toast before collapsing the rest into a count.
 const MAX_LISTED_UNRESOLVED_IDS = 8;
@@ -390,17 +394,20 @@ export function importFullState(editor, jsonText, { confirm = true } = {}) {
       }
     }
 
-    // ---- 3. Build a lookup for hexes by id, then create a consistent list
-    const hexMap = {};
-    hexArr.forEach(h => { hexMap[h.id] = h; });
-    const hexesOrdered = labelList.map(lab => hexMap[lab] || { id: lab });
-
-    // ---- 4. Generate the correct grid
+    // ---- 3. Generate the correct grid, and the galaxy boards the save has. Their hexes
+    // join the label list, so they are restored by the same pass as the main map's.
     document.getElementById('ringCount').value = maxRing;
     editor.fillCorners = true;
     const cornerToggle = document.getElementById('cornerToggle');
     if (cornerToggle) cornerToggle.checked = true;
     editor.generateMap({ confirm: false });
+    labelList.push(...createGalaxies(editor, boardRingsFrom(hexArr.map(h => String(h.id)), obj.boards)));
+    editor.galaxyNames = cleanGalaxyNames(obj.galaxies);
+
+    // ---- 4. Build a lookup for hexes by id, then create a consistent list
+    const hexMap = {};
+    hexArr.forEach(h => { hexMap[h.id] = h; });
+    const hexesOrdered = labelList.map(lab => hexMap[lab] || { id: lab });
 
     // ---- 5. Assign all hexes by label order (EXACT classification order)
     const unresolvedTileIds = new Set();
@@ -426,7 +433,7 @@ export function importFullState(editor, jsonText, { confirm = true } = {}) {
         (!h.wh && !h.wormholes) &&
         (!h.ln && !h.links) &&
         !h.ca && !h.customAdjacents && !h.ao && !h.adjacencyOverrides && !h.ba && !h.borderAnomalies &&
-        !h.vt && !h.st && !h.pt && !h.sl && !h.prl;
+        !h.vt && !h.st && !h.pt && !h.sl && !h.prl && !h.ms;
       if (noContent) return;
 
       // Clean overlays/effects/wormholes
@@ -547,6 +554,10 @@ export function importFullState(editor, jsonText, { confirm = true } = {}) {
 
       // ---- Import value target (the V1–V5 hints painted from the Balance panel)
       hex.valueTarget = h.vt || null;
+
+      // ---- Import map sector (painted from the Sectors panel)
+      if (h.ms) hex.mapSector = String(h.ms);
+      else delete hex.mapSector;
 
       // ---- Import planet tokens
       if (h.pt && Object.keys(h.pt).length > 0) {
@@ -695,8 +706,12 @@ export function importFullState(editor, jsonText, { confirm = true } = {}) {
       }
     }
     editor.loreGameType = LORE_GAME_TYPES.includes(obj.loreGameType) ? obj.loreGameType : 'unknown';
+    editor.sectorGap = clampGap(obj.sectorGap);
+    forgetUnpaintedMapSectors(editor);
 
     redrawAllRealIDOverlays(editor);
+    announceMapSectorsChanged(editor);
+    drawGalaxyTitles(editor);
     drawCustomAdjacencyLayer(editor);
     drawBorderAnomaliesLayer(editor);
     updateEffectsVisibility(editor);
@@ -918,6 +933,8 @@ export async function importMapInfo(editor, jsonData) {
         const normalized = pos.toUpperCase();
         hexData.position = normalized; // Normalize in place
         cornerTilesInData.add(normalized);
+      } else if (/^[a-g]\d{3}$/i.test(pos)) {
+        hexData.position = pos.toLowerCase();   // galaxy board positions: a000 … g848
       }
     });
 
@@ -932,6 +949,8 @@ export async function importMapInfo(editor, jsonData) {
         if (ringNum > maxRing) maxRing = ringNum;
       }
     }
+    // A sector can run into void beyond the last tile; the map has to reach that far too.
+    maxRing = Math.max(maxRing, maxSectorRing(data));
 
     // Generate the map with the correct size
     document.getElementById('ringCount').value = maxRing;
@@ -939,6 +958,13 @@ export async function importMapInfo(editor, jsonData) {
     const cornerToggle = document.getElementById('cornerToggle');
     if (cornerToggle) cornerToggle.checked = true;
     editor.generateMap({ confirm: false });
+
+    // The galaxy boards the tiles (and any sectors) are on, sized to reach the furthest.
+    const sectorPositions = (Array.isArray(data.sectors) ? data.sectors : [])
+      .flatMap(s => (Array.isArray(s?.positions) ? s.positions.map(String) : []));
+    const galaxyLabels = createGalaxies(editor,
+      boardRingsFrom([...mapInfo.map(h => String(h.position)), ...sectorPositions]));
+    editor.galaxyNames = cleanGalaxyNames(data.galaxies);
 
     // Process each hex in the mapInfo
     const unresolvedTileIds = new Set();
@@ -1210,6 +1236,7 @@ export async function importMapInfo(editor, jsonData) {
         labelList.push(corner);
       }
     });
+    labelList.push(...galaxyLabels);
 
     // Create a set of positions that were imported
     const importedPositions = new Set(mapInfo.map(hexData => hexData.position));
@@ -1232,6 +1259,17 @@ export async function importMapInfo(editor, jsonData) {
       }
     }
     editor.loreGameType = LORE_GAME_TYPES.includes(data.loreGameType) ? data.loreGameType : 'unknown';
+
+    // Map sectors, after every tile is placed: a bot cluster grows over the tiles.
+    const sectorImport = applySectorImport(editor.hexes, data);
+    editor.sectorGap = sectorImport.gap;
+    forgetUnpaintedMapSectors(editor);
+    if (sectorImport.warnings.length) {
+      console.warn('importMapInfo: sector warnings:', sectorImport.warnings);
+      showToast(`Sectors did not import cleanly: ${sectorImport.warnings.join(' ')}`, 'warning', 10000);
+    }
+    announceMapSectorsChanged(editor);
+    drawGalaxyTitles(editor);
 
     // Redraw all overlays and layers
     redrawAllRealIDOverlays(editor);

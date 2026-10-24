@@ -31,6 +31,7 @@ import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { drawCustomAdjacencyLayer } from '../draw/customLinksDraw.js';
 import { drawBorderAnomaliesLayer } from '../draw/borderAnomaliesDraw.js';
 import { markRealIDUsed, unmarkRealIDUsed, refreshSystemList } from '../ui/uiFilters.js';
+import { announceMapSectorsChanged } from './mapSectorEditing.js';
 
 const HISTORY_LIMIT = 20;
 const verbose = false;
@@ -231,6 +232,7 @@ export function initHistory(editor) {
                                   ? JSON.parse(JSON.stringify(hex.planetTokens))
                                   : {},
             valueTarget:        hex.valueTarget ?? null,
+            mapSector:          hex.mapSector ?? null,
             systemLore:         hex.systemLore
                                   ? JSON.parse(JSON.stringify(hex.systemLore))
                                   : null,
@@ -293,6 +295,8 @@ export function initHistory(editor) {
             ? JSON.parse(JSON.stringify(snap.planetTokens))
             : {};
         hex.valueTarget  = snap.valueTarget ?? null;
+        if (snap.mapSector) hex.mapSector = snap.mapSector;
+        else delete hex.mapSector;
 
         // 6. Restore lore state (canonical shapes: array / object-of-arrays)
         hex.systemLore = snap.systemLore
@@ -321,6 +325,7 @@ function _rebuildOverlays(editor) {
     drawBorderAnomaliesLayer(editor);
     editor.tokenOverlay?.refresh();
     editor.loreOverlay?.refresh();
+    announceMapSectorsChanged(editor);
     enforceSvgLayerOrder(editor.svg);
     refreshSystemList();
     // Refresh value-target badges and value overlay if active

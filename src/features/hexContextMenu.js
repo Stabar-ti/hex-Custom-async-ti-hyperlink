@@ -12,7 +12,8 @@
  *   Wormholes ▸        toggle any of the fourteen types on the tile
  *   Border anomalies ▸ pick a type, then click the neighbour whose edge it goes on
  *   Hyperlane ▸        start a lane here, or turn the tile into a roundabout
- *   Lore ▸             open the lore editor on the system or one of its planets
+ *   Sector ▸           put the tile — or the selection it is part of — in a map sector
+ *   Lore ▸            open the lore editor on the system or one of its planets
  */
 
 import { wormholeTypes } from '../constants/constants.js';
@@ -24,7 +25,10 @@ import { selectHex as extendLane, roundaboutPlan, placeRoundabout } from '../mod
 import { openContextMenu } from '../ui/contextMenu.js';
 import { startBorderAnomalyPick } from './borderAnomalyPick.js';
 import { removeBorderAnomalies } from './borderAnomalyPlacement.js';
-
+import { selectedHexes } from './hexSelection.js';
+import { canJoinSector, normalizeSectorName, sectorNameProblem, suggestSectorName } from './mapSectors.js';
+import { assignMapSector, knownMapSectors, mapSectorColours } from './mapSectorEditing.js';
+import { askText } from '../ui/askText.js';
 /** @typedef {import('../ui/contextMenu.js').MenuItem} MenuItem */
 
 /**
@@ -54,11 +58,74 @@ export function hexMenuItems(editor, label) {
         { label: 'Wormholes', icon: '◎', submenu: () => wormholeItems(editor, label) },
         { label: 'Border anomalies', icon: '⌇', submenu: () => borderAnomalyItems(editor, label) },
         { label: 'Hyperlane', icon: '∿', submenu: () => hyperlaneItems(editor, label) },
+        { label: 'Sector', icon: '⬣', submenu: () => sectorItems(editor, label) },
     ];
     // The Lore module provides its editor; a build without it has nothing to open.
     if (hasCommand(COMMANDS.openLoreEditor)) {
         items.push({ label: 'Lore', icon: '📜', submenu: () => loreItems(editor, label) });
     }
+    return items;
+}
+
+// ── Sector ───────────────────────────────────────────────────────────────────
+
+/**
+ * Put the tile in a sector, or take it out. Right-clicking a tile that is part of a
+ * selection of several acts on the whole selection, which is the quick way to turn a
+ * shift-dragged region into a sector.
+ *
+ * @returns {MenuItem[]}
+ */
+function sectorItems(editor, label) {
+    if (!canJoinSector(editor.hexes[label])) {
+        return [{ label: 'Corner tiles cannot be in a sector', disabled: true }];
+    }
+    const selection = selectedHexes(editor);
+    const targets = selection.length > 1 && selection.includes(label)
+        ? selection.filter(l => canJoinSector(editor.hexes[l]))
+        : [label];
+    const many = targets.length > 1;
+    const current = editor.hexes[label]?.mapSector || null;
+
+    /** @param {string} name */
+    const putIn = (name) => {
+        assignMapSector(editor, targets, name);
+        editor._activeMapSector = name;
+    };
+
+    /** @type {MenuItem[]} */
+    const items = [];
+    if (many) items.push({ group: `${targets.length} selected hexes` });
+    const colours = mapSectorColours(editor);
+    for (const name of knownMapSectors(editor)) {
+        items.push({
+            label: name,
+            swatch: colours.get(name),
+            checked: !many && current === name,
+            onSelect: () => putIn(name),
+        });
+    }
+    items.push({
+        label: 'New sector…',
+        icon: '+',
+        onSelect: async () => {
+            const name = await askText({
+                title: '⬣ New sector',
+                label: many ? `Name for a sector holding the ${targets.length} selected hexes:` : `Name for a sector holding ${label}:`,
+                value: suggestSectorName(knownMapSectors(editor)),
+                okLabel: 'Create',
+                normalize: normalizeSectorName,
+                validate: sectorNameProblem,
+            });
+            if (name) putIn(name);
+        },
+    });
+    items.push({ separator: true });
+    items.push({
+        label: many ? 'Remove from their sectors' : 'Remove from sector',
+        disabled: !targets.some(l => editor.hexes[l]?.mapSector),
+        onSelect: () => assignMapSector(editor, targets, null),
+    });
     return items;
 }
 

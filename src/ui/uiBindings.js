@@ -22,7 +22,7 @@ const nonEmpty = (/** @type {any} */ o) => !!o && Object.values(o)
  *
  * @param {any} h
  */
-function hasContent(h) {
+export function hasContent(h) {
   return !isEmptyHex(h)
     || h.systemLore?.length > 0 || nonEmpty(h.planetLore)
     || h.systemTokens?.length > 0 || nonEmpty(h.planetTokens)
@@ -150,6 +150,14 @@ export function bindUI(editor) {
       if (ringsInput) ringsInput.value = 6;
     }
     editor.toggleCorners(e.target.checked);
+  });
+
+  // Galaxies: extra boards beside the main map. Loaded on demand; the panel imports
+  // hasContent from this file.
+  document.getElementById('galaxiesBtn')?.addEventListener('click', () => {
+    import('./galaxyPanel.js')
+      .then(({ toggleGalaxyPanel }) => toggleGalaxyPanel(editor))
+      .catch(err => console.error('Failed to load the Galaxies panel:', err));
   });
 
   // Default BFS radius. The control that sets it is #maxDistanceInput in the Distance

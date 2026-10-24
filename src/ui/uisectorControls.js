@@ -8,6 +8,7 @@ import { wormholeTypes } from '../constants/constants.js';
 import { showPopup, togglePopup } from './popupUI.js';
 import { railButton, railGroupLabel, setRailLabel } from './kit/index.js';
 import { createToolPanel, armExclusively } from './toolPanel.js';
+import { createMapSectorPanel, MAP_SECTORS_LAUNCHER_ID } from './mapSectorPanel.js';
 import { HEX_SELECTED, selectedHexes } from '../features/hexSelection.js';
 import {
   CLIPBOARD_CHANGED, COPY_OPTIONS_CHANGED, activeClip, copyOptions, setCopyOption,
@@ -1049,6 +1050,19 @@ function finishSectorControlsContent(editor, container) {
   registerMode(MODE_VALUE_HINTS, { deactivate: () => disarmValueHints?.() });
   registerMode(MODE_LORE, { deactivate: () => deactivateLoreMode(editor) });
   registerMode(MODE_TOKEN, { deactivate: () => deactivateTokenMode(editor) });
+
+  // ───────────── Map Sectors ─────────────
+  // Named regions of the map, painted hex by hex; the bot frames Fog of War maps by them.
+  const mapSectorsBtn = railButton({
+    id: MAP_SECTORS_LAUNCHER_ID,
+    icon: '⬣',
+    text: 'Sectors…',
+    title: 'Paint named sectors: regions of the map the bot can frame separately',
+  });
+  mapSectorsBtn.dataset.launcher = '';
+  const mapSectorsPanel = createMapSectorPanel(editor);
+  mapSectorsBtn.onclick = () => mapSectorsPanel.toggle();
+  container.appendChild(mapSectorsBtn);
 
   const tokenPlacementBtn = railButton({
     id: 'launchTokenPlacementPopup',

@@ -604,6 +604,103 @@ body {
   box-sizing: border-box;
 }
 
+/* ── Sectors panel (mapSectorPanel.js) ──────────────────────────────────────── */
+
+.sector-panel__settings,
+.sector-panel__add,
+.sector-panel__numbers {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.sector-panel__add .ui-field,
+.sector-panel__numbers .ui-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.sector-panel__add .mode-button {
+  flex: none;
+  margin: 0;
+}
+
+.sector-panel__active {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sector-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.sector-row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "swatch name count actions"
+    ".      status status status";
+  align-items: center;
+  column-gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.sector-row:hover { background: var(--surface-3); }
+
+.sector-row.is-active {
+  border-color: var(--color-primary);
+  background: var(--surface-3);
+}
+
+.sector-row__swatch {
+  grid-area: swatch;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid #000;
+}
+
+.sector-row__name {
+  grid-area: name;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sector-row__count {
+  grid-area: count;
+  color: var(--label-on-surface);
+}
+
+.sector-row__status {
+  grid-area: status;
+  font-size: 11px;
+  color: var(--color-warning);
+}
+
+.sector-row__status.is-bot { color: var(--color-success); }
+
+.sector-row__actions {
+  grid-area: actions;
+  gap: 2px;
+}
+
+.sector-row .sector-row__btn {
+  min-width: 0;
+  margin: 0;
+  padding: 1px 6px;
+  font-size: 12px;
+}
+
 .insp-field {
   display: flex;
   justify-content: space-between;
@@ -1305,6 +1402,74 @@ body {
   padding: 5px 8px;
   font-size: 15px;
   line-height: 1;
+}
+
+/* ── One-line text dialog (askText.js), for names ──────────────────────────── */
+
+.ask-text__label { font-size: 12px; }
+.ask-text__input { width: 100%; box-sizing: border-box; padding: 5px 8px; }
+.ask-text__error { font-size: 11px; color: var(--color-warning); }
+.ask-text__error:empty { display: none; }
+
+/* ── Galaxies (galaxyPanel.js) ─────────────────────────────────────────────── */
+
+.map-size-menu .ms-wide {
+  width: 100%;
+  margin: 6px 0 0;
+}
+
+.galaxy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.galaxy-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.galaxy-row__id {
+  font-weight: 700;
+}
+
+.galaxy-row__name {
+  min-width: 0;
+  padding: 3px 6px;
+}
+
+.galaxy-row__rings {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.galaxy-row__muted {
+  color: var(--label-on-surface);
+}
+
+.galaxy-row .galaxy-row__btn {
+  min-width: 0;
+  margin: 0;
+  padding: 1px 7px;
+  font-size: 12px;
+}
+
+.galaxy-row__message {
+  grid-column: 1 / -1;
+  font-size: 11px;
+}
+
+.galaxy-row__message:empty { display: none; }
+.galaxy-row__message.is-warning { color: var(--color-warning); }
+
+/* The galaxy names drawn above each board on the map. */
+.galaxy-title {
+  fill: var(--text-color);
+  opacity: 0.75;
 }
 
 /* ── Keyboard & mouse shortcuts ───────────────────────────────────────────── */

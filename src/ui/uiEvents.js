@@ -14,6 +14,7 @@ import { handleHexClick } from '../modules/Hyperlanes/hyperlaneEditing.js';
 import { selectHex, isSelectMode } from '../features/hexSelection.js';
 import { isGhostArmed } from '../features/pasteGhost.js';
 import { activeClip, pasteAt } from '../features/tileClipboard.js';
+import { applyMapSectorTool, isMapSectorMode } from '../features/mapSectorEditing.js';
 
 export function registerClickHandler(editor) {
   editor._onHexClick = function (e, label) {
@@ -63,6 +64,15 @@ export function registerClickHandler(editor) {
           drawValueTargetLayer(this);
         }).catch(() => {});
       }
+      return;
+    }
+
+    // 4c. Map sector tools (brush, erase, circle, cluster) from the Sectors panel
+    if (isMapSectorMode(this.mode)) {
+      applyMapSectorTool(this, label, {
+        name: this._activeMapSector || null,
+        ...(this._mapSectorTool || {}),
+      });
       return;
     }
 

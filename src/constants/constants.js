@@ -170,6 +170,9 @@ export const SVG_LAYER_ORDER = [
   'idealRILayer',
   'realIDLabelLayer',
   'tileImageLayer',         // images
+  // Map sectors tint whole regions, so they sit right over the tile images and under
+  // every badge, icon and link drawn on top of a tile.
+  'mapSectorLayer',
   // Above the tile images, which are opaque and used to hide drawn links entirely; below
   // the icon/token/lore layers, which are small centre-adjacent badges that a link
   // crossing the hex centre would otherwise obscure.
@@ -180,6 +183,7 @@ export const SVG_LAYER_ORDER = [
   'token-overlay-group',    // token indicators (separate from wormholes)
   'lore-link-layer',        // arcs from a lore entry to the tiles its effects act on
   'lore-overlay',           // lore markers sit above their own arcs
+  'galaxyTitleLayer',       // each galaxy's name above its board
   // Transient "what will the next click do" cue for hyperlane drawing. Topmost on purpose:
   // it is only on screen mid-gesture, and it is useless if an overlay covers it.
   'hyperlane-indicator-layer',
