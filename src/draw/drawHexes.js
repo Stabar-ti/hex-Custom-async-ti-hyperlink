@@ -51,10 +51,12 @@ export function drawHexGrid(editor) {
 /**
  * Draws a single hex tile at the given (q, r) coordinates, with the given label.
  * Adds a clickable polygon and a label to the SVG, and tracks the hex in editor.hexes.
+ *
+ * `center` is where it is drawn. It defaults to the main grid's layout; a galaxy board's
+ * hexes pass their own, since their q,r are shifted far away from it (see galaxies.js).
  */
-export function drawHex(editor, q, r, label) {
+export function drawHex(editor, q, r, label, center = hexToPixel(editor, q, r)) {
   const svg = document.getElementById('hexMap');
-  const center = hexToPixel(editor, q, r);
 
   // SVG polygon for the hex outline
   const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
@@ -162,7 +164,9 @@ export function hexToPixel(editor, q, r) {
  * Used for reference and for displaying off-map tiles.
  */
 export function drawSpecialHexes(editor) {
-  const pts = Object.values(editor.hexes).map(h => h.center);
+  // Around the main board only: the corners are main-map positions, and the galaxy boards
+  // drawn beside it would otherwise drag TR and BR out past the last of them.
+  const pts = Object.values(editor.hexes).filter(h => !h.board && !h.isCorner).map(h => h.center);
   if (!pts.length) return;
   const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs);

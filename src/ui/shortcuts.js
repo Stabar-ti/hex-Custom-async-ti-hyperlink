@@ -116,10 +116,39 @@ export const SHORTCUTS = [
             { combos: ['RightClick'], does: 'Open it on the tile under the cursor — only when no tool is armed; otherwise right-click disarms first' },
             { combos: ['Click'], does: 'Wormholes ▸ toggles a type on the tile. ✓ marks the ones there; the system’s own are greyed' },
             { combos: ['Click'], does: 'Border anomalies ▸ a type, then click the neighbour whose edge it goes on' },
+            { combos: ['Click'], does: 'Sector ▸ puts the tile in a sector, or the whole selection when the tile is part of one' },
             { combos: ['Click'], does: 'Lore ▸ opens the lore editor on the system or one of its planets' },
             { combos: ['Esc', 'RightClick'], does: 'Close the menu, or cancel the pick-a-neighbour step' },
         ],
         notes: ['Arrow keys move through the menu; → or Enter opens a submenu, ← goes back.'],
+    },
+    {
+        id: 'sectors', title: 'Sectors', icon: '⬣',
+        items: [
+            { combos: ['Click'], does: 'Brush: put the hex in the active sector. Erase: take it out' },
+            { combos: ['Shift+Drag'], does: 'With Brush or Erase armed: paint or erase every hex the stroke crosses, as one undo step' },
+            { combos: ['Click'], does: 'Circle: every hex within the radius of the clicked one joins the active sector' },
+            { combos: ['Click'], does: 'Cluster: the clicked tile’s whole island of tiles joins, grown with the gap and clipped to the cap' },
+        ],
+        notes: [
+            'Open the panel from Sectors… in the rail. Click a sector in the list to paint with it.',
+            'A sector is one connected region: hexes join only where they touch it, and an edit that would split a sector is refused. A hex is in one sector at most; fills take hexes from other sectors. Void hexes can be in a sector, corners cannot.',
+            'Each sector says whether the bot can use it: a sector that is exactly a circle or a cluster is also exported in the bot’s own format. Anything else is “editor only”: it is in the export, but the bot does not read it yet.',
+            'Names use lowercase letters, digits and -, up to 20 characters; main, fracture and board-a to board-g are reserved by the bot.',
+        ],
+    },
+    {
+        id: 'galaxies', title: 'Galaxies', icon: '🌌',
+        items: [
+            { combos: ['Click'], does: 'Map size ▸ Galaxies… ▸ + Add galaxy puts a new board to the right of the map' },
+            { combos: ['Click'], does: 'View on a galaxy frames it; Show whole map frames them all' },
+        ],
+        notes: [
+            'Each extra galaxy is one of the bot’s boards a–g; its positions are a000, a101 … up to 8 rings, the most the bot accepts.',
+            'Extra galaxies need a Fog of War game in the bot. Hexes never neighbour across galaxies: connect them with wormholes or custom links.',
+            'A sector stays inside one galaxy. An unnamed galaxy is named by the bot; a name from the bot’s own list of galaxy names can clash with one it picks.',
+            'Adding, resizing and removing galaxies cannot be undone.',
+        ],
     },
 ];
 

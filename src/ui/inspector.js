@@ -27,6 +27,7 @@ import { buildValueTiers, getFactors, getTypeGroup } from '../features/valueOver
 import { HEX_SELECTED, selectedHex, selectedHexes, clearHexSelection } from '../features/hexSelection.js';
 import { toolLabel } from './statusBar.js';
 import { DISTANCE_TOOL_CHANGED } from '../features/distanceTool.js';
+import { MAP_SECTORS_CHANGED } from '../features/mapSectorEditing.js';
 
 /**
  * One label/value line.
@@ -191,6 +192,8 @@ function renderHex(editor, label) {
     const hint = hintText(hex.valueTarget);
     if (hint) box.appendChild(field('Value hint', hint, 'insp-field--hint'));
 
+    if (hex.mapSector) box.appendChild(field('Sector', hex.mapSector));
+
     // The tier of the system actually placed here, ranked against everything else on the
     // map. Read from the shared layer rather than recomputed, so it always agrees with the
     // Value tiers overlay and with what the AutoMapper was working to.
@@ -335,6 +338,11 @@ export function installInspector(editor) {
         if (label) show(label, { force: true });
     });
     syncPinned();
+
+    // A sector painted, renamed or undone changes the Sector line of the hex on show.
+    document.addEventListener(MAP_SECTORS_CHANGED, () => {
+        if (shown && editor.hexes[shown]) show(shown, { force: true });
+    });
 
     // setMode is already wrapped by the status bar; polling would be worse, so listen for
     // the same interactions that can change it.

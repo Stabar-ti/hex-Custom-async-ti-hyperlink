@@ -43,6 +43,7 @@ import { calculateDistancesFrom, isScriptedAnomaly } from '../distance/index.js'
 import { clearHexSelection, refreshHexSelection } from '../features/hexSelection.js';
 import { disarmAll } from '../features/disarm.js';
 import { restoreSession, announceMapReshaped } from '../features/session.js';
+import { relayoutGalaxies } from '../features/galaxies.js';
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
 import {
   buildCoordIndex, neighborHex, oppositeSide, normalizeSide, areAxialNeighbors,
@@ -325,6 +326,10 @@ export default class HexEditor {
     const svg = this.svg;
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     this.hexes = {};
+    // A new map is the main board alone. The importers add the galaxies their file has
+    // after this (createGalaxies).
+    this.boards = {};
+    this.galaxyNames = {};
     // Hyperlane SVG needs no explicit reset: emptying the svg took the layer with it, and
     // the renderer recreates it on demand.
     // Assign rather than mutate: selectedPath is a store-backed accessor that hands out a
@@ -420,8 +425,9 @@ export default class HexEditor {
    */
   hexesCutBy(rings) {
     const keep = new Set(generateRings(rings, this.fillCorners).map(h => h.label));
+    // Galaxy boards have their own sizes; the main map's rings never cut them.
     return Object.values(this.hexes)
-      .filter(h => !keep.has(h.label) && !CORNER_LABELS.includes(h.label));
+      .filter(h => !keep.has(h.label) && !CORNER_LABELS.includes(h.label) && !h.board);
   }
 
   // Internal: Adjust rings, preserve hexes inside new bounds
@@ -579,6 +585,10 @@ export default class HexEditor {
         }
       }
     });
+
+    // The galaxy boards sit to the right of the main map, so a ring more or less here
+    // moves them.
+    relayoutGalaxies(this);
 
     autoscaleView(this);
 

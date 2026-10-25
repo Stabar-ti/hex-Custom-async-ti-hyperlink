@@ -14,6 +14,7 @@ import { disarmAll, isAnythingArmed } from '../features/disarm.js';
 import { openHexContextMenu } from '../features/hexContextMenu.js';
 import { isSelectMode, beginSelectionStroke } from '../features/hexSelection.js';
 import { isGhostArmed } from '../features/pasteGhost.js';
+import { beginMapSectorStroke, MAP_SECTOR_MODES } from '../features/mapSectorEditing.js';
 import { activeMode } from '../core/registry.js';
 import { buildCoordIndex, neighborLabel } from '../utils/hexGrid.js';
 
@@ -166,7 +167,7 @@ export function bindSvgHandlers(editor) {
   let pressOrigin = { x: 0, y: 0 };
   let panEngaged = false;
   let cursorBeforePan = '';
-  /** @type {ReturnType<typeof beginSelectionStroke> | null} */
+  /** @type {{enter: (label: string|null) => void, painted: boolean, end?: () => void} | null} */
   let stroke = null;
   let cursorBeforeStroke = '';
   // Set when a press turned out to be a drag, so the click it ends with is not also a
@@ -196,6 +197,13 @@ export function bindSvgHandlers(editor) {
       e.preventDefault();
       if (canPaintSelection()) {
         stroke = beginSelectionStroke(editor, hexLabelAt(e.clientX, e.clientY));
+        cursorBeforeStroke = svg.style.cursor;
+        svg.style.cursor = 'crosshair';
+      } else if (editor.mode === MAP_SECTOR_MODES.brush || editor.mode === MAP_SECTOR_MODES.erase) {
+        // The sector brush paints a stroke the same way a selection does: one undo entry
+        // for every hex it crosses.
+        stroke = beginMapSectorStroke(editor, hexLabelAt(e.clientX, e.clientY),
+          () => editor._activeMapSector || null);
         cursorBeforeStroke = svg.style.cursor;
         svg.style.cursor = 'crosshair';
       }
@@ -240,6 +248,7 @@ export function bindSvgHandlers(editor) {
   window.addEventListener('mouseup', () => {
     if (stroke) {
       swallowClick = stroke.painted;
+      stroke.end?.();
       stroke = null;
       svg.style.cursor = cursorBeforeStroke;
     }

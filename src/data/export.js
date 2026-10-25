@@ -22,6 +22,7 @@ import { normalizeLoreEntries, isNonEmptyLoreEntry, loreEntryToShort, LORE_PHASE
 // Aliased: a local `neighborLabel` string variable is destructured in
 // exportAdjacencyOverrides below, and shadowing the helper there would be a trap.
 import { buildCoordIndex, neighborLabel as neighborLabelAt, oppositeSide } from '../utils/hexGrid.js';
+import { buildSectorExport, clampGap, comparePositions } from '../features/mapSectors.js';
 
 /**
  * Cache for wormhole token mappings loaded from tokens.json
@@ -146,7 +147,7 @@ export async function exportWormholePositions(editor) {
   const groups = {};
 
   for (const [id, hex] of Object.entries(editor.hexes)) {
-    if (!/^([0-9]{3,4}|TL|TR|BL|BR)$/.test(id)) continue;
+    if (!/^([0-9]{3,4}|[a-g][0-9]{3}|TL|TR|BL|BR)$/.test(id)) continue;
 
     // Only export customWormholes
     const userWormholes = Array.from(hex.customWormholes || []);
@@ -170,7 +171,7 @@ export async function exportWormholePositions(editor) {
   const lines = Object.entries(groups)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([whToken, ids]) =>
-      `/add_token token:${whToken} tile_name:${ids.sort((a, b) => +a - +b).join(',')}`
+      `/add_token token:${whToken} tile_name:${ids.sort(comparePositions).join(',')}`
     );
 
   const output = lines.join('\n');
@@ -187,11 +188,7 @@ export function exportHyperlaneTilePositions(editor) {
   const ids = Object.entries(editor.hexes)
     .filter(([_, h]) => h.matrix?.flat().some(x => x === 1))
     .map(([id]) => id)
-    .sort((a, b) => {
-      const [ra, ia] = [+a[0], +a.slice(1)];
-      const [rb, ib] = [+b[0], +b.slice(1)];
-      return ra === rb ? ia - ib : ra - rb;
-    });
+    .sort(comparePositions);
 
   const out = `/map add_tile tile_name: hl position: ${ids.join(',')}`;
   document.getElementById('exportHyperlanePositionsText').value = out;
@@ -257,6 +254,9 @@ export function exportFullState(editor) {
     // Value target (the V1–V5 hints painted from the Balance panel)
     if (hex.valueTarget) h.vt = hex.valueTarget;
 
+    // Map sector (painted from the Sectors panel)
+    if (hex.mapSector) h.ms = hex.mapSector;
+
     // Add planet tokens if they exist
     if (hex.planetTokens && Object.keys(hex.planetTokens).length > 0) {
       h.pt = {};
@@ -284,6 +284,14 @@ export function exportFullState(editor) {
   if (editor.loreGameType && editor.loreGameType !== 'unknown') {
     out.loreGameType = editor.loreGameType;
   }
+  if (clampGap(editor.sectorGap) > 0) out.sectorGap = clampGap(editor.sectorGap);
+
+  // Galaxy boards and their ring counts, so an empty board — or empty outer rings — come
+  // back on load; and the names chosen for them.
+  const boards = Object.entries(editor.boards || {});
+  if (boards.length) out.boards = Object.fromEntries(boards.map(([b, { rings }]) => [b, rings]));
+  const galaxies = galaxyNamesForExport(editor);
+  if (galaxies) out.galaxies = galaxies;
 
   return JSON.stringify(out, null, 1);
 }
@@ -403,10 +411,12 @@ export function exportCustomAdjacents(editor) {
   Object.entries(editor.hexes).forEach(([label, hex]) => {
     if (!hex.customAdjacents) return;
     Object.entries(hex.customAdjacents).forEach(([target, info]) => {
-      const tileA = Number(label), tileB = Number(target);
-      const key = [Math.min(tileA, tileB), Math.max(tileA, tileB)].join('-');
+      // Compared as positions, not numbers: Number('a000') is NaN, which made every
+      // galaxy link the same key and dropped all but the first.
+      const lowerFirst = comparePositions(label, target) <= 0;
+      const key = lowerFirst ? `${label}-${target}` : `${target}-${label}`;
       if (info.twoWay) {
-        if (tileA > tileB || handled.has(key)) return; // Only emit from lower label
+        if (!lowerFirst || handled.has(key)) return; // Only emit from lower label
         handled.add(key);
         // Group two-way by label
         if (!twoWayMap[label]) twoWayMap[label] = new Set();
@@ -470,6 +480,11 @@ export async function exportMapInfo(editor, options = {}) {
   console.log('exportMapInfo: Token map loaded:', whTokenMap);
 
   const mapInfo = [];
+
+  // Map sectors: every sector goes in the top-level `sectors` list, and the ones that are
+  // exactly a bot circle or cluster also get the bot's own `sector` field on their centre
+  // tile, which is the only form the bot reads today (MapSectorJsonService).
+  const sectorExport = buildSectorExport(editor.hexes, editor.sectorGap);
 
   Object.entries(editor.hexes).forEach(([label, hex]) => {
     if (!hex || !hex.center) return; // Skip uninitialized hexes
@@ -687,6 +702,8 @@ export async function exportMapInfo(editor, options = {}) {
       customAdjacencies: customAdjacencies,
       adjacencyOverrides: adjacencyOverrides
     };
+    const nativeSector = sectorExport.native.get(label);
+    if (nativeSector) hexEntry.sector = nativeSector;
 
     // Only add hexEntry if tileID is assigned (required field)
     // If there's no tileID, omit the entire position even if there's other data
@@ -712,7 +729,33 @@ export async function exportMapInfo(editor, options = {}) {
     result.loreGameType = editor.loreGameType;
   }
 
+  // Only with sectors on the map: the bot treats a `sectorGap` on its own as sector data,
+  // and sector data in a file replaces every sector the game already has.
+  if (sectorExport.sectors.length) {
+    result.sectors = sectorExport.sectors;
+    if (sectorExport.sectorGap > 0) result.sectorGap = sectorExport.sectorGap;
+  }
+
+  // Galaxy names, only the ones chosen: an unnamed galaxy is named by the bot. Board tiles
+  // need no field of their own — their position (a000, b401) says which galaxy they are in.
+  const galaxies = galaxyNamesForExport(editor);
+  if (galaxies) result.galaxies = galaxies;
+
   return result;
+}
+
+/**
+ * The chosen galaxy names in the bot's order (main, a … g), or null with none. Only for
+ * galaxies the map has: a name left behind by a removed board is not written.
+ */
+function galaxyNamesForExport(editor) {
+  const names = editor.galaxyNames || {};
+  const out = {};
+  if (names.main) out.main = names.main;
+  for (const b of Object.keys(editor.boards || {}).sort()) {
+    if (names[b]) out[b] = names[b];
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 //test
