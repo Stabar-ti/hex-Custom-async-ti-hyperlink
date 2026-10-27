@@ -120,7 +120,7 @@ function renderDraftValuesAnalysis(editor, container) {
 
         // Import constants for formatting
         import('../../constants/constants.js').then(constants => {
-            const { wormholeTypes, planetTypeColors, techSpecialtyColors } = constants;
+            const { wormholeInfo, planetTypeColors, techSpecialtyColors } = constants;
 
             // Analyze each draft slot
             for (let slotNum = 1; slotNum <= 12; slotNum++) {
@@ -182,11 +182,8 @@ function renderDraftValuesAnalysis(editor, container) {
 
                 const wormholeHtml = Array.from(wormholes)
                     .map(w => {
-                        const key = w.toLowerCase();
-                        const whType = wormholeTypes[key];
-                        const color = whType?.color || 'gray';
-                        const label = whType?.label ? whType.label[0] : key[0].toUpperCase();
-                        return `<span style="background:${color};color:white;font-weight:600;padding:1px 6px;border-radius:7px;margin-right:2px;display:inline-block;">${label}</span>`;
+                        const { color, symbol, label } = wormholeInfo(w);
+                        return `<span title="${label}" style="background:${color};color:white;font-weight:600;padding:1px 6px;border-radius:7px;margin-right:2px;display:inline-block;">${symbol}</span>`;
                     }).join(' ');
 
                 // Status indicator

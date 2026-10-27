@@ -794,10 +794,10 @@ function finishSectorControlsContent(editor, container) {
       const grid = document.createElement('div');
       grid.className = 'tool-panel__grid';
 
-      Object.entries(wormholeTypes).forEach(([type, { label, color }]) => {
+      Object.entries(wormholeTypes).forEach(([type, { label, color, symbol }]) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.textContent = label;
+        btn.textContent = `${symbol} ${label}`;
         btn.className = 'mode-button btn-wormhole';
         btn.dataset.tool = '';
         btn.style.backgroundColor = color;

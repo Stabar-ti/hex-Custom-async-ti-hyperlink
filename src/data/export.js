@@ -15,7 +15,7 @@
 
 import { matrixToHex, hasLinks } from '../utils/matrix.js';
 import { symmetrised } from '../modules/Hyperlanes/hyperlaneModel.js';
-import { typeCodeMap } from '../constants/constants.js';
+import { typeCodeMap, normalizeWormholeType } from '../constants/constants.js';
 import { showModal } from '../ui/uiModals.js';
 import { getBorderAnomalyTypes, normalizeAnomalyId } from '../constants/borderAnomalies.js';
 import { normalizeLoreEntries, isNonEmptyLoreEntry, loreEntryToShort, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
@@ -23,76 +23,14 @@ import { normalizeLoreEntries, isNonEmptyLoreEntry, loreEntryToShort, LORE_PHASE
 // exportAdjacencyOverrides below, and shadowing the helper there would be a trap.
 import { buildCoordIndex, neighborLabel as neighborLabelAt, oppositeSide } from '../utils/hexGrid.js';
 import { buildSectorExport, clampGap, comparePositions } from '../features/mapSectors.js';
+import { loadWormholeTokenIndex } from './wormholeTokens.js';
 
 /**
- * Cache for wormhole token mappings loaded from tokens.json
- */
-let wormholeTokenMapCache = null;
-
-/**
- * Load wormhole token mappings dynamically from tokens.json
- * Maps wormhole type keys (lowercase, e.g., 'alpha', 'epsilon') to token IDs
- * @returns {Promise<Object>} Map of wormhole type to token ID
+ * Wormhole type -> the token id that places it, from tokens.json's `wormholes` fields.
+ * @returns {Promise<Record<string, string>>}
  */
 async function getWormholeTokenMap() {
-  if (wormholeTokenMapCache) return wormholeTokenMapCache;
-
-  try {
-    const basePath = window.location.pathname.endsWith('/')
-      ? window.location.pathname
-      : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
-
-    const response = await fetch(`${basePath}public/data/tokens.json`);
-    if (!response.ok) throw new Error(`Failed to load tokens.json: ${response.status}`);
-
-    // tokens.json is an array of arrays, flatten it
-    const tokenGroups = await response.json();
-    const allTokens = tokenGroups.flat();
-
-    const map = {};
-
-    // Build a map of wormhole type to token ID
-    // For each token, check if it has wormholes field
-    allTokens.forEach(token => {
-      if (token.wormholes && token.wormholes.length > 0) {
-        token.wormholes.forEach(whType => {
-          // Normalize wormhole type to lowercase (e.g., "ALPHA" -> "alpha")
-          const whKey = whType.toLowerCase()
-            .replace('custom_eronous_wh', '') // Remove custom_eronous_wh prefix
-            .replace('wh', ''); // Remove wh prefix if present
-
-          // Only set if not already set, or if this is a shorter/preferred token ID
-          if (!map[whKey] || token.id.length < map[whKey].length) {
-            map[whKey] = token.id;
-          }
-        });
-      }
-    });
-
-    console.log('Loaded wormhole token map from tokens.json:', map);
-    wormholeTokenMapCache = map;
-    return map;
-  } catch (error) {
-    console.error('Failed to load wormhole token map, using fallback:', error);
-    // Fallback to basic mapping
-    return {
-      'alpha': 'whalpha',
-      'beta': 'whbeta',
-      'gamma': 'whgamma',
-      'delta': 'whdelta',
-      'epsilon': 'whepsilon',
-      'eta': 'wheta',
-      'iota': 'custom_eronous_whiota',
-      'theta': 'custom_eronous_whtheta',
-      'zeta': 'whzeta',
-      'kappa': 'whkappa',
-      'champion': 'whchampion',
-      'probability': 'whprobability',
-      'voyage': 'whvoyage',
-      'narrows': 'whnarrows',
-      'vortex': 'vortex'
-    };
-  }
+  return (await loadWormholeTokenIndex()).tokenByType;
 }
 
 /**
@@ -154,8 +92,7 @@ export async function exportWormholePositions(editor) {
     if (userWormholes.length === 0) continue;
 
     for (const whRaw of userWormholes) {
-      // Normalize to lowercase and find token ID from map
-      const whKey = whRaw.toLowerCase();
+      const whKey = normalizeWormholeType(whRaw);
       const whToken = whTokenMap[whKey];
 
       if (!whToken) {
@@ -545,8 +482,7 @@ export async function exportMapInfo(editor, options = {}) {
     if (hex.customWormholes && hex.customWormholes.size > 0) {
       const userWormholes = Array.from(hex.customWormholes);
       for (const whRaw of userWormholes) {
-        // Normalize to lowercase and find token ID from map
-        const whKey = whRaw.toLowerCase();
+        const whKey = normalizeWormholeType(whRaw);
         const whToken = whTokenMap[whKey];
 
         if (whToken) {

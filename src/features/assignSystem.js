@@ -7,6 +7,7 @@ import { createWormholeOverlay } from '../features/baseOverlays.js';
 import { markRealIDUsed } from '../ui/uiFilters.js';
 import { emitSystemPlaced } from '../modules/SystemPicker/pickerEvents.js';
 import { isFractureTile } from '../modules/SystemPicker/pickerModel.js';
+import { normalizeWormholeType } from '../constants/constants.js';
 
 /**
  * Assigns a system object to a hex tile, updating all overlays, type, and state.
@@ -92,11 +93,11 @@ export function assignSystem(editor, sys, hexID) {
   if (sys.isAsteroidField) editor.applyEffect(hexID, 'asteroid');
   if (sys.isScar)          editor.applyEffect(hexID, 'scar');
 
-  // 8. Inherent wormholes (always lowercase for key)
+  // 8. Inherent wormholes: the tile JSON's `wormholes` field, normalized to editor keys.
   // Only set inherentWormholes from system data. Clear customWormholes to prevent carry-over.
   const wormholes = Array.isArray(sys.wormholes) ? sys.wormholes : [];
   hex.inherentWormholes = new Set(
-    wormholes.filter(w => typeof w === "string").map(w => w.toLowerCase())
+    wormholes.filter(w => typeof w === "string").map(normalizeWormholeType).filter(Boolean)
   );
   // Always clear customWormholes when assigning a RealID system
   hex.customWormholes = new Set();

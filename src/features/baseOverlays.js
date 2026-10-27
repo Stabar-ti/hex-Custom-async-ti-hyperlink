@@ -1,11 +1,11 @@
-import { effectIconPositions, effectEmojiMap, fallbackEffectEmoji, wormholeTypes } from '../constants/constants.js';
+import { effectIconPositions, effectEmojiMap, fallbackEffectEmoji, wormholeInfo } from '../constants/constants.js';
 import { COLORS } from '../constants/designTokens.js';
 import { hexPoints } from '../utils/hexGeometry.js';
 
 
 /**
  * Creates a single SVG overlay for a wormhole token.
- * Renders a colored circle with a text label (e.g. A, B, etc).
+ * Renders a colored circle with the wormhole's symbol (α, β, ...).
  *
  * @param {number} x    - X coordinate (center of hex + offset)
  * @param {number} y    - Y coordinate (center of hex + offset)
@@ -13,9 +13,7 @@ import { hexPoints } from '../utils/hexGeometry.js';
  * @returns {SVGGElement} - SVG group containing circle and label
  */
 export function createWormholeOverlay(x, y, type) {
-  const props = wormholeTypes[type] || {};
-  const color = props.color || 'black';
-  const label = props.label || '?';
+  const { color, symbol } = wormholeInfo(type);
 
   const svgns = 'http://www.w3.org/2000/svg';
   const group = document.createElementNS(svgns, 'g');
@@ -32,7 +30,7 @@ export function createWormholeOverlay(x, y, type) {
   circle.setAttribute('stroke', 'white');
   circle.setAttribute('stroke-width', 2);
 
-  // Draw the wormhole label (A, B, etc.)
+  // Draw the wormhole symbol (α, β, etc.)
   const text = document.createElementNS(svgns, 'text');
   text.setAttribute('x', x);
   text.setAttribute('y', y + 4);
@@ -40,7 +38,7 @@ export function createWormholeOverlay(x, y, type) {
   text.setAttribute('fill', 'white');
   text.setAttribute('font-size', '10');
   text.classList.add('hex-wormhole-label');
-  text.textContent = label[0] || '?';
+  text.textContent = symbol;
 
   group.appendChild(circle);
   group.appendChild(text);

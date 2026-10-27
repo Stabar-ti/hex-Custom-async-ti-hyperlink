@@ -10,6 +10,8 @@
 import { hexToMatrix, isMatrixEmpty } from '../utils/matrix.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { updateHexWormholes } from '../features/wormholes.js';
+import { loadWormholeTokenIndex } from './wormholeTokens.js';
+import { normalizeWormholeType } from '../constants/constants.js';
 import { markRealIDUsed, beginBatch, endBatch, clearRealIDUsage } from '../ui/uiFilters.js';
 import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
 import { updateEffectsVisibility, updateWormholeVisibility, createWormholeOverlay } from '../features/baseOverlays.js';
@@ -506,7 +508,7 @@ export function importFullState(editor, jsonText, { confirm = true } = {}) {
       hex.wormholeOverlays = [];
       // Set inherent and custom wormholes separately
       hex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
-      hex.customWormholes = new Set(Array.from(h.wh || h.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
+      hex.customWormholes = new Set(Array.from(h.wh || h.wormholes || []).map(normalizeWormholeType).filter(Boolean));
       // Always update hex.wormholes as the union
       hex.wormholes = new Set([...hex.inherentWormholes, ...hex.customWormholes]);
       // Draw overlays for ALL wormholes (inherent + custom)
@@ -659,7 +661,7 @@ export function importFullState(editor, jsonText, { confirm = true } = {}) {
       else delete hex.borderAnomalies;
       // Wormholes: recover inherent from system info, custom from save
       hex.inherentWormholes = new Set((info.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
-      hex.customWormholes = new Set(Array.from(h.wh || h.wormholes || []).filter(Boolean).map(w => w.toLowerCase()));
+      hex.customWormholes = new Set(Array.from(h.wh || h.wormholes || []).map(normalizeWormholeType).filter(Boolean));
       hex.wormholes = new Set([...hex.inherentWormholes, ...hex.customWormholes]);
       hex.wormholeOverlays = [];
       Array.from(hex.wormholes).forEach((w, i) => {
@@ -727,121 +729,6 @@ export function importFullState(editor, jsonText, { confirm = true } = {}) {
     endBatch?.();
   }
   return true;
-}
-
-/**
- * Cache for reverse wormhole token mappings (token ID -> wormhole type)
- */
-let reverseWormholeTokenMapCache = null;
-
-/**
- * Cache for token lookup by imagePath (e.g., "token_whalpha.png" -> token object)
- */
-let tokenImagePathMapCache = null;
-
-/**
- * Load reverse wormhole token mappings dynamically from tokens.json
- * Maps token IDs to wormhole type keys (e.g., 'whalpha' -> 'alpha')
- * @returns {Promise<Object>} Map of token ID to wormhole type
- */
-async function getReverseWormholeTokenMap() {
-  if (reverseWormholeTokenMapCache) return reverseWormholeTokenMapCache;
-
-  try {
-    const basePath = window.location.pathname.endsWith('/')
-      ? window.location.pathname
-      : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
-
-    const response = await fetch(`${basePath}public/data/tokens.json`);
-    if (!response.ok) throw new Error(`Failed to load tokens.json: ${response.status}`);
-
-    const tokenGroups = await response.json();
-    const allTokens = tokenGroups.flat();
-
-    const map = {};
-
-    // Build a reverse map of token ID to wormhole type
-    allTokens.forEach(token => {
-      if (token.wormholes && token.wormholes.length > 0) {
-        token.wormholes.forEach(whType => {
-          // Normalize wormhole type to lowercase
-          const whKey = whType.toLowerCase()
-            .replace('custom_eronous_wh', '')
-            .replace('wh', '');
-
-          // Map token ID to wormhole type
-          map[token.id] = whKey;
-        });
-      }
-    });
-
-    console.log('Loaded reverse wormhole token map from tokens.json:', map);
-    reverseWormholeTokenMapCache = map;
-    return map;
-  } catch (error) {
-    console.error('Failed to load reverse wormhole token map, using fallback:', error);
-    // Fallback to basic reverse mapping
-    return {
-      'whalpha': 'alpha',
-      'whbeta': 'beta',
-      'whgamma': 'gamma',
-      'whdelta': 'delta',
-      'whepsilon': 'epsilon',
-      'wheta': 'eta',
-      'custom_eronous_whiota': 'iota',
-      'custom_eronous_whtheta': 'theta',
-      'whzeta': 'zeta',
-      'whkappa': 'kappa',
-      'whchampion': 'champion',
-      'whprobability': 'probability',
-      'whvoyage': 'voyage',
-      'whnarrows': 'narrows',
-      'vortex': 'vortex'
-    };
-  }
-}
-
-/**
- * Load token lookup map by imagePath from tokens.json
- * Maps image filenames (e.g., "token_whalpha.png") to token objects
- * @returns {Promise<Object>} Map of imagePath to token object
- */
-async function getTokenImagePathMap() {
-  if (tokenImagePathMapCache) return tokenImagePathMapCache;
-
-  try {
-    const basePath = window.location.pathname.endsWith('/')
-      ? window.location.pathname
-      : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
-
-    const response = await fetch(`${basePath}public/data/tokens.json`);
-    if (!response.ok) throw new Error(`Failed to load tokens.json: ${response.status}`);
-
-    const tokenGroups = await response.json();
-    const allTokens = tokenGroups.flat();
-
-    const map = {};
-
-    // Build a map of imagePath to token object
-    allTokens.forEach(token => {
-      if (token.imagePath) {
-        // Store the full token object for reference
-        map[token.imagePath] = token;
-        // Also store without path prefix if it has one
-        const filename = token.imagePath.split('/').pop();
-        if (filename !== token.imagePath) {
-          map[filename] = token;
-        }
-      }
-    });
-
-    console.log('Loaded token imagePath map from tokens.json:', Object.keys(map).length, 'entries');
-    tokenImagePathMapCache = map;
-    return map;
-  } catch (error) {
-    console.error('Failed to load token imagePath map:', error);
-    return {};
-  }
 }
 
 let borderAnomalyAliasMapCache = null;
@@ -913,11 +800,9 @@ export async function importMapInfo(editor, jsonData) {
 
     console.log(`importMapInfo: Importing ${mapInfo.length} hexes`);
 
-    // Load reverse wormhole token map for converting token IDs back to wormhole types
-    const reverseWhTokenMap = await getReverseWormholeTokenMap();
-
-    // Load token imagePath map for fallback lookup when token IDs have file extensions
-    const tokenImagePathMap = await getTokenImagePathMap();
+    // Wormhole tokens become wormholes on the hex, by their tokens.json `wormholes` field;
+    // a token given as an image file name (including a legacy one) is resolved to its id.
+    const { typesByToken: reverseWhTokenMap, tokenByImage: tokenImagePathMap } = await loadWormholeTokenIndex();
 
     // Load border anomaly alias map for resolving anomaly names to IDs
     const borderAnomalyAliasMap = await getBorderAnomalyAliasMap();
@@ -1065,11 +950,10 @@ export async function importMapInfo(editor, jsonData) {
             }
           }
 
-          // Check if this token is a wormhole token using the resolved ID
-          const whType = reverseWhTokenMap[actualTokenId];
-          if (whType) {
-            // This is a wormhole token, add to customWormholes
-            hex.customWormholes.add(whType);
+          // A wormhole token becomes every wormhole it declares, not a token
+          const whTypes = reverseWhTokenMap[actualTokenId];
+          if (whTypes) {
+            whTypes.forEach(type => hex.customWormholes.add(type));
           } else {
             // Regular token, add to tokens array using the resolved ID
             hex.tokens.push(actualTokenId);

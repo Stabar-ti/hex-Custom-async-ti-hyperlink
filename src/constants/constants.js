@@ -129,24 +129,84 @@ export const sectorModes = [
 export const effectModes = ['nebula', 'rift', 'asteroid', 'supernova'];
 
 /**
- * Mapping of all supported wormhole types, with display label and color.
+ * Every wormhole type the bot knows, with display label, color and symbol.
+ *
+ * Keys are the bot's `WormholeModel.Wormhole` constants lowercased, in the same order,
+ * and `symbol` is that enum's `symbol()`. Badges draw the symbol rather than the label's
+ * initial: with 29 types the initials collide (Pi, Phi, Psi and Probability are all "P").
  */
 export const wormholeTypes = {
-  alpha: { label: "Alpha", color: "orange" },
-  beta: { label: "Beta", color: "green" },
-  gamma: { label: "Gamma", color: "pink" },
-  delta: { label: "Delta", color: "blue" },
-  eta: { label: "Eta", color: "red" },
-  epsilon: { label: "Epsilon", color: "#b58900" },
-  kappa: { label: "Kappa", color: "darkgreen" },
-  zeta: { label: "Zeta", color: "#800080" },
-  champion: { label: "Champion", color: "saddlebrown" },
-  probability: { label: "Probability", color: "gray" },
-  voyage: { label: "Voyage", color: "brown" },
-  narrows: { label: "Narrows", color: "slateblue" },
-  iota: { label: "Iota", color: "#C71585" },
-  theta: { label: "Theta", color: "darkred" }
+  alpha: { label: "Alpha", color: "orange", symbol: "α" },
+  beta: { label: "Beta", color: "green", symbol: "β" },
+  gamma: { label: "Gamma", color: "pink", symbol: "γ" },
+  delta: { label: "Delta", color: "blue", symbol: "δ" },
+  epsilon: { label: "Epsilon", color: "#b58900", symbol: "ε" },
+  zeta: { label: "Zeta", color: "#800080", symbol: "ζ" },
+  eta: { label: "Eta", color: "red", symbol: "η" },
+  theta: { label: "Theta", color: "darkred", symbol: "θ" },
+  iota: { label: "Iota", color: "#C71585", symbol: "ι" },
+  kappa: { label: "Kappa", color: "darkgreen", symbol: "κ" },
+  lambda: { label: "Lambda", color: "seagreen", symbol: "λ" },
+  mu: { label: "Mu", color: "steelblue", symbol: "μ" },
+  nu: { label: "Nu", color: "darkcyan", symbol: "ν" },
+  xi: { label: "Xi", color: "olivedrab", symbol: "ξ" },
+  omicron: { label: "Omicron", color: "indianred", symbol: "ο" },
+  pi: { label: "Pi", color: "chocolate", symbol: "π" },
+  rho: { label: "Rho", color: "darkorchid", symbol: "ρ" },
+  sigma: { label: "Sigma", color: "dodgerblue", symbol: "σ" },
+  tau: { label: "Tau", color: "darkgoldenrod", symbol: "τ" },
+  upsilon: { label: "Upsilon", color: "slategray", symbol: "υ" },
+  phi: { label: "Phi", color: "palevioletred", symbol: "φ" },
+  chi: { label: "Chi", color: "darkolivegreen", symbol: "χ" },
+  psi: { label: "Psi", color: "darkslateblue", symbol: "ψ" },
+  omega: { label: "Omega", color: "navy", symbol: "ω" },
+  narrows: { label: "Narrows", color: "slateblue", symbol: "N" },
+  probability: { label: "Probability", color: "gray", symbol: "P" },
+  champion: { label: "Champion", color: "saddlebrown", symbol: "C" },
+  voyage: { label: "Voyage", color: "brown", symbol: "V" },
+  vortex: { label: "Vortex", color: "indigo", symbol: "Vx" }
 };
+
+/**
+ * Old spellings the bot still accepts for a wormhole (its `@JsonAlias`es), as prefixes:
+ * `CUSTOM_ERONOUS_WHIOTA` is now `IOTA`, `WHNARROWS` is now `NARROWS`. Longest first.
+ */
+const LEGACY_WORMHOLE_PREFIXES = ['custom_eronous_wh', 'wh'];
+
+/**
+ * The editor's key for a wormhole as the data spells it: lowercased, with the bot's
+ * legacy prefixes removed when what is left is a known type. An unknown type comes back
+ * lowercased rather than dropped, so a wormhole added upstream still links to itself.
+ * Returns '' for an empty value or the `'null'` string SystemInfo.json carries.
+ *
+ * @param {unknown} raw
+ * @returns {string}
+ */
+export function normalizeWormholeType(raw) {
+  const key = String(raw ?? '').trim().toLowerCase();
+  if (key === 'null') return '';
+  if (!key || key in wormholeTypes) return key;
+  for (const prefix of LEGACY_WORMHOLE_PREFIXES) {
+    const rest = key.slice(prefix.length);
+    if (key.startsWith(prefix) && rest in wormholeTypes) return rest;
+  }
+  return key;
+}
+
+/**
+ * Display props for a wormhole type, with a grey fallback for a type the editor has no
+ * entry for yet.
+ *
+ * @param {unknown} type
+ * @returns {{ label: string, color: string, symbol: string }}
+ */
+export function wormholeInfo(type) {
+  const key = normalizeWormholeType(type);
+  const known = wormholeTypes[key];
+  if (known) return known;
+  const initial = key.charAt(0).toUpperCase() || '?';
+  return { label: key ? initial + key.slice(1) : '?', color: 'gray', symbol: initial };
+}
 
 
 export const planetTypeColors = {

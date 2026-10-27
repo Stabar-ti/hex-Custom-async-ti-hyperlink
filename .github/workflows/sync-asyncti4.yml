@@ -454,7 +454,7 @@ jobs:
                                  'isScar', 'isAsteroids', 'isPlanet', 'tokenPlanetName', 'attachmentID')
           ATTACH_SEMANTIC_KEYS = ('resourcesModifier', 'influenceModifier', 'techSpeciality',
                                   'planetTypes', 'isLegendary', 'spaceCannonHitsOn',
-                                  'spaceCannonDieCount', 'token', 'isFakeAttachment')
+                                  'spaceCannonDieCount', 'token', 'isFakeAttachment', 'wormholes')
 
           # Ids shorter than this collide with unrelated Java string literals ("ul", "ds"),
           # so they are reported as not-measured rather than with a number we cannot trust.
@@ -493,8 +493,10 @@ jobs:
 
 
           def pretty_wormhole(hole):
-              """Wormhole ids are SHOUTED (ALPHA, CUSTOM_ERONOUS_WHIOTA); title-case them."""
-              text = re.sub(r'^CUSTOM_', '', str(hole or ''))
+              """Wormhole ids are SHOUTED (ALPHA); title-case them. The bot's legacy spellings
+              (CUSTOM_ERONOUS_WHIOTA, WHNARROWS) are still accepted upstream as aliases, so
+              strip their prefixes the way normalizeWormholeType() does in the app."""
+              text = re.sub(r'^(CUSTOM_ERONOUS_WH|WH)(?=[A-Z])', '', str(hole or '').upper())
               return ' '.join(w.capitalize() for w in re.split(r'[_\s]+', text) if w)
 
 
@@ -598,6 +600,8 @@ jobs:
                   effects.append(f"Places token {att['token']}")
               if att.get('isFakeAttachment'):
                   effects.append('Fake attachment')
+              for hole in att.get('wormholes') or []:
+                  effects.append(f'{pretty_wormhole(hole)} wormhole')
               return effects
 
 

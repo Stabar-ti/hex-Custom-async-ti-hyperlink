@@ -9,7 +9,7 @@
  * Each group does to this one tile what its rail tool does to whichever tile you click
  * next, without arming the tool:
  *
- *   Wormholes ▸        toggle any of the fourteen types on the tile
+ *   Wormholes ▸        toggle any of the bot's wormhole types on the tile
  *   Border anomalies ▸ pick a type, then click the neighbour whose edge it goes on
  *   Hyperlane ▸        start a lane here, or turn the tile into a roundabout
  *   Sector ▸           put the tile — or the selection it is part of — in a map sector

@@ -1,4 +1,4 @@
-import { wormholeTypes, planetTypeColors, techSpecialtyColors } from '../constants/constants.js';
+import { wormholeInfo, planetTypeColors, techSpecialtyColors } from '../constants/constants.js';
 import { showPopup, hidePopup } from '../ui/popupUI.js';
 import { showOptionsPopup } from '../ui/simplepPopup.js';
 import { assignSliceTiles } from './sliceOwnership.js';
@@ -219,11 +219,8 @@ export function renderSliceAnalysis(editor, container) {
 
         const wormholeHtml = Array.from(wormholes)
             .map(w => {
-                const key = w.toLowerCase();
-                const whType = wormholeTypes[key];
-                const color = whType?.color || 'gray';
-                const label = whType?.label ? whType.label[0] : key[0].toUpperCase();
-                return `<span style="background:${color};color:white;font-weight:600;padding:1px 6px;border-radius:7px;margin-right:2px;display:inline-block;">${label}</span>`;
+                const { color, symbol, label } = wormholeInfo(w);
+                return `<span title="${label}" style="background:${color};color:white;font-weight:600;padding:1px 6px;border-radius:7px;margin-right:2px;display:inline-block;">${symbol}</span>`;
             }).join(' ');
 
         // What the score is made of, for the tooltip: the tiles' own values, then the two

@@ -10,7 +10,7 @@
  * picker agrees with the map overlays.
  */
 
-import { wormholeTypes, techSpecialtyColors, effectEmojiMap } from '../../constants/constants.js';
+import { wormholeInfo, techSpecialtyColors, effectEmojiMap } from '../../constants/constants.js';
 import { wormholesOf, effectiveValue, anomaliesOf, totalResources, totalInfluence } from './pickerModel.js';
 
 export const TILE_IMAGE_BASE = 'public/data/tiles/';
@@ -85,16 +85,12 @@ export function techBadges(sys) {
     return frag;
 }
 
-/** Wormholes as coloured initials. */
+/** Wormholes as coloured symbols. */
 export function wormholeBadges(sys) {
     const frag = document.createDocumentFragment();
     for (const w of wormholesOf(sys)) {
-        const info = wormholeTypes[String(w).toLowerCase()];
-        frag.appendChild(badge(
-            info ? info.label.charAt(0) : String(w).charAt(0).toUpperCase(),
-            info ? info.color : '#888',
-            info ? info.label : String(w)
-        ));
+        const info = wormholeInfo(w);
+        frag.appendChild(badge(info.symbol, info.color, info.label));
     }
     return frag;
 }
