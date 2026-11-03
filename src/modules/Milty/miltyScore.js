@@ -232,7 +232,8 @@ export function hexAsTile(hex, sys = null) {
     return {
         id: hex?.realId ?? sys?.id ?? null,
         planets: Array.isArray(hex?.planets) ? hex.planets : (sys?.planets || []),
-        wormholes: hex?.wormholes ? [...hex.wormholes] : (sys?.wormholes || []),
+        // As types: a one-way wormhole ('gamma:in', constants.js wormholeKey) scores as its type.
+        wormholes: hex?.wormholes ? [...hex.wormholes].map(w => String(w).split(':')[0]) : (sys?.wormholes || []),
         isSupernova: has('isSupernova', 'supernova', 'supernova'),
         isAsteroidField: has('isAsteroidField', 'asteroid', 'asteroids'),
         isNebula: has('isNebula', 'nebula', 'nebula'),

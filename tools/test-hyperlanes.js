@@ -20,14 +20,17 @@ import {
     segments, segmentKey,
     areNeighbors, dirIndexBetween, resolveSegment,
     roundaboutSides, hasRoundabout, withRoundabout, withLaneDrawn, withLaneErased, sameMatrix, drawPlan,
-    matrixToHex, hexToMatrix, hasLinks, isMatrixEmpty, touchesSide, sidesReachedFrom
+    matrixToHex, hexToMatrix, hasLinks, isMatrixEmpty, touchesSide, sidesReachedFrom,
+    roundaboutRoles, connectRoundabout, toStoredMatrix, toTypedMatrix, isOneWay, hasOneWayLanes
 } from '../src/modules/Hyperlanes/hyperlaneModel.js';
 
 import {
-    LOOP_SCALE, edgeMid, curvePath, loopArm, loopCircleRadius, hexCorners
+    LOOP_SCALE, edgeMid, curvePath, loopArm, loopCircleRadius, hexCorners, curvePoint, arrowPoints,
+    oneWayArrowPoint, sideArrowPoint, ONE_WAY_ARROW_DEPTH
 } from '../src/modules/Hyperlanes/hyperlaneGeometry.js';
 
 import * as store from '../src/modules/Hyperlanes/hyperlaneState.js';
+import { sharedExitSides } from '../src/modules/Hyperlanes/hyperlaneRender.js';
 import { hexPoints } from '../src/utils/hexGeometry.js';
 // Safe under node: the indicator only touches the DOM inside its functions.
 import { activeLabel } from '../src/modules/Hyperlanes/hyperlaneIndicator.js';
@@ -684,7 +687,7 @@ const round = (n) => Math.round(n * 1e6) / 1e6;
 
     // A diagonal-only roundabout, as older saves have it, is still one roundabout.
     const legacy = withLink(withLink(emptyMatrix(), 2, 2), 5, 5);
-    check('a diagonal-only roundabout draws as one', eq(drawPlan(legacy), { roundabout: [2, 5], curves: [] }));
+    check('a diagonal-only roundabout draws as one', eq(drawPlan(legacy), { roundabout: [2, 5], roles: { 2: 'both', 5: 'both' }, curves: [] }));
     check('touching it fills in the pairs', eq(withLaneDrawn(legacy, 2, 5), roundabout([2, 5])));
 
     check('out-of-range sides change nothing', sameMatrix(withLaneDrawn(lane, -1, 9), lane));
@@ -813,6 +816,122 @@ const round = (n) => Math.round(n * 1e6) / 1e6;
         JSON.stringify(hexes.N1.matrix) === n1Before && JSON.stringify(hexes.N4.matrix) === n4Before);
     check('a second time there is nothing to change', !roundaboutPlan(editor, 'C').changed);
     check('…and nothing is recorded', !placeRoundabout(editor, 'C') && snapshots === 1);
+}
+
+// ── 17. One-way lanes and the bot's typed form ─────────────────────────────────
+//
+// Cases ported from the bot's CustomHyperlaneServiceTest, so the two implementations
+// agree on what a matrix means.
+{
+    const parse = s => s.split(';').map(r => r.split(',').map(Number));
+    const one = (i, j) => withLink(emptyMatrix(), i, j);
+    const typedOneWay = (i, j) => withLink(emptyMatrix(), i, j).map((row, a) =>
+        row.map((c, b) => (a === i && b === j ? 2 : c)));
+
+    check('typed 1 is mirrored', eq(toStoredMatrix(one(3, 0)), toStoredMatrix(one(0, 3))));
+    check('typed 2 stays one-way', eq(toStoredMatrix(typedOneWay(0, 3)), one(0, 3)));
+    check('typed → stored → typed round-trips a one-way lane',
+        eq(toTypedMatrix(toStoredMatrix(typedOneWay(5, 1))), typedOneWay(5, 1)));
+    const twoWay = toStoredMatrix(one(1, 4));
+    check('stored → typed → stored round-trips a two-way lane', eq(toStoredMatrix(toTypedMatrix(twoWay)), twoWay));
+
+    check('rotation keeps the direction of a one-way lane',
+        eq(rotated(one(0, 3), 1), one(1, 4)) && hasOneWayLanes(rotated(one(0, 3), 1)));
+
+    const loop = parse('1,0,2,0,0,0;0,0,0,0,0,0;0,0,1,0,2,0;0,0,0,0,0,0;2,0,0,0,1,0;0,0,0,0,0,0');
+    const allWays = parse('1,0,1,0,1,0;0,0,0,0,0,0;1,0,1,0,1,0;0,0,0,0,0,0;1,0,1,0,1,0;0,0,0,0,0,0');
+    check('a one-way loop round a roundabout is two-way', eq(toStoredMatrix(loop), allWays));
+
+    const fromNorth = toStoredMatrix(parse('1,0,2,0,2,0;0,0,0,0,0,0;0,0,1,0,0,0;0,0,0,0,0,0;0,0,0,0,1,0;0,0,0,0,0,0'));
+    check('enter at N, leave at SE or SW stays one-way',
+        isOneWay(fromNorth, 0, 2) && isOneWay(fromNorth, 0, 4)
+        && !hasLink(fromNorth, 2, 4) && !hasLink(fromNorth, 4, 2));
+    check('its roles are N entry, SE/SW exit',
+        eq(roundaboutRoles(fromNorth), { 0: 'entry', 2: 'exit', 4: 'exit' }), JSON.stringify(roundaboutRoles(fromNorth)));
+
+    const contradiction = parse('0,0,0,2,0,0;0,0,0,0,0,0;0,0,0,0,0,0;1,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0');
+    check('a 2 with its mirror set is saved two-way', !hasOneWayLanes(toStoredMatrix(contradiction)));
+    check('the MapJsonIOServiceTest matrix round-trips', (() => {
+        const typed = parse('0,0,0,2,0,0;0,0,0,0,1,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0');
+        const stored = toStoredMatrix(typed);
+        return eq(toTypedMatrix(stored), toTypedMatrix(toStoredMatrix(toTypedMatrix(stored))))
+            && isOneWay(stored, 0, 3) && hasLink(stored, 1, 4) && hasLink(stored, 4, 1);
+    })());
+
+    // Drawing
+    const drawn = withLaneDrawn(emptyMatrix(), 2, 5, { oneWay: true });
+    check('a one-way lane writes one cell', eq(drawn, one(2, 5)));
+    check('redrawing it reversed flips it', eq(withLaneDrawn(drawn, 5, 2, { oneWay: true }), one(5, 2)));
+    check('redrawing it two-way makes it two-way', eq(withLaneDrawn(drawn, 5, 2), symmetrised(one(2, 5))));
+    check('drawing one-way over a two-way lane makes it one-way',
+        eq(withLaneDrawn(symmetrised(one(2, 5)), 2, 5, { oneWay: true }), one(2, 5)));
+    check('erasing clears a one-way lane', linkCount(withLaneErased(drawn, 5, 2)) === 0);
+    check('a one-way loop is still a plain roundabout side',
+        eq(withLaneDrawn(emptyMatrix(), 1, 1, { oneWay: true }), withLink(emptyMatrix(), 1, 1)));
+
+    const segs = segments(one(4, 1));
+    check('segments orient a one-way lane the way it runs',
+        segs.length === 1 && segs[0].entry === 4 && segs[0].exit === 1 && segs[0].oneWay === true, JSON.stringify(segs));
+    check('a two-way lane is not one-way', segments(symmetrised(one(4, 1)))[0].oneWay === false);
+
+    // Roundabouts
+    const rb = withRoundabout(emptyMatrix(), [0, 2, 4]);
+    const oneWayIn = withLaneDrawn(rb, 0, 2, { oneWay: true });
+    check('a one-way lane onto a roundabout makes its ends one-way',
+        eq(roundaboutRoles(oneWayIn), { 0: 'entry', 2: 'exit', 4: 'both' }), JSON.stringify(roundaboutRoles(oneWayIn)));
+    check('…and the result is what the bot would store', eq(connectRoundabout(oneWayIn), oneWayIn));
+    check('…and survives the typed round-trip', eq(toStoredMatrix(toTypedMatrix(oneWayIn)), oneWayIn));
+    check('adding a two-way side keeps the others one-way',
+        eq(roundaboutRoles(withRoundabout(oneWayIn, [3])), { 0: 'entry', 2: 'exit', 3: 'both', 4: 'both' }));
+    check('a two-way lane over the one-way sides makes them two-way again',
+        eq(withLaneDrawn(oneWayIn, 0, 2), rb));
+    check('drawPlan reports the roles', eq(drawPlan(oneWayIn).roles, roundaboutRoles(oneWayIn)));
+    check('connectRoundabout ignores lanes off the roundabout', eq(connectRoundabout(one(0, 3)), one(0, 3)));
+
+    const c0 = { x: 100, y: 100 };
+    const startPt = curvePoint(c0, 1, 4, 40, 0);
+    const endPt = curvePoint(c0, 1, 4, 40, 1);
+    check('curvePoint runs from the entry edge to the exit edge',
+        close(startPt.x, edgeMid(c0, 1, 40).x) && close(endPt.y, edgeMid(c0, 4, 40).y));
+    const mid = curvePoint(c0, 1, 4, 40, 0.5);
+    const e1 = edgeMid(c0, 1, 40), e4 = edgeMid(c0, 4, 40);
+    check('its direction points from entry towards exit',
+        Math.cos(mid.angle) * (e4.x - e1.x) + Math.sin(mid.angle) * (e4.y - e1.y) > 0);
+    check('arrowPoints puts the tip first', arrowPoints({ x: 5, y: 6 }, 0, 40).startsWith('5,6 '));
+
+    // Arrowheads sit a fixed depth in from the exit edge, as the bot draws them, so the
+    // arrows of a busy tile spread out by their sides instead of piling up mid-tile.
+    const depthIn = (p, side) => {
+        const e = edgeMid(c0, side, 40);
+        const d = Math.hypot(c0.x - e.x, c0.y - e.y);
+        return ((p.x - e.x) * (c0.x - e.x) + (p.y - e.y) * (c0.y - e.y)) / d / d;
+    };
+    const straight = oneWayArrowPoint(c0, 0, 3, 40);
+    const bend = oneWayArrowPoint(c0, 0, 2, 40);
+    check('a one-way arrow sits ONE_WAY_ARROW_DEPTH in from its exit, on a straight lane or a bend',
+        Math.abs(depthIn(straight, 3) - ONE_WAY_ARROW_DEPTH) < 0.02 && Math.abs(depthIn(bend, 2) - ONE_WAY_ARROW_DEPTH) < 0.02);
+    const sidePt = sideArrowPoint(c0, 2, 40);
+    const e2 = edgeMid(c0, 2, 40);
+    check('a shared side arrow points straight out through its side',
+        close(depthIn(sidePt, 2), ONE_WAY_ARROW_DEPTH) && close(sidePt.angle, Math.atan2(e2.y - c0.y, e2.x - c0.x)));
+    const into0 = [1, 2, 3].map(i => ({ entry: i, exit: 0, oneWay: true }));
+    check('several one-way lanes leaving by one side share one arrow', eq([...sharedExitSides(into0)], [0]));
+    check('not when a lane also enters by that side',
+        sharedExitSides([...into0, { entry: 0, exit: 4, oneWay: true }]).size === 0);
+    check('not when a two-way lane touches it',
+        sharedExitSides([...into0, { entry: 0, exit: 5, oneWay: false }]).size === 0);
+    check('not for a single lane', sharedExitSides([into0[0]]).size === 0);
+
+    store.__resetForTest();
+    store.setOneWay(true);
+    store.pushLabel('X');
+    store.reset();
+    check('one-way is a tool option: it survives dropping the lane', store.isOneWay() && store.getPathLength() === 0);
+    store.__resetForTest();
+    check('__resetForTest clears it', !store.isOneWay());
+
+    check('hasOneWayLanes is false for symmetric matrices', !hasOneWayLanes(rb) && !hasOneWayLanes(emptyMatrix()));
+    check('isOneWay is false for a loop', !isOneWay(withLink(emptyMatrix(), 2, 2), 2, 2));
 }
 
 // ── Report ────────────────────────────────────────────────────────────────────

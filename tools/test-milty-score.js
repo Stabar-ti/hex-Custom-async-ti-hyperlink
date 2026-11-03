@@ -163,6 +163,9 @@ const byId = new Map(systems.map(s => [String(s.id), s]));
     check('and score like a system\'s',
         close(tileScore(hexAsTile({ planets, wormholes: new Set(['gamma']) }), W).value,
             2 * W.resourceValue + W.gammaWormhole));
+    check('a one-way gamma scores as a gamma',
+        close(tileScore(hexAsTile({ planets, wormholes: new Set(['gamma:in']) }), W).value,
+            2 * W.resourceValue + W.gammaWormhole));
 }
 
 // ── 6. The weight store ──────────────────────────────────────────────────────

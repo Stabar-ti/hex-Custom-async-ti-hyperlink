@@ -10,7 +10,8 @@
 import { hexToMatrix, isMatrixEmpty } from '../utils/matrix.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { updateHexWormholes } from '../features/wormholes.js';
-import { loadWormholeTokenIndex } from './wormholeTokens.js';
+import { loadWormholeTokenIndex, wormholeKeysForToken } from './wormholeTokens.js';
+import { storedMatrixFromCustomString, staticHyperlaneMatrix, upgradeLegacyLanes } from './hyperlaneIO.js';
 import { normalizeWormholeType } from '../constants/constants.js';
 import { markRealIDUsed, beginBatch, endBatch, clearRealIDUsage } from '../ui/uiFilters.js';
 import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
@@ -373,6 +374,9 @@ export function importFullState(editor, jsonText, { confirm = true } = {}) {
     // Support both old and new formats
     const hexArr = Array.isArray(obj.hexes) ? obj.hexes : (Array.isArray(obj) ? obj : []);
     if (!hexArr.length) throw new Error("Invalid data format");
+
+    // A lane set in one direction only is one-way; saves from before that get mirrored.
+    upgradeLegacyLanes(obj, hexArr);
 
     clearRealIDUsage();
 
@@ -802,7 +806,10 @@ export async function importMapInfo(editor, jsonData) {
 
     // Wormhole tokens become wormholes on the hex, by their tokens.json `wormholes` field;
     // a token given as an image file name (including a legacy one) is resolved to its id.
-    const { typesByToken: reverseWhTokenMap, tokenByImage: tokenImagePathMap } = await loadWormholeTokenIndex();
+    const wormholeIndex = await loadWormholeTokenIndex();
+    const { tokenByImage: tokenImagePathMap } = wormholeIndex;
+    // Tiles whose customHyperlaneString is not a matrix the bot would accept.
+    const invalidLanes = [];
 
     // Load border anomaly alias map for resolving anomaly names to IDs
     const borderAnomalyAliasMap = await getBorderAnomalyAliasMap();
@@ -950,8 +957,9 @@ export async function importMapInfo(editor, jsonData) {
             }
           }
 
-          // A wormhole token becomes every wormhole it declares, not a token
-          const whTypes = reverseWhTokenMap[actualTokenId];
+          // A wormhole token becomes every wormhole it declares, not a token. A one-way
+          // token (whalpha_in, token_oneway_whalpha_in.png) becomes 'alpha:in'.
+          const whTypes = wormholeKeysForToken(wormholeIndex, tokenId) || wormholeKeysForToken(wormholeIndex, actualTokenId);
           if (whTypes) {
             whTypes.forEach(type => hex.customWormholes.add(type));
           } else {
@@ -961,14 +969,27 @@ export async function importMapInfo(editor, jsonData) {
         }
       }
 
-      // Import custom hyperlane string and convert to matrix
+      // Hyperlanes. `customHyperlaneString` is the bot's typed form (1 two-way, 2 one-way);
+      // it is read the way the bot reads it (toStoredMatrix), into the stored form the
+      // editor keeps. A static hyperlane tile (83a …) carries no string — the bot writes one
+      // only for `hl` — so its printed lanes come from hyperlanes.json.
+      let lanes = null;
       if (hexData.customHyperlaneString && hexData.customHyperlaneString !== '') {
-        const rows = hexData.customHyperlaneString.split(';');
-        hex.matrix = rows.map(row => row.split(',').map(v => parseInt(v, 10)));
-        drawMatrixLinks(editor, position, hex.matrix);
+        lanes = storedMatrixFromCustomString(hexData.customHyperlaneString);
+        if (!lanes) {
+          invalidLanes.push(position);
+          console.warn(`importMapInfo: invalid customHyperlaneString on ${position}:`, hexData.customHyperlaneString);
+        }
       } else {
-        hex.matrix = Array.from({ length: 6 }, () => Array(6).fill(0));
+        lanes = staticHyperlaneMatrix(tileID, editor.hyperlaneMatrices);
       }
+      // In place: other code aliases hex.links to this array.
+      if (!Array.isArray(hex.matrix)) hex.matrix = Array.from({ length: 6 }, () => Array(6).fill(0));
+      for (let i = 0; i < 6; i++) {
+        if (!Array.isArray(hex.matrix[i])) hex.matrix[i] = Array(6).fill(0);
+        for (let j = 0; j < 6; j++) hex.matrix[i][j] = lanes ? lanes[i][j] : 0;
+      }
+      drawMatrixLinks(editor, position, hex.matrix);
 
       // Import border anomalies
       if (hexData.borderAnomalies && Array.isArray(hexData.borderAnomalies)) {
@@ -1102,6 +1123,9 @@ export async function importMapInfo(editor, jsonData) {
     }
 
     warnUnresolvedTileIds(editor, unresolvedTileIds);
+    if (invalidLanes.length) {
+      showToast(`Hyperlane data that is not a 6×6 matrix of 0, 1 and 2 was skipped on: ${invalidLanes.join(', ')}`, 'warning', 8000);
+    }
 
     // Set all remaining hexes without data to void
     // Build label list for all hexes in the generated map

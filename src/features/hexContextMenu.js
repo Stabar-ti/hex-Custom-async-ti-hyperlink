@@ -16,12 +16,14 @@
  *   Lore ▸            open the lore editor on the system or one of its planets
  */
 
-import { wormholeTypes } from '../constants/constants.js';
+import { wormholeTypes, wormholeKey } from '../constants/constants.js';
+import { loadWormholeTokenIndex, oneWayTokenId } from '../data/wormholeTokens.js';
 import { loadBorderAnomalyTypes, getEnabledBorderAnomalyTypes, normalizeAnomalyId } from '../constants/borderAnomalies.js';
 import { hasCommand, tryInvoke, COMMANDS } from '../core/registry.js';
 import { planetDisplayName } from '../draw/hexAnchors.js';
 import { normalizeLoreEntries, isNonEmptyLoreEntry } from '../modules/Lore/loreCore.js';
 import { selectHex as extendLane, roundaboutPlan, placeRoundabout } from '../modules/Hyperlanes/hyperlaneEditing.js';
+import { setOneWay } from '../modules/Hyperlanes/hyperlaneState.js';
 import { openContextMenu } from '../ui/contextMenu.js';
 import { startBorderAnomalyPick } from './borderAnomalyPick.js';
 import { removeBorderAnomalies } from './borderAnomalyPlacement.js';
@@ -136,21 +138,54 @@ function wormholeItems(editor, label) {
     const hex = editor.hexes[label];
     const inherent = new Set(hex?.inherentWormholes || []);
     const custom = new Set(hex?.customWormholes || []);
-    return Object.entries(wormholeTypes).map(([type, { label: name, color }]) => {
+    const types = Object.entries(wormholeTypes).map(([type, { label: name, color }]) => {
         // The system's own wormholes come with the tile, and a toggle would only add or
         // remove a duplicate token on top of them.
         if (inherent.has(type)) {
             return { label: name, swatch: color, checked: true, disabled: true, hint: 'system', title: `${name} is part of this system` };
         }
-        const on = custom.has(type);
+        // A one-way wormhole of this type shows here too; unticking it removes it.
+        const dir = /** @type {Array<'in'|'out'>} */ (['in', 'out']).find(d => custom.has(wormholeKey(type, d)));
+        const key = wormholeKey(type, dir);
+        const on = custom.has(key);
         return {
             label: name,
             swatch: color,
             checked: on,
+            hint: dir ? dir.toUpperCase() : undefined,
             title: on ? `Remove the ${name} wormhole from ${label}` : `Add a ${name} wormhole to ${label}`,
-            onSelect: () => editor.toggleWormholeOnHex(label, type),
+            onSelect: () => editor.toggleWormholeOnHex(label, key),
         };
     });
+    return [
+        { label: 'Entry-only (IN)', icon: '⇥', title: 'One-way wormhole: ships can leave this system through it, never arrive', submenu: () => oneWayWormholeItems(editor, label, 'in') },
+        { label: 'Exit-only (OUT)', icon: '⇤', title: 'One-way wormhole: ships can arrive through it, never leave', submenu: () => oneWayWormholeItems(editor, label, 'out') },
+        { separator: true },
+        ...types,
+    ];
+}
+
+/**
+ * The types that can be placed one-way — those the bot has a one-way token for.
+ * @returns {Promise<MenuItem[]>}
+ */
+async function oneWayWormholeItems(editor, label, dir) {
+    const index = await loadWormholeTokenIndex();
+    const custom = new Set(editor.hexes[label]?.customWormholes || []);
+    const word = dir === 'in' ? 'entry-only' : 'exit-only';
+    return Object.entries(wormholeTypes)
+        .filter(([type]) => oneWayTokenId(index, type, dir))
+        .map(([type, { label: name, color }]) => {
+            const key = wormholeKey(type, dir);
+            const on = custom.has(key);
+            return {
+                label: name,
+                swatch: color,
+                checked: on,
+                title: on ? `Remove the ${word} ${name} wormhole from ${label}` : `Add an ${word} ${name} wormhole to ${label}`,
+                onSelect: () => editor.toggleWormholeOnHex(label, key),
+            };
+        });
 }
 
 // ── Border anomalies ─────────────────────────────────────────────────────────
@@ -223,6 +258,12 @@ function hyperlaneItems(editor, label) {
             onSelect: () => startLaneAt(editor, label),
         },
         {
+            label: 'Start one-way hyperlane here',
+            icon: '↝',
+            title: 'Arms the Hyperlanes tool for one-way lanes with this tile as the first point — the lane runs in the order you click',
+            onSelect: () => startLaneAt(editor, label, { oneWay: true }),
+        },
+        {
             label: 'Place roundabout',
             icon: '○',
             disabled: !plan.changed,
@@ -234,10 +275,10 @@ function hyperlaneItems(editor, label) {
 }
 
 /** Arms the Hyperlanes tool the way its rail button does, then starts the path here. */
-function startLaneAt(editor, label) {
-    const button = document.getElementById('toolHyperlanes');
+function startLaneAt(editor, label, { oneWay = false } = {}) {
+    const button = document.getElementById(oneWay ? 'toolHyperlanesOneWay' : 'toolHyperlanes');
     if (button && !button.classList.contains('active')) button.click();
-    else if (!button) editor.setMode('hyperlane');
+    else if (!button) { setOneWay(oneWay); editor.setMode('hyperlane'); }
     if (editor.mode !== 'hyperlane') return;
     extendLane(editor, label);
 }

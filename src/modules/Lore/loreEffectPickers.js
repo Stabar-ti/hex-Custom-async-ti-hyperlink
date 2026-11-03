@@ -6,6 +6,8 @@
  */
 
 import { hasLinks } from '../../utils/matrix.js';
+import { wormholeInfo } from '../../constants/constants.js';
+import { loadWormholeTokenIndex } from '../../data/wormholeTokens.js';
 import { openListPicker, closeListPicker, registerForeignCloser } from '../../ui/listPicker.js';
 
 // openListPicker now lives in src/ui/listPicker.js — the system picker's "+ Add filter"
@@ -305,9 +307,39 @@ export async function openTokenPicker(anchorEl, scope = 'space', editor = null) 
         });
     });
     items.sort((a, b) => a.label.localeCompare(b.label));
+    items.push(...await wormholeTokenItems(seen));
 
     const title = scope === 'planet' ? 'Choose a planet token/attachment' : 'Choose a space token';
     return openListPicker(anchorEl, items, { title, width: 240 });
+}
+
+/**
+ * Wormhole tokens, after the others: each type's plain token and the bot's one-way
+ * tokens (`whalpha_in` entry-only, `whalpha_out` exit-only). Offered for planet lore too,
+ * because the bot always puts a wormhole in space whatever the lore is attached to.
+ *
+ * @param {Set<string>} seen  ids already listed
+ */
+async function wormholeTokenItems(seen) {
+    const index = await loadWormholeTokenIndex();
+    const items = [];
+    const imageById = {};
+    for (const t of Object.values(index.tokenByImage)) imageById[t.id] ??= t.imagePath;
+    const add = (id, label, image, hint) => {
+        if (seen.has(id)) return;
+        seen.add(id);
+        items.push({ value: id, label, icon: image ? `./public/tokens/${image}` : null, hint });
+    };
+    for (const [type, id] of Object.entries(index.tokenByType)) {
+        const { label } = wormholeInfo(type);
+        add(id, `${label} wormhole`, imageById[id], 'two-way');
+        const oneWay = index.oneWayByType[type];
+        if (!oneWay) continue;
+        const base = index.oneWayByToken[oneWay.in];
+        add(oneWay.in, `${label} wormhole — entry-only (IN)`, base?.baseImage, 'ships can leave through it');
+        add(oneWay.out, `${label} wormhole — exit-only (OUT)`, base?.baseImage, 'ships can arrive through it');
+    }
+    return items;
 }
 
 /**
@@ -588,7 +620,9 @@ export async function openSetHyperlanePicker(anchorEl, editor) {
         }
         const source = await openListPicker(anchorEl, sourceItems, { title: 'Copy hyperlane pattern from…', width: 200 });
         if (!source) return null;
-        binary = editor.hexes[source].matrix.flat().join('');
+        // The stored matrix as it is: a lane set one way only is one-way, in the bot too
+        // (its !sethyperlane stores the matrix without mirroring it).
+        binary = editor.hexes[source].matrix.flat().map(cell => (cell === 1 ? '1' : '0')).join('');
     } else {
         const typed = prompt("Hyperlane pattern as a plain 36-character string of 0s and 1s (matches the map's own hyperlane matrix, row by row):");
         if (!typed) return null;

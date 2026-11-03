@@ -604,6 +604,44 @@ body {
   box-sizing: border-box;
 }
 
+/* A one-of-three option row above a tool grid (the Wormholes panel's direction). */
+.tool-panel__seg {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.tool-panel__seg .mode-button {
+  margin: 0;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.tool-panel__seg .mode-button[data-dir="in"].active {
+  background: #3cc85a;
+  color: #fff;
+}
+
+.tool-panel__seg .mode-button[data-dir="out"].active {
+  background: #e13c37;
+  color: #fff;
+}
+
+/* With a direction picked, the type buttons wear its ring colour. */
+.tool-panel__grid .btn-wormhole--oneway[data-dir="in"] {
+  box-shadow: inset 0 0 0 2px #3cc85a;
+}
+
+.tool-panel__grid .btn-wormhole--oneway[data-dir="out"] {
+  box-shadow: inset 0 0 0 2px #e13c37;
+}
+
+.tool-panel__grid .mode-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* ── Sectors panel (mapSectorPanel.js) ──────────────────────────────────────── */
 
 .sector-panel__settings,

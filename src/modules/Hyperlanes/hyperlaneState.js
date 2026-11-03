@@ -22,14 +22,15 @@
 const DEFAULTS = {
     path: [],          // Labels clicked so far, oldest first
     unlinking: false,  // Next completed segment removes rather than adds
-    enabled: true      // Whether clicks extend the path at all (was `linking`)
+    enabled: true,     // Whether clicks extend the path at all (was `linking`)
+    oneWay: false      // Lanes are drawn one-way, in click order. A tool option: survives reset
 };
 
 let state = { ...DEFAULTS, path: [] };
 let listeners = [];
 
 /**
- * @param {(s: {path: string[], unlinking: boolean, enabled: boolean}) => void} fn
+ * @param {(s: {path: string[], unlinking: boolean, enabled: boolean, oneWay: boolean}) => void} fn
  * @returns {() => void} unsubscribe
  */
 export function subscribe(fn) {
@@ -116,7 +117,18 @@ export function setEnabled(on) {
     notify();
 }
 
-/** Abandon the gesture entirely: forget the path and drop unlink mode. */
+export function isOneWay() {
+    return state.oneWay;
+}
+
+export function setOneWay(on) {
+    const next = !!on;
+    if (state.oneWay === next) return;
+    state = { ...state, oneWay: next };
+    notify();
+}
+
+/** Abandon the gesture entirely: forget the path and drop unlink mode. One-way stays set. */
 export function reset() {
     state = { ...state, path: [], unlinking: false };
     notify();

@@ -87,10 +87,14 @@ export function removeWormholeOverlay(editor, hexId) {
 //
 // When mutating wormholes, always update customWormholes and call updateHexWormholes(hex)
 // to refresh the union. This makes the codebase easier to maintain and debug.
+//
+// A one-way wormhole is a custom wormhole keyed 'type:in' (entry-only) or 'type:out'
+// (exit-only) — see wormholeKey / parseWormholeKey in constants.js.
 // ───────────────────────────────────────────────────────────────
 
 
 import { createWormholeOverlay } from './baseOverlays.js';
+import { normalizeWormholeType, parseWormholeKey, wormholeKey } from '../constants/constants.js';
 
 /**
  * Updates hex.wormholes to be the union of inherentWormholes and customWormholes.
@@ -113,9 +117,13 @@ export function updateHexWormholes(hex) {
  * Toggle a wormhole token on a specific hex tile.
  * Only mutates customWormholes, then updates the union.
  *
+ * `type` may be a one-way key ('alpha:in', 'alpha:out'). A hex holds one custom wormhole
+ * per type: placing a direction replaces the two-way one or the other direction, and
+ * toggling the same key again removes it.
+ *
  * @param {HexEditor} editor - The map editor instance.
  * @param {string} hexId     - The hex's unique label/id.
- * @param {string} type      - The wormhole type (e.g. 'alpha', 'beta').
+ * @param {string} type      - The wormhole key (e.g. 'alpha', 'beta', 'alpha:in').
  * @returns {Array<SVGElement>} - The current wormhole overlay elements for this hex.
  */
 export function toggleWormhole(editor, hexId, type) {
@@ -126,18 +134,18 @@ export function toggleWormhole(editor, hexId, type) {
     hex.customWormholes = new Set(hex.customWormholes ? Array.from(hex.customWormholes) : []);
   }
   if (!hex.wormholeOverlays) hex.wormholeOverlays = [];
-  // Debug: log before mutation
-  // console.log('toggleWormhole BEFORE', hexId, {
-  //   customWormholes: Array.from(hex.customWormholes),
-  //   type
-  // });
   // Save editor state for undo/redo/history
   editor.saveState(hexId);
   // Add or remove wormhole type in customWormholes
-  if (hex.customWormholes.has(type)) {
-    hex.customWormholes.delete(type);
+  const key = normalizeWormholeType(type);
+  if (hex.customWormholes.has(key)) {
+    hex.customWormholes.delete(key);
   } else {
-    hex.customWormholes.add(type);
+    const base = parseWormholeKey(key).type;
+    for (const variant of [base, wormholeKey(base, 'in'), wormholeKey(base, 'out')]) {
+      hex.customWormholes.delete(variant);
+    }
+    hex.customWormholes.add(key);
   }
   // Always update the union
   updateHexWormholes(hex);

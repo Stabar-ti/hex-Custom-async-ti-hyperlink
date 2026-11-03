@@ -8,7 +8,7 @@
 // or linking hyperlanes, wormhole toggles, or changing sector type.
 // ───────────────────────────────────────────────────────────────
 
-import { wormholeTypes } from '../constants/constants.js';
+import { wormholeTypes, parseWormholeKey } from '../constants/constants.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
 import { handleHexClick } from '../modules/Hyperlanes/hyperlaneEditing.js';
 import { selectHex, isSelectMode } from '../features/hexSelection.js';
@@ -37,8 +37,8 @@ export function registerClickHandler(editor) {
       return;
     }
 
-    // 4. Wormhole toggle: helper should save history
-    if (Object.keys(wormholeTypes).includes(this.mode)) {
+    // 4. Wormhole toggle: helper should save history. A one-way tool's mode is 'alpha:in'.
+    if (parseWormholeKey(this.mode).type in wormholeTypes) {
       this.toggleWormholeOnHex(label, this.mode);
       return;
     }

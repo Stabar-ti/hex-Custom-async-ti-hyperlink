@@ -11,11 +11,16 @@
 //
 // When mutating wormholes, always update customWormholes and call updateHexWormholes(hex)
 // to refresh the union. This makes the codebase easier to maintain and debug.
+//
+// One-way wormholes (entry-only / exit-only) are custom wormholes keyed 'type:in' /
+// 'type:out' (see wormholeKey in constants.js); they export as the bot's generated
+// `<token>_in` / `<token>_out` tokens.
 // ───────────────────────────────────────────────────────────────
 
-import { matrixToHex, hasLinks } from '../utils/matrix.js';
-import { symmetrised } from '../modules/Hyperlanes/hyperlaneModel.js';
-import { typeCodeMap, normalizeWormholeType } from '../constants/constants.js';
+import { matrixToHex } from '../utils/matrix.js';
+import { customHyperlaneString, hyperlaneExportInfo, CUSTOM_HYPERLANE_TILE } from './hyperlaneIO.js';
+import { showToast } from '../ui/uiToast.js';
+import { typeCodeMap } from '../constants/constants.js';
 import { showModal } from '../ui/uiModals.js';
 import { getBorderAnomalyTypes, normalizeAnomalyId } from '../constants/borderAnomalies.js';
 import { normalizeLoreEntries, isNonEmptyLoreEntry, loreEntryToShort, LORE_PHASE_TARGETS } from '../modules/Lore/loreCore.js';
@@ -23,51 +28,36 @@ import { normalizeLoreEntries, isNonEmptyLoreEntry, loreEntryToShort, LORE_PHASE
 // exportAdjacencyOverrides below, and shadowing the helper there would be a trap.
 import { buildCoordIndex, neighborLabel as neighborLabelAt, oppositeSide } from '../utils/hexGrid.js';
 import { buildSectorExport, clampGap, comparePositions } from '../features/mapSectors.js';
-import { loadWormholeTokenIndex } from './wormholeTokens.js';
+import { loadWormholeTokenIndex, wormholeTokensForHex } from './wormholeTokens.js';
 
 /**
- * Wormhole type -> the token id that places it, from tokens.json's `wormholes` fields.
- * @returns {Promise<Record<string, string>>}
- */
-async function getWormholeTokenMap() {
-  return (await loadWormholeTokenIndex()).tokenByType;
-}
-
-/**
- * Exports all hyperlane (adjacency) data as a string, showing only hexes with links.
- * Ensures that all links are symmetric/bidirectional in the matrix.
- * Output is written to the export text area and shown in a modal.
+ * Exports the custom hyperlanes in the bot's packed format: `position,<9 hex chars>`
+ * separated by spaces, which the bot's hyperlane manager reads with MORE → Import.
+ *
+ * The matrix is written as stored, one-way lanes included: the bot's Import stores it as
+ * it is (CustomHyperlaneService.isValidStoredMatrix + encodeMatrix are the same codec as
+ * utils/matrix.js). Only tiles the bot reads custom lanes from are listed — see
+ * hyperlaneExportInfo; a static tile with its printed lanes needs no data.
  */
 export function exportMap(editor) {
   const out = [];
-  const coordIndex = buildCoordIndex(editor.hexes);
-
+  const ignored = [];
   for (const id in editor.hexes) {
-    const hex = editor.hexes[id];
-    if (!hex.matrix) continue;
-
-    // Clone matrix for mutation
-    const matrix = hex.matrix.map(r => [...r]);
-
-    // Mirror all links so the exported matrix is bidirectional. A link is only
-    // mirrored when there is actually a tile across that side — a link pointing
-    // off the edge of the map has nothing to be bidirectional with.
-    for (let entry = 0; entry < 6; entry++) {
-      for (let exit = 0; exit < 6; exit++) {
-        if (matrix[entry][exit] !== 1) continue;
-        if (!neighborLabelAt(coordIndex, hex, exit)) continue;
-        matrix[exit][entry] = 1;
-      }
-    }
-
-    if (!hasLinks(matrix)) continue; // Only export hexes with links
-
-    const hexStr = matrixToHex(matrix);
-    out.push(`${id},${hexStr}`);
+    const { tileID, lanes, ignoredByBot } = hyperlaneExportInfo(editor.hexes[id], editor.hyperlaneMatrices);
+    if (ignoredByBot) ignored.push(id);
+    if (!lanes || tileID !== CUSTOM_HYPERLANE_TILE) continue;
+    out.push(`${id},${matrixToHex(lanes)}`);
   }
 
   document.getElementById('exportText').value = out.join(' ');
   showModal('exportModal');
+  warnLanesIgnoredByBot(ignored);
+}
+
+/** Lanes drawn on a system tile: the bot reads lanes only on hyperlane tiles. */
+function warnLanesIgnoredByBot(labels) {
+  if (!labels.length || typeof document === 'undefined') return;
+  showToast(`Hyperlanes drawn on system tiles are ignored by the bot (it reads lanes only on hyperlane tiles): ${[...labels].sort(comparePositions).join(', ')}`, 'warning', 8000);
 }
 
 /**
@@ -78,28 +68,16 @@ export function exportMap(editor) {
  * Only customWormholes are exported (see wormhole handling pattern above).
  */
 export async function exportWormholePositions(editor) {
-  // Load wormhole token map dynamically from tokens.json
-  const whTokenMap = await getWormholeTokenMap();
-  console.log('exportWormholePositions: Token map loaded:', whTokenMap);
-
+  const index = await loadWormholeTokenIndex();
   const groups = {};
 
   for (const [id, hex] of Object.entries(editor.hexes)) {
     if (!/^([0-9]{3,4}|[a-g][0-9]{3}|TL|TR|BL|BR)$/.test(id)) continue;
 
-    // Only export customWormholes
-    const userWormholes = Array.from(hex.customWormholes || []);
-    if (userWormholes.length === 0) continue;
-
-    for (const whRaw of userWormholes) {
-      const whKey = normalizeWormholeType(whRaw);
-      const whToken = whTokenMap[whKey];
-
-      if (!whToken) {
-        console.warn(`No token mapping found for wormhole type: ${whRaw}`);
-        continue;
-      }
-
+    // Only user-placed wormholes, two-way and one-way
+    const { tokens, missing } = wormholeTokensForHex(index, hex);
+    for (const wh of missing) console.warn(`No token mapping found for wormhole type: ${wh}`);
+    for (const whToken of tokens) {
       if (!groups[whToken]) groups[whToken] = [];
       groups[whToken].push(id);
     }
@@ -123,7 +101,7 @@ export async function exportWormholePositions(editor) {
  */
 export function exportHyperlaneTilePositions(editor) {
   const ids = Object.entries(editor.hexes)
-    .filter(([_, h]) => h.matrix?.flat().some(x => x === 1))
+    .filter(([_, h]) => hyperlaneExportInfo(h, editor.hyperlaneMatrices).tileID === CUSTOM_HYPERLANE_TILE)
     .map(([id]) => id)
     .sort(comparePositions);
 
@@ -143,11 +121,15 @@ export function exportHyperlaneTilePositions(editor) {
  *   pl: planets
  *   bt: baseType
  *   fx: effects
- *   wh: customWormholes
+ *   wh: customWormholes (a one-way wormhole is 'type:in' / 'type:out')
  *   ca: customAdjacents
  *   ao: adjacencyOverrides
  *   ba: borderAnomalies
- *   ln: links (matrix)
+ *   ln: links (matrix), stored form: a lane set in one direction only is one-way
+ *
+ * The top-level `hlDirected: true` marks a file written since one-way lanes exist. Older
+ * files could hold a lane set in one direction that was meant two-way, so importFullState
+ * mirrors their lanes.
  */
 export function exportFullState(editor) {
   const hexes = Object.entries(editor.hexes).map(([label, hex]) => {
@@ -207,7 +189,7 @@ export function exportFullState(editor) {
     return h;
   });
 
-  const out = { hexes };
+  const out = { hlDirected: true, hexes };
 
   // Map-global lore state: phase lore entries + game-type validation context
   if (editor.phaseLore) {
@@ -245,20 +227,10 @@ export function exportSectorTypes(editor) {
     // If void type, always -1
     if (hex.baseType === 'void') return '-1';
 
-    // Hyperlane detection: nonzero matrix links
-    if (hex.matrix) {
-      const flat = hex.matrix.flat();
-      const allZero = flat.every(v => v === 0);
-      if (!allZero && flat.includes(1)) {
-        // If this hex has a realId AND is a hyperlane tile, export its realId (string)
-        if (hex.realId != null && hex.realId !== '') {
-          // Optional: If you want to guarantee lowercase or match key, add .toLowerCase()
-          return hex.realId.toString();
-        }
-        // Fallback: legacy, unknown/anonymous hyperlane
-        return 'HL';
-      }
-    }
+    // Hyperlanes: the same tile id exportMap writes the lanes for. A static hyperlane
+    // tile whose lanes were redrawn goes out as HL, or the bot would draw its printed lanes.
+    const lanes = hyperlaneExportInfo(hex, editor.hyperlaneMatrices);
+    if (lanes.lanes) return lanes.tileID === CUSTOM_HYPERLANE_TILE ? 'HL' : lanes.tileID;
 
     // Use realId if present
     if (hex.realId != null && hex.realId !== '') return hex.realId.toString();
@@ -412,11 +384,11 @@ function loreEntryToMapInfo(entry) {
 export async function exportMapInfo(editor, options = {}) {
   const { includeFlavourText = false, retainHomeSystemTileID = false } = options;
 
-  // Load wormhole token map dynamically from tokens.json
-  const whTokenMap = await getWormholeTokenMap();
-  console.log('exportMapInfo: Token map loaded:', whTokenMap);
+  const wormholeIndex = await loadWormholeTokenIndex();
 
   const mapInfo = [];
+  // System tiles with lanes drawn on them: written, but the bot reads lanes only on `hl`.
+  const lanesIgnoredByBot = [];
 
   // Map sectors: every sector goes in the top-level `sectors` list, and the ones that are
   // exactly a bot circle or cluster also get the bot's own `sector` field on their centre
@@ -478,52 +450,17 @@ export async function exportMapInfo(editor, options = {}) {
       tokens.push(...hex.systemTokens);
     }
 
-    // Add custom wormholes as tokens using dynamic token map
-    if (hex.customWormholes && hex.customWormholes.size > 0) {
-      const userWormholes = Array.from(hex.customWormholes);
-      for (const whRaw of userWormholes) {
-        const whKey = normalizeWormholeType(whRaw);
-        const whToken = whTokenMap[whKey];
+    // Add user-placed wormholes (two-way and one-way) as the tokens that place them
+    const { tokens: wormholeTokens, missing } = wormholeTokensForHex(wormholeIndex, hex);
+    tokens.push(...wormholeTokens);
+    for (const wh of missing) console.warn(`No token mapping found for wormhole type: ${wh}`);
 
-        if (whToken) {
-          tokens.push(whToken);
-        } else {
-          console.warn(`No token mapping found for wormhole type: ${whRaw}`);
-        }
-      }
-    }
-
-    // Build hyperlane string (matrix to comma-separated format)
-    let hyperlaneString = '';
-    if (hex.matrix) {
-      // Mirror the links first. AsyncTI4 reads this matrix literally, so a cell set in only
-      // one direction becomes a hyperlane a ship can traverse one way and not back — the
-      // map then behaves differently in the bot than it does here, where the distance
-      // calculation symmetrises before traversing. exportMap does the same thing for its
-      // own format (see the mirror loop in exportMap above).
-      //
-      // Drawing now records both directions, so this matters for matrices that came from
-      // somewhere else: an older save file, or an import of a map that was itself exported
-      // one-way.
-      const matrix = symmetrised(hex.matrix);
-      // Convert 6x6 matrix to comma-separated format with semicolons between rows
-      const rows = [];
-      for (let row = 0; row < 6; row++) {
-        const rowValues = [];
-        for (let col = 0; col < 6; col++) {
-          rowValues.push((matrix[row] && matrix[row][col]) ? '1' : '0');
-        }
-        rows.push(rowValues.join(','));
-      }
-      hyperlaneString = rows.join(';');
-    } else {
-      hyperlaneString = '0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0'; // Default empty hyperlanes
-    }
-
-    // If hyperlane string is all zeros, leave it empty
-    if (hyperlaneString === '0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0') {
-      hyperlaneString = '';
-    }
+    // Hyperlanes, in the bot's typed form: 1 two-way, 2 one-way (row entered, column left).
+    // The bot mirrors every 1 on import (CustomHyperlaneService.toStoredMatrix), so a
+    // one-way lane survives only because it is written as a 2 here.
+    const lanes = hyperlaneExportInfo(hex, editor.hyperlaneMatrices);
+    const hyperlaneString = lanes.lanes ? customHyperlaneString(lanes.lanes) : '';
+    if (lanes.ignoredByBot) lanesIgnoredByBot.push(label);
 
     // Build border anomalies array (objects with direction and type)
     const borderAnomalies = [];
@@ -598,12 +535,12 @@ export async function exportMapInfo(editor, options = {}) {
     // Create hex entry
     // Determine tileID based on baseType and other conditions
     let tileID = '';
-    if (hyperlaneString) {
+    if (lanes.lanes) {
       // A hex can carry drawn links AND be a real system tile. This used to hardcode 'hl',
       // which threw the system away: the tile exported as a blank hyperlane and the planets
-      // it held were gone from the map AsyncTI4 received. Fall back to 'hl' only when there
-      // is genuinely no tile to name.
-      tileID = hex.realId || hex.systemId || 'hl';
+      // it held were gone from the map AsyncTI4 received. hyperlaneExportInfo keeps the
+      // system, and turns a static hyperlane tile whose lanes were redrawn into 'hl'.
+      tileID = lanes.tileID;
       //} else if (hex.baseType === 'void') {
       //  // Void tiles get -1
       //  tileID = '-1';
@@ -647,6 +584,8 @@ export async function exportMapInfo(editor, options = {}) {
       mapInfo.push(hexEntry);
     }
   });
+
+  warnLanesIgnoredByBot(lanesIgnoredByBot);
 
   const result = { mapInfo };
 

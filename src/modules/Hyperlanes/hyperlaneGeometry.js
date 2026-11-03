@@ -62,13 +62,95 @@ export function hexCorners(center, radius) {
  * @returns {string} e.g. 'M10,20 Q15,25 30,40'
  */
 export function curvePath(center, entry, exit, radius, pull = DEFAULT_CURVE_PULL) {
+    const { start, control, end } = curveControls(center, entry, exit, radius, pull);
+    return `M${start.x},${start.y} Q${control.x},${control.y} ${end.x},${end.y}`;
+}
+
+/** The three points of the quadratic curvePath draws, shared with curvePoint. */
+function curveControls(center, entry, exit, radius, pull) {
     const start = edgeMid(center, entry, radius);
     const end = edgeMid(center, exit, radius);
-    const mx = (start.x + end.x) / 2;
-    const my = (start.y + end.y) / 2;
-    const cx = center.x + (mx - center.x) * pull;
-    const cy = center.y + (my - center.y) * pull;
-    return `M${start.x},${start.y} Q${cx},${cy} ${end.x},${end.y}`;
+    const control = {
+        x: center.x + ((start.x + end.x) / 2 - center.x) * pull,
+        y: center.y + ((start.y + end.y) / 2 - center.y) * pull,
+    };
+    return { start, control, end };
+}
+
+/**
+ * How far in from its exit edge a one-way lane's arrowhead tip sits, as a fraction of the
+ * centre-to-edge distance. A fixed depth from the edge, as the bot draws it
+ * (OneWayHyperlaneOverlay.atDepthFromEnd), and not a fraction of the lane's length: then
+ * every arrow sits out by its own side instead of all of them piling up mid-tile.
+ */
+export const ONE_WAY_ARROW_DEPTH = 0.16;
+
+/**
+ * A point on the `curvePath` from `entry` to `exit`, and the direction of travel there
+ * (radians, SVG axes). `t` runs 0 at the entry edge to 1 at the exit edge.
+ *
+ * @returns {{x: number, y: number, angle: number}}
+ */
+export function curvePoint(center, entry, exit, radius, t = 0.5, pull = DEFAULT_CURVE_PULL) {
+    const { start, control: { x: cx, y: cy }, end } = curveControls(center, entry, exit, radius, pull);
+    const u = 1 - t;
+    const x = u * u * start.x + 2 * u * t * cx + t * t * end.x;
+    const y = u * u * start.y + 2 * u * t * cy + t * t * end.y;
+    const dx = 2 * u * (cx - start.x) + 2 * t * (end.x - cx);
+    const dy = 2 * u * (cy - start.y) + 2 * t * (end.y - cy);
+    return { x, y, angle: Math.atan2(dy, dx) };
+}
+
+/**
+ * Where a one-way lane's arrowhead goes: the last point on its curve that is still
+ * ONE_WAY_ARROW_DEPTH in from the exit edge, with the direction of travel there.
+ *
+ * @returns {{x: number, y: number, angle: number}}
+ */
+export function oneWayArrowPoint(center, entry, exit, radius, pull = DEFAULT_CURVE_PULL) {
+    const end = edgeMid(center, exit, radius);
+    const inX = center.x - end.x;
+    const inY = center.y - end.y;
+    const edgeDistance = Math.hypot(inX, inY);
+    const want = ONE_WAY_ARROW_DEPTH * edgeDistance;
+    for (let t = 1; t >= 0.5; t -= 0.01) {
+        const p = curvePoint(center, entry, exit, radius, t, pull);
+        if (((p.x - end.x) * inX + (p.y - end.y) * inY) / edgeDistance >= want) return p;
+    }
+    return curvePoint(center, entry, exit, radius, 0.5, pull);
+}
+
+/**
+ * The arrowhead for a side that several one-way lanes all leave by: ONE_WAY_ARROW_DEPTH in
+ * from that edge, pointing straight out through it. Drawn once instead of once per lane,
+ * where the arrows would stack on the same spot.
+ *
+ * @returns {{x: number, y: number, angle: number}}
+ */
+export function sideArrowPoint(center, side, radius) {
+    const end = edgeMid(center, side, radius);
+    return {
+        x: end.x + (center.x - end.x) * ONE_WAY_ARROW_DEPTH,
+        y: end.y + (center.y - end.y) * ONE_WAY_ARROW_DEPTH,
+        angle: Math.atan2(end.y - center.y, end.x - center.x),
+    };
+}
+
+/**
+ * The `points` of a notched arrowhead whose tip is at `tip`, pointing along `angle` — the
+ * bot's shape (OneWayHyperlaneOverlay.arrowHead). Sized from the hex radius so it scales
+ * with the map.
+ */
+export function arrowPoints(tip, angle, radius) {
+    const len = radius * 0.2;
+    const half = radius * 0.1;
+    const notch = radius * 0.14;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    // In arrow space: x runs back from the tip, y across it.
+    const at = (x, y) => [tip.x - x * cos - y * sin, tip.y - x * sin + y * cos];
+    return [at(0, 0), at(len, -half), at(notch, 0), at(len, half)]
+        .map(([x, y]) => `${x},${y}`).join(' ');
 }
 
 /**

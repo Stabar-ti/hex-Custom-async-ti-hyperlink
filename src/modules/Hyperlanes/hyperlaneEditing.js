@@ -169,7 +169,7 @@ export function tryCompleteSegment(editor) {
         return;
     }
 
-    applyMatrix(editor, B, withLaneDrawn(via.matrix, seg.entry, seg.exit));
+    applyMatrix(editor, B, withLaneDrawn(via.matrix, seg.entry, seg.exit, { oneWay: state.isOneWay() }));
 
     if (seg.kind === 'loop') {
         deselect(editor, path.slice(-3));

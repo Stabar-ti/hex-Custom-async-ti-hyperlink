@@ -86,6 +86,9 @@
   --color-accent-outline-dark: #ffd47f;
   --color-primary: #1fa3ff;
   --color-primary-glow: rgba(31, 163, 255, 0.4);
+  /* One-way hyperlanes and their arrowheads, in the bot's colours. */
+  --color-hyperlane-oneway: #d99a00;
+  --color-hyperlane-arrow: #46e66e;
   --color-success: #27ae60;
   --color-danger: #e74c3c;
   --color-warning: #f39c12;
@@ -186,6 +189,19 @@ svg text {
   fill: none;
 }
 
+/* A lane that may only be travelled one way: amber, with an arrowhead near its exit. */
+.link-line.link-oneway {
+  stroke: var(--color-hyperlane-oneway);
+  stroke-width: 2.5;
+}
+
+.link-arrow {
+  fill: var(--color-hyperlane-arrow);
+  stroke: #16181d;
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
 /*──────────────────────────────────────────────────────────────────────────────
   Hyperlane drawing indicator — shows what the next click will do.
   Drawn into #hyperlane-indicator-layer by modules/Hyperlanes/hyperlaneIndicator.js.
@@ -236,6 +252,11 @@ svg text {
   fill: var(--color-danger, #e74c3c);
 }
 
+/* Drawing one-way lanes: the active ring takes the one-way lane colour. */
+.hl-active.is-oneway {
+  stroke: var(--color-hyperlane-oneway);
+}
+
 /* The ✓ (finish the lane) and ○ (roundabout) buttons on the rim of the active hex. */
 .hl-btn {
   cursor: pointer;
@@ -268,6 +289,16 @@ svg text {
   stroke: var(--color-primary, #1fa3ff);
 }
 
+/* The one-way lane colour, so the button looks like the lanes it draws. */
+.hl-btn--oneway .hl-btn__icon {
+  stroke: var(--color-hyperlane-oneway);
+}
+
+.hl-btn--oneway:hover .hl-btn__face,
+.hl-btn--oneway.is-on .hl-btn__face {
+  fill: var(--color-hyperlane-oneway);
+}
+
 .hl-btn--finish:hover .hl-btn__face {
   fill: var(--color-success, #27ae60);
 }
@@ -284,6 +315,11 @@ svg text {
 
 .hl-btn.is-on {
   cursor: default;
+}
+
+/* → is a toggle, so it stays clickable while on. */
+.hl-btn--oneway.is-on {
+  cursor: pointer;
 }
 
 @keyframes hl-pulse {

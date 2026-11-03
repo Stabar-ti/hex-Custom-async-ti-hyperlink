@@ -31,6 +31,7 @@ import * as state from './loreState.js';
 import * as effectRows from './loreEffectRows.js';
 import { openListPicker } from './loreEffectPickers.js';
 import { armLoreMapPick, disarmLoreMapPick } from './loreMapPick.js';
+import { getLoadedWormholeTokenIndex, loadWormholeTokenIndex } from '../../data/wormholeTokens.js';
 
 // The popup remembers its size, and the pre-rework layout was much narrower. Clear that one
 // stored value once so the effect rows aren't squeezed into a column on first open.
@@ -43,6 +44,8 @@ let loreManager = null;
 
 export function installLoreUI(editor) {
     loreManager = new LoreManager(editor);
+    // Warm the wormhole token index, so validation knows the one-way tokens by first use.
+    loadWormholeTokenIndex();
     try {
         if (localStorage.getItem(LAYOUT_VERSION_KEY) !== LAYOUT_VERSION) {
             localStorage.removeItem('popup-pos-lorePopup');
@@ -734,6 +737,13 @@ function buildValidationData() {
     if (categorized) {
         data.tokenIds = new Set();
         Object.values(categorized).forEach(cat => cat.tokens.forEach(t => data.tokenIds.add(t.id.toLowerCase())));
+        // Wormhole tokens are left out of the token categories (they are placed as
+        // wormholes), and the one-way ones (whalpha_in …) the bot generates are in no file.
+        const wormholes = getLoadedWormholeTokenIndex();
+        if (wormholes) {
+            Object.keys(wormholes.typesByToken).forEach(id => data.tokenIds.add(id.toLowerCase()));
+            Object.values(wormholes.oneWayByToken).forEach(t => data.tokenIds.add(t.id));
+        }
     }
     return data;
 }

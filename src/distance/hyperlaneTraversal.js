@@ -59,8 +59,12 @@ export function mapHyperlaneReachables(ctx, startLabel, startEntryDir) {
     // A side wired only to itself sends the ship straight back out.
     if (!hasNonLoopExit && matrix[entryDir][entryDir] === 1) exits.push(entryDir);
 
-    // Self-loops on the same tile chain to one another.
-    if (loopDirs.includes(entryDir)) {
+    // Self-loops on the same tile chain to one another — but only on a roundabout drawn
+    // the old way, with its diagonal cells alone. One written the bot's way carries every
+    // entry → exit cell itself (connectRoundabout), one-way sides included, so it is
+    // followed as written, as the bot's GridRule does.
+    const explicitRoundabout = loopDirs.some(i => loopDirs.some(j => i !== j && matrix[i][j] === 1));
+    if (!explicitRoundabout && loopDirs.includes(entryDir)) {
       for (const other of loopDirs) {
         if (other !== entryDir) {
           exits.push(other);

@@ -16,6 +16,7 @@
 import { dbg } from './debug.js';
 import { hasAxialCoords } from '../utils/hexGrid.js';
 import { labelAt } from './mapIndex.js';
+import { parseWormholeKey, wormholeDeparts } from '../constants/constants.js';
 
 /**
  * The six physical grid edges.
@@ -62,13 +63,18 @@ export function customLinkNeighbors(ctx, hex, _label) {
   return out;
 }
 
-/** Every other hex sharing a wormhole type with this one. */
+/**
+ * Every other hex a wormhole on this one links to: one sharing its type, where a link can
+ * start here and end there. An entry-only wormhole ('alpha:in') only starts links and an
+ * exit-only one ('alpha:out') only ends them, so two of the same direction never connect.
+ */
 export function wormholeNeighbors(ctx, hex, label) {
   const { editor, index, opts } = ctx;
   if (!opts.useWormholes || !hex.wormholes?.size) return [];
   const out = [];
-  for (const type of hex.wormholes) {
-    const matching = index.wormholeIndex.get(type);
+  for (const key of hex.wormholes) {
+    if (!wormholeDeparts(key)) continue;
+    const matching = index.wormholeIndex.get(parseWormholeKey(key).type);
     if (!matching) continue;
     for (const other of matching) {
       if (other !== label) {

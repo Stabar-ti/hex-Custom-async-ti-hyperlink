@@ -21,7 +21,7 @@
  */
 
 import {
-    curvePath, edgeMid, loopArm, loopCircleRadius
+    curvePath, oneWayArrowPoint, sideArrowPoint, arrowPoints, edgeMid, loopArm, loopCircleRadius
 } from '../modules/Hyperlanes/hyperlaneGeometry.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -47,18 +47,56 @@ function tag(node, viaLabel, entry, exit) {
 }
 
 /**
- * A link curving between two edges of one hex.
+ * The arrowhead on a one-way lane. It is tagged like the lane — so clearing the hex takes
+ * it too — but carries `link-arrow` instead of `link-line`, which would stroke it as a lane.
+ */
+function arrow(viaLabel, entry, exit, points) {
+    const node = el('polygon', { points });
+    node.classList.add('link-arrow');
+    node.dataset.via = viaLabel;
+    node.dataset.entry = entry;
+    node.dataset.exit = exit;
+    return node;
+}
+
+/**
+ * A link curving between two edges of one hex. A one-way link is drawn amber with an
+ * arrowhead near its exit, as the bot draws it; `entry` → `exit` is then the direction
+ * it may be travelled.
+ *
+ * `withArrow: false` leaves the arrowhead to drawSideArrow, for a side several one-way
+ * lanes share as their exit.
  *
  * @param {SVGElement} parent
  * @param {{center: {x: number, y: number}, entry: number, exit: number,
- *          radius: number, viaLabel: string}} opts
+ *          radius: number, viaLabel: string, oneWay?: boolean, withArrow?: boolean}} opts
  * @returns {SVGPathElement}
  */
-export function drawSegment(parent, { center, entry, exit, radius, viaLabel }) {
+export function drawSegment(parent, { center, entry, exit, radius, viaLabel, oneWay = false, withArrow = true }) {
     const path = el('path', { d: curvePath(center, entry, exit, radius) });
     tag(path, viaLabel, entry, exit);
     parent.appendChild(path);
+    if (oneWay) {
+        path.classList.add('link-oneway');
+        if (withArrow) {
+            const at = oneWayArrowPoint(center, entry, exit, radius);
+            parent.appendChild(arrow(viaLabel, entry, exit, arrowPoints(at, at.angle, radius)));
+        }
+    }
     return path;
+}
+
+/**
+ * One arrowhead for a side that every lane touching it leaves by.
+ *
+ * @param {SVGElement} parent
+ * @param {{center: {x: number, y: number}, side: number, radius: number, viaLabel: string}} opts
+ */
+export function drawSideArrow(parent, { center, side, radius, viaLabel }) {
+    const at = sideArrowPoint(center, side, radius);
+    const node = arrow(viaLabel, side, side, arrowPoints(at, at.angle, radius));
+    parent.appendChild(node);
+    return node;
 }
 
 /**
@@ -68,16 +106,29 @@ export function drawSegment(parent, { center, entry, exit, radius, viaLabel }) {
  * drawn once now. Every node carries the tile's label, so clearing the tile takes all of
  * them and none can be left behind when the others go.
  *
+ * A side that can only be entered or only be left is drawn one-way: amber, with an
+ * arrowhead pointing in to the circle or out of it.
+ *
  * @param {SVGElement} parent
  * @param {{center: {x: number, y: number}, sides: number[],
- *          radius: number, viaLabel: string}} opts
+ *          radius: number, viaLabel: string,
+ *          roles?: Record<number, 'entry'|'exit'|'both'>}} opts
  * @returns {SVGElement[]}
  */
-export function drawRoundabout(parent, { center, sides, radius, viaLabel }) {
-    const nodes = sides.map(side => {
+export function drawRoundabout(parent, { center, sides, radius, viaLabel, roles = {} }) {
+    const nodes = [];
+    for (const side of sides) {
         const { x1, y1, x2, y2 } = loopArm(center, side, radius);
-        return tag(el('line', { x1, y1, x2, y2 }), viaLabel, side, side);
-    });
+        const line = tag(el('line', { x1, y1, x2, y2 }), viaLabel, side, side);
+        nodes.push(line);
+        const role = roles[side];
+        if (role !== 'entry' && role !== 'exit') continue;
+        line.classList.add('link-oneway');
+        const inward = role === 'entry';
+        const tip = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+        const angle = inward ? Math.atan2(y2 - y1, x2 - x1) : Math.atan2(y1 - y2, x1 - x2);
+        nodes.push(arrow(viaLabel, side, side, arrowPoints(tip, angle, radius)));
+    }
     const circle = el('circle', { cx: center.x, cy: center.y, r: loopCircleRadius(radius) });
     tag(circle, viaLabel, sides[0], sides[0]);
     circle.classList.add('link-roundabout');

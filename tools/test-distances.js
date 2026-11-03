@@ -258,10 +258,10 @@ function tearBetween(hexes, aIdx, bIdx) {
 
 /**
  * A ── HL1 ── HL2 ── B  along side 2.
- * Each conduit wires its side-5 (inbound) edge to its side-2 (outbound) edge.
+ * Each conduit wires its side-5 (inbound) edge to its side-2 (outbound) edge, both ways.
  */
 function hyperlaneChain(conduitBaseType) {
-    const wire = () => { const m = emptyMatrix(); m[5][2] = 1; return m; };
+    const wire = () => { const m = emptyMatrix(); m[5][2] = 1; m[2][5] = 1; return m; };
     return [
         mkHex('A', 0, 0),
         mkHex('HL1', 1, 0, { baseType: conduitBaseType, matrix: wire() }),
@@ -336,7 +336,7 @@ check('§4 conduit tiles never appear in the result',
 // §7  A distance query must not modify the map (bug #1)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** A ── HL ── B, with the conduit wired ONE WAY only (side 5 -> side 2). */
+/** A ── HL ── B, with the conduit wired ONE WAY only (side 5 -> side 2): a one-way lane. */
 function oneWayConduit() {
     const m = emptyMatrix(); m[5][2] = 1;
     return [mkHex('A', 0, 0), mkHex('HL', 1, 0, { baseType: '', matrix: m }), mkHex('B', 2, 0)];
@@ -345,8 +345,36 @@ function oneWayConduit() {
 expectDistances('§7 one-way conduit is crossable forwards',
     makeEditor(oneWayConduit()), 'A', 3, { A: 0, B: 1 });
 
-expectDistances('§7 one-way conduit is crossable backwards (matrices read symmetrically)',
-    makeEditor(oneWayConduit()), 'B', 3, { B: 0, A: 1 });
+expectDistances('§7 a one-way lane is not crossable backwards',
+    makeEditor(oneWayConduit()), 'B', 3, { B: 0 });
+
+{
+    // Two one-way lanes in a chain, the second pointing back: A cannot get through to B,
+    // nor B to A.
+    const toB = emptyMatrix(); toB[5][2] = 1;
+    const toA = emptyMatrix(); toA[2][5] = 1;
+    const hexes = [
+        mkHex('A', 0, 0),
+        mkHex('HL1', 1, 0, { baseType: '', matrix: toB }),
+        mkHex('HL2', 2, 0, { baseType: '', matrix: toA }),
+        mkHex('B', 3, 0),
+    ];
+    expectDistances('§7 opposing one-way lanes block A → B', makeEditor(hexes), 'A', 3, { A: 0 });
+    expectDistances('§7 …and B → A', makeEditor(hexes), 'B', 3, { B: 0 });
+}
+
+{
+    // A one-way roundabout: entered by side 5 (from A), left by side 2 (to B) only.
+    const rb = emptyMatrix(); rb[5][5] = 1; rb[2][2] = 1; rb[5][2] = 1;
+    const hexes = [mkHex('A', 0, 0), mkHex('RB', 1, 0, { baseType: '', matrix: rb }), mkHex('B', 2, 0)];
+    expectDistances('§7 a one-way roundabout is crossable from its entry side', makeEditor(hexes), 'A', 3, { A: 0, B: 1 });
+    expectDistances('§7 …but not into its exit-only side', makeEditor(hexes), 'B', 3, { B: 0 });
+
+    // The old diagonal-only roundabout still joins every side, both ways.
+    const legacy = emptyMatrix(); legacy[5][5] = 1; legacy[2][2] = 1;
+    const old = [mkHex('A', 0, 0), mkHex('RB', 1, 0, { baseType: '', matrix: legacy }), mkHex('B', 2, 0)];
+    expectDistances('§7 a diagonal-only roundabout joins its sides both ways', makeEditor(old), 'B', 3, { B: 0, A: 1 });
+}
 
 {
     const hexes = oneWayConduit();
@@ -378,6 +406,23 @@ check('§8 a different wormhole type is not linked',
     const got = calculateDistancesFrom(makeEditor(wormholeMap(), { useWormholes: false }), 'M', 2);
     check('§8 useWormholes:false switches wormhole travel off',
         got.W === undefined && got.V === undefined, JSON.stringify(got));
+}
+
+{
+    // One-way wormholes: entry-only (IN) starts links, exit-only (OUT) ends them.
+    const oneWayMap = () => [
+        mkHex('IN', 0, 0, { wormholes: ['alpha:in'] }),
+        mkHex('OUT', 5, 0, { wormholes: ['alpha:out'] }),
+        mkHex('PLAIN', 0, 5, { wormholes: ['alpha'] }),
+        mkHex('IN2', 9, 0, { wormholes: ['alpha:in'] }),
+        mkHex('OUT2', 0, 9, { wormholes: ['alpha:out'] }),
+    ];
+    expectDistances('§8 entry-only reaches exit-only and two-way, never another entry-only',
+        makeEditor(oneWayMap()), 'IN', 2, { IN: 0, OUT: 1, PLAIN: 1, OUT2: 1 });
+    expectDistances('§8 exit-only leads nowhere',
+        makeEditor(oneWayMap()), 'OUT', 1, { OUT: 0 });
+    expectDistances('§8 a two-way wormhole reaches exit-only but not entry-only',
+        makeEditor(oneWayMap()), 'PLAIN', 1, { PLAIN: 0, OUT: 1, OUT2: 1 });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

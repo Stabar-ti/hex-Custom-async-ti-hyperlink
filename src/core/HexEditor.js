@@ -26,7 +26,7 @@ import { toggleWormhole, updateHexWormholes } from '../features/wormholes.js';
 // Hex-grid geometry math utilities (distance, neighbors)
 import { hexDistance, getNeighbors } from '../utils/geometry.js';
 // Common constants: directions, colors, icon offsets, etc.
-import { edgeDirections, ringDirections, effectIconPositions, sectorColors, controlPositions, MAX_MAP_RINGS, wormholeTypes, CORNER_LABELS } from '../constants/constants.js';
+import { edgeDirections, ringDirections, effectIconPositions, sectorColors, controlPositions, MAX_MAP_RINGS, CORNER_LABELS, wormholeInfo, parseWormholeKey, wormholeDeparts, wormholeArrives } from '../constants/constants.js';
 // Logic to add/remove overlays (nebula, asteroid, etc.)
 import { applyEffectToHex, clearAllEffects, refreshEffectsOverlays } from '../features/effects.js';
 // Change sector fill and type (e.g., planet, void, etc.)
@@ -45,6 +45,7 @@ import { disarmAll } from '../features/disarm.js';
 import { restoreSession, announceMapReshaped } from '../features/session.js';
 import { relayoutGalaxies } from '../features/galaxies.js';
 import { getBorderAnomalyTypes } from '../constants/borderAnomalies.js';
+import { arrowPoints } from '../modules/Hyperlanes/hyperlaneGeometry.js';
 import {
   buildCoordIndex, neighborHex, oppositeSide, normalizeSide, areAxialNeighbors,
 } from '../utils/hexGrid.js';
@@ -206,53 +207,73 @@ export default class HexEditor {
       this.svg.appendChild(layer);
     }
 
-    // Group hexes by which wormholes they contain
+    // Group hexes by wormhole type, noting whether a link can start (departs) and end
+    // (arrives) at each. A one-way wormhole ('alpha:in' / 'alpha:out') does only one.
     const groups = {};
     for (const hex of Object.values(this.hexes)) {
       if (hex.wormholes && hex.wormholes.size) {
-        hex.wormholes.forEach((type) => {
-          if (!groups[type]) groups[type] = [];
-          groups[type].push(hex);
+        hex.wormholes.forEach((key) => {
+          const { type } = parseWormholeKey(key);
+          if (!type) return;
+          if (!groups[type]) groups[type] = new Map();
+          const entry = groups[type].get(hex) || { departs: false, arrives: false };
+          entry.departs ||= wormholeDeparts(key);
+          entry.arrives ||= wormholeArrives(key);
+          groups[type].set(hex, entry);
         });
       }
     }
 
-    // For each wormhole type, draw a line between every pair in the group
+    const centerOf = (hex) => {
+      if (hex.center && typeof hex.center.x === 'number') return hex.center;
+      if (!hex.polygon) return null;
+      const box = hex.polygon.getBBox();
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    };
+
+    // For each wormhole type, draw a line between every linked pair in the group; a pair
+    // linked one way only gets an arrowhead at the end it arrives at.
     Object.keys(groups).forEach((type) => {
-      const list = groups[type];
+      const list = [...groups[type].entries()];
+      const strokeColor = wormholeInfo(type).color || '#888888';
       for (let i = 0; i < list.length; i++) {
         for (let j = i + 1; j < list.length; j++) {
-          const hexA = list[i], hexB = list[j];
-          // Try to use explicit center, fallback to polygon center if not available
-          let x1, y1, x2, y2;
-          if (hexA.center && typeof hexA.center.x === 'number') {
-            x1 = hexA.center.x; y1 = hexA.center.y;
-          } else if (hexA.polygon) {
-            const bboxA = hexA.polygon.getBBox();
-            x1 = bboxA.x + bboxA.width / 2; y1 = bboxA.y + bboxA.height / 2;
-          } else continue;
-          if (hexB.center && typeof hexB.center.x === 'number') {
-            x2 = hexB.center.x; y2 = hexB.center.y;
-          } else if (hexB.polygon) {
-            const bboxB = hexB.polygon.getBBox();
-            x2 = bboxB.x + bboxB.width / 2; y2 = bboxB.y + bboxB.height / 2;
-          } else continue;
+          const [hexA, a] = list[i];
+          const [hexB, b] = list[j];
+          const aToB = a.departs && b.arrives;
+          const bToA = b.departs && a.arrives;
+          if (!aToB && !bToA) continue;
+          let from = centerOf(hexA);
+          let to = centerOf(hexB);
+          if (!from || !to) continue;
+          if (!aToB) [from, to] = [to, from];
 
           // Create the SVG line
           const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-          line.setAttribute('x1', x1);
-          line.setAttribute('y1', y1);
-          line.setAttribute('x2', x2);
-          line.setAttribute('y2', y2);
-
-          // Color lines by wormhole type; fallback to gray
-          const strokeColor = (wormholeTypes[type] && wormholeTypes[type].color) || '#888888';
+          line.setAttribute('x1', from.x);
+          line.setAttribute('y1', from.y);
+          line.setAttribute('x2', to.x);
+          line.setAttribute('y2', to.y);
           line.setAttribute('stroke', strokeColor);
           line.setAttribute('stroke-width', '2');
           line.setAttribute('stroke-dasharray', '4,4');
           line.setAttribute('pointer-events', 'none');
           layer.appendChild(line);
           this.wormholeLinkLines.push(line);
+
+          if (aToB !== bToA) {
+            // Mid-line: near either end the planets and badges are drawn over it.
+            const angle = Math.atan2(to.y - from.y, to.x - from.x);
+            const tip = { x: from.x + 0.55 * (to.x - from.x), y: from.y + 0.55 * (to.y - from.y) };
+            const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            head.setAttribute('points', arrowPoints(tip, angle, this.hexRadius * 1.25));
+            head.setAttribute('fill', strokeColor);
+            head.setAttribute('stroke', '#111');
+            head.setAttribute('stroke-width', '0.75');
+            head.setAttribute('pointer-events', 'none');
+            layer.appendChild(head);
+            this.wormholeLinkLines.push(head);
+          }
         }
       }
     });

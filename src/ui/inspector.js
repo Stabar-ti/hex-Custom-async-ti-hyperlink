@@ -28,6 +28,7 @@ import { HEX_SELECTED, selectedHex, selectedHexes, clearHexSelection } from '../
 import { toolLabel } from './statusBar.js';
 import { DISTANCE_TOOL_CHANGED } from '../features/distanceTool.js';
 import { MAP_SECTORS_CHANGED } from '../features/mapSectorEditing.js';
+import { describeWormhole } from '../constants/constants.js';
 
 /**
  * One label/value line.
@@ -60,7 +61,7 @@ function heading(text) {
  */
 function wormholesOf(hex) {
     const all = new Set([...(hex.inherentWormholes || []), ...(hex.customWormholes || [])]);
-    return [...all].map(w => String(w));
+    return [...all].map(describeWormhole);
 }
 
 /**

@@ -4,9 +4,13 @@
 // Converted to popup-based system that auto-opens and is minimizable only
 // ───────────────────────────────────────────────────────────────
 
-import { wormholeTypes } from '../constants/constants.js';
+import { wormholeTypes, wormholeKey } from '../constants/constants.js';
+import { loadWormholeTokenIndex, oneWayTokenId } from '../data/wormholeTokens.js';
+import {
+  subscribe as subscribeHyperlanes, isOneWay as isHyperlaneOneWay, setOneWay as setHyperlaneOneWay
+} from '../modules/Hyperlanes/hyperlaneState.js';
 import { showPopup, togglePopup } from './popupUI.js';
-import { railButton, railGroupLabel, setRailLabel } from './kit/index.js';
+import { railButton, railGroupLabel, setRailLabel, button } from './kit/index.js';
 import { createToolPanel, armExclusively } from './toolPanel.js';
 import { createMapSectorPanel, MAP_SECTORS_LAUNCHER_ID } from './mapSectorPanel.js';
 import { HEX_SELECTED, selectedHexes } from '../features/hexSelection.js';
@@ -29,6 +33,8 @@ import {
 const MODE_LORE = 'lore';
 const MODE_TOKEN = 'token';
 const MODE_WORMHOLES = 'wormholes';
+/** The Wormholes panel's direction: null two-way, 'in' entry-only, 'out' exit-only. Kept while the panel is closed. */
+let wormholeDirection = null;
 const MODE_VALUE_HINTS = 'valueHints';
 
 /**
@@ -759,19 +765,39 @@ function finishSectorControlsContent(editor, container) {
     text: 'Hyperlanes',
     title: 'Draw hyperlane arcs between tiles',
   });
-  hyperlanesBtn.addEventListener('click', () => {
-    const turningOff = hyperlanesBtn.classList.contains('active');
+  // Same tool, drawing one-way lanes: they run in the order the tiles are clicked. The →
+  // button on the map flips the same switch mid-lane, so the two stay in step through
+  // the store rather than through these click handlers.
+  const oneWayBtn = railButton({
+    id: 'toolHyperlanesOneWay',
+    className: 'ui-rail-btn--sub btn-hyperlane',
+    icon: '↝',
+    text: 'One-way lanes',
+    title: 'Draw one-way hyperlanes: a lane runs in the order you click the tiles',
+  });
+  const armHyperlanes = (btn, oneWay) => {
+    const turningOff = btn.classList.contains('active');
     container.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));
     deactivateModes();
     if (turningOff) { editor.setMode('none'); return; }
-    hyperlanesBtn.classList.add('active');
+    setHyperlaneOneWay(oneWay);
+    btn.classList.add('active');
     editor.setMode('hyperlane');
+  };
+  hyperlanesBtn.addEventListener('click', () => armHyperlanes(hyperlanesBtn, false));
+  oneWayBtn.addEventListener('click', () => armHyperlanes(oneWayBtn, true));
+  subscribeHyperlanes(s => {
+    if (editor.mode !== 'hyperlane') return;
+    hyperlanesBtn.classList.toggle('active', !s.oneWay);
+    oneWayBtn.classList.toggle('active', s.oneWay);
   });
   // The editor boots in 'hyperlane' mode, so on a fresh load the status bar and the
   // inspector both say hyperlane while nothing in the rail is lit — and a click on the map
   // really does start drawing one. Light the button that owns the mode instead.
-  hyperlanesBtn.classList.toggle('active', editor.mode === 'hyperlane');
+  hyperlanesBtn.classList.toggle('active', editor.mode === 'hyperlane' && !isHyperlaneOneWay());
+  oneWayBtn.classList.toggle('active', editor.mode === 'hyperlane' && isHyperlaneOneWay());
   container.appendChild(hyperlanesBtn);
+  container.appendChild(oneWayBtn);
 
   // ───────────── Wormholes Modal Launcher ─────────────
   const wormholesBtn = railButton({
@@ -783,16 +809,55 @@ function finishSectorControlsContent(editor, container) {
   });
   wormholesBtn.dataset.launcher = '';
 
-  // Fourteen wormhole types: pick one, then click hexes.
+  // Every wormhole type: pick one, then click hexes. The row above the types picks the
+  // direction: two-way, or one of the bot's one-way tokens — entry-only (IN: ships can
+  // leave through it) or exit-only (OUT: ships can arrive through it).
   const wormholesPanel = createToolPanel({
     id: 'wormholesPopup',
     title: '◎ Wormholes',
     mode: MODE_WORMHOLES,
     launcherId: 'launchWormholesPopup',
     width: '280px',
-    build: () => {
+    build: async () => {
+      const index = await loadWormholeTokenIndex();
+      const content = document.createElement('div');
       const grid = document.createElement('div');
       grid.className = 'tool-panel__grid';
+
+      const seg = document.createElement('div');
+      seg.className = 'tool-panel__seg';
+      const dirs = [
+        { dir: null, text: '⇄ Two-way', title: 'An ordinary wormhole: links both ways' },
+        { dir: 'in', text: 'IN Entry', title: 'Entry-only: ships can leave their system through it, never arrive (bot token wh…_in)' },
+        { dir: 'out', text: 'OUT Exit', title: 'Exit-only: ships can arrive through it, never leave (bot token wh…_out)' },
+      ];
+      const typeButtons = [];
+      const armedType = () => typeButtons.find(b => b.btn.classList.contains('active'));
+
+      const applyDirection = () => {
+        const unavailable = type => !!wormholeDirection && !oneWayTokenId(index, type, wormholeDirection);
+        // Disarm first: click() does nothing on a button that is already disabled.
+        const armed = armedType();
+        if (armed && unavailable(armed.type)) armed.btn.click();
+        else if (armed) editor.setMode(wormholeKey(armed.type, wormholeDirection));
+        for (const { btn, type } of typeButtons) {
+          btn.disabled = unavailable(type);
+          btn.title = btn.disabled ? 'The bot has no one-way token for this wormhole' : '';
+          btn.classList.toggle('btn-wormhole--oneway', !!wormholeDirection);
+          btn.dataset.dir = wormholeDirection || '';
+        }
+      };
+
+      for (const { dir, text, title } of dirs) {
+        const b = button({ text, title, active: dir === wormholeDirection });
+        b.dataset.dir = dir || '';
+        b.addEventListener('click', () => {
+          wormholeDirection = dir;
+          seg.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+          applyDirection();
+        });
+        seg.appendChild(b);
+      }
 
       Object.entries(wormholeTypes).forEach(([type, { label, color, symbol }]) => {
         const btn = document.createElement('button');
@@ -809,11 +874,14 @@ function finishSectorControlsContent(editor, container) {
             return;
           }
           btn.classList.add('active');
-          editor.setMode(type);
+          editor.setMode(wormholeKey(type, wormholeDirection));
         });
+        typeButtons.push({ btn, type });
         grid.appendChild(btn);
       });
-      return grid;
+      applyDirection();
+      content.append(seg, grid);
+      return content;
     },
   });
   wormholesBtn.onclick = () => wormholesPanel.toggle();

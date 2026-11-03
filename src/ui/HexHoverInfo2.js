@@ -1,5 +1,6 @@
 // ui/HexHoverInfo2.js
 // New approach: decoupled from overlays popup, robust to dynamic UI
+import { describeWormhole } from '../constants/constants.js';
 
 /**
  * Attach tile hover info logic to the editor.
@@ -76,7 +77,7 @@ export function setupHexHoverInfo(editor) {
             html += `<b>Real ID:</b> ${realId ?? '-'}<br>`;
             html += `<b>Base Type:</b> ${baseType ?? '-'}<br>`;
             html += `<b>Effects:</b> ${(effects && effects.size) ? Array.from(effects).join(', ') : '-'}<br>`;
-            html += `<b>Wormholes:</b> ${(wormholes && wormholes.size) ? Array.from(wormholes).join(', ') : '-'}<br>`;
+            html += `<b>Wormholes:</b> ${(wormholes && wormholes.size) ? Array.from(wormholes).map(describeWormhole).join(', ') : '-'}<br>`;
             if (customAdjacents && Object.keys(customAdjacents).length) {
                 html += `<b>Custom Links:</b><ul>`;
                 Object.entries(customAdjacents).forEach(([target, adj]) => {

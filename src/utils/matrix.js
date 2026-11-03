@@ -2,10 +2,12 @@
 // ─────────────── utils/matrix.js ───────────────
 
 /**
- * Convert a 6×6 binary matrix to a compact hex string (9 hex chars)
+ * Convert a 6×6 binary matrix to a compact hex string (9 hex chars) — the bot's
+ * CustomHyperlaneService.encodeMatrix: row-major, [0][0] the most significant bit. Any
+ * cell other than 1 is written as 0 (a stray value used to throw from BigInt).
  */
 export function matrixToHex(matrix) {
-  const binStr = matrix.flat().join('');
+  const binStr = matrix.flat().map(cell => (cell === 1 ? '1' : '0')).join('');
   return BigInt('0b' + binStr).toString(16).padStart(9, '0');
 }
 

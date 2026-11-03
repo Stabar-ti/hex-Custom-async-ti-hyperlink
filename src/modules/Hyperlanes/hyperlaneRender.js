@@ -19,7 +19,7 @@
  */
 
 import { drawPlan } from './hyperlaneModel.js';
-import { drawSegment, drawRoundabout } from '../../draw/hyperlaneDraw.js';
+import { drawSegment, drawSideArrow, drawRoundabout } from '../../draw/hyperlaneDraw.js';
 import { enforceSvgLayerOrder } from '../../draw/enforceSvgLayerOrder.js';
 import { sectorColors } from '../../constants/constants.js';
 
@@ -96,15 +96,37 @@ export function renderHex(editor, label) {
     if (!layer) return;
 
     const radius = editor.hexRadius;
-    const { roundabout, curves } = drawPlan(hex.matrix);
+    const { roundabout, roles, curves } = drawPlan(hex.matrix);
+    const shared = sharedExitSides(curves);
     for (const seg of curves) {
         drawSegment(layer, {
-            center: hex.center, entry: seg.entry, exit: seg.exit, radius, viaLabel: label
+            center: hex.center, entry: seg.entry, exit: seg.exit, radius, viaLabel: label,
+            oneWay: seg.oneWay, withArrow: !shared.has(seg.exit),
         });
     }
+    for (const side of shared) drawSideArrow(layer, { center: hex.center, side, radius, viaLabel: label });
     if (roundabout.length) {
-        drawRoundabout(layer, { center: hex.center, sides: roundabout, radius, viaLabel: label });
+        drawRoundabout(layer, { center: hex.center, sides: roundabout, radius, viaLabel: label, roles });
     }
+}
+
+/**
+ * Sides that two or more lanes touch and every one of them leaves by, one way. Their
+ * arrowheads would all land on the same spot by that side, so the side gets one instead.
+ * A side that some lane enters by keeps per-lane arrows, so each lane still shows its way.
+ *
+ * @param {Array<{entry: number, exit: number, oneWay: boolean}>} curves
+ * @returns {Set<number>}
+ */
+export function sharedExitSides(curves) {
+    const exits = new Map();
+    const mixed = new Set();
+    for (const { entry, exit, oneWay } of curves) {
+        if (!oneWay) { mixed.add(entry); mixed.add(exit); continue; }
+        mixed.add(entry);
+        exits.set(exit, (exits.get(exit) || 0) + 1);
+    }
+    return new Set([...exits].filter(([side, n]) => n >= 2 && !mixed.has(side)).map(([side]) => side));
 }
 
 /** Redraws every hex. For generateMap, bulk import and undo of multi-hex changes. */

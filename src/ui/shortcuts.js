@@ -100,12 +100,14 @@ export const SHORTCUTS = [
             { combos: ['Click'], does: 'A → B → C draws a lane through B, and the next click carries it on' },
             { combos: ['Click', 'Enter'], does: 'Click the tile the lane has reached, or its ✓, to finish the lane. The tool stays armed' },
             { combos: ['Click'], does: 'A → B → A, or the ○ on the tile the lane has reached, puts a roundabout there' },
+            { combos: ['Click'], does: 'The → on the tile the lane has reached (or ↝ One-way lanes in the rail) switches to one-way lanes: they run A → C, the order you click' },
             { combos: ['Alt+Click'], does: 'A → B → C removes that one lane; A → B → A takes that side off a roundabout' },
             { combos: ['Shift+Click'], does: 'Remove every lane on the tile' },
         ],
         notes: [
             'A roundabout joins every lane that reaches its tile: a ship coming in by one can leave by any of them.',
             'A lane drawn across a roundabout joins it at both ends instead of crossing it.',
+            'One-way lanes are amber with a green arrowhead, as the bot draws them. Drawing over a lane in one-way mode makes it one-way or flips it; drawing it in two-way mode makes it two-way again. On a roundabout, a one-way lane makes the side it comes in by entry-only and the side it leaves by exit-only.',
             'Right-click and Esc drop the lane too, but they also disarm the tool.',
             'From the tile menu (right-click, no tool armed): Hyperlane ▸ Start here arms the tool on that tile; Place roundabout joins every lane on it and every lane running into it, leaving the neighbouring tiles as they are.',
         ],
@@ -115,6 +117,7 @@ export const SHORTCUTS = [
         items: [
             { combos: ['RightClick'], does: 'Open it on the tile under the cursor — only when no tool is armed; otherwise right-click disarms first' },
             { combos: ['Click'], does: 'Wormholes ▸ toggles a type on the tile. ✓ marks the ones there; the system’s own are greyed' },
+            { combos: ['Click'], does: 'Wormholes ▸ Entry-only (IN) / Exit-only (OUT) ▸ places a one-way wormhole: IN can only be left through, OUT only arrived through' },
             { combos: ['Click'], does: 'Border anomalies ▸ a type, then click the neighbour whose edge it goes on' },
             { combos: ['Click'], does: 'Sector ▸ puts the tile in a sector, or the whole selection when the tile is part of one' },
             { combos: ['Click'], does: 'Lore ▸ opens the lore editor on the system or one of its planets' },

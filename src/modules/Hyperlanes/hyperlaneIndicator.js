@@ -125,8 +125,9 @@ function rimButton(at, r, { kind, title, icon, on = false, onClick }) {
 }
 
 /**
- * The ✓ and ○ buttons for the active hex. While erasing only ✓ is drawn: an erase
- * gesture takes lanes away, and a roundabout is not something it should put down.
+ * The ✓, ○ and → buttons for the active hex. While erasing only ✓ is drawn: an erase
+ * gesture takes lanes away, and a roundabout or a direction is not something it should
+ * put down.
  */
 function drawRimButtons(layer, editor, hex, entry, erasing) {
     const radius = editor.hexRadius;
@@ -162,6 +163,27 @@ function drawRimButtons(layer, editor, hex, entry, erasing) {
             render();
         }
     }));
+
+    // → sits on the far corner of the next side round, clear of the other two.
+    const third = sideCorners(hex.center, radius, (entry + 4) % 6).map(toward)
+        .sort((a, b) => dist2(b, spots) - dist2(a, spots))[0];
+    const oneWay = state.isOneWay();
+    layer.appendChild(rimButton(third, r, {
+        kind: 'oneway',
+        title: oneWay
+            ? 'One-way: lanes run in the order you click. Click for two-way lanes'
+            : 'Two-way lanes. Click to draw one-way lanes (in the order you click)',
+        icon: el('path', {
+            d: `M${-0.42 * r},0 L${0.36 * r},0 M${0.06 * r},${-0.3 * r} L${0.4 * r},0 L${0.06 * r},${0.3 * r}`
+        }),
+        on: oneWay,
+        onClick: () => state.setOneWay(!state.isOneWay())
+    }));
+}
+
+/** Squared distance from `p` to the nearest of `points`. */
+function dist2(p, points) {
+    return Math.min(...points.map(q => (p.x - q.x) ** 2 + (p.y - q.y) ** 2));
 }
 
 /** Rebuilt on every gesture change; cheap enough at seven hexes to not bother diffing. */
@@ -215,6 +237,7 @@ function render() {
             const ring = el('polygon', { points });
             ring.classList.add('hl-active');
             if (erasing) ring.classList.add('is-erasing');
+            else if (state.isOneWay()) ring.classList.add('is-oneway');
             layer.appendChild(ring);
 
             // The entry edge is already fixed by the hex clicked before this one, so show

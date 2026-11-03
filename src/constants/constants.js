@@ -132,8 +132,9 @@ export const effectModes = ['nebula', 'rift', 'asteroid', 'supernova'];
  * Every wormhole type the bot knows, with display label, color and symbol.
  *
  * Keys are the bot's `WormholeModel.Wormhole` constants lowercased, in the same order,
- * and `symbol` is that enum's `symbol()`. Badges draw the symbol rather than the label's
- * initial: with 29 types the initials collide (Pi, Phi, Psi and Probability are all "P").
+ * and `symbol` is that enum's `symbol()` (except the rat race types, see below). Badges
+ * draw the symbol rather than the label's initial: with 39 types the initials collide
+ * (Pi, Phi, Psi and Probability are all "P").
  */
 export const wormholeTypes = {
   alpha: { label: "Alpha", color: "orange", symbol: "α" },
@@ -164,8 +165,31 @@ export const wormholeTypes = {
   probability: { label: "Probability", color: "gray", symbol: "P" },
   champion: { label: "Champion", color: "saddlebrown", symbol: "C" },
   voyage: { label: "Voyage", color: "brown", symbol: "V" },
-  vortex: { label: "Vortex", color: "indigo", symbol: "Vx" }
+  vortex: { label: "Vortex", color: "indigo", symbol: "Vx" },
+  // Rat race wormholes are types of their own that never link to the plain ones. The bot
+  // gives them the plain symbol; here they carry an R so the two badges can be told apart.
+  alpha_rat: { label: "Rat Alpha", color: "#8d6e63", symbol: "Rα" },
+  beta_rat: { label: "Rat Beta", color: "#8d6e63", symbol: "Rβ" },
+  gamma_rat: { label: "Rat Gamma", color: "#8d6e63", symbol: "Rγ" },
+  delta_rat: { label: "Rat Delta", color: "#8d6e63", symbol: "Rδ" },
+  epsilon_rat: { label: "Rat Epsilon", color: "#8d6e63", symbol: "Rε" },
+  zeta_rat: { label: "Rat Zeta", color: "#8d6e63", symbol: "Rζ" },
+  eta_rat: { label: "Rat Eta", color: "#8d6e63", symbol: "Rη" },
+  theta_rat: { label: "Rat Theta", color: "#8d6e63", symbol: "Rθ" },
+  iota_rat: { label: "Rat Iota", color: "#8d6e63", symbol: "Rι" },
+  kappa_rat: { label: "Rat Kappa", color: "#8d6e63", symbol: "Rκ" }
 };
+
+/**
+ * The bot's token id for a wormhole type (`Wormhole.tokenId()`): `wh` + type, or for a
+ * rat race type `whrat` + its plain name. One-way tokens are named after it.
+ *
+ * @param {string} type  editor key, e.g. 'alpha' or 'alpha_rat'
+ */
+export function wormholeTokenId(type) {
+  const key = String(type || '');
+  return key.endsWith('_rat') ? `whrat${key.slice(0, -4)}` : `wh${key}`;
+}
 
 /**
  * Old spellings the bot still accepts for a wormhole (its `@JsonAlias`es), as prefixes:
@@ -179,18 +203,80 @@ const LEGACY_WORMHOLE_PREFIXES = ['custom_eronous_wh', 'wh'];
  * lowercased rather than dropped, so a wormhole added upstream still links to itself.
  * Returns '' for an empty value or the `'null'` string SystemInfo.json carries.
  *
+ * A one-way key keeps its direction: 'ALPHA:IN' → 'alpha:in' (see wormholeKey).
+ *
  * @param {unknown} raw
  * @returns {string}
  */
 export function normalizeWormholeType(raw) {
   const key = String(raw ?? '').trim().toLowerCase();
   if (key === 'null') return '';
+  const sep = key.lastIndexOf(':');
+  if (sep > 0 && ONE_WAY_WORMHOLE_DIRS.includes(key.slice(sep + 1))) {
+    const type = normalizeWormholeType(key.slice(0, sep));
+    return type ? `${type}:${key.slice(sep + 1)}` : '';
+  }
   if (!key || key in wormholeTypes) return key;
   for (const prefix of LEGACY_WORMHOLE_PREFIXES) {
     const rest = key.slice(prefix.length);
     if (key.startsWith(prefix) && rest in wormholeTypes) return rest;
   }
   return key;
+}
+
+/**
+ * One-way wormholes: `in` is entry-only (a ship can leave its system through it, so a link
+ * only ever starts there), `out` is exit-only (a link only ever ends there). They are the
+ * bot's generated `<token>_in` / `<token>_out` tokens.
+ */
+export const ONE_WAY_WORMHOLE_DIRS = ['in', 'out'];
+
+/**
+ * The key a wormhole is stored under in a hex's wormhole sets: the type for an ordinary
+ * wormhole, 'type:in' / 'type:out' for a one-way one. Keeping one-way wormholes in the same
+ * sets means everything that copies a hex (undo, clipboard, swap, slices) carries them.
+ *
+ * @param {string} type
+ * @param {'in'|'out'|null|undefined} [dir]
+ */
+export function wormholeKey(type, dir) {
+  return ONE_WAY_WORMHOLE_DIRS.includes(/** @type {string} */ (dir)) ? `${type}:${dir}` : type;
+}
+
+/**
+ * The type and direction of a stored wormhole key. `dir` is null for a two-way wormhole.
+ *
+ * @param {unknown} key
+ * @returns {{type: string, dir: 'in'|'out'|null}}
+ */
+export function parseWormholeKey(key) {
+  const norm = normalizeWormholeType(key);
+  const sep = norm.lastIndexOf(':');
+  if (sep > 0) return { type: norm.slice(0, sep), dir: /** @type {'in'|'out'} */ (norm.slice(sep + 1)) };
+  return { type: norm, dir: null };
+}
+
+/**
+ * Whether a link may start at (`departs`) or end at (`arrives`) a wormhole with this key.
+ * Mirrors Tile.getDepartureWormholes / getArrivalWormholes: an exit-only wormhole is no
+ * departure and an entry-only one no arrival.
+ */
+export function wormholeDeparts(key) {
+  return parseWormholeKey(key).dir !== 'out';
+}
+
+export function wormholeArrives(key) {
+  return parseWormholeKey(key).dir !== 'in';
+}
+
+/**
+ * A wormhole key for reading: 'alpha', or 'alpha (IN)' / 'alpha (OUT)' for a one-way one.
+ *
+ * @param {unknown} key
+ */
+export function describeWormhole(key) {
+  const { type, dir } = parseWormholeKey(key);
+  return dir ? `${type} (${dir.toUpperCase()})` : type;
 }
 
 /**
@@ -201,7 +287,7 @@ export function normalizeWormholeType(raw) {
  * @returns {{ label: string, color: string, symbol: string }}
  */
 export function wormholeInfo(type) {
-  const key = normalizeWormholeType(type);
+  const key = parseWormholeKey(type).type;
   const known = wormholeTypes[key];
   if (known) return known;
   const initial = key.charAt(0).toUpperCase() || '?';

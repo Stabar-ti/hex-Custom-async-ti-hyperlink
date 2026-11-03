@@ -25,9 +25,14 @@
  * `hex.links = hex.matrix` and tileCopyPasteWizard.js:504-508 documents a dependency on
  * the in-place behaviour. Rebinding there would leave those aliases stale.
  *
- * Edge indices are 0-5 matching `edgeDirections` in constants.js:25 (NW, NE, E, SE, SW, W),
+ * Edge indices are 0-5 matching `EDGE_DIRECTIONS` in utils/hexGrid.js (N, NE, SE, S, SW, NW),
  * and `matrix[entry][exit] === 1` means "a ship entering this tile across edge `entry`
  * may leave across edge `exit`".
+ *
+ * The matrix is the bot's *stored* form: a lane with both cells set is two-way, a lane with
+ * one cell set is one-way in that direction. The bot's *typed* form (1 two-way, 2 one-way),
+ * used by the JSON map format, exists only at that boundary — see toStoredMatrix /
+ * toTypedMatrix.
  */
 
 // One import surface: callers and tests get the codec from here rather than reaching
@@ -168,8 +173,11 @@ export function segmentKey(entry, exit) {
  * `_unlink` (hyperlanes.js:130-139), where the circle carried no entry/exit dataset and so
  * could never be found for removal.
  *
+ * A one-way lane comes out oriented the way it may be travelled (`entry` → `exit`) with
+ * `oneWay: true`; a two-way lane is listed once, lower side first.
+ *
  * @param {number[][]} matrix
- * @returns {Array<{kind: 'curve'|'loop', entry: number, exit: number, key: string}>}
+ * @returns {Array<{kind: 'curve'|'loop', entry: number, exit: number, key: string, oneWay: boolean}>}
  */
 export function segments(matrix) {
     const out = [];
@@ -183,8 +191,8 @@ export function segments(matrix) {
             if (seen.has(key)) continue;
             seen.add(key);
             out.push(entry === exit
-                ? { kind: 'loop', entry, exit: entry, key }
-                : { kind: 'curve', entry, exit, key });
+                ? { kind: 'loop', entry, exit: entry, key, oneWay: false }
+                : { kind: 'curve', entry, exit, key, oneWay: matrix[exit]?.[entry] !== 1 });
         }
     }
     return out;
@@ -220,17 +228,6 @@ export function hasRoundabout(m) {
     return roundaboutSides(m).length > 0;
 }
 
-/** Every side any link on the tile touches. */
-function linkedSides(m) {
-    const out = new Set();
-    for (let i = 0; i < SIDES; i++) {
-        for (let j = 0; j < SIDES; j++) {
-            if (m[i][j] === 1) { out.add(i); out.add(j); }
-        }
-    }
-    return out;
-}
-
 /** Whether any link on the tile — lane or roundabout — uses `side`. */
 export function touchesSide(m, side) {
     if (!Array.isArray(m) || !isSide(side)) return false;
@@ -257,21 +254,91 @@ export function sidesReachedFrom(neighbours) {
     return out;
 }
 
-/** Every member linked to every member, itself included. */
-function roundaboutOver(sides) {
+/**
+ * What each roundabout side does: `entry` (ships come in by it), `exit` (ships leave by
+ * it) or `both`. Read the bot's way (CustomHyperlaneService.connectRoundabout): a side is
+ * an entry when it links to another member, an exit when another member links to it. A
+ * side with neither — a lone loop — is two-way.
+ *
+ * @returns {Record<number, 'entry'|'exit'|'both'>}
+ */
+export function roundaboutRoles(m) {
+    const members = roundaboutSides(m);
+    const on = new Set(members);
+    const entry = new Set();
+    const exit = new Set();
+    for (const i of on) {
+        for (const j of on) {
+            if (i !== j && m[i]?.[j] === 1) { entry.add(i); exit.add(j); }
+        }
+    }
+    /** @type {Record<number, 'entry'|'exit'|'both'>} */
+    const roles = {};
+    for (const s of members) {
+        roles[s] = entry.has(s) === exit.has(s) ? 'both' : entry.has(s) ? 'entry' : 'exit';
+    }
+    return roles;
+}
+
+/**
+ * The roundabout built from members and their roles: every member keeps its loop cell,
+ * and every side that can be entered reaches every side that can be left.
+ */
+function roundaboutOver(members, entry, exit) {
     const out = emptyMatrix();
-    for (const i of sides) for (const j of sides) out[i][j] = 1;
+    for (const s of members) out[s][s] = 1;
+    for (const i of members) {
+        for (const j of members) {
+            if (i !== j && entry.has(i) && exit.has(j)) out[i][j] = 1;
+        }
+    }
     return out;
 }
 
 /**
- * A copy in which the tile is one roundabout: `sides`, plus every side the tile's
- * links already reach.
+ * A copy in which the tile is one roundabout: its current members with their roles, plus
+ * every side the tile's other links reach (a lane's ends join in the direction the lane
+ * runs), plus `entrySides` / `exitSides`.
+ *
+ * With `exclusive`, a side named in only one of the two lists has that role and no other
+ * — that is how a one-way lane drawn onto a roundabout turns its ends one-way. Without it
+ * roles are only ever added.
+ */
+export function withRoundaboutRoles(m, entrySides, exitSides, { exclusive = false } = {}) {
+    const src = cloneMatrix(m);
+    const members = new Set(roundaboutSides(src));
+    const entry = new Set();
+    const exit = new Set();
+    for (const [side, role] of Object.entries(roundaboutRoles(src))) {
+        if (role !== 'exit') entry.add(Number(side));
+        if (role !== 'entry') exit.add(Number(side));
+    }
+    for (let i = 0; i < SIDES; i++) {
+        for (let j = 0; j < SIDES; j++) {
+            if (i === j || src[i][j] !== 1) continue;
+            if (members.has(i) && members.has(j)) continue;
+            members.add(i); members.add(j);
+            entry.add(i); exit.add(j);
+        }
+    }
+    const ins = (entrySides || []).filter(isSide);
+    const outs = (exitSides || []).filter(isSide);
+    for (const s of [...ins, ...outs]) members.add(s);
+    if (exclusive) {
+        for (const s of ins) if (!outs.includes(s)) exit.delete(s);
+        for (const s of outs) if (!ins.includes(s)) entry.delete(s);
+    }
+    for (const s of ins) entry.add(s);
+    for (const s of outs) exit.add(s);
+    return roundaboutOver(members, entry, exit);
+}
+
+/**
+ * A copy in which the tile is one roundabout: `sides` (two-way), plus every side the
+ * tile's links already reach. Sides that are already one-way keep their direction.
  */
 export function withRoundabout(m, sides) {
-    const members = linkedSides(cloneMatrix(m));
-    for (const s of sides || []) if (isSide(s)) members.add(s);
-    return roundaboutOver(members);
+    return withRoundaboutRoles(m, sides, sides);
 }
 
 /**
@@ -295,10 +362,20 @@ export function withoutRoundaboutSides(m, sides) {
  * A lane that goes back out the side it came in by (`entry === exit`) puts that side on
  * a roundabout. Any lane drawn onto a roundabout tile joins it at both ends. Otherwise
  * it is an ordinary link, written in both directions.
+ *
+ * With `oneWay`, the lane may only be travelled `entry` → `exit`: the reverse cell is
+ * cleared, so drawing over a lane turns it one-way or flips it. On a roundabout the
+ * entry side becomes entry-only and the exit side exit-only. A loop is always two-way.
  */
-export function withLaneDrawn(m, entry, exit) {
+export function withLaneDrawn(m, entry, exit, { oneWay = false } = {}) {
     if (!isSide(entry) || !isSide(exit)) return cloneMatrix(m);
-    if (entry === exit || hasRoundabout(m)) return withRoundabout(m, [entry, exit]);
+    if (entry === exit) return withRoundabout(m, [entry]);
+    if (hasRoundabout(m)) {
+        return oneWay
+            ? withRoundaboutRoles(m, [entry], [exit], { exclusive: true })
+            : withRoundabout(m, [entry, exit]);
+    }
+    if (oneWay) return withoutLink(withLink(m, entry, exit), exit, entry);
     return withLink(withLink(m, entry, exit), exit, entry);
 }
 
@@ -335,14 +412,78 @@ export function sameMatrix(a, b) {
  * the circle already said. It is left out here. A lane with an end off the roundabout
  * means something the roundabout does not, so it stays.
  *
- * @returns {{roundabout: number[], curves: Array<{kind: 'curve', entry: number, exit: number, key: string}>}}
+ * @returns {{roundabout: number[], roles: Record<number, 'entry'|'exit'|'both'>,
+ *            curves: Array<{kind: 'curve'|'loop', entry: number, exit: number, key: string, oneWay: boolean}>}}
  */
 export function drawPlan(m) {
     const roundabout = roundaboutSides(m);
     const on = new Set(roundabout);
     const curves = segments(m).filter(s =>
         s.kind === 'curve' && !(on.has(s.entry) && on.has(s.exit)));
-    return { roundabout, curves };
+    return { roundabout, roles: roundaboutRoles(m), curves };
+}
+
+// ── One-way lanes and the bot's typed form ────────────────────────────────────
+//
+// Ports of CustomHyperlaneService (toStoredMatrix, toTypedMatrix, connectRoundabout,
+// hasOneWayLanes). Keep them cell-for-cell identical: the JSON export is only right if
+// the bot reads back exactly the matrix stored here.
+
+/** Whether the lane between two different sides runs one way only. */
+export function isOneWay(m, a, b) {
+    if (!isSide(a) || !isSide(b) || a === b) return false;
+    return hasLink(m, a, b) !== hasLink(m, b, a);
+}
+
+/** Whether any lane on the tile is one-way. */
+export function hasOneWayLanes(m) {
+    if (!Array.isArray(m)) return false;
+    for (let i = 0; i < SIDES; i++) {
+        for (let j = 0; j < SIDES; j++) if (isOneWay(m, i, j)) return true;
+    }
+    return false;
+}
+
+/**
+ * A copy in which, on a roundabout, every side that can be entered reaches every side
+ * that can be left. Only lanes between two roundabout sides count.
+ */
+export function connectRoundabout(m) {
+    const out = cloneMatrix(m);
+    const entry = new Set();
+    const exit = new Set();
+    for (let i = 0; i < SIDES; i++) {
+        for (let j = 0; j < SIDES; j++) {
+            if (i === j || out[i][j] === 0 || out[i][i] === 0 || out[j][j] === 0) continue;
+            entry.add(i);
+            exit.add(j);
+        }
+    }
+    for (const i of entry) for (const j of exit) if (i !== j) out[i][j] = 1;
+    return out;
+}
+
+/**
+ * The bot's typed matrix (cells 0, 1 two-way, 2 one-way row → column) as a stored matrix.
+ * A 1 is mirrored; a 2 whose mirror is also set ends up two-way, as in the bot.
+ */
+export function toStoredMatrix(typed) {
+    const out = emptyMatrix();
+    if (!Array.isArray(typed)) return out;
+    for (let i = 0; i < SIDES; i++) {
+        for (let j = 0; j < SIDES; j++) {
+            const cell = Number(typed[i]?.[j]);
+            if (cell === 1) { out[i][j] = 1; out[j][i] = 1; }
+            else if (cell === 2) out[i][j] = 1;
+        }
+    }
+    return connectRoundabout(out);
+}
+
+/** The stored matrix in the bot's typed form: 1 where both directions are set, 2 where one is. */
+export function toTypedMatrix(stored) {
+    const m = cloneMatrix(stored);
+    return m.map((row, i) => row.map((cell, j) => (cell !== 1 ? 0 : m[j][i] === 1 ? 1 : 2)));
 }
 
 // ── Direction and path resolution ─────────────────────────────────────────────

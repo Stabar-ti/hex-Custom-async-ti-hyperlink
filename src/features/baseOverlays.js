@@ -1,25 +1,35 @@
-import { effectIconPositions, effectEmojiMap, fallbackEffectEmoji, wormholeInfo } from '../constants/constants.js';
+import { effectIconPositions, effectEmojiMap, fallbackEffectEmoji, wormholeInfo, parseWormholeKey } from '../constants/constants.js';
 import { COLORS } from '../constants/designTokens.js';
 import { hexPoints } from '../utils/hexGeometry.js';
 
+
+/** Ring colours of a one-way wormhole, as the bot draws them (OneWayWormholeIcon). */
+const ONE_WAY_RING = { in: '#3cc85a', out: '#e13c37' };
 
 /**
  * Creates a single SVG overlay for a wormhole token.
  * Renders a colored circle with the wormhole's symbol (α, β, ...).
  *
+ * A one-way wormhole ('alpha:in' / 'alpha:out') gets the bot's marking around the badge: a
+ * ring of three arrows, green and counter-clockwise for entry-only (IN), red and clockwise
+ * for exit-only (OUT), and a small IN/OUT tag.
+ *
  * @param {number} x    - X coordinate (center of hex + offset)
  * @param {number} y    - Y coordinate (center of hex + offset)
- * @param {string} type - Wormhole type key ('alpha', 'beta', ...)
+ * @param {string} type - Wormhole key ('alpha', 'beta', 'alpha:in', ...)
  * @returns {SVGGElement} - SVG group containing circle and label
  */
 export function createWormholeOverlay(x, y, type) {
-  const { color, symbol } = wormholeInfo(type);
+  const { color, symbol, label } = wormholeInfo(type);
+  const { dir } = parseWormholeKey(type);
 
   const svgns = 'http://www.w3.org/2000/svg';
   const group = document.createElementNS(svgns, 'g');
 
   // Set initial visibility to visible
   group.setAttribute('visibility', 'visible');
+
+  if (dir) group.appendChild(oneWayRing(svgns, x, y, dir));
 
   // Draw the colored circle
   const circle = document.createElementNS(svgns, 'circle');
@@ -43,7 +53,83 @@ export function createWormholeOverlay(x, y, type) {
   group.appendChild(circle);
   group.appendChild(text);
 
+  if (dir) {
+    group.appendChild(oneWayTag(svgns, x, y, dir));
+    const title = document.createElementNS(svgns, 'title');
+    title.textContent = `${label} wormhole, ${dir === 'in' ? 'entry-only (IN): ships can leave through it' : 'exit-only (OUT): ships can arrive through it'}`;
+    group.appendChild(title);
+  }
+
   return group;
+}
+
+/** Three arrows round the badge: counter-clockwise for IN, clockwise for OUT. */
+function oneWayRing(svgns, x, y, dir) {
+  const ring = document.createElementNS(svgns, 'g');
+  const color = ONE_WAY_RING[dir];
+  const ccw = dir === 'in';
+  const R = 14;
+  const extent = 88;
+  const at = deg => {
+    const a = deg * Math.PI / 180;
+    return { x: x + R * Math.cos(a), y: y - R * Math.sin(a) };
+  };
+  for (let i = 0; i < 3; i++) {
+    const start = 90 + i * 120 + (120 - extent) / 2;
+    const from = ccw ? start : start + extent;
+    const to = ccw ? start + extent : start;
+    const p0 = at(from);
+    const p1 = at(to);
+    const arc = document.createElementNS(svgns, 'path');
+    // Counter-clockwise on screen is sweep-flag 0 (SVG's y axis points down).
+    arc.setAttribute('d', `M${p0.x},${p0.y} A${R},${R} 0 0 ${ccw ? 0 : 1} ${p1.x},${p1.y}`);
+    arc.setAttribute('fill', 'none');
+    arc.setAttribute('stroke', color);
+    arc.setAttribute('stroke-width', 2.5);
+    ring.appendChild(arc);
+
+    // Arrowhead at the end of the arc, along the direction of travel.
+    const a = to * Math.PI / 180;
+    const tx = ccw ? -Math.sin(a) : Math.sin(a);
+    const ty = ccw ? -Math.cos(a) : Math.cos(a);
+    const nx = Math.cos(a);
+    const ny = -Math.sin(a);
+    const head = document.createElementNS(svgns, 'polygon');
+    head.setAttribute('points', [
+      [p1.x + tx * 5, p1.y + ty * 5],
+      [p1.x + nx * 3.5, p1.y + ny * 3.5],
+      [p1.x - nx * 3.5, p1.y - ny * 3.5],
+    ].map(([px, py]) => `${px},${py}`).join(' '));
+    head.setAttribute('fill', color);
+    ring.appendChild(head);
+  }
+  return ring;
+}
+
+/** The IN / OUT tag at the lower right of the badge. */
+function oneWayTag(svgns, x, y, dir) {
+  const g = document.createElementNS(svgns, 'g');
+  const text = dir === 'in' ? 'IN' : 'OUT';
+  const w = dir === 'in' ? 11 : 15;
+  const rect = document.createElementNS(svgns, 'rect');
+  rect.setAttribute('x', x + 16 - w);
+  rect.setAttribute('y', y + 8);
+  rect.setAttribute('width', w);
+  rect.setAttribute('height', 7);
+  rect.setAttribute('rx', 2);
+  rect.setAttribute('fill', ONE_WAY_RING[dir]);
+  rect.setAttribute('stroke', '#111');
+  rect.setAttribute('stroke-width', 0.75);
+  const label = document.createElementNS(svgns, 'text');
+  label.setAttribute('x', x + 16 - w / 2);
+  label.setAttribute('y', y + 13.7);
+  label.setAttribute('text-anchor', 'middle');
+  label.setAttribute('fill', 'white');
+  label.setAttribute('font-size', '6');
+  label.setAttribute('font-weight', 'bold');
+  label.textContent = text;
+  g.append(rect, label);
+  return g;
 }
 
 /**
