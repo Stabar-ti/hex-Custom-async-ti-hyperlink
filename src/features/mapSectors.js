@@ -20,15 +20,22 @@
  *                  by grid distance <= gap + 1 and by custom adjacencies / adjacency
  *                  overrides (wormholes do not count), clipped to `distance` if it is > 0
  *
- * So the editor writes every sector as an explicit list (the top-level `sectors` key, which
- * the bot ignores until it learns to read it), and *also* writes the bot-native form when a
- * sector happens to be exactly a circle or a cluster — see botEquivalent. The rules here
- * mirror MapSegment.resolve and MapFrame.cluster / positionsWithin.
+ * The shared JSON contract, read and written by both sides:
+ *
+ *   sectors: [{name, positions, type?, centre?, distance?}]   top level
+ *
+ * `positions` is always the resolved member list; it is what the editor paints. `type`,
+ * `centre` and `distance` are there when the sector is a bot circle or cluster, so the bot
+ * can keep it dynamic; without them the bot stores a fixed shape. `type: 'automatic'` comes
+ * from the bot's automatic sectors; the editor freezes those into ordinary painted sectors.
+ * A list entry wins over a per-tile `sector` with the same name. The per-tile form is still
+ * written too (see botEquivalent), for bot builds that do not read the list yet. The rules
+ * here mirror MapSegment.resolve and MapFrame.cluster / positionsWithin.
  *
  * Everything in this file is DOM-free, so it loads straight into node for the tests.
  */
 
-import { axialDistance, boardOf, buildCoordIndex, coordKey, hasAxialCoords } from '../utils/hexGrid.js';
+import { axialDistance, boardOf, buildCoordIndex, coordKey, hasAxialCoords, ringOfLabel } from '../utils/hexGrid.js';
 
 /** The bot's limits: MapSegment.MAX_SEGMENTS, MAX_RADIUS, MAX_GAP. */
 export const BOT_MAX_SECTORS = 20;
@@ -561,12 +568,46 @@ export function sectorWarnings(reports) {
 // ── Export / import ──────────────────────────────────────────────────────────
 
 /**
+ * The bot form a sector is written with in the top-level list. The same as botEquivalent
+ * when there is one, so the list and the per-tile field agree. Otherwise a circle may also
+ * be centred on an empty member: the list carries its centre, so unlike the per-tile field
+ * it does not need a tile there.
+ *
+ * @param {Record<string, any>} hexes
+ * @param {string[]} members  sorted with comparePositions
+ * @param {BotSector|null} bot  botEquivalent's answer
+ * @returns {BotSector|null}
+ */
+export function listBotForm(hexes, members, bot) {
+    if (bot) return bot;
+    for (const centre of members) {
+        const c = hexes[centre];
+        if (!canJoinSector(c)) continue;
+        const radius = Math.max(...members.map(l => axialDistance(c, hexes[l])));
+        if (radius > MAX_SECTOR_RADIUS) continue;
+        if (sameMembers(circlePositions(hexes, centre, radius), members)) {
+            return { type: 'manual_circle', centre, distance: radius };
+        }
+    }
+    return null;
+}
+
+/**
+ * @typedef {object} SectorListEntry
+ * @property {string} name
+ * @property {string[]} positions
+ * @property {'manual_circle'|'manual_auto'} [type]
+ * @property {string} [centre]
+ * @property {number} [distance]
+ */
+
+/**
  * What exportMapInfo adds for sectors: the top-level list, the bot-native `sector` field by
  * centre position, and the gap.
  *
  * @param {Record<string, any>} hexes
  * @param {number} gap
- * @returns {{sectors: Array<{name: string, positions: string[]}>,
+ * @returns {{sectors: SectorListEntry[],
  *            native: Map<string, {type: string, distance: number, name: string}>,
  *            sectorGap: number}}
  */
@@ -583,7 +624,13 @@ export function buildSectorExport(hexes, gap) {
         count++;
     }
     return {
-        sectors: reports.map(r => ({ name: r.name, positions: [...r.positions] })),
+        sectors: reports.map(r => {
+            /** @type {SectorListEntry} */
+            const entry = { name: r.name, positions: [...r.positions] };
+            const form = listBotForm(hexes, r.positions, r.bot);
+            if (form) Object.assign(entry, { type: form.type, centre: form.centre, distance: form.distance });
+            return entry;
+        }),
         native,
         sectorGap: clampGap(gap),
     };
@@ -612,19 +659,28 @@ export function parseBotSectorType(raw) {
 /**
  * Work out every hex's sector from imported map JSON and write it to `hexes`.
  *
- * The explicit `sectors` list wins when the file has one: it is what this editor writes,
- * and it holds sectors the bot form cannot. Otherwise each tile's bot-native `sector` is
- * expanded by the bot's own rules, in file order; a hex already claimed keeps its first
- * sector, since sectors here cannot overlap. Automatic sectors are skipped for now.
+ * In three passes, a hex already claimed keeping its first sector, since sectors here
+ * cannot overlap:
+ *   1. the top-level `sectors` list paints its `positions`, whatever the entry's type: they
+ *      are the members as resolved when the file was written;
+ *   2. per-tile manual sectors (circle, cluster) whose name the list does not have are
+ *      expanded by the bot's own rules;
+ *   3. per-tile automatic sectors the list does not have — a bot export from before the bot
+ *      wrote the list — are frozen: the cluster grown from the anchor, as the bot grows it,
+ *      becomes an ordinary painted sector. One that touches a sector already painted is
+ *      left out, as the bot leaves out an automatic cluster that touches a manual sector.
+ *      An unpinned one has no name in the file, so the editor picks one (reported in
+ *      `notes`, which are informational, unlike `warnings`).
  *
  * Call it after the tiles are placed: a cluster grows over them.
  *
  * @param {Record<string, any>} hexes
  * @param {any} data  the parsed map JSON
- * @returns {{gap: number, warnings: string[]}}
+ * @returns {{gap: number, warnings: string[], notes: string[]}}
  */
 export function applySectorImport(hexes, data) {
     const warnings = [];
+    const notes = [];
     const gap = clampGap(data?.sectorGap);
     for (const hex of Object.values(hexes)) delete hex.mapSector;
 
@@ -645,42 +701,68 @@ export function applySectorImport(hexes, data) {
         if (skipped) warnings.push(`${source} \`${name}\`: ${skipped} position${skipped === 1 ? ' is' : 's are'} not on this map or cannot be in a sector.`);
     };
 
-    if (Array.isArray(data?.sectors) && data.sectors.length) {
-        for (const s of data.sectors) {
-            const name = normalizeSectorName(s?.name);
-            const problem = sectorNameProblem(name);
-            if (problem) { warnings.push(`Sector \`${s?.name}\` skipped: ${problem}`); continue; }
-            claim(name, Array.isArray(s.positions) ? s.positions : [], 'Sector');
-        }
-        return { gap, warnings };
+    // 1. The list.
+    const listed = new Set();
+    for (const s of Array.isArray(data?.sectors) ? data.sectors : []) {
+        const name = normalizeSectorName(s?.name);
+        const problem = sectorNameProblem(name);
+        if (problem) { warnings.push(`Sector \`${s?.name}\` skipped: ${problem}`); continue; }
+        listed.add(name);
+        claim(name, Array.isArray(s.positions) ? s.positions : [], 'Sector');
     }
 
-    let automatic = 0;
+    // 2. Per-tile manual sectors; automatic ones are kept for pass 3.
+    /** @type {Array<{anchor: string, name: string}>} */
+    const automatic = [];
     for (const tile of Array.isArray(data?.mapInfo) ? data.mapInfo : []) {
         const s = tile?.sector;
         if (!s) continue;
         const type = parseBotSectorType(s.type);
-        if (type === 'automatic') { automatic++; continue; }
         if (!type) { warnings.push(`Tile ${tile.position}: unknown sector type \`${s.type}\`.`); continue; }
         const name = normalizeSectorName(s.name);
+        if (name && listed.has(name)) continue;
+        const anchor = resolve(String(tile.position));
+        if (type === 'automatic') { automatic.push({ anchor, name }); continue; }
         const problem = sectorNameProblem(name);
         if (problem) { warnings.push(`Tile ${tile.position}: sector \`${s.name}\` skipped: ${problem}`); continue; }
-        const centre = resolve(String(tile.position));
         const distance = Math.max(0, Math.min(MAX_SECTOR_RADIUS, Number(s.distance) || 0));
         const positions = type === 'manual_circle'
-            ? circlePositions(hexes, centre, distance)
-            : clusterPositions(hexes, centre, gap, distance);
+            ? circlePositions(hexes, anchor, distance)
+            : clusterPositions(hexes, anchor, gap, distance);
         claim(name, positions, type === 'manual_circle' ? 'Circle' : 'Cluster');
     }
-    if (automatic) {
-        warnings.push('Automatic sectors are not supported in the editor yet and were left out.');
+
+    // 3. Automatic sectors, frozen.
+    const named = [];
+    let touching = 0;
+    for (const { anchor, name } of automatic) {
+        const members = clusterPositions(hexes, anchor, gap, 0);
+        if (!members.length) {
+            warnings.push(`Automatic sector at ${anchor}: the position is not on this map.`);
+            continue;
+        }
+        if (members.some(l => hexes[l].mapSector)) { touching++; continue; }
+        const taken = new Set(listSectors(hexes).keys());
+        let use = name;
+        if (!use || sectorNameProblem(use) || taken.has(use)) {
+            use = suggestSectorName(taken);
+            named.push(use);
+        }
+        claim(use, members, 'Automatic sector');
     }
-    return { gap, warnings };
+    if (touching) {
+        notes.push(`${touching} automatic sector${touching === 1 ? '' : 's'} touched another sector and ${touching === 1 ? 'was' : 'were'} left out, as the bot does.`);
+    }
+    if (named.length) {
+        notes.push(`Automatic sectors became painted sectors; the bot had not named ${named.length === 1 ? 'one' : 'some'}, so the editor called ${named.length === 1 ? 'it' : 'them'} ${named.join(', ')}.`);
+    }
+    return { gap, warnings, notes };
 }
 
 /**
- * The highest ring any sector position in imported JSON reaches, so the import can build a
- * map big enough for sectors that run into void beyond the last tile.
+ * The highest main-map ring any sector in imported JSON reaches, so the import can build a
+ * map big enough for sectors that run into void beyond the last tile: the list's positions,
+ * and how far a per-tile circle reaches from its centre.
  * @param {any} data
  */
 export function maxSectorRing(data) {
@@ -690,6 +772,15 @@ export function maxSectorRing(data) {
             const m = String(pos).match(/^(\d+)\d{2}$/);
             if (m) max = Math.max(max, parseInt(m[1], 10));
         }
+    }
+    for (const tile of Array.isArray(data?.mapInfo) ? data.mapInfo : []) {
+        const s = tile?.sector;
+        if (!s || parseBotSectorType(s.type) !== 'manual_circle') continue;
+        const pos = String(tile.position);
+        const ring = boardOf(pos) ? null : ringOfLabel(pos);
+        if (ring === null) continue;
+        const distance = Math.max(0, Math.min(MAX_SECTOR_RADIUS, Number(s.distance) || 0));
+        max = Math.max(max, ring + distance);
     }
     return max;
 }

@@ -390,9 +390,10 @@ export async function exportMapInfo(editor, options = {}) {
   // System tiles with lanes drawn on them: written, but the bot reads lanes only on `hl`.
   const lanesIgnoredByBot = [];
 
-  // Map sectors: every sector goes in the top-level `sectors` list, and the ones that are
-  // exactly a bot circle or cluster also get the bot's own `sector` field on their centre
-  // tile, which is the only form the bot reads today (MapSectorJsonService).
+  // Map sectors: every sector goes in the top-level `sectors` list (with its bot form when it
+  // has one), and the ones that are exactly a bot circle or cluster on a tile also get the
+  // per-tile `sector` field on their centre, for bot builds that do not read the list yet.
+  // The contract is described at the top of mapSectors.js.
   const sectorExport = buildSectorExport(editor.hexes, editor.sectorGap);
 
   Object.entries(editor.hexes).forEach(([label, hex]) => {

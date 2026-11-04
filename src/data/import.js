@@ -1176,6 +1176,10 @@ export async function importMapInfo(editor, jsonData) {
       console.warn('importMapInfo: sector warnings:', sectorImport.warnings);
       showToast(`Sectors did not import cleanly: ${sectorImport.warnings.join(' ')}`, 'warning', 10000);
     }
+    if (sectorImport.notes.length) {
+      console.info('importMapInfo: sector notes:', sectorImport.notes);
+      showToast(sectorImport.notes.join(' '), 'info', 10000);
+    }
     announceMapSectorsChanged(editor);
     drawGalaxyTitles(editor);
 

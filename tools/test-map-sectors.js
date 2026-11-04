@@ -229,6 +229,24 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     check('the circle gets the bot field on its centre',
         same(out.native.get('000'), { type: 'manual_circle', distance: 1, name: 'core' }));
     check('the editor-only sector gets none', out.native.size === 1);
+    check('the list entry of a circle carries its bot form',
+        same(out.sectors[0], { name: 'core', positions: out.sectors[0].positions, type: 'manual_circle', centre: '000', distance: 1 }));
+    check('the list entry of a free shape is just name and positions',
+        same(Object.keys(out.sectors[1]), ['name', 'positions']));
+
+    // A circle around a void hex: no tile for the per-tile field, but the list can say it.
+    const voidCentre = makeMap(2);
+    for (const l of circlePositions(voidCentre, '000', 1)) voidCentre[l].mapSector = 'ring';
+    const voidOut = buildSectorExport(voidCentre, 0);
+    check('a circle on an empty centre has no per-tile field', voidOut.native.size === 0);
+    check('but its list entry is a circle',
+        voidOut.sectors[0].type === 'manual_circle' && voidOut.sectors[0].centre === '000' && voidOut.sectors[0].distance === 1);
+
+    // Round trip: what the export writes, the import paints back.
+    const back = place(makeMap(3), '000', '101', '102', '103', '104', '105', '106', '301', '302');
+    applySectorImport(back, { sectors: out.sectors, mapInfo: [] });
+    check('the export reads back to the same sectors',
+        same([...listSectors(back)], [...listSectors(hexes)]));
 
     const warnings = sectorWarnings(sectorReports(hexes, 0));
     check('the panel says one sector is editor-only', warnings.some(w => /1 sector is not/.test(w)));
@@ -268,20 +286,66 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     list['000'].mapSector = 'stale';
     applySectorImport(list, {
         sectors: [{ name: 'core', positions: ['000', '101'] }, { name: 'rim', positions: ['101', '301', 'tl', '999'] }],
-        mapInfo: [{ position: '000', tileID: '19', sector: { type: 'manual_circle', distance: 2, name: 'ignored' } }],
+        mapInfo: [{ position: '000', tileID: '19', sector: { type: 'manual_circle', distance: 2, name: 'core' } }],
     });
     const got = listSectors(list);
-    check('the explicit list wins over bot fields', !got.has('ignored'));
+    check('a list entry wins over the bot field of the same name', same(got.get('core'), ['000', '101']));
     check('old sectors are cleared', !got.has('stale'));
     check('an overlap keeps the first sector', list['101'].mapSector === 'core');
     check('a corner cannot join', !list.TL.mapSector);
     check('the rest of the second sector is kept', same(got.get('rim'), ['301']));
 
-    const auto = makeMap(1);
-    const autoRes = applySectorImport(auto, { mapInfo: [{ position: '000', tileID: '19', sector: { type: 'automatic', distance: 1 } }] });
-    check('automatic sectors are skipped with a warning', autoRes.warnings.some(w => /Automatic/.test(w)));
+    // A per-tile sector the list does not have is still applied (a hand-written file).
+    const mixed = place(makeMap(3), '000', '301', '302');
+    applySectorImport(mixed, {
+        sectors: [{ name: 'core', positions: ['000'], type: 'manual_circle', centre: '000', distance: 0 }],
+        mapInfo: [
+            { position: '000', tileID: '19', sector: { type: 'manual_circle', distance: 0, name: 'core' } },
+            { position: '301', tileID: '19', sector: { type: 'manual_auto', distance: 0, name: 'rim' } },
+            { position: '302', tileID: '19' },
+        ],
+    });
+    const mixedGot = listSectors(mixed);
+    check('the list and the per-tile field of one sector paint it once', same(mixedGot.get('core'), ['000']));
+    check('a per-tile-only sector is still applied', same(mixedGot.get('rim'), ['301', '302']));
+
+    // ── Automatic sectors are frozen into painted sectors.
+    const auto = place(makeMap(3), '000', '101', '301');
+    const autoRes = applySectorImport(auto, {
+        mapInfo: [
+            { position: '000', tileID: '19', sector: { type: 'automatic', distance: 0, name: 'orion' } },
+            { position: '101', tileID: '19' },
+            { position: '301', tileID: '19', sector: { type: 'automatic', distance: 0 } },
+        ],
+    });
+    const autoGot = listSectors(auto);
+    check('a named automatic sector becomes its cluster', same(autoGot.get('orion'), ['000', '101']));
+    const invented = [...autoGot.keys()].find(n => n !== 'orion');
+    check('an unnamed one gets a suggested name', !!invented && same(autoGot.get(invented), ['301']));
+    check('and the name is reported as a note, not a warning',
+        autoRes.notes.some(n => n.includes(invented)) && !autoRes.warnings.length);
+
+    const blocked = place(makeMap(2), '000', '101');
+    const blockedRes = applySectorImport(blocked, {
+        sectors: [{ name: 'core', positions: ['000'] }],
+        mapInfo: [{ position: '101', tileID: '19', sector: { type: 'automatic', distance: 0, name: 'drift' } }],
+    });
+    check('an automatic cluster touching a painted sector is left out, as in the bot',
+        !listSectors(blocked).has('drift') && blockedRes.notes.some(n => /left out/.test(n)));
+
+    const fromList = place(makeMap(2), '000', '101');
+    applySectorImport(fromList, {
+        sectors: [{ name: 'orion', positions: ['000', '101'], type: 'automatic' }],
+        mapInfo: [{ position: '000', tileID: '19', sector: { type: 'automatic', distance: 0 } }],
+    });
+    check('an automatic list entry is painted, and its unnamed per-tile twin adds nothing',
+        same([...listSectors(fromList).keys()], ['orion']));
 
     check('the ring of sector positions is measured', maxSectorRing({ sectors: [{ name: 'a', positions: ['000', '512', '1001'] }] }) === 10);
+    check('a per-tile circle counts its reach',
+        maxSectorRing({ mapInfo: [{ position: '301', sector: { type: 'circle', distance: 2 } }] }) === 5);
+    check('a board circle does not grow the main map',
+        maxSectorRing({ mapInfo: [{ position: 'a301', sector: { type: 'circle', distance: 2 } }] }) === 0);
 }
 
 // ── Report ───────────────────────────────────────────────────────────────────
