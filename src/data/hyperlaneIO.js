@@ -19,6 +19,10 @@
 import {
     cloneMatrix, hasLinks, sameMatrix, symmetrised, toStoredMatrix, toTypedMatrix
 } from '../modules/Hyperlanes/hyperlaneModel.js';
+import { bridgeProblem, hasBridge, normalizedBridge } from '../modules/Hyperlanes/bridgeModel.js';
+import {
+    canHoldPortals, describePortals, encodeCompact, hasPortals, parseAnyPortals
+} from '../modules/Hyperlanes/portalModel.js';
 
 /** The tile id the bot reads custom lanes from. */
 export const CUSTOM_HYPERLANE_TILE = 'hl';
@@ -94,17 +98,143 @@ export function storedMatrixFromCustomString(text) {
 export function hyperlaneExportInfo(hex, staticMatrices = {}) {
     const id = String(hex?.realId || hex?.systemId || '');
     const lanes = hex?.matrix ? cloneMatrix(hex.matrix) : null;
-    if (!lanes || !hasLinks(lanes)) return { tileID: id, lanes: null, ignoredByBot: false };
+    const portals = hasPortals(hex);
+    if (!lanes || !hasLinks(lanes)) {
+        // An empty tile with portals is an interchange: an `hl` with no lanes.
+        if (portals && (!id || id.toLowerCase() === CUSTOM_HYPERLANE_TILE)) {
+            return { tileID: CUSTOM_HYPERLANE_TILE, lanes: null, ignoredByBot: false };
+        }
+        return { tileID: id, lanes: null, ignoredByBot: false };
+    }
     if (!id || id.toLowerCase() === CUSTOM_HYPERLANE_TILE) {
         return { tileID: CUSTOM_HYPERLANE_TILE, lanes, ignoredByBot: false };
     }
     const printed = staticMatrices?.[id.toLowerCase()];
     if (printed) {
-        return sameMatrix(printed, lanes)
+        // The bot takes portals only on a custom `hl`, so a static tile carrying them goes
+        // out as one, with its printed lanes.
+        return sameMatrix(printed, lanes) && !portals
             ? { tileID: id, lanes: null, ignoredByBot: false }
             : { tileID: CUSTOM_HYPERLANE_TILE, lanes, ignoredByBot: false };
     }
     return { tileID: id, lanes, ignoredByBot: true };
+}
+
+// ── Bridges (`bridgeLanes` on a system tile) ──────────────────────────────────
+
+/**
+ * Whether a tile id is one the bot puts a bridge on: a system, not `hl` nor a printed
+ * hyperlane tile (HyperlaneBridges.problemWith → isHyperlane).
+ * @param {unknown} tileID
+ * @param {Record<string, number[][]>} [staticMatrices]
+ */
+export function isBridgeHostTile(tileID, staticMatrices = {}) {
+    const key = String(tileID || '').toLowerCase();
+    return !!key && key !== CUSTOM_HYPERLANE_TILE && !staticMatrices?.[key];
+}
+
+/**
+ * Why a hex can't carry a bridge at all, or null: it needs a system on it
+ * (HyperlaneBridges.problemWith → tile exists, not a hyperlane). The one check the map, the
+ * tile dialog and the export all share.
+ * @param {{realId?: string|null, systemId?: string|null}} hex
+ * @param {Record<string, number[][]>} [staticMatrices]
+ */
+export function bridgeHostProblem(hex, staticMatrices = {}) {
+    const id = String(hex?.realId || hex?.systemId || '');
+    if (!id) return 'Place a system on this tile first: a bridge runs through a system.';
+    if (!isBridgeHostTile(id, staticMatrices)) return 'This is a hyperlane tile; bridges go on systems. Draw hyperlanes with the Hyperlanes tool.';
+    return null;
+}
+
+/**
+ * Why a hex can't carry portals at all, or null: a system can't (an empty hex becomes an
+ * interchange `hl`, a printed hyperlane goes out as `hl`). Not being a roundabout is a
+ * separate, softer problem — see canHoldPortals.
+ * @param {{realId?: string|null, systemId?: string|null}} hex
+ * @param {Record<string, number[][]>} [staticMatrices]
+ */
+export function portalHostProblem(hex, staticMatrices = {}) {
+    const id = String(hex?.realId || hex?.systemId || '').toLowerCase();
+    if (id && id !== CUSTOM_HYPERLANE_TILE && !staticMatrices?.[id]) {
+        return 'This is a system tile; portals go on hyperlanes (a roundabout, or an empty tile as an interchange).';
+    }
+    return null;
+}
+
+/** The JSON `bridgeLanes` (typed form) of a stored bridge, or '' with no lanes. */
+export function bridgeLanesString(bridge) {
+    const stored = normalizedBridge(bridge);
+    return stored ? formatMatrixString(toTypedMatrix(stored)) : '';
+}
+
+/**
+ * Reads a JSON `bridgeLanes` the way the bot does: a typed matrix, diagonal 0, lanes that
+ * fit on the rim. Returns the stored bridge, or the reason the bot would skip it.
+ *
+ * @param {unknown} text
+ * @returns {{bridge: number[][]|null, problem: string|null}}
+ */
+export function bridgeFromLanesString(text) {
+    const typed = parseTypedMatrixString(text);
+    if (!typed) return { bridge: null, problem: 'The matrix needs 6 rows of 6 values (0, 1 or 2), rows separated by `;`.' };
+    for (let s = 0; s < 6; s++) {
+        if (typed[s][s] !== 0) {
+            return { bridge: null, problem: "A bridge can't connect a side to itself (no roundabouts); keep the diagonal at 0." };
+        }
+    }
+    const stored = toStoredMatrix(typed);
+    const problem = bridgeProblem(stored);
+    return problem ? { bridge: null, problem } : { bridge: normalizedBridge(stored), problem: null };
+}
+
+/**
+ * What a hex's bridge becomes in a bot export: the `bridgeLanes` string to write, or the
+ * reason the bot would refuse it (then nothing is written).
+ *
+ * @param {{bridge?: number[][]}} hex
+ * @param {string} tileID  the id the hex exports as
+ * @param {Record<string, number[][]>} [staticMatrices]
+ * @returns {{text: string, problem: string|null}}
+ */
+export function bridgeExportInfo(hex, tileID, staticMatrices = {}) {
+    if (!hasBridge(hex)) return { text: '', problem: null };
+    if (!isBridgeHostTile(tileID, staticMatrices)) {
+        return { text: '', problem: 'bridges go on system tiles' };
+    }
+    const problem = bridgeProblem(hex.bridge);
+    return problem ? { text: '', problem } : { text: bridgeLanesString(hex.bridge), problem: null };
+}
+
+// ── Portals (`portals` on an `hl` tile) ───────────────────────────────────────
+
+/**
+ * Reads a JSON `portals` value (`0=A, 1=C<, 3=B>`, slotless `A, B>` or compact `0A1C<`).
+ * @returns {{portals: Array<{slot: number, letter: string, flow: string}>|null, problem: string|null}}
+ */
+export function portalsFromString(text) {
+    const { slots, problem } = parseAnyPortals(text);
+    if (problem) return { portals: null, problem };
+    return { portals: slots.length ? slots : null, problem: null };
+}
+
+/**
+ * What a hex's portals become in a bot export, given its export info: the `portals` string
+ * and the compact form for the text Export, or the reason the bot would refuse them.
+ *
+ * @param {{portals?: Array<{slot: number, letter: string, flow: string}>}} hex
+ * @param {{tileID: string, lanes: number[][]|null}} info  hyperlaneExportInfo(hex)
+ * @returns {{text: string, compact: string, problem: string|null}}
+ */
+export function portalsExportInfo(hex, info) {
+    if (!hasPortals(hex)) return { text: '', compact: '', problem: null };
+    if (info?.tileID !== CUSTOM_HYPERLANE_TILE) {
+        return { text: '', compact: '', problem: 'portals go on custom hyperlanes (hl)' };
+    }
+    if (!canHoldPortals(info.lanes)) {
+        return { text: '', compact: '', problem: "it isn't a roundabout (portals sit on a roundabout's ring, or on an empty hl)" };
+    }
+    return { text: describePortals(hex.portals), compact: encodeCompact(hex.portals), problem: null };
 }
 
 /**

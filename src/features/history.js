@@ -22,6 +22,8 @@
 // The pre-refactor full-map-snapshot version is in git history (see: git log -- src/features/history_original.js).
 // ───────────────────────────────────────────────────────────────
 
+import { cloneBridge } from '../modules/Hyperlanes/bridgeModel.js';
+import { clonePortals } from '../modules/Hyperlanes/portalModel.js';
 import { clearAllEffects, applyEffectToHex } from './effects.js';
 import { updateHexWormholes, redrawWormholeOverlays, removeWormholeOverlay } from './wormholes.js';
 import { drawMatrixLinks } from './hyperlanes.js';
@@ -218,6 +220,8 @@ export function initHistory(editor) {
             inherentWormholes:  new Set(hex.inherentWormholes),
             customWormholes:    new Set(hex.customWormholes),
             matrix:             hex.matrix ? hex.matrix.map(r => [...r]) : [],
+            bridge:             cloneBridge(hex.bridge),
+            portals:            clonePortals(hex.portals),
             customAdjacents:    hex.customAdjacents
                                   ? JSON.parse(JSON.stringify(hex.customAdjacents))
                                   : undefined,
@@ -270,6 +274,8 @@ export function initHistory(editor) {
 
         hex.effects = new Set(snap.effects);
         hex.matrix  = snap.matrix.map(row => [...row]);
+        hex.bridge  = cloneBridge(snap.bridge);
+        hex.portals = clonePortals(snap.portals);
 
         if (snap.customAdjacents === undefined)    delete hex.customAdjacents;
         else hex.customAdjacents = JSON.parse(JSON.stringify(snap.customAdjacents));

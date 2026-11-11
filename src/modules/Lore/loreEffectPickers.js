@@ -5,7 +5,9 @@
  * Promise so callers can stay simple: `const value = await openXyzPicker(...)`.
  */
 
-import { hasLinks } from '../../utils/matrix.js';
+import { hasLinks, hexToMatrix, matrixToHex } from '../../utils/matrix.js';
+import { bridgeProblem, describeBridge, hasBridge } from '../Hyperlanes/bridgeModel.js';
+import { canHoldPortals, encodeCompact, hasPortals, parseAnyPortals } from '../Hyperlanes/portalModel.js';
 import { wormholeInfo } from '../../constants/constants.js';
 import { loadWormholeTokenIndex } from '../../data/wormholeTokens.js';
 import { openListPicker, closeListPicker, registerForeignCloser } from '../../ui/listPicker.js';
@@ -738,4 +740,117 @@ export async function openSwapPicker(anchorEl, editor) {
     if (!second) return null;
 
     return [first, second];
+}
+
+// ── Bridges and portals ────────────────────────────────────────────────────────
+
+/** A small panel of buttons; resolves the chosen value or null. */
+function chooseOne(anchorEl, title, choices) {
+    return new Promise((resolve) => {
+        const panel = createPanel(anchorEl, { width: 260 });
+        activeResolve = resolve;
+        const done = (value) => { activeResolve = null; closeActivePicker(); resolve(value); };
+        const head = document.createElement('div');
+        head.textContent = title;
+        head.style.cssText = 'font-size:0.85em;color:#aaa;margin-bottom:6px';
+        panel.appendChild(head);
+        for (const { value, text, bg } of choices) {
+            const btn = styledButton(text, { bg });
+            btn.style.cssText += 'width:100%;margin-bottom:6px';
+            btn.onclick = () => done(value);
+            panel.appendChild(btn);
+        }
+    });
+}
+
+/** Every map position, the ones matching `first` listed first. */
+function positionItems(editor, first = () => false) {
+    const labels = Object.keys(editor.hexes || {}).sort();
+    const lead = labels.filter(l => first(editor.hexes[l]));
+    const rest = labels.filter(l => !first(editor.hexes[l]));
+    return [...lead, ...rest].map(label => ({ value: label, label }));
+}
+
+/** A hex that can take portals: an `hl` (or blank) roundabout, or one with portals. */
+function looksLikePortalHost(hex) {
+    if (hasPortals(hex)) return true;
+    const id = String(hex?.realId || '').toLowerCase();
+    return (!id || id === 'hl') && hasLinks(hex?.matrix || [[]]) && canHoldPortals(hex?.matrix);
+}
+
+/**
+ * Position + 9-hex stored matrix for "setbridge" — footers lose `;`, so the matrix travels
+ * as hex. Copied from a hex's bridge (made with the tile menu's Bridge… first) or typed.
+ * Resolves e.g. "305 108400000" or null.
+ */
+export async function openSetBridgePicker(anchorEl, editor) {
+    const position = await openListPicker(anchorEl, positionItems(editor, h => !!h?.realId), { title: 'Set bridge at…', width: 200 });
+    if (!position) return null;
+    const choice = await chooseOne(anchorEl, `Bridge for ${position}:`, [
+        { value: 'copy', text: "Copy from a hex's bridge…", bg: '#3498db' },
+        { value: 'manual', text: 'Type the 9-hex-char matrix…', bg: '#8e44ad' },
+    ]);
+    if (!choice) return null;
+    let encoded;
+    if (choice === 'copy') {
+        const sources = Object.entries(editor.hexes || {})
+            .filter(([, hex]) => hasBridge(hex))
+            .map(([label, hex]) => ({ value: label, label: `${label} · ${describeBridge(hex.bridge).join(', ')}` }));
+        if (!sources.length) {
+            alert('No hex on the map has a bridge yet. Add one from the tile menu (right-click a system, Hyperlane, Bridge…), or type it.');
+            return null;
+        }
+        const source = await openListPicker(anchorEl, sources, { title: 'Copy bridge from…', width: 260 });
+        if (!source) return null;
+        const problem = bridgeProblem(editor.hexes[source].bridge);
+        if (problem) { alert(`The bridge on ${source} would be refused by the bot: ${problem}`); return null; }
+        encoded = matrixToHex(editor.hexes[source].bridge);
+    } else {
+        const typed = prompt("Bridge as the bot's 9-hex-char stored matrix (the bridge: rows of the hyperlane Export), e.g. 108400000:");
+        if (!typed) return null;
+        encoded = typed.trim().toLowerCase();
+        if (!/^[0-9a-f]{9}$/.test(encoded)) { alert('That needs to be exactly 9 hex characters.'); return null; }
+        const problem = bridgeProblem(hexToMatrix(encoded));
+        if (problem) { alert(problem); return null; }
+    }
+    return `${position} ${encoded}`;
+}
+
+/** Position + compact portals for "setportals". Resolves e.g. "102 0A1C<3B>" or null. */
+export async function openSetPortalsPicker(anchorEl, editor) {
+    const position = await openListPicker(anchorEl, positionItems(editor, looksLikePortalHost), { title: 'Set portals at…', width: 200 });
+    if (!position) return null;
+    const choice = await chooseOne(anchorEl, `Portals for ${position}:`, [
+        { value: 'copy', text: "Copy from a hex's portals…", bg: '#3498db' },
+        { value: 'manual', text: 'Type them (A, 3=B>, C< or 0A3B>)…', bg: '#8e44ad' },
+    ]);
+    if (!choice) return null;
+    let slots;
+    if (choice === 'copy') {
+        const sources = Object.entries(editor.hexes || {})
+            .filter(([, hex]) => hasPortals(hex))
+            .map(([label, hex]) => ({ value: label, label: `${label} · ${encodeCompact(hex.portals)}` }));
+        if (!sources.length) {
+            alert('No hex on the map has portals yet. Add them from the tile menu (right-click a roundabout, Hyperlane, Portals…), or type them.');
+            return null;
+        }
+        const source = await openListPicker(anchorEl, sources, { title: 'Copy portals from…', width: 220 });
+        if (!source) return null;
+        slots = editor.hexes[source].portals;
+    } else {
+        const typed = prompt('Portals: letters A-Z, optionally with a slot 0-6; > entry-only, < exit-only. For example "A, 3=B>, C<" or "0A3B>":');
+        if (!typed) return null;
+        const parsed = parseAnyPortals(typed);
+        if (parsed.problem) { alert(parsed.problem); return null; }
+        if (!parsed.slots.length) return null;
+        slots = parsed.slots;
+    }
+    return `${position} ${encodeCompact(slots)}`;
+}
+
+/** A position for "removebridge" / "removeportals"; hexes that have one are listed first. */
+export async function openRemoveBridgeOrPortalsPicker(anchorEl, editor, verb) {
+    const has = verb === 'removebridge' ? hasBridge : hasPortals;
+    const title = verb === 'removebridge' ? 'Remove the bridge at…' : 'Remove the portals at…';
+    return await openListPicker(anchorEl, positionItems(editor, has), { title, width: 200 });
 }

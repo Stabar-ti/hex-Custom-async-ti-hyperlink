@@ -16,7 +16,7 @@ import { defaultRuleset } from './ruleset.js';
 import { makeAnomalyRules } from './borderAnomalyRules.js';
 import { collectNeighbors } from './neighborProviders.js';
 import { isBlocked, isPassable, isHyperlaneConduit, hasAnomaly } from './movementRules.js';
-import { expandHyperlaneEndpoints } from './hyperlaneTraversal.js';
+import { bridgeEntrySide, expandHyperlaneEndpoints } from './hyperlaneTraversal.js';
 import {
   floodRiftCluster, expandFromFloodedRifts, riftOneStepOut, applyRiftSourceShift,
 } from './riftRules.js';
@@ -68,13 +68,28 @@ export function calculateDistancesFrom(editor, sourceLabel, maxDist = 3, opts = 
       dbg(`[Expand] At ${label} (source: ${isSource})`);
 
       for (const { label: nLabel, hex: neighbor, dirIdx } of collectNeighbors(ctx, current, label)) {
-        if (visited.has(nLabel)) continue;
+        // Crossing onto a bridge lane side passes through the system, whether or not the
+        // system itself has been reached already.
+        const bridgeEntry = bridgeEntrySide(ctx, nLabel, dirIdx);
+        if (visited.has(nLabel) && bridgeEntry == null) continue;
 
         // Blockers run before rift detection, so that e.g. a spatial tear stops
         // a rift cluster being flooded through it.
         const edge = { dirIdx, isSource, fromLabel: label, toLabel: nLabel };
         if (isBlocked(ctx, current, neighbor, edge)) {
           dbg(` [Blocked] from ${label} to ${nLabel} (dir ${dirIdx})`);
+          continue;
+        }
+
+        if (bridgeEntry != null) {
+          dbg(` [Bridge] Through ${nLabel} (entry ${bridgeEntry})`);
+          expandHyperlaneEndpoints(ctx, state, {
+            entryLabel: nLabel,
+            entryDir: bridgeEntry,
+            dist,
+            nextLayer,
+            onRift: dest => riftToFlood.add(dest),
+          });
           continue;
         }
 

@@ -2,13 +2,16 @@
 // Swap the tile content of two hexes.
 // Hyperlane matrix and positional links (customAdjacents, adjacencyOverrides,
 // borderAnomalies) are intentionally NOT swapped — they are drawn infrastructure
-// tied to hex position, not to the tile placed there.
+// tied to hex position, not to the tile placed there. Portals sit on the hyperlane's
+// ring, so they stay with the matrix. A bridge belongs to the system it runs through,
+// so it travels with the system (as the bot's TileBoundData.move).
 
 import { sectorColors } from '../constants/constants.js';
 import { redrawAllRealIDOverlays } from './realIDsOverlays.js';
 import { updateTileImageLayer } from './imageSystemsOverlay.js';
 import { redrawWormholeOverlays, removeWormholeOverlay } from './wormholes.js';
 import { enforceSvgLayerOrder } from '../draw/enforceSvgLayerOrder.js';
+import { renderHex } from '../modules/Hyperlanes/hyperlaneRender.js';
 
 const SWAP_FIELDS = [
     'baseType', 'realId', 'planets',
@@ -16,6 +19,7 @@ const SWAP_FIELDS = [
     'systemTokens', 'planetTokens',
     'systemLore', 'planetLore',
     'valueTarget',
+    'bridge',
 ];
 
 function deepClone(v) {
@@ -58,6 +62,10 @@ export function swapHexes(editor, labelA, labelB) {
     // Update fills
     updateHexFill(hexA);
     updateHexFill(hexB);
+
+    // Bridges moved with their systems
+    renderHex(editor, labelA);
+    renderHex(editor, labelB);
 
     // Redraw wormhole icons
     removeWormholeOverlay(editor, labelA);

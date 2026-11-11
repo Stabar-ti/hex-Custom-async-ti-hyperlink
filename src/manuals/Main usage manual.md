@@ -127,6 +127,18 @@ A roundabout joins every lane that reaches its tile: a ship coming in by any of 
 
 > Hyperlane data is saved in the map JSON and restored on import.
 
+### Bridges and portals
+
+Two ways in: the rail's **⇶ Bridges** / **◉ Portals** tools (under Hyperlanes — arm one, then click tiles; each click opens that tile's editor, Esc or right-click puts the tool down), or the tile menu: right-click a tile with no tool armed → **Hyperlane ▸ Bridge… / Portals…**.
+
+- **Bridge…** (on a system tile) — lanes that run straight *through* the system along its rim and connect the tiles at their ends. A lane arriving at a bridged side carries on to the side it is paired with; the system itself does not border the tiles across its lane sides, and its own ships cannot use those lanes. Each lane is two sides and a direction (↔ two-way, → / ← one-way). The bot's rules are checked as you edit: each side carries at most one lane, lanes may not cross, and each lane needs its own stretch of rim. Drawn as a blue (two-way) or amber (one-way) lane just inside the rim; a one-way lane has a red bar where ships enter and a green one where they leave.
+- **Portals…** (on a roundabout hyperlane, or an empty tile, which becomes an *interchange*) — lettered portals A–Z, up to seven per tile, one per letter. A ship on the ring can take a portal to the ring of every other hyperlane with the same letter, at no movement cost. A portal can be two-way, **entry-only** (`>`: ships jump in here, never arrive) or **exit-only** (`<`: ships arrive here, never jump in). The first portal always sits in the centre. Type them as `A, 3=B>, C<` or the compact `0A3B>`, or pick a letter and direction per slot.
+- A bridge travels with its system (swap, copy/paste); portals stay with the hyperlane. Rotating a pasted block turns both.
+- Bridges and portals the bot would refuse are drawn with a red dashed outline and left out of the export, with a warning.
+- They export as `bridgeLanes` / `portals` in the map JSON, and as `bridge:` / `portal:` rows in the hyperlane Export text. Importing that text replaces bridges only if it has `bridge:` rows, and portals only if it has `portal:` rows.
+- The distance overlay follows both: through bridges (border anomalies count only where a lane starts or ends) and through portals.
+- Lore can change them in a game (Lore editor → **+ Map changes** → Set Bridge / Remove Bridge / Set Portals / Remove Portals, each with a picker): `!setbridge 305 108400000` / `!removebridge 305`, `!setportals 102 0A1C<3B>` / `!removeportals 102`. `!rotatehyperlane` turns a hyperlane's portals with its lanes.
+
 ---
 
 ## 4. Placing tiles — System Tiles

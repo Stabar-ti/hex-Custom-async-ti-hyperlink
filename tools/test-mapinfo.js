@@ -224,6 +224,49 @@ const one = (i, j) => withLink(emptyMatrix(), i, j);
         at('103')?.tileID === '83a' && at('103')?.customHyperlaneString === '');
 }
 
+// ── 7. Bridges and portals, end to end (the map-tool note's sample export) ──────
+
+{
+    const { exportMapInfo } = await import('../src/data/export.js');
+    const { parseTypedPortals } = await import('../src/modules/Hyperlanes/portalModel.js');
+    const typedStored = t => storedMatrixFromCustomString(t);
+    const BRIDGE = '0,0,0,2,0,0;0,0,1,0,0,0;0,1,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0';
+    const ONE_WAY = '0,0,0,2,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0;0,0,0,0,0,0';
+    const ROUNDABOUT = '1,0,1,0,1,0;0,0,0,0,0,0;1,0,1,0,1,0;0,0,0,0,0,0;1,0,1,0,1,0;0,0,0,0,0,0';
+    const base = (q, r, o) => ({ center: { x: 0, y: 0 }, q, r, customWormholes: new Set(), planets: [], ...o });
+    const editor = {
+        hyperlaneMatrices: readJson('hyperlanes.json'),
+        hexes: {
+            '000': base(0, 0, { realId: '19', matrix: emptyMatrix(), bridge: typedStored(BRIDGE) }),
+            101: base(0, -1, { realId: 'hl', matrix: typedStored(ONE_WAY) }),
+            102: base(1, -1, { realId: 'hl', matrix: typedStored(ROUNDABOUT), portals: parseTypedPortals('0=A, 1=C<, 3=B>').slots }),
+            103: base(1, 0, { realId: null, matrix: emptyMatrix(), portals: parseTypedPortals('0=A, 5=D').slots }),
+        },
+    };
+    const { mapInfo } = await exportMapInfo(editor, {});
+    const at = p => mapInfo.find(e => e.position === p);
+    check('note: 000 keeps its system and bridgeLanes', at('000')?.tileID === '19' && at('000')?.bridgeLanes === BRIDGE,
+        JSON.stringify(at('000')));
+    check('note: 101 is a one-way hyperlane, no bridge or portals',
+        at('101')?.customHyperlaneString === ONE_WAY && !('bridgeLanes' in at('101')) && !('portals' in at('101')));
+    check('note: 102 roundabout with its portals', at('102')?.customHyperlaneString === ROUNDABOUT
+        && at('102')?.portals === '0=A, 1=C<, 3=B>', JSON.stringify(at('102')));
+    check('note: 103 is an empty hl interchange', at('103')?.tileID === 'hl'
+        && at('103')?.customHyperlaneString === '' && at('103')?.portals === '0=A, 5=D', JSON.stringify(at('103')));
+
+    // The text Export: the note's exact line, in the bot's order (lanes, bridges, portals).
+    globalThis.document = /** @type {any} */ ({ getElementById: () => ({ value: '', style: {} }) });
+    const textBox = { value: '' };
+    globalThis.document.getElementById = (id) => (id === 'exportText' ? textBox : { style: {}, classList: { add() {}, remove() {} } });
+    try {
+        const { exportMap } = await import('../src/data/export.js');
+        exportMap(editor);
+    } catch { /* showModal may want more DOM; the text is written first */ }
+    check('note: text Export line', textBox.value === '101,100000000 102,a80a80a80 bridge:000,108400000 portal:102,0A1C<3B> portal:103,0A5D',
+        textBox.value);
+    delete globalThis.document;
+}
+
 // ── Report ────────────────────────────────────────────────────────────────────
 
 console.log(`\ntest-mapinfo: ${passed} passed, ${failures.length} failed`);

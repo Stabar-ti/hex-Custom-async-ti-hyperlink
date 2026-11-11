@@ -202,6 +202,37 @@ svg text {
   stroke-linejoin: round;
 }
 
+/* Hyperlane bridge: a lane trailing just inside a system's rim (bridgePortalDraw.js).
+   Blue two-way, amber one-way, as the bot draws them. */
+.bridge-glow, .bridge-core {
+  fill: none;
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+}
+.bridge-glow.bridge-twoway { stroke: rgba(0, 180, 255, 0.4); }
+.bridge-glow.bridge-oneway { stroke: rgba(255, 200, 40, 0.4); }
+.bridge-core.bridge-twoway { stroke: rgba(180, 200, 240, 0.95); }
+.bridge-core.bridge-oneway { stroke: rgba(240, 220, 170, 0.95); }
+.bridge-gate { stroke: #050a19; stroke-width: 0.6; }
+.bridge-gate-entry { fill: #e13c37; }
+.bridge-gate-exit { fill: #46e66e; }
+/* A bridge the bot would refuse (shared side, crossing, no room on the rim). */
+.bridge-invalid .bridge-core { stroke: #e13c37; stroke-dasharray: 3 2; }
+
+/* Hyperlane portals: lettered gates on a roundabout's ring. */
+.portal-halo { opacity: 0.3; }
+.portal-disc { fill: #0b1430; }
+.portal-connector-glow { opacity: 0.35; stroke-linecap: round; }
+.portal-connector { stroke-linecap: round; }
+.portal-letter, .portal-letter-shadow {
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+  pointer-events: none;
+}
+.portal-ring { stroke: rgba(180, 200, 240, 0.9); }
+/* Portals on a tile the bot won't keep them on (not a roundabout, not an hl). */
+.portals-invalid .portal-disc { stroke: #e13c37 !important; stroke-dasharray: 2 1.5; }
+
 /*──────────────────────────────────────────────────────────────────────────────
   Hyperlane drawing indicator — shows what the next click will do.
   Drawn into #hyperlane-indicator-layer by modules/Hyperlanes/hyperlaneIndicator.js.

@@ -884,6 +884,116 @@ const FAR = 9;   // far enough that nothing is accidentally axially adjacent
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// §16  Hyperlane bridges and portals (the bot's GridRule)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A stored bridge: lanes [a, b] two-way, or [a, b, true] one-way a → b. */
+function bridgeOf(...lanes) {
+    const m = emptyMatrix();
+    for (const [a, b, oneWay] of lanes) { m[a][b] = 1; if (!oneWay) m[b][a] = 1; }
+    return m;
+}
+/** A line A-B-C-D with B a system bridged by `lanes`; `o` adds per-hex extras. */
+function bridgedLine(lanes, o = {}) {
+    const hexes = line(4, o);
+    hexes[1].bridge = bridgeOf(...lanes);
+    return hexes;
+}
+
+expectDistances('§16 a bridge carries a lane through the system, which is not entered',
+    makeEditor(bridgedLine([[5, 2]])), 'A', 3, { A: 0, C: 1, D: 2 });
+// One way, SE (2) → NW (5): from C's side to A's, never back.
+expectDistances('§16 a one-way bridge is closed against its way',
+    makeEditor(bridgedLine([[2, 5, true]])), 'A', 3, { A: 0 });
+expectDistances('§16 …and open along it',
+    makeEditor(bridgedLine([[2, 5, true]])), 'C', 3, { C: 0, D: 1, A: 1 });
+{
+    // The bridged system's own units can't use its lane sides: from B, nothing.
+    expectDistances('§16 a bridged system does not border the tiles across its lane sides',
+        makeEditor(bridgedLine([[5, 2]])), 'B', 3, { B: 0 });
+}
+expectDistances('§16 a border anomaly where the bridge lane ends counts',
+    makeEditor(bridgedLine([[5, 2]], {
+        B: { borderAnomalies: { 2: ba('SPATIALTEAR') } },
+        C: { borderAnomalies: { 5: ba('SPATIALTEAR') } },
+    })), 'A', 3, { A: 0 });
+{
+    // Bridge on into a hyperlane: one lane, crossed for free, no border between them.
+    const hexes = bridgedLine([[5, 2]], {
+        B: { borderAnomalies: { 2: ba('SPATIALTEAR') } },
+        C: { baseType: '', matrix: bridgeOf([5, 2]), borderAnomalies: { 5: ba('SPATIALTEAR') } },
+    });
+    expectDistances('§16 a bridge runs on into a hyperlane with no border check between them',
+        makeEditor(hexes), 'A', 3, { A: 0, D: 1 });
+}
+{
+    // Two bridges in a row pass the lane on.
+    const hexes = line(4);
+    hexes[1].bridge = bridgeOf([5, 2]);
+    hexes[2].bridge = bridgeOf([5, 2]);
+    expectDistances('§16 a bridge passes the lane on to the next bridge', makeEditor(hexes), 'A', 3, { A: 0, D: 1 });
+}
+
+{
+    // A ship running along a nebula system's bridge never entered the nebula, so it is
+    // not stuck there (review fix: nebulaBlocker fired on the bridged system).
+    const hexes = bridgedLine([[5, 2]], { B: { effects: ['nebula'] } });
+    expectDistances('§16 a bridge through a nebula system does not trap the ship',
+        makeEditor(hexes), 'A', 3, { A: 0, C: 1, D: 2 });
+}
+{
+    // Two rifts side by side, the second bridged across the shared edge: flooding the
+    // first must not spill into the second (review fix: floodRiftCluster ignored bridges).
+    const hexes = line(4, { B: { effects: ['rift'] }, C: { effects: ['rift'] } });
+    hexes[2].bridge = bridgeOf([5, 2]);
+    const got = calculateDistancesFrom(makeEditor(hexes), 'A', 1);
+    check('§16 a rift flood does not step into a bridged system across its lane side',
+        got.C === undefined, JSON.stringify(got));
+}
+
+/**
+ * Two roundabouts far apart: A–R1 (spoke NW… side 5 only) and E–R2–F (spokes 5 and 2),
+ * with portals on both.
+ */
+function portalMap({ r1 = 'both', r2 = 'both', extra = [] } = {}) {
+    const ring1 = emptyMatrix(); ring1[5][5] = 1;
+    const ring2 = emptyMatrix(); ring2[5][5] = 1; ring2[2][2] = 1; ring2[5][2] = 1; ring2[2][5] = 1;
+    const hexes = [
+        mkHex('A', 0, 0), mkHex('R1', 1, 0, { baseType: '', matrix: ring1 }),
+        mkHex('E', 0, 5), mkHex('R2', 1, 5, { baseType: '', matrix: ring2 }), mkHex('F', 2, 5),
+        ...extra,
+    ];
+    hexes[1].portals = [{ slot: 0, letter: 'A', flow: r1 }];
+    hexes[3].portals = [{ slot: 0, letter: 'A', flow: r2 }];
+    return hexes;
+}
+
+expectDistances('§16 a portal jumps to the other ring with that letter, for free',
+    makeEditor(portalMap()), 'A', 3, { A: 0, E: 1, F: 1 });
+expectDistances('§16 ships never arrive through an entry-only portal',
+    makeEditor(portalMap({ r2: 'entry' })), 'A', 3, { A: 0 });
+expectDistances('§16 …but can jump in through it',
+    makeEditor(portalMap({ r2: 'entry' })), 'E', 3, { E: 0, F: 1, A: 1 });
+expectDistances('§16 ships never jump in through an exit-only portal',
+    makeEditor(portalMap({ r1: 'exit' })), 'A', 3, { A: 0 });
+{
+    // An empty hl with portals A and B links the two letters' networks.
+    const hexes = portalMap({ extra: [mkHex('I', 6, -6, { baseType: 'hyperlane' })] });
+    hexes[3].portals = [{ slot: 0, letter: 'B', flow: 'both' }];
+    hexes[5].portals = [{ slot: 0, letter: 'A', flow: 'both' }, { slot: 1, letter: 'B', flow: 'both' }];
+    expectDistances('§16 an interchange links its letters', makeEditor(hexes), 'A', 3, { A: 0, E: 1, F: 1 });
+    check('§16 the interchange itself is never a destination',
+        !('I' in calculateDistancesFrom(makeEditor(hexes), 'A', 3)));
+}
+{
+    // Portals on a straight lane (not a roundabout) are ignored, as the bot ignores them.
+    const hexes = portalMap();
+    const straight = emptyMatrix(); straight[5][2] = 1; straight[2][5] = 1;
+    hexes[1].matrix = straight;
+    expectDistances('§16 portals off a roundabout do nothing', makeEditor(hexes), 'A', 3, { A: 0 });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const total = passed + failures.length;
 console.log(`\ndistances: ${passed}/${total} checks passed, ${failures.length} failed`);

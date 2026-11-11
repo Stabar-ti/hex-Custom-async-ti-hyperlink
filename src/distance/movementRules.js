@@ -12,10 +12,14 @@
  */
 import { dbg } from './debug.js';
 import { borderAnomalyBlocks } from './borderAnomalyRules.js';
+import { hasPortals } from '../modules/Hyperlanes/portalModel.js';
 
-/** True when the hex has any hyperlane wiring at all. */
+/**
+ * True when the hex has any hyperlane wiring at all — lanes, or portals (an `hl` with
+ * portals and no lanes is an interchange, reached only through them).
+ */
 export function isHyperlane(hex) {
-  return !!(hex?.matrix?.some(row => row.includes(1)));
+  return !!(hex?.matrix?.some(row => row.includes(1))) || hasPortals(hex);
 }
 
 /**
@@ -78,11 +82,12 @@ export function borderAnomalyBlocker(ctx, fromHex, toHex, edge) {
 
 /**
  * Nebula blocks moving OUT, not in — a ship that enters one is stuck there.
- * The source is exempt: a fleet already sitting in a nebula can still leave.
+ * The source is exempt: a fleet already sitting in a nebula can still leave. So is a ship
+ * coming off a bridge through a nebula system: it ran along the rim and never entered.
  */
 export function nebulaBlocker(ctx, fromHex, toHex, edge) {
   if (!fromHex || !toHex) return false;
-  return !edge?.isSource && ctx.opts.useNebula && hasAnomaly(fromHex, 'nebula');
+  return !edge?.isSource && !edge?.alongBridge && ctx.opts.useNebula && hasAnomaly(fromHex, 'nebula');
 }
 
 /** Void tiles are not part of the map at all. */

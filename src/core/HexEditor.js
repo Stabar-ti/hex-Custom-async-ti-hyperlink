@@ -34,6 +34,9 @@ import { setSectorType } from '../features/sectorTypes.js';
 // Draw links between hexes (for hyperlanes)
 // Allow editor to create/erase hyperlane links with clicks
 import { installHyperlanes } from '../modules/Hyperlanes/hyperlaneUI.js';
+import { renderHex } from '../modules/Hyperlanes/hyperlaneRender.js';
+import { cloneBridge } from '../modules/Hyperlanes/bridgeModel.js';
+import { clonePortals } from '../modules/Hyperlanes/portalModel.js';
 // Main hex click handling logic (sector mode/effect mode/wormhole mode)
 import { registerClickHandler } from '../ui/uiEvents.js';
 // Theme support (auto-switch dark/light mode)
@@ -503,6 +506,8 @@ export default class HexEditor {
           planets: [...(h.planets || [])],
           realId: h.realId,
           matrix: h.matrix ? h.matrix.map(row => [...row]) : null,
+          bridge: cloneBridge(h.bridge),
+          portals: clonePortals(h.portals),
           customAdjacents: h.customAdjacents ? [...h.customAdjacents] : undefined,
           adjacencyOverrides: h.adjacencyOverrides ? { ...h.adjacencyOverrides } : undefined,
           borderAnomalies: h.borderAnomalies ? { ...h.borderAnomalies } : undefined,
@@ -530,6 +535,8 @@ export default class HexEditor {
         hex.planets = data.planets || [];
         hex.realId = data.realId || null;
         if (data.matrix) hex.matrix = data.matrix;
+        hex.bridge = data.bridge;
+        hex.portals = data.portals;
         if (data.customAdjacents) hex.customAdjacents = data.customAdjacents;
         if (data.adjacencyOverrides) hex.adjacencyOverrides = data.adjacencyOverrides;
         if (data.borderAnomalies) hex.borderAnomalies = data.borderAnomalies;
@@ -766,6 +773,15 @@ export default class HexEditor {
       hex.customWormholes = new Set();
       hex.inherentWormholes = new Set();
       hex.wormholes = new Set();
+
+      // A bridge belongs to the system and portals to the hyperlane: a cleared tile has
+      // neither (the bot's AddTile / RemoveTile drop them too). deleteAllSegments above
+      // already took the undo snapshot.
+      if (hex.bridge || hex.portals) {
+        hex.bridge = null;
+        hex.portals = null;
+        renderHex(this, label);
+      }
 
       // Clear new features
       // delete hex.customAdjacents;

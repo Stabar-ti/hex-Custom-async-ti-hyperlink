@@ -11,7 +11,8 @@
  *
  *   Wormholes ▸        toggle any of the bot's wormhole types on the tile
  *   Border anomalies ▸ pick a type, then click the neighbour whose edge it goes on
- *   Hyperlane ▸        start a lane here, or turn the tile into a roundabout
+ *   Hyperlane ▸        start a lane here, turn the tile into a roundabout, or edit its
+ *                      bridge (a system) or portals (a roundabout or empty hl)
  *   Sector ▸           put the tile — or the selection it is part of — in a map sector
  *   Lore ▸            open the lore editor on the system or one of its planets
  */
@@ -31,6 +32,9 @@ import { selectedHexes } from './hexSelection.js';
 import { canJoinSector, normalizeSectorName, sectorNameProblem, suggestSectorName } from './mapSectors.js';
 import { assignMapSector, knownMapSectors, mapSectorColours } from './mapSectorEditing.js';
 import { askText } from '../ui/askText.js';
+import { openBridgeDialog, openPortalsDialog, bridgeTileProblem, portalTileProblem } from '../ui/bridgePortalDialogs.js';
+import { describeBridge, hasBridge } from '../modules/Hyperlanes/bridgeModel.js';
+import { canHoldPortals, encodeCompact, hasPortals } from '../modules/Hyperlanes/portalModel.js';
 /** @typedef {import('../ui/contextMenu.js').MenuItem} MenuItem */
 
 /**
@@ -270,6 +274,38 @@ function hyperlaneItems(editor, label) {
             hint: roundaboutHint,
             title: roundaboutTitle,
             onSelect: () => placeRoundabout(editor, label),
+        },
+        ...bridgePortalItems(editor, label),
+    ];
+}
+
+/**
+ * Bridge… on a system, Portals… on a hyperlane or empty tile. The other one is listed
+ * disabled, with the reason, so both features can be found from any tile.
+ * @returns {MenuItem[]}
+ */
+function bridgePortalItems(editor, label) {
+    const hex = editor.hexes[label];
+    const bridgeProblem = bridgeTileProblem(editor, hex);
+    const portalProblem = portalTileProblem(editor, hex);
+    const portalHint = hasPortals(hex) ? encodeCompact(hex.portals) : (canHoldPortals(hex.matrix) ? '' : 'not a roundabout');
+    return [
+        { separator: true },
+        {
+            label: 'Bridge…',
+            icon: '⇶',
+            disabled: !!bridgeProblem && !hasBridge(hex),
+            hint: hasBridge(hex) ? describeBridge(hex.bridge).join(', ') : '',
+            title: bridgeProblem || 'Lanes that run through this system along its rim',
+            onSelect: () => openBridgeDialog(editor, label),
+        },
+        {
+            label: 'Portals…',
+            icon: '◉',
+            disabled: !!portalProblem && !hasPortals(hex),
+            hint: portalHint,
+            title: portalProblem || 'Lettered portals on this roundabout (or empty tile) linking it to every other with the same letter',
+            onSelect: () => openPortalsDialog(editor, label),
         },
     ];
 }

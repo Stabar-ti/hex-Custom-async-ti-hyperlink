@@ -18,7 +18,11 @@
 // ───────────────────────────────────────────────────────────────
 
 import { matrixToHex } from '../utils/matrix.js';
-import { customHyperlaneString, hyperlaneExportInfo, CUSTOM_HYPERLANE_TILE } from './hyperlaneIO.js';
+import {
+  bridgeExportInfo, customHyperlaneString, hyperlaneExportInfo, portalsExportInfo, CUSTOM_HYPERLANE_TILE
+} from './hyperlaneIO.js';
+import { clonePortals } from '../modules/Hyperlanes/portalModel.js';
+import { hasBridge } from '../modules/Hyperlanes/bridgeModel.js';
 import { showToast } from '../ui/uiToast.js';
 import { typeCodeMap } from '../constants/constants.js';
 import { showModal } from '../ui/uiModals.js';
@@ -41,23 +45,46 @@ import { loadWormholeTokenIndex, wormholeTokensForHex } from './wormholeTokens.j
  */
 export function exportMap(editor) {
   const out = [];
+  const bridges = [];
+  const portals = [];
   const ignored = [];
+  const skipped = [];
   for (const id in editor.hexes) {
-    const { tileID, lanes, ignoredByBot } = hyperlaneExportInfo(editor.hexes[id], editor.hyperlaneMatrices);
-    if (ignoredByBot) ignored.push(id);
-    if (!lanes || tileID !== CUSTOM_HYPERLANE_TILE) continue;
-    out.push(`${id},${matrixToHex(lanes)}`);
+    const hex = editor.hexes[id];
+    const info = hyperlaneExportInfo(hex, editor.hyperlaneMatrices);
+    if (info.ignoredByBot) ignored.push(id);
+    if (info.lanes && info.tileID === CUSTOM_HYPERLANE_TILE) out.push(`${id},${matrixToHex(info.lanes)}`);
+    // Bridges and portals ride along as `bridge:` / `portal:` rows (the bot's own Export):
+    // the bridge's stored matrix in the same 9-hex code, portals in their compact form.
+    const bridge = bridgeExportInfo(hex, exportTileId(hex, info), editor.hyperlaneMatrices);
+    if (bridge.problem) skipped.push(`${id} bridge: ${bridge.problem}`);
+    else if (bridge.text) bridges.push(`bridge:${id},${matrixToHex(hex.bridge)}`);
+    const portal = portalsExportInfo(hex, info);
+    if (portal.problem) skipped.push(`${id} portals: ${portal.problem}`);
+    else if (portal.compact) portals.push(`portal:${id},${portal.compact}`);
   }
 
-  document.getElementById('exportText').value = out.join(' ');
+  document.getElementById('exportText').value = [...out, ...bridges, ...portals].join(' ');
   showModal('exportModal');
   warnLanesIgnoredByBot(ignored);
+  warnSkippedForBot(skipped);
+}
+
+/** The tile id the JSON export gives a hex, as far as bridges care (no anonymising). */
+function exportTileId(hex, info) {
+  return info.lanes || info.tileID === CUSTOM_HYPERLANE_TILE ? info.tileID : String(hex.realId || hex.systemId || '');
 }
 
 /** Lanes drawn on a system tile: the bot reads lanes only on hyperlane tiles. */
 function warnLanesIgnoredByBot(labels) {
   if (!labels.length || typeof document === 'undefined') return;
   showToast(`Hyperlanes drawn on system tiles are ignored by the bot (it reads lanes only on hyperlane tiles): ${[...labels].sort(comparePositions).join(', ')}`, 'warning', 8000);
+}
+
+/** Bridges and portals the bot would refuse, so they were left out of the export. */
+function warnSkippedForBot(lines) {
+  if (!lines.length || typeof document === 'undefined') return;
+  showToast(`Left out of the export (the bot would refuse them): ${lines.join('; ')}`, 'warning', 10000);
 }
 
 /**
@@ -126,6 +153,8 @@ export function exportHyperlaneTilePositions(editor) {
  *   ao: adjacencyOverrides
  *   ba: borderAnomalies
  *   ln: links (matrix), stored form: a lane set in one direction only is one-way
+ *   br: bridge (stored 0/1 matrix, zero diagonal) on a system tile
+ *   po: portals [{slot, letter, flow}] on a hyperlane tile
  *
  * The top-level `hlDirected: true` marks a file written since one-way lanes exist. Older
  * files could hold a lane set in one direction that was meant two-way, so importFullState
@@ -148,6 +177,8 @@ export function exportFullState(editor) {
     // the live map, so anything that later touched the matrix rewrote data that
     // had already been "exported".
     if (hex.matrix && hex.matrix.flat().some(x => x !== 0)) h.ln = hex.matrix.map(row => [...row]);
+    if (hasBridge(hex)) h.br = hex.bridge.map(row => [...row]);
+    if (hex.portals?.length) h.po = clonePortals(hex.portals);
 
     // Add system lore if it exists (array of entries; legacy single objects normalize)
     const systemEntries = normalizeLoreEntries(hex.systemLore).filter(isNonEmptyLoreEntry);
@@ -389,6 +420,7 @@ export async function exportMapInfo(editor, options = {}) {
   const mapInfo = [];
   // System tiles with lanes drawn on them: written, but the bot reads lanes only on `hl`.
   const lanesIgnoredByBot = [];
+  const skippedForBot = [];
 
   // Map sectors: every sector goes in the top-level `sectors` list (with its bot form when it
   // has one), and the ones that are exactly a bot circle or cluster on a tile also get the
@@ -536,7 +568,8 @@ export async function exportMapInfo(editor, options = {}) {
     // Create hex entry
     // Determine tileID based on baseType and other conditions
     let tileID = '';
-    if (lanes.lanes) {
+    if (lanes.lanes || lanes.tileID === CUSTOM_HYPERLANE_TILE) {
+      // (An `hl` with no lanes is a portal interchange.)
       // A hex can carry drawn links AND be a real system tile. This used to hardcode 'hl',
       // which threw the system away: the tile exported as a blank hyperlane and the planets
       // it held were gone from the map AsyncTI4 received. hyperlaneExportInfo keeps the
@@ -579,6 +612,15 @@ export async function exportMapInfo(editor, options = {}) {
     const nativeSector = sectorExport.native.get(label);
     if (nativeSector) hexEntry.sector = nativeSector;
 
+    // Bridges (typed matrix on a system) and portals (on an `hl`). Both are left out when
+    // empty, and left out — with a warning — when the bot would refuse them.
+    const bridge = bridgeExportInfo(hex, tileID, editor.hyperlaneMatrices);
+    if (bridge.problem) skippedForBot.push(`${label} bridge: ${bridge.problem}`);
+    else if (bridge.text) hexEntry.bridgeLanes = bridge.text;
+    const portalOut = portalsExportInfo(hex, lanes);
+    if (portalOut.problem) skippedForBot.push(`${label} portals: ${portalOut.problem}`);
+    else if (portalOut.text) hexEntry.portals = portalOut.text;
+
     // Only add hexEntry if tileID is assigned (required field)
     // If there's no tileID, omit the entire position even if there's other data
     if (tileID && tileID !== '') {
@@ -587,6 +629,7 @@ export async function exportMapInfo(editor, options = {}) {
   });
 
   warnLanesIgnoredByBot(lanesIgnoredByBot);
+  warnSkippedForBot(skippedForBot);
 
   const result = { mapInfo };
 

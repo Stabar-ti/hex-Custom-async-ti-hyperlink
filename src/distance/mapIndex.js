@@ -13,6 +13,9 @@
 import { buildCoordIndex } from '../utils/hexGrid.js';
 import { cloneMatrix } from '../modules/Hyperlanes/hyperlaneModel.js';
 import { parseWormholeKey, wormholeArrives } from '../constants/constants.js';
+import { bridgeSides, hasBridge, normalizedBridge } from '../modules/Hyperlanes/bridgeModel.js';
+import { canHoldPortals, hasPortals, letsShipsArrive } from '../modules/Hyperlanes/portalModel.js';
+import { isHyperlaneConduit } from './movementRules.js';
 
 /**
  * `wormholeIndex` maps a wormhole type to the labels a link of that type can ARRIVE at.
@@ -22,6 +25,10 @@ import { parseWormholeKey, wormholeArrives } from '../constants/constants.js';
  *   coordToLabel: Map<string,string>,
  *   wormholeIndex: Map<string,Set<string>>,
  *   matrixOf: (label:string) => number[][]|null,
+ *   bridgeOf: (label:string) => number[][]|null,
+ *   laneSidesOf: (label:string) => number[],
+ *   portalsOf: (label:string) => Array<{slot:number, letter:string, flow:string}>,
+ *   portalTargets: (letter:string) => string[],
  * }}
  */
 export function buildMapIndex(editor) {
@@ -64,7 +71,32 @@ export function buildMapIndex(editor) {
     return copy;
   }
 
-  return { coordToLabel, wormholeIndex, matrixOf };
+  // Bridges: lanes through a SYSTEM (a conduit's own lanes are its matrix). Portals: on a
+  // hyperlane that can hold them (a roundabout, or an empty interchange), as the bot's
+  // HyperlanePortals.slotsOf. `portalArrivals` maps a letter to where a ship can arrive.
+  const bridges = new Map();
+  const portals = new Map();
+  const portalArrivals = new Map();
+  for (const [label, h] of Object.entries(editor.hexes)) {
+    if (hasBridge(h) && !isHyperlaneConduit(h)) {
+      const b = normalizedBridge(h.bridge);
+      if (b) bridges.set(label, { matrix: b, sides: bridgeSides(b) });
+    }
+    if (hasPortals(h) && isHyperlaneConduit(h) && canHoldPortals(h.matrix)) {
+      portals.set(label, h.portals);
+      for (const p of h.portals) {
+        if (!letsShipsArrive(p)) continue;
+        if (!portalArrivals.has(p.letter)) portalArrivals.set(p.letter, []);
+        portalArrivals.get(p.letter).push(label);
+      }
+    }
+  }
+  const bridgeOf = (label) => bridges.get(label)?.matrix ?? null;
+  const laneSidesOf = (label) => bridges.get(label)?.sides ?? [];
+  const portalsOf = (label) => portals.get(label) ?? [];
+  const portalTargets = (letter) => portalArrivals.get(letter) ?? [];
+
+  return { coordToLabel, wormholeIndex, matrixOf, bridgeOf, laneSidesOf, portalsOf, portalTargets };
 }
 
 /** Label at the given axial coordinate, or null. */

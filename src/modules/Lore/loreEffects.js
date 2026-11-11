@@ -13,6 +13,10 @@
  *    per-player conditions (?red · ?!red · ?faction:winnu · ?round:3-6).
  */
 
+import { bridgeProblem } from '../Hyperlanes/bridgeModel.js';
+import { hexToMatrix } from '../../utils/matrix.js';
+import { parseAnyPortals } from '../Hyperlanes/portalModel.js';
+
 const CHOICE_MARKER = '!choice';
 const ROLL_MARKER_RE = /^!roll\s+(\d+)d(\d+)$/i;
 const BIN_TAG_RE = /^(\d+(?:-\d+)?):\s*([\s\S]*)$/;
@@ -42,6 +46,16 @@ export const EFFECT_VERBS = [
     { verb: 'settile', label: 'Set Tile', template: 'settile 305 41', group: 'map', aliases: ['stl'] },
     { verb: 'rotatehyperlane', label: 'Rotate Hyperlane', template: 'rotatehyperlane 305 1', group: 'map', aliases: ['rhl'] },
     { verb: 'sethyperlane', label: 'Set Hyperlane', template: 'sethyperlane 305 000100000000000000100000000000000000', group: 'map', aliases: ['shl'] },
+    {
+        verb: 'setbridge', label: 'Set Bridge', template: 'setbridge 305 108400000', group: 'map', aliases: ['sbr'],
+        hint: 'Lanes that run through a system along its rim. The 9-hex-char matrix, as in the bridge: rows of the hyperlane Export.'
+    },
+    { verb: 'removebridge', label: 'Remove Bridge', template: 'removebridge 305', group: 'map', aliases: ['rbr'] },
+    {
+        verb: 'setportals', label: 'Set Portals', template: 'setportals 305 0A3B>', group: 'map', aliases: ['spor'],
+        hint: 'Lettered portals on a roundabout (or empty hl): compact 0A3B> or A,3=B>,C< (no spaces). > entry-only, < exit-only.'
+    },
+    { verb: 'removeportals', label: 'Remove Portals', template: 'removeportals 305', group: 'map', aliases: ['rpor'] },
     // FoW-only effects — these never touch the real board. They only override what ONE
     // receiving player's client shows for a position that's currently fogged/unknown to
     // them (their personal "last seen" sighting), e.g. to plant a false decoy or reveal a hint.
@@ -61,13 +75,15 @@ export const VERB_ALIASES = {
     tkn: 'token', runi: 'removeunit', rtkn: 'removetoken',
     rcc: 'removecc', clru: 'clearunits', rtec: 'removetech',
     afog: 'addfogtile', rfog: 'removefogtile',
-    stl: 'settile', rhl: 'rotatehyperlane', shl: 'sethyperlane'
+    stl: 'settile', rhl: 'rotatehyperlane', shl: 'sethyperlane',
+    sbr: 'setbridge', rbr: 'removebridge', spor: 'setportals', rpor: 'removeportals'
 };
 
 /** Verbs that mutate shared board state — fire once per trigger, never per recipient. */
 export const MAP_CHANGE_VERBS = new Set([
     'unit', 'plastic', 'token', 'removeunit', 'removetoken', 'swap',
-    'cc', 'removecc', 'clearunits', 'settile', 'rotatehyperlane', 'sethyperlane'
+    'cc', 'removecc', 'clearunits', 'settile', 'rotatehyperlane', 'sethyperlane',
+    'setportals', 'removeportals', 'setbridge', 'removebridge'
 ]);
 
 /** Verbs that act on the entry's own tile unless an @target redirects them — phase lore
@@ -431,6 +447,16 @@ function isValidEncodedMatrix(arg) {
     return /^[01]{36}$/.test(s) || /^[0-9a-fA-F]{9}$/.test(s);
 }
 
+/**
+ * The 6×6 0/1 matrix an encoded argument stands for (CustomHyperlaneService.decodeMatrix):
+ * the 9-hex form through the shared codec, or the legacy 36-character 0/1 string.
+ */
+function decodeEncodedMatrix(arg) {
+    const s = String(arg).trim();
+    if (s.length === 9) return hexToMatrix(s);
+    return Array.from({ length: 6 }, (_, i) => s.slice(i * 6, i * 6 + 6).split('').map(Number));
+}
+
 /** Save-time syntax check for one "?condition" token (mirror of validateCondition). */
 function validateConditionToken(ctx, condition) {
     const body = condition.startsWith('!') ? condition.substring(1) : condition;
@@ -569,6 +595,41 @@ function validateOperands(ctx, p, where) {
                 if (!isValidEncodedMatrix(a[1])) {
                     problems.push(`invalid hyperlane pattern "${a[1]}" — expected a plain 36-character 0/1 string (or the bot's compact 9-hex-char form)${where}`);
                 }
+            }
+            break;
+        case 'setbridge':
+            if (a.length < 2) {
+                problems.push(`"setbridge" needs "<position> <encodedMatrix>" — use the 9-hex-char form (the Set Bridge button's "copy from a hex", or the hyperlane Export's bridge: rows)${where}`);
+            } else {
+                if (!isValidPosition(ctx, a[0])) problems.push(`invalid position "${a[0]}"${where}`);
+                if (!isValidEncodedMatrix(a[1])) {
+                    problems.push(`invalid encoded matrix "${a[1]}" — expected the 9-hex-char form (or a 36-character 0/1 string)${where}`);
+                } else {
+                    const problem = bridgeProblem(decodeEncodedMatrix(a[1]));
+                    if (problem) problems.push(`"setbridge" ${problem}${where}`);
+                }
+            }
+            break;
+        case 'setportals':
+            if (a.length < 2) {
+                problems.push(`"setportals" needs "<position> <slots>", e.g. "!setportals 205 0A3B>"${where}`);
+            } else {
+                if (!isValidPosition(ctx, a[0])) problems.push(`invalid position "${a[0]}"${where}`);
+                const { problem } = parseAnyPortals(a[1]);
+                if (problem) problems.push(`"setportals" ${problem}${where}`);
+                // The bot reads only the word after the position, so anything after a space
+                // is silently dropped: "A, 3=B>" sets A alone.
+                if (a.length > 2) {
+                    problems.push(`"setportals" takes the portals as one word — no spaces ("${a.slice(1).join('')}"), or the compact form like "0A3B>"; only "${a[1]}" would be used${where}`);
+                }
+            }
+            break;
+        case 'removebridge':
+        case 'removeportals':
+            if (a.length === 0) {
+                problems.push(`"${p.verb}" needs a position, e.g. "!${p.verb} 305"${where}`);
+            } else if (!isValidPosition(ctx, a[0])) {
+                problems.push(`invalid position "${a[0]}"${where}`);
             }
             break;
         case 'vp':

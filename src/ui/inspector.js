@@ -29,6 +29,8 @@ import { toolLabel } from './statusBar.js';
 import { DISTANCE_TOOL_CHANGED } from '../features/distanceTool.js';
 import { MAP_SECTORS_CHANGED } from '../features/mapSectorEditing.js';
 import { describeWormhole } from '../constants/constants.js';
+import { describeBridge, hasBridge } from '../modules/Hyperlanes/bridgeModel.js';
+import { describePortals, hasPortals } from '../modules/Hyperlanes/portalModel.js';
 
 /**
  * One label/value line.
@@ -205,6 +207,8 @@ function renderHex(editor, label) {
     if (anomalies.length) box.appendChild(field('Border', `${anomalies.length} side(s)`));
 
     if (!isMatrixEmpty(hex.matrix)) box.appendChild(field('Hyperlanes', 'yes'));
+    if (hasBridge(hex)) box.appendChild(field('Bridge', describeBridge(hex.bridge).join(', ')));
+    if (hasPortals(hex)) box.appendChild(field('Portals', describePortals(hex.portals)));
 
     return box;
 }

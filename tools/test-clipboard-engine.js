@@ -451,6 +451,42 @@ const cb = await import('../src/features/tileClipboard.js');
     check('and an empty history', cb.clips().length === 0);
 }
 
+{
+    // A bridge (on a system) and portals (on a roundabout) travel with the block and turn
+    // with it: bridge sides like the lanes, portal ring slots one step on, the centre fixed.
+    const editor = makeEditor();
+    const sys = editor.hexes['101'];
+    sys.realId = '19';
+    sys.bridge = zeros(); sys.bridge[0][3] = 1; sys.bridge[3][0] = 1;
+    const ring = editor.hexes['102'];
+    ring.matrix = zeros(); ring.matrix[0][0] = 1; ring.matrix[3][3] = 1; ring.matrix[0][3] = 1; ring.matrix[3][0] = 1;
+    ring.links = ring.matrix;
+    ring.portals = [{ slot: 0, letter: 'A', flow: 'both' }, { slot: 6, letter: 'B', flow: 'entry' }];
+    const tiles = captureTiles(editor, ['101', '102']);
+    check('a bridge is captured', eq(tiles[0].bridge, sys.bridge), JSON.stringify(tiles[0].bridge));
+    check('portals are captured', tiles[1].portals?.length === 2, JSON.stringify(tiles[1].portals));
+    check('the capture is a copy', tiles[0].bridge !== sys.bridge && tiles[1].portals !== ring.portals);
+    rotateTiles(editor, tiles, { q: 0, r: -1 }, 1);
+    check('the bridge turns with the block', tiles[0].bridge[1][4] === 1 && tiles[0].bridge[4][1] === 1 && tiles[0].bridge[0][3] === 0,
+        JSON.stringify(tiles[0].bridge));
+    check('portal ring slots turn, the centre stays',
+        eq(tiles[1].portals, [{ slot: 0, letter: 'A', flow: 'both' }, { slot: 1, letter: 'B', flow: 'entry' }]),
+        JSON.stringify(tiles[1].portals));
+}
+
+{
+    // Pasting writes the bridge and portals the block had — and clears the ones it didn't.
+    const editor = makeEditor();
+    editor.hexes['101'].realId = '19';
+    editor.hexes['101'].bridge = zeros();
+    editor.hexes['101'].bridge[1][4] = 1;
+    editor.hexes['000'].portals = [{ slot: 0, letter: 'Z', flow: 'both' }];
+    const tiles = captureTiles(editor, ['101']);
+    applyTiles(editor, tiles, 0, 1);          // 101 (0,-1) -> 000 (0,0)
+    check('paste carries the bridge', editor.hexes['000'].bridge?.[1]?.[4] === 1, JSON.stringify(editor.hexes['000'].bridge));
+    check('…and replaces what the destination had', editor.hexes['000'].portals === null, JSON.stringify(editor.hexes['000'].portals));
+}
+
 // ── report ───────────────────────────────────────────────────────────────────
 
 console.log(`\nclipboard engine: ${passed} checks passed, ${failures.length} failed`);

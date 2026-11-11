@@ -25,7 +25,8 @@ import * as state from './loreState.js';
 import {
     openNumberPicker, openUnitPicker, openTokenPicker, openTargetPicker, openSwapPicker,
     openColorPicker, openTechPicker, openSetTilePicker, openRotateHyperlanePicker,
-    openSetHyperlanePicker, openFogTilePicker, openConditionPicker, openListPicker
+    openSetHyperlanePicker, openFogTilePicker, openConditionPicker, openListPicker,
+    openSetBridgePicker, openSetPortalsPicker, openRemoveBridgeOrPortalsPicker
 } from './loreEffectPickers.js';
 
 // Verbs whose only operand is an amount — a quick -3..+3 (or positive-only) picker.
@@ -119,6 +120,9 @@ async function pickArgs(verb, anchorEl, block) {
     if (verb === 'settile') return await openSetTilePicker(anchorEl, editor);
     if (verb === 'rotatehyperlane') return await openRotateHyperlanePicker(anchorEl, editor);
     if (verb === 'sethyperlane') return await openSetHyperlanePicker(anchorEl, editor);
+    if (verb === 'setbridge') return await openSetBridgePicker(anchorEl, editor);
+    if (verb === 'setportals') return await openSetPortalsPicker(anchorEl, editor);
+    if (verb === 'removebridge' || verb === 'removeportals') return await openRemoveBridgeOrPortalsPicker(anchorEl, editor, verb);
     if (verb === 'addfogtile') return await openFogTilePicker(anchorEl, editor);
 
     return undefined; // no picker for this verb — fall back to the spec's template
@@ -129,7 +133,7 @@ function hasPicker(verb) {
     return !!NUMERIC_PICKER_RANGES[verb] || [
         'unit', 'removeunit', 'token', 'removetoken', 'swap', 'tech', 'removetech',
         'cc', 'removecc', 'clearunits', 'settile', 'rotatehyperlane', 'sethyperlane',
-        'addfogtile'
+        'setbridge', 'setportals', 'removebridge', 'removeportals', 'addfogtile'
     ].includes(verb);
 }
 

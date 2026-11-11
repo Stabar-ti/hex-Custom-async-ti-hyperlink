@@ -21,6 +21,8 @@
 
 import { isMatrixEmpty } from '../utils/matrix.js';
 import { rotated } from '../modules/Hyperlanes/hyperlaneModel.js';
+import { cloneBridge, rotatedBridge } from '../modules/Hyperlanes/bridgeModel.js';
+import { clonePortals, rotatedPortals } from '../modules/Hyperlanes/portalModel.js';
 import { markRealIDUsed } from '../ui/uiFilters.js';
 import { drawMatrixLinks } from './hyperlanes.js';
 import { updateHexWormholes, removeWormholeOverlay } from './wormholes.js';
@@ -49,6 +51,18 @@ export const DEFAULT_COPY_OPTIONS = Object.freeze({
  * @returns {any} the tile record, or null when the hex does not exist
  */
 export function captureTile(editor, label, opts = DEFAULT_COPY_OPTIONS) {
+    const tile = captureTileContent(editor, label, opts);
+    if (!tile) return tile;
+    // A bridge (on a system) and portals (on a hyperlane) go wherever the tile goes.
+    const hex = editor.hexes[label];
+    const bridge = cloneBridge(hex.bridge);
+    const portals = clonePortals(hex.portals);
+    if (bridge) tile.bridge = bridge;
+    if (portals?.length) tile.portals = portals;
+    return tile;
+}
+
+function captureTileContent(editor, label, opts) {
     const hex = editor.hexes[label];
     if (!hex) return null;
     // RealID tile
@@ -234,6 +248,9 @@ function rotateEdgeData(tile, dir) {
     // the implementation that used to sit here (tools/test-hyperlanes.js).
     if (tile.matrix) tile.matrix = rotated(tile.matrix, dir);
     if (tile.links) tile.links = rotated(tile.links, dir);
+    // A bridge's sides and portals' ring slots turn with the block, as the lanes do.
+    if (tile.bridge) tile.bridge = rotatedBridge(tile.bridge, dir);
+    if (tile.portals) tile.portals = rotatedPortals(tile.portals, dir);
     if (tile.borderAnomalies) {
         if (Array.isArray(tile.borderAnomalies)) {
             tile.borderAnomalies = rotateArr(tile.borderAnomalies);
@@ -468,6 +485,21 @@ export function applyTiles(editor, tiles, dq, dr) {
         // ---- TOKENS: Restore system and planet tokens ----
         hex.systemTokens = h.systemTokens ? [...h.systemTokens] : [];
         hex.planetTokens = h.planetTokens ? JSON.parse(JSON.stringify(h.planetTokens)) : {};
+    }
+
+    // Bridges and portals, after every branch above (several end early): the destination
+    // gets exactly what the copied tile had, nothing included. Each hex was saved above.
+    for (const data of tiles) {
+        if (!data) continue;
+        const id = at.get(coordKey(data.q + dq, data.r + dr));
+        const hex = id && editor.hexes[id];
+        if (!hex) continue;
+        const bridge = cloneBridge(data.bridge);
+        const portals = clonePortals(data.portals);
+        if (!bridge && !portals?.length && !hex.bridge && !hex.portals) continue;
+        hex.bridge = bridge;
+        hex.portals = portals?.length ? portals : null;
+        drawMatrixLinks(editor, id, hex.matrix);
     }
 }
 

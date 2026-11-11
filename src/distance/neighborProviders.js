@@ -30,8 +30,12 @@ import { parseWormholeKey, wormholeDeparts } from '../constants/constants.js';
 export function axialNeighbors(ctx, hex, _label) {
   const { editor, index } = ctx;
   if (!hasAxialCoords(hex)) return [];
+  // A bridged system does not border the tiles across its lane sides: those edges belong
+  // to the lanes (GridRule.traverse, laneOnlySides).
+  const laneOnly = index.laneSidesOf?.(_label) ?? [];
   const out = [];
   for (let dirIdx = 0; dirIdx < 6; dirIdx++) {
+    if (laneOnly.includes(dirIdx)) continue;
     const dir = editor.edgeDirections[dirIdx];
     const label = labelAt(index, hex.q + dir.q, hex.r + dir.r);
     if (!label) continue;

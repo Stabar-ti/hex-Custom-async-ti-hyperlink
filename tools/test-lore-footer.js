@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path';
 
 import {
     getEffectLines, getDisplayFooter, getGate, parseEffectLine,
-    serializeEffectBody, canSerializeEffect
+    serializeEffectBody, canSerializeEffect, validateLoreEffects
 } from '../src/modules/Lore/loreEffects.js';
 import {
     parseFooterDoc, serializeFooterDoc, checkFooterRoundTrip, flavourProblem
@@ -110,7 +110,9 @@ const EFFECT_LINES = [
     'removeunit neutral 3 infantry mr', 'swap 203 401', 'cc red',
     'unit red 2 infantry @305', 'tg +2 ?red', 'tg +2 ?!faction:winnu',
     'unit red 2 infantry @305 ?red ?round:3-6',
-    'accept:tg +2', 'reject:tg -1', '2-10:ac 1', '15:vp 1', 'ACCEPT:TG +2'
+    'accept:tg +2', 'reject:tg -1', '2-10:ac 1', '15:vp 1', 'ACCEPT:TG +2',
+    'setbridge 305 108400000', 'sbr 305 108400000', 'removebridge 305', 'rbr 305',
+    'setportals 102 0A1C<3B>', 'spor 102 A,3=B>,C<', 'removeportals 102', 'rpor 102'
 ];
 
 for (const line of EFFECT_LINES) {
@@ -268,6 +270,38 @@ for (const footer of corpus) {
     check('...and the bot still reads it identically',
         JSON.stringify(getEffectLines(original).map(parseEffectLine))
         === JSON.stringify(getEffectLines(rebuilt).map(parseEffectLine)));
+}
+
+// ── 3. bridge / portal effects (mirror of the bot's LoreEffects validation) ─────
+
+{
+    const ctx = { editor: { hexes: { 305: {}, 102: {} } } };
+    const problems = (footerText) => validateLoreEffects({ footerText }, ctx);
+    const ok = (footer) => check('valid effect', problems(footer).length === 0, `${footer}: ${problems(footer).join('; ')}`);
+    const bad = (footer, re) => {
+        const got = problems(footer);
+        check('invalid effect is reported', got.some(p => re.test(p)), `${footer}: ${JSON.stringify(got)}`);
+    };
+    ok('!setbridge 305 108400000');
+    ok('!sbr 305 108400000');
+    ok('!removebridge 305');
+    ok('!setportals 102 0A1C<3B>');
+    ok('!spor 102 A,3=B>,C<');
+    ok('!rpor 102');
+    ok('The rift opens. !setportals 102 0A');
+    bad('!setbridge 305', /needs/);
+    bad('!setbridge 305 1084', /invalid encoded matrix/);
+    bad('!setbridge 999 108400000', /invalid position/);
+    bad('!setbridge 305 102020400', /cross on the rim/);        // N-S with NE-SW
+    bad('!setbridge 305 800000000', /diagonal/);                // N to itself
+    bad('!setportals 102', /needs/);
+    bad('!setportals 102 1=A,1=B', /Slot 1 is listed twice/);
+    bad('!setportals 102 1=A,2=a', /Letter A is used twice/);
+    bad('!setportals 102 7=A', /isn't a portal/);
+    bad('!rbr', /needs a position/);
+    bad('!setportals 102 A, 3=B>', /one word/);   // the bot reads only "A,"
+    bad('!setbridge 305 800000001', /diagonal/);
+    bad('!removeportals 999', /invalid position/);
 }
 
 // ── report ────────────────────────────────────────────────────────────────────

@@ -38,6 +38,8 @@ function setField(id, text) {
 function modeLabel(mode) {
     if (!mode || mode === 'none' || mode === '' || mode === 'select') return 'none';
     if (mode === 'token-selection') return 'token placement';
+    if (mode === 'bridge-pick') return 'bridges (click a system)';
+    if (mode === 'portal-pick') return 'portals (click a roundabout)';
     // 'custom-adj-single' → 'custom adj single'
     return String(mode).replace(/[-_]/g, ' ');
 }

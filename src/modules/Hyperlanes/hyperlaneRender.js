@@ -22,6 +22,10 @@ import { drawPlan } from './hyperlaneModel.js';
 import { drawSegment, drawSideArrow, drawRoundabout } from '../../draw/hyperlaneDraw.js';
 import { enforceSvgLayerOrder } from '../../draw/enforceSvgLayerOrder.js';
 import { sectorColors } from '../../constants/constants.js';
+import { drawBridge, drawPortals } from '../../draw/bridgePortalDraw.js';
+import { bridgeProblem, hasBridge } from './bridgeModel.js';
+import { canHoldPortals, hasPortals } from './portalModel.js';
+import { bridgeHostProblem, portalHostProblem } from '../../data/hyperlaneIO.js';
 
 export const HYPERLANE_LAYER_ID = 'hyperlane-layer';
 
@@ -55,7 +59,8 @@ export function ensureHyperlaneLayer(svg) {
  */
 export function updateHyperlaneBaseType(hex) {
     if (!hex?.polygon) return;
-    const hasHL = hex.matrix?.some(row => row.some(cell => cell !== 0));
+    // Portals make a hyperlane too: an `hl` with portals and no lanes is an interchange.
+    const hasHL = hex.matrix?.some(row => row.some(cell => cell !== 0)) || hasPortals(hex);
     if (hasHL && hex.baseType === '') {
         hex.baseType = 'hyperlane';
         hex.polygon.setAttribute('fill', sectorColors['hyperlane']);
@@ -108,6 +113,27 @@ export function renderHex(editor, label) {
     if (roundabout.length) {
         drawRoundabout(layer, { center: hex.center, sides: roundabout, radius, viaLabel: label, roles });
     }
+    renderBridgeAndPortals(editor, hex, label, layer, radius, roundabout.length > 0);
+}
+
+/**
+ * A hex's bridge and portals, over its lanes. Either is drawn as a warning when the bot
+ * would refuse it, rather than hidden: the data is kept until the user fixes or removes it.
+ */
+function renderBridgeAndPortals(editor, hex, label, layer, radius, hasRing) {
+    if (hasBridge(hex)) {
+        drawBridge(layer, {
+            center: hex.center, radius, viaLabel: label, bridge: hex.bridge,
+            invalid: !!(bridgeHostProblem(hex, editor.hyperlaneMatrices) || bridgeProblem(hex.bridge))
+        });
+    }
+    if (hasPortals(hex)) {
+        drawPortals(layer, {
+            center: hex.center, radius, viaLabel: label, portals: hex.portals,
+            withRing: !hasRing,
+            invalid: !!portalHostProblem(hex, editor.hyperlaneMatrices) || !canHoldPortals(hex.matrix)
+        });
+    }
 }
 
 /**
@@ -151,4 +177,7 @@ export function clearHex(editor, label) {
     if (Array.isArray(hex.matrix)) for (const row of hex.matrix) row.fill(0);
     updateHyperlaneBaseType(hex);
     hex.polygon?.classList.remove('selected');
+    // Lanes only: a bridge or portals on the hex stay (an `hl` with portals and no lanes is
+    // an interchange), so they are drawn again. HexEditor.clearAll drops them too.
+    if (hasBridge(hex) || hasPortals(hex)) renderHex(editor, label);
 }

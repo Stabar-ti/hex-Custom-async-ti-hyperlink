@@ -1,6 +1,8 @@
 // ui/HexHoverInfo2.js
 // New approach: decoupled from overlays popup, robust to dynamic UI
 import { describeWormhole } from '../constants/constants.js';
+import { describeBridge, hasBridge } from '../modules/Hyperlanes/bridgeModel.js';
+import { describePortals, hasPortals } from '../modules/Hyperlanes/portalModel.js';
 
 /**
  * Attach tile hover info logic to the editor.
@@ -142,6 +144,8 @@ export function setupHexHoverInfo(editor) {
             } else {
                 html += `<b>Tokens:</b> -<br>`;
             }
+            if (hasBridge(hex)) html += `<b>Bridge:</b> ${describeBridge(hex.bridge).join(', ')}<br>`;
+            if (hasPortals(hex)) html += `<b>Portals:</b> ${describePortals(hex.portals)}<br>`;
             if (matrix && matrix.length) {
                 html += `<b>Hyperlane Matrix:</b><pre>${matrix.map(row => row.join(' ')).join('\n')}</pre>`;
             }

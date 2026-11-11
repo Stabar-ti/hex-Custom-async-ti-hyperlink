@@ -11,7 +11,12 @@ import { hexToMatrix, isMatrixEmpty } from '../utils/matrix.js';
 import { drawMatrixLinks } from '../features/hyperlanes.js';
 import { updateHexWormholes } from '../features/wormholes.js';
 import { loadWormholeTokenIndex, wormholeKeysForToken } from './wormholeTokens.js';
-import { storedMatrixFromCustomString, staticHyperlaneMatrix, upgradeLegacyLanes } from './hyperlaneIO.js';
+import {
+  bridgeFromLanesString, portalsFromString, storedMatrixFromCustomString, staticHyperlaneMatrix,
+  upgradeLegacyLanes, CUSTOM_HYPERLANE_TILE
+} from './hyperlaneIO.js';
+import { bridgeProblem, normalizedBridge } from '../modules/Hyperlanes/bridgeModel.js';
+import { canHoldPortals, normalizedPortals, parseAnyPortals } from '../modules/Hyperlanes/portalModel.js';
 import { normalizeWormholeType } from '../constants/constants.js';
 import { markRealIDUsed, beginBatch, endBatch, clearRealIDUsage } from '../ui/uiFilters.js';
 import { redrawAllRealIDOverlays } from '../features/realIDsOverlays.js';
@@ -61,19 +66,96 @@ function warnUnresolvedTileIds(editor, unresolvedTileIds) {
 }
 
 /**
- * Import map adjacency from a space-separated list of label,hexMatrix pairs.
+ * Imports the bot's hyperlane manager Export: space-separated rows of
+ *   `<pos>,<9 hex>`           a custom hyperlane (stored matrix),
+ *   `bridge:<pos>,<9 hex>`    a bridge on a system (stored matrix),
+ *   `portal:<pos>,<compact>`  portals, e.g. `0A1C<3B>`.
+ *
+ * Like the bot's Import, each kind replaces only its own kind, and only when the text has
+ * rows of it: an old export with hyperlane rows alone leaves bridges and portals as they
+ * are. Lanes go in first, so the portal check sees the new lanes.
+ *
+ * @returns {{lanes: number, bridges: number, portals: number, skipped: string[]}}
  */
 export function importMap(editor, dataText) {
-  const entries = dataText.trim().split(/\s+/);
-  entries.forEach(entry => {
-    const [label, hexStr] = entry.split(',', 2).map(s => s.trim());
-    if (!label || !hexStr || !/^[0-9a-fA-F]{1,9}$/.test(hexStr)) return;
+  const lanes = [], bridges = [], portals = [], skipped = [], ignoredByBot = [];
+  for (const entry of String(dataText || '').trim().split(/\s+/).filter(Boolean)) {
+    const prefix = /^(bridge|portal):/i.exec(entry)?.[1]?.toLowerCase() || null;
+    const body = prefix ? entry.slice(prefix.length + 1) : entry;
+    const parts = body.split(',');
+    if (parts.length !== 2) { skipped.push(`${entry}: not \`position,value\``); continue; }
+    const [label, value] = parts.map(s => s.trim());
     const hex = editor.hexes[label];
-    if (!hex || !hex.center) return;
-    editor.deleteAllSegments(label);
-    hex.matrix = hexToMatrix(hexStr);
-    drawMatrixLinks(editor, label, hex.matrix);
-  });
+    if (!hex || !hex.center) { skipped.push(`${label}: no such position on this map`); continue; }
+    if (prefix === 'portal') {
+      const { slots, problem } = parseAnyPortals(value);
+      if (problem) skipped.push(`portals ${label}: ${problem}`);
+      else portals.push([label, slots]);
+      continue;
+    }
+    if (!/^[0-9a-fA-F]{1,9}$/.test(value)) { skipped.push(`${label}: \`${value}\` is not a 9-hex matrix`); continue; }
+    if (prefix === 'bridge') {
+      const bridge = hexToMatrix(value);
+      const problem = bridgeProblem(bridge);
+      if (problem) skipped.push(`bridge ${label}: ${problem}`);
+      else bridges.push([label, bridge]);
+    } else {
+      lanes.push([label, hexToMatrix(value)]);
+    }
+  }
+
+  editor.beginUndoGroup?.();
+  try {
+    const touched = new Set();
+    const save = (label) => { if (!touched.has(label)) { touched.add(label); editor.saveState?.(label); } };
+    for (const [label, matrix] of lanes) {
+      const hex = editor.hexes[label];
+      save(label);
+      editor.deleteAllSegments(label);
+      // In place: other code aliases hex.links to this array.
+      if (!Array.isArray(hex.matrix)) hex.matrix = Array.from({ length: 6 }, () => Array(6).fill(0));
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) hex.matrix[i][j] = matrix[i][j];
+      drawMatrixLinks(editor, label, hex.matrix);
+    }
+    if (bridges.length) {
+      for (const [label, hex] of Object.entries(editor.hexes)) {
+        if (hex.bridge) { save(label); hex.bridge = null; drawMatrixLinks(editor, label, hex.matrix); }
+      }
+      for (const [label, bridge] of bridges) {
+        save(label);
+        editor.hexes[label].bridge = normalizedBridge(bridge);
+        drawMatrixLinks(editor, label, editor.hexes[label].matrix);
+      }
+    }
+    if (portals.length) {
+      for (const [label, hex] of Object.entries(editor.hexes)) {
+        if (hex.portals) { save(label); hex.portals = null; drawMatrixLinks(editor, label, hex.matrix); }
+      }
+      for (const [label, slots] of portals) {
+        const hex = editor.hexes[label];
+        if (!canHoldPortals(hex.matrix)) ignoredByBot.push(label);
+        save(label);
+        hex.portals = slots;
+        drawMatrixLinks(editor, label, hex.matrix);
+      }
+    }
+  } finally {
+    editor.commitUndoGroup?.();
+  }
+
+  if (typeof document !== 'undefined') {
+    const kept = [
+      bridges.length ? null : 'bridges', portals.length ? null : 'portals'
+    ].filter(Boolean);
+    if (lanes.length && kept.length) {
+      showToast(`Hyperlanes imported; ${kept.join(' and ')} left as they were (the text had none).`, 'info', 6000);
+    }
+    if (skipped.length) showToast(`Skipped: ${skipped.join('; ')}`, 'warning', 10000);
+    if (ignoredByBot.length) {
+      showToast(`Portals kept on ${ignoredByBot.join(', ')}, but that hyperlane isn't a roundabout, so the bot ignores them (shown in red).`, 'warning', 10000);
+    }
+  }
+  return { lanes: lanes.length, bridges: bridges.length, portals: portals.length, skipped, ignoredByBot };
 }
 
 /**
@@ -439,8 +521,12 @@ export function importFullState(editor, jsonText, { confirm = true } = {}) {
         (!h.wh && !h.wormholes) &&
         (!h.ln && !h.links) &&
         !h.ca && !h.customAdjacents && !h.ao && !h.adjacencyOverrides && !h.ba && !h.borderAnomalies &&
-        !h.vt && !h.st && !h.pt && !h.sl && !h.prl && !h.ms;
+        !h.vt && !h.st && !h.pt && !h.sl && !h.prl && !h.ms && !h.br && !h.po;
       if (noContent) return;
+
+      // Bridges and portals first: drawing the lanes below draws them too.
+      hex.bridge = normalizedBridge(h.br);
+      hex.portals = normalizedPortals(h.po);
 
       // Clean overlays/effects/wormholes
       hex.overlays?.forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
@@ -478,6 +564,9 @@ export function importFullState(editor, jsonText, { confirm = true } = {}) {
         } else if (editor.hyperlaneMatrices && info.id && editor.hyperlaneMatrices[info.id.toLowerCase()]) {
           const matrix = editor.hyperlaneMatrices[info.id.toLowerCase()];
           hex.matrix = matrix.map(row => [...row]); // deep copy
+          drawMatrixLinks(editor, id, hex.matrix);
+        } else if (hex.portals) {
+          // An `hl` with portals and no lanes (an interchange) has nothing above to draw it.
           drawMatrixLinks(editor, id, hex.matrix);
         }
         // Do NOT assign baseType, overlays, planets, etc
@@ -810,6 +899,7 @@ export async function importMapInfo(editor, jsonData) {
     const { tokenByImage: tokenImagePathMap } = wormholeIndex;
     // Tiles whose customHyperlaneString is not a matrix the bot would accept.
     const invalidLanes = [];
+    const invalidBridgesOrPortals = [];
 
     // Load border anomaly alias map for resolving anomaly names to IDs
     const borderAnomalyAliasMap = await getBorderAnomalyAliasMap();
@@ -989,6 +1079,24 @@ export async function importMapInfo(editor, jsonData) {
         if (!Array.isArray(hex.matrix[i])) hex.matrix[i] = Array(6).fill(0);
         for (let j = 0; j < 6; j++) hex.matrix[i][j] = lanes ? lanes[i][j] : 0;
       }
+      // Bridges (typed matrix on a system) and portals (on an `hl`), read as the bot reads
+      // them. One the bot would refuse is skipped and listed, as the bot's import does.
+      hex.bridge = null;
+      if (hexData.bridgeLanes) {
+        const { bridge, problem } = bridgeFromLanesString(hexData.bridgeLanes);
+        if (problem) invalidBridgesOrPortals.push(`${position} bridge: ${problem}`);
+        else hex.bridge = bridge;
+      }
+      hex.portals = null;
+      if (hexData.portals) {
+        const { portals, problem } = portalsFromString(hexData.portals);
+        if (problem) invalidBridgesOrPortals.push(`${position} portals: ${problem}`);
+        else if (String(tileID).toLowerCase() !== CUSTOM_HYPERLANE_TILE) invalidBridgesOrPortals.push(`${position} portals: not a custom hyperlane (hl)`);
+        else {
+          if (!canHoldPortals(hex.matrix)) invalidBridgesOrPortals.push(`${position} portals: not a roundabout (kept, but the bot ignores them)`);
+          hex.portals = portals;
+        }
+      }
       drawMatrixLinks(editor, position, hex.matrix);
 
       // Import border anomalies
@@ -1076,7 +1184,8 @@ export async function importMapInfo(editor, jsonData) {
       // Determine and set sector type based on imported data
       const hasHyperlanes = hex.matrix && hex.matrix.flat().some(x => x === 1);
 
-      if (hasHyperlanes) {
+      if (hasHyperlanes || hex.portals?.length) {
+        // (An `hl` with portals and no lanes is a portal interchange — a hyperlane too.)
         // Hyperlane tile - don't set baseType, let it be handled by the system
         continue;
       } else if (tileID === '0g') {
@@ -1125,6 +1234,9 @@ export async function importMapInfo(editor, jsonData) {
     warnUnresolvedTileIds(editor, unresolvedTileIds);
     if (invalidLanes.length) {
       showToast(`Hyperlane data that is not a 6×6 matrix of 0, 1 and 2 was skipped on: ${invalidLanes.join(', ')}`, 'warning', 8000);
+    }
+    if (invalidBridgesOrPortals.length) {
+      showToast(`Bridges / portals the bot would refuse: ${invalidBridgesOrPortals.join('; ')}`, 'warning', 10000);
     }
 
     // Set all remaining hexes without data to void

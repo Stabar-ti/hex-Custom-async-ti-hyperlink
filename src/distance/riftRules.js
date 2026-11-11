@@ -18,7 +18,7 @@ import { dbg } from './debug.js';
 import { oppositeSide } from '../utils/hexGrid.js';
 import { collectNeighbors } from './neighborProviders.js';
 import { isBlocked, isPassable, isHyperlaneConduit, hasAnomaly } from './movementRules.js';
-import { expandHyperlaneEndpoints } from './hyperlaneTraversal.js';
+import { bridgeEntrySide, expandHyperlaneEndpoints } from './hyperlaneTraversal.js';
 
 /**
  * Give `label` and every rift connected to it the same distance.
@@ -39,6 +39,9 @@ export function floodRiftCluster(ctx, state, label, dist, nextLayer, floodedRift
   floodedRifts.add(label);
 
   for (const { label: nLabel, hex: neighbor, dirIdx } of collectNeighbors(ctx, hex, label)) {
+    // Across a bridge lane side the move runs along the bridge, never into the system
+    // (expandFromFloodedRifts takes that path).
+    if (bridgeEntrySide(ctx, nLabel, dirIdx) != null) continue;
     if (hasAnomaly(neighbor, 'rift') && !visited.has(nLabel)) {
       const edge = { dirIdx, isSource: false, fromLabel: label, toLabel: nLabel };
       if (isBlocked(ctx, hex, neighbor, edge)) continue;
@@ -63,11 +66,24 @@ export function expandFromFloodedRifts(ctx, state, dist, nextLayer, floodedRifts
     const riftHex = editor.hexes[riftLabel];
 
     for (const { label: outLabel, hex: outNeighbor, dirIdx } of collectNeighbors(ctx, riftHex, riftLabel)) {
-      if (visited.has(outLabel)) continue;
+      const bridgeEntry = bridgeEntrySide(ctx, outLabel, dirIdx);
+      if (visited.has(outLabel) && bridgeEntry == null) continue;
 
       const edge = { dirIdx, isSource: false, fromLabel: riftLabel, toLabel: outLabel };
       if (isBlocked(ctx, riftHex, outNeighbor, edge)) {
         dbg(` [Blocked from Rift] ${riftLabel} to ${outLabel}`);
+        continue;
+      }
+
+      if (bridgeEntry != null) {
+        dbg(` [RIFT Bridge] through ${outLabel} (entry ${bridgeEntry})`);
+        expandHyperlaneEndpoints(ctx, state, {
+          entryLabel: outLabel,
+          entryDir: bridgeEntry,
+          dist,
+          nextLayer,
+          onRift: dest => floodRiftCluster(ctx, state, dest, dist, nextLayer, floodedRifts),
+        });
         continue;
       }
 
@@ -120,6 +136,7 @@ export function riftOneStepOut(ctx, state, effectiveMaxDist) {
 
     for (const { label: nLabel, hex: neighbor, dirIdx } of collectNeighbors(ctx, current, label)) {
       if (visited.has(nLabel)) continue;
+      if (bridgeEntrySide(ctx, nLabel, dirIdx) != null) continue;   // along the bridge, not into it
       const edge = { dirIdx, isSource: false, fromLabel: label, toLabel: nLabel };
       if (isBlocked(ctx, current, neighbor, edge)) continue;
       if (isPassable(neighbor, opts)) {

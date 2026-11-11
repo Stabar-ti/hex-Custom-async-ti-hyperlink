@@ -1449,6 +1449,24 @@ body {
 .ask-text__error { font-size: 11px; color: var(--color-warning); }
 .ask-text__error:empty { display: none; }
 
+/* Bridge / Portals dialogs (bridgePortalDialogs.js) */
+.bp-dialog { font-size: 12px; }
+.bp-body { display: flex; gap: 10px; align-items: flex-start; }
+.bp-preview-box { flex: 0 0 auto; }
+.bp-preview { display: block; }
+.bp-preview-hex { fill: var(--surface-3); stroke: var(--surface-5); stroke-width: 1; }
+.bp-preview-side { font-size: 8px; fill: var(--label-on-surface); pointer-events: none; }
+.bp-rows { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-width: 0; }
+.bp-row { display: flex; gap: 4px; align-items: center; }
+.bp-select { padding: 2px 4px; font-size: 12px; }
+.bp-slot { width: 62px; flex: 0 0 auto; color: var(--label-on-surface); }
+.bp-swatch { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; border: 1px solid var(--surface-5); }
+.bp-text { width: 100%; box-sizing: border-box; padding: 5px 8px; font-family: ui-monospace, monospace; }
+.bp-label { font-size: 11px; color: var(--label-on-surface); }
+.bp-muted { font-size: 11px; color: var(--label-on-surface); }
+.bp-problem, .bp-warning { font-size: 11px; color: var(--color-warning); }
+.bp-problem:empty, .bp-warning:empty, .bp-muted:empty { display: none; }
+
 /* ── Galaxies (galaxyPanel.js) ─────────────────────────────────────────────── */
 
 .map-size-menu .ms-wide {

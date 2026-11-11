@@ -19,6 +19,8 @@ import {
 } from '../features/tileClipboard.js';
 import { copySelectionToClipboard, beginPaste } from '../features/clipboardShortcuts.js';
 import { swapHexes } from '../features/tileSwap.js';
+import { showToast } from './uiToast.js';
+import { BRIDGE_PICK_MODE, PORTAL_PICK_MODE, isBridgePortalPickMode } from './bridgePortalDialogs.js';
 import {
   toggleDistanceTool, isDistanceToolArmed, DISTANCE_TOOL_CHANGED,
 } from '../features/distanceTool.js';
@@ -798,6 +800,45 @@ function finishSectorControlsContent(editor, container) {
   oneWayBtn.classList.toggle('active', editor.mode === 'hyperlane' && isHyperlaneOneWay());
   container.appendChild(hyperlanesBtn);
   container.appendChild(oneWayBtn);
+
+  // Bridges (lanes through a system) and portals (lettered gates on a roundabout): armed,
+  // a click on a tile opens its editor. The same dialogs are in the tile menu, Hyperlane ▸.
+  const pickTools = [
+    { mode: BRIDGE_PICK_MODE, btn: railButton({
+      id: 'toolBridges', className: 'ui-rail-btn--sub', icon: '⇶', text: 'Bridges',
+      title: 'Click a system to edit its bridge: hyperlanes that run through it along the rim',
+    }), hint: 'Click a system to edit its bridge.' },
+    { mode: PORTAL_PICK_MODE, btn: railButton({
+      id: 'toolPortals', className: 'ui-rail-btn--sub', icon: '◉', text: 'Portals',
+      title: 'Click a roundabout hyperlane (or an empty tile) to edit its lettered portals',
+    }), hint: 'Click a roundabout hyperlane, or an empty tile for an interchange, to edit its portals.' },
+  ];
+  for (const { mode, btn, hint } of pickTools) {
+    btn.addEventListener('click', () => {
+      // Lit AND still armed means this press turns it off; lit but stale re-arms it.
+      const turningOff = btn.classList.contains('active') && editor.mode === mode;
+      container.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));
+      deactivateModes();
+      if (turningOff) { editor.setMode('none'); return; }
+      editor.setMode(mode);
+      btn.classList.add('active');
+      showToast(hint, 'info', 3000);
+    });
+    container.appendChild(btn);
+  }
+  // Keep the two lit only while their mode is: any other tool takes the map through setMode.
+  if (!editor._bridgePortalPickWrapped && typeof editor.setMode === 'function') {
+    const original = editor.setMode.bind(editor);
+    editor.setMode = (mode, ...rest) => {
+      const result = original(mode, ...rest);
+      for (const id of ['toolBridges', 'toolPortals']) {
+        const b = document.getElementById(id);
+        if (b && b.classList.contains('active') && !isBridgePortalPickMode(mode)) b.classList.remove('active');
+      }
+      return result;
+    };
+    editor._bridgePortalPickWrapped = true;
+  }
 
   // ───────────── Wormholes Modal Launcher ─────────────
   const wormholesBtn = railButton({
