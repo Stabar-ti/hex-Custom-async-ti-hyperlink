@@ -185,6 +185,24 @@ function tearBetween(hexes, aIdx, bIdx) {
         { A: 0, B: 1 });
 }
 {
+    // Void Tether blocks both ways, like Spatial Tear; bot saves use the snake_case id.
+    const hexes = line(5);
+    hexes[1].borderAnomalies = { 2: ba('void_tether') };
+    hexes[2].borderAnomalies = { 5: ba('VOIDTETHER') };
+    expectDistances('§2 void tether blocks forward', makeEditor(hexes), 'A', 4, { A: 0, B: 1 });
+    expectDistances('§2 void tether blocks backward too', makeEditor(hexes), 'E', 4,
+        { E: 0, D: 1, C: 2 });
+}
+{
+    // Written on one hex only, it still blocks entry into that hex and exit from it.
+    const hexes = line(4);
+    hexes[1].borderAnomalies = { 2: ba('VOIDTETHER') };
+    expectDistances('§2 single-sided void tether blocks leaving through it',
+        makeEditor(hexes), 'A', 3, { A: 0, B: 1 });
+    expectDistances('§2 single-sided void tether blocks entering through it',
+        makeEditor(hexes), 'D', 3, { D: 0, C: 1 });
+}
+{
     // Decorative border types must not affect pathing.
     const hexes = line(4);
     hexes[1].borderAnomalies = { 2: ba('ARROW') };

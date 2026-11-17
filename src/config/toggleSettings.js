@@ -21,7 +21,7 @@ export const borderAnomalySettings = {
     'NEBULA': true,
     'MINEFIELD': true,
     'SPATIALTEAR': true,
-    'VOIDTETHER': false,
+    'VOIDTETHER': true,
     'COREBORDER': false,
     'RIMBORDER': false,
     'YELLOW': true,

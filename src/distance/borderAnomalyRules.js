@@ -2,11 +2,12 @@
 /**
  * Border anomaly semantics for pathfinding.
  *
- * Only two of the border types in public/data/border.json are "scripted" — they
+ * Only three of the border types in public/data/border.json are "scripted" — they
  * actually affect movement. The rest are decorative and must never block:
  *
  *   SPATIALTEAR   nothing crosses this border, either way.
  *                 The UI writes it on BOTH hexes (borderAnomaliesUI, double mode).
+ *   VOIDTETHER    same as Spatial Tear: blocks the edge both ways, both hexes.
  *   GRAVITYWAVE   one-way: ships cannot ENTER the hex it is written on through
  *                 that edge, but may leave through it.
  *                 The UI writes it on the primary hex ONLY (single mode).
@@ -20,7 +21,7 @@ export { normalizeAnomalyId };
  * The border types that actually affect movement, and their default direction.
  *
  * WHICH types block is a code fact — each one needs an implementation, and the
- * same two IDs are what borderAnomaliesUI marks "[SCRIPTED - Has game
+ * same IDs are what borderAnomaliesUI marks "[SCRIPTED - Has game
  * mechanics]". Everything else in border.json is decoration and must stay
  * inert no matter what the registry says about it.
  *
@@ -35,6 +36,7 @@ export { normalizeAnomalyId };
 export const DEFAULT_ANOMALY_TABLE = Object.freeze({
   SPATIALTEAR: Object.freeze({ bidirectional: true }),
   GRAVITYWAVE: Object.freeze({ bidirectional: false }),
+  VOIDTETHER: Object.freeze({ bidirectional: true }),
 });
 
 /** The anomaly ID stored on `hex`'s given side, or '' if there is none. */
